@@ -1,0 +1,31 @@
+[package]
+name = "dash-mpd"
+version = "0.1.0"
+authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
+description = "Decode and fetch an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
+readme = "README.md"
+repository = "https://github.com/emarsden/dash-mpd-rs"
+license = "MIT"
+keywords = ["video", "streaming", "MPD", "DASH", "MPEG"]
+publish = false
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+quick-xml = { version = "0.22", features = ["serialize"] }
+ac-ffmpeg = "0.17"
+url = "2"
+backoff = "0.3"
+iso8601 = "0.4"
+regex = "1"
+anyhow = "1"
+tempfile = "3"
+clap = "2"
+log = "0.4"
+env_logger = "0.9"
+
+[dev-dependencies]
+ffprobe = "0.3"
+sha2 = "0.9"
+hex-literal = "0.3"
