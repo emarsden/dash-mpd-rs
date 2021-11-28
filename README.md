@@ -87,7 +87,7 @@ fn main() {
         eprintln!("Error downloading DASH MPD file: {:?}", e);
     }
 }
-̀``
+```
 
 
 
@@ -106,6 +106,6 @@ dash-mpd = "0.1"
 
 ## License
 
-This project is licensed under the MIT license. For more information see the `LICENSE-MIT` file.
+This project is licensed under the MIT license. For more information, see the `LICENSE-MIT` file.
 
 

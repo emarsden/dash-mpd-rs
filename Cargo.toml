@@ -7,7 +7,8 @@ readme = "README.md"
 repository = "https://github.com/emarsden/dash-mpd-rs"
 license = "MIT"
 keywords = ["video", "streaming", "MPD", "DASH", "MPEG"]
-publish = false
+categories = ["multimedia", "multimedia::video", "parser-implementations"]
+publish = true
 edition = "2021"
 
 [dependencies]
