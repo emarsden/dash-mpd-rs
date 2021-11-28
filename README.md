@@ -95,12 +95,10 @@ fn main() {
 
 Add to your `Cargo.toml` file:
 
-̀``toml
+```toml
 [dependencies]
 dash-mpd = "0.1"
 ```
-
-
 
 
 
