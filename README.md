@@ -4,9 +4,7 @@ A Rust library for parsing and downloading media content from a DASH MPD file, a
 services such as on-demand replay of TV content and video streaming services like YouTube. 
 
 [Documentation](https://docs.rs/dash-mpd/)
-[![Crates.io](https://img.shields.io/crates/v/mp4)](https://crates.io/crates/dash-mpd)
-[![Crates.io](https://img.shields.io/crates/d/mp4)](https://crates.io/crates/dash-mpd)
-
+[![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
 
 [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
 streaming over HTTP), also called MPEG-DASH, is a technology used for media streaming over the web,

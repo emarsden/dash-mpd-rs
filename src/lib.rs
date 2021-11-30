@@ -34,7 +34,7 @@
 
 // TODO: better retry handling (distinguish HTTP 404 from 301)
 // TODO: allow user to specify preference for selecting representation (highest quality, lowest quality, etc.)
-// TODO: handle dynamic MPD as pert https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
+// TODO: handle dynamic MPD as per https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
 // TODO: handle indexRange attribute, as per https://dash.akamaized.net/dash264/TestCasesMCA/dolby/2/1/ChID_voices_71_768_ddp.mpd
 
 
@@ -59,7 +59,7 @@ use regex::Regex;
 use backoff::{retry, retry_notify, ExponentialBackoff, Error};
 use crate::libav::mux_audio_video_libav;
 
-/// A blocking `Client` from the  ̀reqwest` crate, that we use to download content over HTTP.
+/// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::blocking::Client;
 
 
@@ -173,7 +173,7 @@ pub struct S {
     pub r: Option<i64>,
 }
 
-/// Contains a sequence of S elements, each of which describes a sequence of contiguous segments of
+/// Contains a sequence of `S` elements, each of which describes a sequence of contiguous segments of
 /// identical duration.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SegmentTimeline {
@@ -181,7 +181,7 @@ pub struct SegmentTimeline {
     pub segments: Vec<S>,
 }
 
-/// Allows template-based SegmentURL construction. Specifies various substitution rules using
+/// Allows template-based `SegmentURL` construction. Specifies various substitution rules using
 /// dynamic values such as `$Time$` and `$Number$` that map to a sequence of Segments.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SegmentTemplate {
@@ -381,7 +381,7 @@ pub struct AdaptationSet {
     pub BaseURL: Option<BaseURL>,
     pub group: Option<i64>,
     pub contentType: Option<String>,
-    /// Language in RFC 5646 format
+    /// Content language, in RFC 5646 format
     pub lang: Option<String>,
     pub par: Option<String>,
     pub segmentAlignment: Option<bool>,
@@ -783,6 +783,8 @@ pub fn fetch_mpd(client: &HttpClient,
                     if url.scheme() == "data" {
                         panic!("data URLs currently unsupported");
                     } else {
+                        // We could download these segments in parallel using reqwest in async mode,
+                        // though that might upset some servers.
                         let backoff = ExponentialBackoff::default();
                         let fetch = || {
                             client.get(url.clone())
@@ -824,7 +826,7 @@ pub fn fetch_mpd(client: &HttpClient,
             }
         }
         if let Ok(video_repr) = video.representations.iter().min_by_key(|x| x.width)
-            .context("Finding video representation with smallest bandwith")
+            .context("Finding video representation with lowest bandwith")
         {
             if let Some(bu) = &video_repr.BaseURL {
                 if is_absolute_url(&bu.base) {
