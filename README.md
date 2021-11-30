@@ -23,8 +23,16 @@ interoperate with existing practice.
 The library also provides experimental support for downloading content (audio or video) described by
 an MPD manifest. This involves selecting the alternative with the most appropriate encoding (in
 terms of bitrate, codec, etc.), fetching segments of the content using HTTP or HTTPS requests (this
-functionality depends on the `reqwest` crate) and muxing audio and video segments together (using
-ffmpeg via the `ac_ffmpeg` crate).
+functionality depends on the `reqwest` crate) and muxing audio and video segments together.
+
+If the library feature `libav` is enabled, muxing support (combining audio and video streams, which
+are often separated out in DASH streams) is provided by ffmpeg’s libav library, via the `ac_ffmpeg`
+crate. Otherwise, muxing is implemented by calling `ffmpeg` as a subprocess. The ffmpeg commandline
+application implements a number of checks and workarounds to fix invalid input streams that tend to
+exist in the wild. Some of these workarounds, but not all, are implemented here when using libav as
+a library, so download support tends to be more robust with the default configuration (using ffmpeg
+as a subprocess).
+
 
 This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
 Media Source Extension (MSE). It currently does not provide download support for dynamic MPD

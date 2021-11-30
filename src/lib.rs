@@ -41,8 +41,13 @@
 
 #![allow(non_snake_case)]
 
+/// If library feature `libav` is enabled, muxing support (combining audio and video streams, which
+/// are often separated out in DASH streams) is provided by ffmpeg's libav library, via the
+/// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `ffmpeg` as a subprocess.
+#[cfg(feature = "libav")]
 mod libav;
-
+#[cfg(not(feature = "libav"))]
+mod ffmpeg;
 
 use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
@@ -57,7 +62,11 @@ use tempfile::NamedTempFile;
 use url::Url;
 use regex::Regex;
 use backoff::{retry, retry_notify, ExponentialBackoff, Error};
-use crate::libav::mux_audio_video_libav;
+#[cfg(feature = "libav")]
+use crate::libav::mux_audio_video;
+#[cfg(not(feature = "libav"))]
+use crate::ffmpeg::mux_audio_video;
+
 
 /// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::blocking::Client;
@@ -1022,7 +1031,7 @@ pub fn fetch_mpd(client: &HttpClient,
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream. 
     if maybe_audio_adaptation.is_some() && maybe_video_adaptation.is_some() {
-        mux_audio_video_libav(&tmppath_audio, &tmppath_video, path)?;
+        mux_audio_video(&tmppath_audio, &tmppath_video, path)?;
         fs::remove_file(tmppath_audio)?;
         fs::remove_file(tmppath_video)?;
     } else if maybe_audio_adaptation.is_some() {
