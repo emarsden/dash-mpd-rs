@@ -66,7 +66,7 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 }
 
 
-pub fn mux_audio_video_libav(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
+pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| log::info!("ffmpeg: {}", msg));
     let mut video_demuxer = libav_open_input(video_path)
         .expect("failure opening input stream");
