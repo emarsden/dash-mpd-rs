@@ -494,15 +494,27 @@ fn is_absolute_url(s: &str) -> bool {
 /// It contains audio if the `contentType` attribute` is `audio`, or the `mimeType` attribute is
 /// `audio/*`, or if one of its child `Representation` nodes has an audio `contentType` or
 /// `mimeType` attribute.
-pub fn is_audio_adaptation(r: &&AdaptationSet) -> bool {
-    if let Some(ct) = &r.contentType {
+pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
+    if let Some(ct) = &a.contentType {
         if ct == "audio" {
             return true;
         }
     }
-    if let Some(mimetype) = &r.mimeType {
+    if let Some(mimetype) = &a.mimeType {
         if mimetype.starts_with("audio/") {
             return true;
+        }
+    }
+    for r in a.representations.iter() {
+        if let Some(ct) = &r.contentType {
+            if ct == "audio" {
+                return true;
+            }
+        }
+        if let Some(mimetype) = &r.mimeType {
+            if mimetype.starts_with("audio/") {
+                return true;
+            }
         }
     }
     false
