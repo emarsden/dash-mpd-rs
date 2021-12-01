@@ -830,7 +830,10 @@ pub fn fetch_mpd(client: &HttpClient,
                         let backoff = ExponentialBackoff::default();
                         let fetch = || {
                             client.get(url.clone())
-                                .header("Accept", "audio/*")
+                            // Don't use only "audio/*" in Accept header because some web servers
+                            // (eg. media.axprod.net) are misconfigured and reject requests for .m4s
+                            // content
+                                .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
                                 .header("Referer", redirected_url.to_string())
                                 .send()?
                                 .bytes()
@@ -838,6 +841,7 @@ pub fn fetch_mpd(client: &HttpClient,
                         };
                         dash_bytes = retry(backoff, fetch)
                             .context("Fetching DASH audio segment")?;
+                        // eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
                         if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                             log::error!("Unable to write DASH audio data: {:?}", e);
                             return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
