@@ -19,11 +19,14 @@
 //! encoding (in terms of bitrate, codec, etc.), fetching segments of the content using HTTP or
 //! HTTPS requests (this functionality depends on the `reqwest` crate) and muxing audio and video
 //! segments together (using ffmpeg via the `ac_ffmpeg` crate).
+//!
+//!
+//! ## Limitations
 //! 
-//! This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
-//! Media Source Extension (MSE). It currently does not provide download support for dynamic MPD
-//! manifests, that are used for live streaming. It currently only provides support for downloading
-//! audio and video streams, and not subtitles (eg. WebVTT streams).
+//! - This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
+//!   Media Source Extension (MSE)
+//! - Currently no download support for dynamic MPD manifests, that are used for live streaming/OTT TV
+//! - No support for subtitles (eg. WebVTT streams)
 //
 // 
 //
@@ -195,7 +198,7 @@ pub struct SegmentTimeline {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SegmentTemplate {
     pub initialization: Option<String>,
-    pub media: String,
+    pub media: Option<String>,
     pub index: Option<String>,
     pub SegmentTimeline: Option<SegmentTimeline>,
     pub startNumber: Option<u64>,
@@ -708,63 +711,65 @@ pub fn fetch_mpd(client: &HttpClient,
                     let audio_init = resolve_url_template(init, &dict);
                     audio_segment_urls.push(base_url.join(&audio_init)?);
                 }
-                let audio_path = resolve_url_template(&st.media, &dict);
-                if let Some(stl) = &st.SegmentTimeline {
-                    let mut segment_time = 0;
-                    let mut segment_duration;
-                    let mut number = st.startNumber.unwrap_or(0);
-                    for s in &stl.segments {
-                        let time_str = format!("{}", segment_time);
-                        let number_str = format!("{}", number);
-                        // the URLTemplate may be based on $Time$, or on $Number$
-                        let dict = HashMap::from([("Time", &time_str),
-                                                  ("Number", &number_str)]);
-                        let path = resolve_url_template(&audio_path, &dict);
-                        audio_segment_urls.push(base_url.join(&path)?);
-                        number += 1;
-                        if let Some(t) = s.t {
-                            segment_time = t;
-                        }
-                        segment_duration = s.d;
-                        if let Some(r) = s.r {
-                            for _ in 0..r {
-                                segment_time += segment_duration;
-                                let time_str = format!("{}", segment_time);
-                                let number_str = format!("{}", number);
-                                let dict = HashMap::from([("Time", &time_str),
-                                                          ("Number", &number_str)]);
-                                let path = resolve_url_template(&audio_path, &dict);
-                                audio_segment_urls.push(base_url.join(&path)?);
+                if let Some(media) = &st.media {
+                    let audio_path = resolve_url_template(media, &dict);
+                    if let Some(stl) = &st.SegmentTimeline {
+                        let mut segment_time = 0;
+                        let mut segment_duration;
+                        let mut number = st.startNumber.unwrap_or(0);
+                        for s in &stl.segments {
+                            let time_str = format!("{}", segment_time);
+                            let number_str = format!("{}", number);
+                            // the URLTemplate may be based on $Time$, or on $Number$
+                            let dict = HashMap::from([("Time", &time_str),
+                                                      ("Number", &number_str)]);
+                            let path = resolve_url_template(&audio_path, &dict);
+                            audio_segment_urls.push(base_url.join(&path)?);
+                            number += 1;
+                            if let Some(t) = s.t {
+                                segment_time = t;
                             }
+                            segment_duration = s.d;
+                            if let Some(r) = s.r {
+                                for _ in 0..r {
+                                    segment_time += segment_duration;
+                                    let time_str = format!("{}", segment_time);
+                                    let number_str = format!("{}", number);
+                                    let dict = HashMap::from([("Time", &time_str),
+                                                              ("Number", &number_str)]);
+                                    let path = resolve_url_template(&audio_path, &dict);
+                                    audio_segment_urls.push(base_url.join(&path)?);
+                                }
+                            }
+                            segment_time += segment_duration;
                         }
-                        segment_time += segment_duration;
-                    }
-                } else {
-                    // Segments are named using $Number$.
-                    // The period_duration is specified either by the <Period> duration attribute, or by the
-                    // mediaPresentationDuration of the top-level MPD node. 
-                    let mut period_duration: f64 = 0.0;
-                    if let Some(d) = mpd.mediaPresentationDuration {
-                        period_duration = d.as_secs_f64();
-                    }
-                    if let Some(d) = &period.duration {
-                        period_duration = d.as_secs_f64();
-                    }
-                    // the SegmentTemplate duration is encoded as an u64
-                    let timescale = st.timescale.unwrap_or(1);
-                    let segment_duration: f64;
-                    if let Some(std) = st.duration {
-                        segment_duration = std as f64 / timescale as f64;
                     } else {
-                        return Err(anyhow!("Missing SegmentTemplate duration attribute"));
-                    }
-                    let total_number: u64 = (period_duration / segment_duration).ceil() as u64;
-                    let mut number = st.startNumber.unwrap_or(0);
-                    for _ in 1..total_number {
-                        let path = resolve_url_template(&audio_path, &HashMap::from([("Number", &format!("{}", number))]));
-                        let segment_uri = base_url.join(&path)?;
-                        audio_segment_urls.push(segment_uri);
-                        number += 1;
+                        // Segments are named using $Number$.
+                        // The period_duration is specified either by the <Period> duration attribute, or by the
+                        // mediaPresentationDuration of the top-level MPD node. 
+                        let mut period_duration: f64 = 0.0;
+                        if let Some(d) = mpd.mediaPresentationDuration {
+                            period_duration = d.as_secs_f64();
+                        }
+                        if let Some(d) = &period.duration {
+                            period_duration = d.as_secs_f64();
+                        }
+                        // the SegmentTemplate duration is encoded as an u64
+                        let timescale = st.timescale.unwrap_or(1);
+                        let segment_duration: f64;
+                        if let Some(std) = st.duration {
+                            segment_duration = std as f64 / timescale as f64;
+                        } else {
+                            return Err(anyhow!("Missing SegmentTemplate duration attribute"));
+                        }
+                        let total_number: u64 = (period_duration / segment_duration).ceil() as u64;
+                        let mut number = st.startNumber.unwrap_or(0);
+                        for _ in 1..total_number {
+                            let path = resolve_url_template(&audio_path, &HashMap::from([("Number", &format!("{}", number))]));
+                            let segment_uri = base_url.join(&path)?;
+                            audio_segment_urls.push(segment_uri);
+                            number += 1;
+                        }
                     }
                 }
             } else {
@@ -898,66 +903,68 @@ pub fn fetch_mpd(client: &HttpClient,
                 //           <S t="0" d="50" r="1933" />
                 //           <S d="49" />
                 //         </SegmentTimeline>
-                let media_path = resolve_url_template(&st.media, &HashMap::from([("RepresentationID", &video_repr.id)]));
-                if let Some(stl) = &st.SegmentTimeline {
-                    let mut segment_time = 0;
-                    let mut segment_duration;
-                    let mut number = st.startNumber.unwrap_or(0);
-                    for s in &stl.segments {
-                        let time_str = format!("{}", segment_time);
-                        let number_str = format!("{}", number);
-                        // the URLTemplate may be based on $Time$, or on $Number$
-                        let dict = HashMap::from([("Time", &time_str),
-                                                  ("Number", &number_str)]);
-                        let path = resolve_url_template(&media_path, &dict);
-                        let segment_uri = base_url.join(&path)?;
-                        video_segment_urls.push(segment_uri);
-                        number += 1;
-                        if let Some(t) = s.t {
-                            segment_time = t;
-                        }
-                        segment_duration = s.d;
-                        if let Some(r) = s.r {
-                            for _ in 0..r {
-                                segment_time += segment_duration;
-                                let time_str = format!("{}", segment_time);
-                                let number_str = format!("{}", number);
-                                let dict = HashMap::from([("Time", &time_str),
-                                                          ("Number", &number_str)]);
-                                let path = resolve_url_template(&media_path, &dict);
-                                video_segment_urls.push(base_url.join(&path)?);
-                                number += 1;
+                if let Some(media) = &st.media {
+                    let media_path = resolve_url_template(media, &HashMap::from([("RepresentationID", &video_repr.id)]));
+                    if let Some(stl) = &st.SegmentTimeline {
+                        let mut segment_time = 0;
+                        let mut segment_duration;
+                        let mut number = st.startNumber.unwrap_or(0);
+                        for s in &stl.segments {
+                            let time_str = format!("{}", segment_time);
+                            let number_str = format!("{}", number);
+                            // the URLTemplate may be based on $Time$, or on $Number$
+                            let dict = HashMap::from([("Time", &time_str),
+                                                      ("Number", &number_str)]);
+                            let path = resolve_url_template(&media_path, &dict);
+                            let segment_uri = base_url.join(&path)?;
+                            video_segment_urls.push(segment_uri);
+                            number += 1;
+                            if let Some(t) = s.t {
+                                segment_time = t;
                             }
+                            segment_duration = s.d;
+                            if let Some(r) = s.r {
+                                for _ in 0..r {
+                                    segment_time += segment_duration;
+                                    let time_str = format!("{}", segment_time);
+                                    let number_str = format!("{}", number);
+                                    let dict = HashMap::from([("Time", &time_str),
+                                                              ("Number", &number_str)]);
+                                    let path = resolve_url_template(&media_path, &dict);
+                                    video_segment_urls.push(base_url.join(&path)?);
+                                    number += 1;
+                                }
+                            }
+                            segment_time += segment_duration;
                         }
-                        segment_time += segment_duration;
-                    }
-                } else {
-                    // This is the case when we don't have a SegmentTimeline, see for example the BBC test case
-                    // http://rdmedia.bbc.co.uk/dash/ondemand/bbb/2/client_manifest-common_init.mpd
-                    let mut period_duration: f64 = 0.0;
-                    if let Some(d) = mpd.mediaPresentationDuration {
-                        period_duration = d.as_secs_f64();
-                    }
-                    if let Some(d) = &period.duration {
-                        period_duration = d.as_secs_f64();
-                    }
-                    // FIXME the duration of a period may also be determined implicitly by the start time
-                    // of the following period (see section 8 Period timing in
-                    // https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html)
-                    let timescale = st.timescale.unwrap_or(1);
-                    let segment_duration: f64;
-                    if let Some(std) = st.duration {
-                        segment_duration = std as f64 / timescale as f64;
                     } else {
-                        return Err(anyhow!("Missing SegmentTemplate duration attribute"));
-                    }
-                    let total_number: u64 = (period_duration / segment_duration).ceil() as u64;
-                    let mut number = st.startNumber.unwrap_or(0);
-                    for _ in 1..total_number {
-                        let path = resolve_url_template(&media_path, &HashMap::from([("Number", &format!("{}", number))]));
-                        let segment_uri = base_url.join(&path)?;
-                        video_segment_urls.push(segment_uri);
-                        number += 1;
+                        // This is the case when we don't have a SegmentTimeline, see for example the BBC test case
+                        // http://rdmedia.bbc.co.uk/dash/ondemand/bbb/2/client_manifest-common_init.mpd
+                        let mut period_duration: f64 = 0.0;
+                        if let Some(d) = mpd.mediaPresentationDuration {
+                            period_duration = d.as_secs_f64();
+                        }
+                        if let Some(d) = &period.duration {
+                            period_duration = d.as_secs_f64();
+                        }
+                        // FIXME the duration of a period may also be determined implicitly by the start time
+                        // of the following period (see section 8 Period timing in
+                        // https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html)
+                        let timescale = st.timescale.unwrap_or(1);
+                        let segment_duration: f64;
+                        if let Some(std) = st.duration {
+                            segment_duration = std as f64 / timescale as f64;
+                        } else {
+                            return Err(anyhow!("Missing SegmentTemplate duration attribute"));
+                        }
+                        let total_number: u64 = (period_duration / segment_duration).ceil() as u64;
+                        let mut number = st.startNumber.unwrap_or(0);
+                        for _ in 1..total_number {
+                            let path = resolve_url_template(&media_path, &HashMap::from([("Number", &format!("{}", number))]));
+                            let segment_uri = base_url.join(&path)?;
+                            video_segment_urls.push(segment_uri);
+                            number += 1;
+                        }
                     }
                 }
             } else {
