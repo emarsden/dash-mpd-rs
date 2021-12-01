@@ -767,24 +767,45 @@ pub fn fetch_mpd(client: &HttpClient,
                         number += 1;
                     }
                 }
-            } else if let Some(sb) = &audio_repr.SegmentBase {
-                // We don't have a SegmentTemplate, but have a SegmentBase
-                if let Some(init) = &sb.initialization {
-                    if let Some(su) = &init.sourceURL {
-                        let init_url;
-                        if is_absolute_url(su) {
-                            init_url = Url::parse(su)?;
+            } else {
+                // We don't have a SegmentTemplate, so are using a Option<SegmentBase> plus perhaps
+                // a SegmentList of SegmentURL
+                if let Some(sb) = audio_repr.SegmentBase.as_ref() {
+                    if let Some(init) = &sb.initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let init_url;
+                            if is_absolute_url(su) {
+                                init_url = Url::parse(su)?;
+                            } else {
+                                init_url = base_url.join(su)?;
+                            }
+                            audio_segment_urls.push(init_url);
                         } else {
-                            init_url = base_url.join(su)?;
+                            // TODO: need to properly handle indexRange attribute
+                            audio_segment_urls.push(base_url.clone());
                         }
-                        // TODO handle range attribute on the Initialization node
-                        audio_segment_urls.push(init_url);
-                    } else {
-                        // TODO handle indexRange attribute on the SegmentBase node
-                        audio_segment_urls.push(base_url);
                     }
                 }
-                
+                if let Some(sl) = &audio_repr.SegmentList {
+                    // look for optional initialization segment
+                    if let Some(init) = &sl.Initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let init_url;
+                            if is_absolute_url(su) {
+                                init_url = Url::parse(su)?;
+                            } else {
+                                init_url = base_url.join(su)?;
+                            }
+                            audio_segment_urls.push(init_url);
+                        }
+                    }
+                    for su in sl.segment_urls.iter() {
+                        if let Some(m) = &su.media {
+                            let segment = base_url.join(m)?;
+                            audio_segment_urls.push(segment);
+                        }
+                    }
+                }
             }
             // Concatenate the audio segments to a file on disk
             let mut tmpfile_audio = File::create(tmppath_audio.clone())
@@ -832,7 +853,7 @@ pub fn fetch_mpd(client: &HttpClient,
                 log::info!("Wrote {}MB to DASH audio stream", metadata.len() / (1024 * 1024));
             }
         }
-    }    
+    }
         
     // Handle the AdaptationSet with contentType="video", or which includes a member representation
     // that has contentType="video" or mimeType="video"
