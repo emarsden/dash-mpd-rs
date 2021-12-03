@@ -4,7 +4,9 @@ A Rust library for parsing and downloading media content from a DASH MPD file, a
 services such as on-demand replay of TV content and video streaming services like YouTube. 
 
 [Documentation](https://docs.rs/dash-mpd/)
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 [![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
+[![dependency status](https://deps.rs/repo/github/emarsden/dash-mpd-rs/status.svg)](https://deps.rs/repo/github/emarsden/dash-mpd-rs)
 
 [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
 streaming over HTTP), also called MPEG-DASH, is a technology used for media streaming over the web,
@@ -34,10 +36,12 @@ a library, so download support tends to be more robust with the default configur
 as a subprocess).
 
 
-This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
-Media Source Extension (MSE). It currently does not provide download support for dynamic MPD
-manifests, that are used for live streaming. It currently only provides support for downloading
-audio and video streams, and not subtitles (eg. WebVTT streams).
+## Limitations
+
+- This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
+  Media Source Extension (MSE)
+- Currently no download support for dynamic MPD manifests, that are used for live streaming/OTT TV
+- No support for subtitles (eg. WebVTT streams)
 
 
 ## Usage
