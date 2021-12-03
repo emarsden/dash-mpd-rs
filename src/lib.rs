@@ -224,7 +224,7 @@ pub struct BaseURL {
     pub base: String,
     /// Elements with the same `@serviceLocation` value are likely to have their URLs resolve to
     /// services at a common network location, for example the same CDN. 
-    serviceLocation: Option<String>,
+    pub serviceLocation: Option<String>,
 }
 
 /// Specifies some common information concerning media segments. 

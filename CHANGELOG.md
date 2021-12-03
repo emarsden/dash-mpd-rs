@@ -7,7 +7,7 @@
   sensitive information such as a password. Likewise, write any MPD.ProgramInformation.{Title,
   Source, Copyright} information from the MPD manifest to attributes user.dublincore.{title, source,
   rights}.
-
+- The `serviceLocation` attribute on `BaseURL` nodes is now public.
 
 ## [0.1.0] - 2021-12-01
 
