@@ -1073,6 +1073,42 @@ pub fn fetch_mpd(client: &HttpClient,
     } else {
         return Err(anyhow!("no audio or video streams found"));
     }
+    // As per https://www.freedesktop.org/wiki/CommonExtendedAttributes/, set extended filesystem
+    // attributes indicating metadata such as the origin URL, title, source and copyright, if
+    // specified in the MPD manifest. This functionality is only active on platforms where the xattr
+    // crate supports extended attributes (currently Linux, MacOS, FreeBSD, and NetBSD); on
+    // unsupported platforms it's a no-op.
+    let origin_url = Url::parse(mpd_url)
+        .expect("Can't parse MPD URL");
+    // Don't record the origin URL if it contains sensitive information such as passwords
+    if origin_url.username().is_empty() && !origin_url.password().is_some() {
+        if xattr::set(&path, "user.xdg.origin.url", mpd_url.as_bytes()).is_err() {
+            log::info!("Failed to set user.xdg.origin.url xattr on output file");
+        }
+    }
+    if let Some(pi) = mpd.ProgramInformation {
+        if let Some(t) = pi.Title {
+            if let Some(tc) = t.content {
+                if xattr::set(&path, "user.dublincore.title", tc.as_bytes()).is_err() {
+                    log::info!("Failed to set user.dublincore.title xattr on output file");
+                }
+            }
+        }
+        if let Some(source) = pi.Source {
+            if let Some(sc) = source.content {
+                if xattr::set(&path, "user.dublincore.source", sc.as_bytes()).is_err() {
+                    log::info!("Failed to set user.dublincore.source xattr on output file");
+                }
+            }
+        }
+        if let Some(copyright) = pi.Copyright {
+            if let Some(cc) = copyright.content {
+                if xattr::set(&path, "user.dublincore.rights", cc.as_bytes()).is_err() {
+                    log::info!("Failed to set user.dublincore.rights xattr on output file");
+                }
+            }
+        }
+    }
     Ok(())
 }
 
