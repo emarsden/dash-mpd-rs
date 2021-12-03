@@ -13,7 +13,7 @@ fn main() {
         .build()
         .expect("Couldn't create reqwest HTTP client");
     let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
-        .header("Accept", "application/dash+xml")
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
         .expect("Requesting MPD content")
         .text()
