@@ -64,7 +64,7 @@ use std::collections::hash_map::Entry;
 use tempfile::NamedTempFile;
 use url::Url;
 use regex::Regex;
-use backoff::{retry, retry_notify, ExponentialBackoff, Error};
+use backoff::{retry, retry_notify, ExponentialBackoff};
 #[cfg(feature = "libav")]
 use crate::libav::mux_audio_video;
 #[cfg(not(feature = "libav"))]
@@ -597,6 +597,29 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, &String>) -> Stri
 }
 
 
+fn reqwest_error_transient_p(e: &reqwest::Error) -> bool {
+    if e.is_timeout() || e.is_connect() {
+        return true;
+    }
+    if let Some(s) = e.status() {
+        if s == reqwest::StatusCode::REQUEST_TIMEOUT ||
+            s == reqwest::StatusCode::TOO_MANY_REQUESTS ||
+            s == reqwest::StatusCode::SERVICE_UNAVAILABLE ||
+            s == reqwest::StatusCode::GATEWAY_TIMEOUT {
+                return true;
+            }
+    }
+    return false;
+}
+
+fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error> {
+    if reqwest_error_transient_p(&e) {
+        backoff::Error::Transient(e)
+    } else {
+        backoff::Error::Permanent(e)
+    }
+}
+
 fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
     eprintln!("Transient error at {:?}: {:?}", dur, err);
 }
@@ -630,7 +653,7 @@ pub fn fetch_mpd(client: &HttpClient,
         client.get(mpd_url)
             .header("Accept", "application/dash+xml")
             .send()
-            .map_err(Error::Transient)
+            .map_err(categorize_reqwest_error)
     };
     let backoff = ExponentialBackoff::default();
     let response = retry(backoff, fetch)
@@ -842,7 +865,7 @@ pub fn fetch_mpd(client: &HttpClient,
                                 .header("Referer", redirected_url.to_string())
                                 .send()?
                                 .bytes()
-                                .map_err(Error::Transient)
+                                .map_err(categorize_reqwest_error)
                         };
                         dash_bytes = retry(backoff, fetch)
                             .context("Fetching DASH audio segment")?;
@@ -1038,7 +1061,7 @@ pub fn fetch_mpd(client: &HttpClient,
                             .header("Referer", redirected_url.to_string())
                             .send()?
                             .bytes()
-                            .map_err(Error::Transient)
+                            .map_err(categorize_reqwest_error)
                     };
                     let dash_bytes = retry_notify(backoff, fetch, notify_transient)
                         .context("Fetching DASH video segment")?;

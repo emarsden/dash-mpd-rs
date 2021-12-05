@@ -8,6 +8,7 @@
   Source, Copyright} information from the MPD manifest to attributes user.dublincore.{title, source,
   rights}.
 - The `serviceLocation` attribute on `BaseURL` nodes is now public.
+- Downloading: improve handling of transient HTTP errors.
 
 ## [0.1.0] - 2021-12-01
 
