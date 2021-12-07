@@ -29,7 +29,7 @@ env_logger = "0.9"
 
 [dev-dependencies]
 ffprobe = "0.3"
-sha2 = "0.9"
+sha2 = "0.10"
 hex-literal = "0.3"
 
 [features]
