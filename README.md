@@ -107,7 +107,7 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.1"
+dash-mpd = "0.2"
 ```
 
 
