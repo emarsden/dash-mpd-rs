@@ -56,11 +56,11 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &str) ->
 
 // First try ffmpeg subprocess, if that fails try vlc subprocess
 pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
-    eprintln!("Muxing audio {}, video {}", audio_path, video_path);
+    // eprintln!("Muxing audio {}, video {}", audio_path, video_path);
     if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path) {
         log::info!("Muxing with ffmpeg subprocess failed: {}", e);
         log::info!("Retrying mux with vlc subprocess");
-        if let Err(_) = fs::remove_file(output_path) {
+        if fs::remove_file(output_path).is_err() {
             // ffmpeg mux attempt didn't create any output
         }
         mux_audio_video_vlc(audio_path, video_path, output_path)
