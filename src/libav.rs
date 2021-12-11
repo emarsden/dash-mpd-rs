@@ -53,7 +53,7 @@ fn libav_open_output(path: &str, elementary_streams: &[CodecParameters]) -> Resu
         muxer_builder.add_stream(codec_parameters)?;
     }
     muxer_builder
-        .interleaved(true)
+        // .interleaved(true)
         .build(io, output_format)
         .map_err(|e| anyhow!("Error building libav muxer: {:?}", e))
 }
