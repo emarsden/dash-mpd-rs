@@ -44,8 +44,8 @@ fn main() {
             // specified on the <Representation> element, or on the relevant <AdaptationSet>
             // element, or not at all.
             let codec = representation.codecs.as_ref()
-                .unwrap_or(audio_adaptation.codecs.as_ref()
-                           .unwrap_or(&unspecified));
+                .unwrap_or_else(|| audio_adaptation.codecs.as_ref()
+                                .unwrap_or(&unspecified));
             println!("Audio stream with codec {}, bandwidth {}", codec, representation.bandwidth);
         }
     }
@@ -54,8 +54,8 @@ fn main() {
     if let Some(video_adaptation) = period.adaptations.as_ref().and_then(|a| a.iter().find(is_video_adaptation)) {
         for representation in video_adaptation.representations.iter() {
             let codec = representation.codecs.as_ref()
-                .unwrap_or(video_adaptation.codecs.as_ref()
-                           .unwrap_or(&unspecified));
+                .unwrap_or_else(|| video_adaptation.codecs.as_ref()
+                                .unwrap_or(&unspecified));
             println!("Video stream with codec {}, bandwidth {}", codec, representation.bandwidth);
         }
     }
