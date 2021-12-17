@@ -1299,6 +1299,7 @@ pub fn fetch_mpd(client: &HttpClient,
     // Don't record the origin URL if it contains sensitive information such as passwords
     #[allow(clippy::collapsible_if)]
     if origin_url.username().is_empty() && origin_url.password().is_none() {
+        #[cfg(target_family = "unix")]
         if xattr::set(&path, "user.xdg.origin.url", mpd_url.as_bytes()).is_err() {
             log::info!("Failed to set user.xdg.origin.url xattr on output file");
         }
@@ -1306,6 +1307,7 @@ pub fn fetch_mpd(client: &HttpClient,
     if let Some(pi) = mpd.ProgramInformation {
         if let Some(t) = pi.Title {
             if let Some(tc) = t.content {
+                #[cfg(target_family = "unix")]
                 if xattr::set(&path, "user.dublincore.title", tc.as_bytes()).is_err() {
                     log::info!("Failed to set user.dublincore.title xattr on output file");
                 }
@@ -1313,6 +1315,7 @@ pub fn fetch_mpd(client: &HttpClient,
         }
         if let Some(source) = pi.Source {
             if let Some(sc) = source.content {
+                #[cfg(target_family = "unix")]
                 if xattr::set(&path, "user.dublincore.source", sc.as_bytes()).is_err() {
                     log::info!("Failed to set user.dublincore.source xattr on output file");
                 }
@@ -1320,6 +1323,7 @@ pub fn fetch_mpd(client: &HttpClient,
         }
         if let Some(copyright) = pi.Copyright {
             if let Some(cc) = copyright.content {
+                #[cfg(target_family = "unix")]
                 if xattr::set(&path, "user.dublincore.rights", cc.as_bytes()).is_err() {
                     log::info!("Failed to set user.dublincore.rights xattr on output file");
                 }

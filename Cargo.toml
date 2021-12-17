@@ -22,7 +22,6 @@ iso8601 = "0.4"
 regex = "1"
 anyhow = "1"
 tempfile = "3"
-xattr = "0.2"
 clap = "2"
 log = "0.4"
 env_logger = "0.9"
@@ -34,3 +33,6 @@ hex-literal = "0.3"
 
 [features]
 libav = ["ac-ffmpeg"]
+
+[target.'cfg(unix)'.dependencies]
+xattr = "0.2"
