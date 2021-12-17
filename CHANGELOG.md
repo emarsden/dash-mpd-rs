@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2021-12-XX
+### Changed
+- Downloading: support multi-period MPD manifests. 
+- Downloading: fix handling of manifests with negative `@r` attribute on `S` nodes.
+
 ## [0.2.0] - 2021-12-11
 ### Changed
 - Add support for using ffmpeg or vlc as a subprocess for muxing, rather than ffmpeg's libav
