@@ -613,9 +613,9 @@ fn reqwest_error_transient_p(e: &reqwest::Error) -> bool {
 
 fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error> {
     if reqwest_error_transient_p(&e) {
-        backoff::Error::Transient(e)
+        backoff::Error::retry_after(e, Duration::new(5, 0))
     } else {
-        backoff::Error::Permanent(e)
+        backoff::Error::permanent(e)
     }
 }
 
