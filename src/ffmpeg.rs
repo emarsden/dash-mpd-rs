@@ -6,7 +6,7 @@
 
 use std::fs;
 use std::process::Command;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, Context, anyhow};
 
 
 fn mux_audio_video_ffmpeg(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
@@ -22,7 +22,7 @@ fn mux_audio_video_ffmpeg(audio_path: &str, video_path: &str, output_path: &str)
                "-f", "mp4",
                output_path])
         .output()
-        .expect("couldn't run ffmpeg subprocess");
+        .context("couldn't run ffmpeg subprocess")?;
     if ffmpeg.status.success() {
         Ok(())
     } else {
@@ -44,7 +44,7 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &str) ->
                        output_path),
                "vlc://quit"])
         .output()
-        .expect("couldn't run vlc subprocess");
+        .context("couldn't run vlc subprocess")?;
     if vlc.status.success() {
         Ok(())
     } else {
