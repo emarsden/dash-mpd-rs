@@ -1,7 +1,9 @@
 // download_bbc.rs
 //
 // Run with `cargo run --example download_bbc`
-
+//
+// Check the extended attributes associated with the downloaded file (on Unix platforms)
+// with "xattr -l /tmp/BBC-MPD-test.mp4"
 
 use std::time::Duration;
 use dash_mpd::fetch_mpd;
