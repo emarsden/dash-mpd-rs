@@ -3,7 +3,11 @@
 ## [0.3.0] - 2021-12-XX
 ### Changed
 - Downloading: support multi-period MPD manifests. 
+- Downloading: support remote resources using XLink (`xlink:href` attributes).
+- The `id` and `bandwidth` attributes of a `Representation` node are now optional (for XLink
+  support).
 - Downloading: fix handling of manifests with negative `@r` attribute on `S` nodes.
+- Downloading: fix handling of manifests with segment templates that use `$Bandwidth$`.
 
 ## [0.2.0] - 2021-12-11
 ### Changed

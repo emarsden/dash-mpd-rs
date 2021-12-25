@@ -1,6 +1,6 @@
 //! A Rust library for parsing and downloading media content from a DASH MPD manifest, as used for
 //! on-demand replay of TV content and video streaming services.
-//! 
+//!
 //! [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
 //! streaming over HTTP), also called MPEG-DASH, is a technology used for media streaming over the
 //! web, commonly used for video on demand (VOD) services. The Media Presentation Description (MPD)
@@ -21,17 +21,29 @@
 //! segments together (using ffmpeg via the `ac_ffmpeg` crate).
 //!
 //!
-//! ## Limitations
+//! ## DASH features supported
 //!
-//! - This crate does not support content encrypted with DRM such as Encrypted Media Extensions (EME) and
-//!   Media Source Extension (MSE)
-//! - Currently no download support for dynamic MPD manifests, that are used for live streaming/OTT TV
-//! - No support for subtitles (eg. WebVTT streams)
+//! - VOD (static) stream manifests
+//! - Multi-period content
+//! - XLink elements (only with actuate=onLoad semantics, resolve-to-zero supported)
+//! - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
+//!   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
+//! - Media containers of types supported by ffmpeg or VLC (this includes ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
+//!
+//!
+//! ## Limitations / unsupported features
+//!
+//! - Dynamic MPD manifests, that are used for live streaming/OTT TV
+//! - Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
+//! - Subtitles (eg. WebVTT and TTML streams)
+//! - XLink with actuate=onRequest
 //
 //
 //
 // Reference libdash library: https://github.com/bitmovin/libdash
 //   https://github.com/bitmovin/libdash/blob/master/libdash/libdash/source/xml/Node.cpp
+// Reference dash.js library: https://github.com/Dash-Industry-Forum/dash.js
+// Google Shaka player: https://github.com/google/shaka-player
 // The DASH code in VLC: https://code.videolan.org/videolan/vlc/-/tree/master/modules/demux/dash
 // Streamlink source code: https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
 
@@ -57,6 +69,7 @@ use serde::de;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::io::BufWriter;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -87,6 +100,11 @@ pub type HttpClient = reqwest::blocking::Client;
 // P1DT2H => 1 day, 2 hours
 // P0Y20M0D => 20 months (0 is permitted as a number, but is not required)
 // PT1M30.5S => 1 minute, 30.5 seconds
+//
+// Note bug in current version of the iso8601 crate which incorrectly parses strings like "PT344S"
+// (seen in a real MPD) as a zero duration. However, ISO 8601 standard as adopted by Indian Bureau
+// of Standards includes p29 an example "PT72H"
+// https://archive.org/details/gov.in.is.7900.2007/
 fn parse_xs_duration(s: &str) -> Result<Duration> {
     match iso8601::duration(s) {
         Ok(iso_duration) => {
@@ -111,7 +129,7 @@ fn parse_xs_duration(s: &str) -> Result<Duration> {
 
 
 // Deserialize an optional XML duration string to an Option<Duration>. This is a little trickier
-// than deserializing a required field with serde. 
+// than deserializing a required field with serde.
 fn deserialize_xs_duration<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: de::Deserializer<'de>,
@@ -192,6 +210,14 @@ pub struct SegmentTimeline {
     pub segments: Vec<S>,
 }
 
+/// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
+/// segment to produce a media stream.
+#[derive(Debug, Deserialize, Clone)]
+pub struct Initialization {
+    pub sourceURL: Option<String>,
+    pub range: Option<String>,
+}
+
 /// Allows template-based `SegmentURL` construction. Specifies various substitution rules using
 /// dynamic values such as `$Time$` and `$Number$` that map to a sequence of Segments.
 #[derive(Debug, Deserialize, Clone)]
@@ -206,14 +232,6 @@ pub struct SegmentTemplate {
     pub timescale: Option<u64>,
     pub presentationTimeOffset: Option<u64>,
     pub bitstreamSwitching: Option<String>,  // bool?
-}
-
-/// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
-/// segment to produce a media stream.
-#[derive(Debug, Deserialize, Clone)]
-pub struct Initialization {
-    pub sourceURL: Option<String>,
-    pub range: Option<String>,
 }
 
 /// A URI string that specifies one or more common locations for Segments and other resources.
@@ -253,6 +271,7 @@ pub struct SegmentURL {
 pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
     pub duration: Option<u64>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "xlink:href")]
     pub href: Option<String>,
     #[serde(rename = "xlink:actuate")]
@@ -283,7 +302,7 @@ pub struct AudioChannelConfiguration {
     pub value: Option<String>,
 }
 
-/// Specifies the accessibility scheme used by the media content. 
+/// Specifies the accessibility scheme used by the media content.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Accessibility {
     pub id: Option<String>,
@@ -296,7 +315,8 @@ pub struct Accessibility {
 /// select that most suitable to its network conditions.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Representation {
-    pub id: String,
+    // no id for a linked Representation (with xlink:href)
+    pub id: Option<String>,
     // The specification says that @mimeType is mandatory, but it's not always present on
     // akamaized.net MPDs
     pub mimeType: Option<String>,
@@ -305,7 +325,7 @@ pub struct Representation {
     pub contentType: Option<String>,
     /// If present, this attribute is expected to be set to "progressive".
     pub scanType: Option<String>,
-    pub bandwidth: u64,
+    pub bandwidth: Option<u64>,
     pub audioSamplingRate: Option<u64>,
     pub width: Option<u64>,
     pub height: Option<u64>,
@@ -316,9 +336,12 @@ pub struct Representation {
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
     pub Resync: Option<Resync>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    #[serde(rename = "xlink:href")]
+    pub href: Option<String>,
 }
 
-/// Describes a media content component. 
+/// Describes a media content component.
 #[derive(Debug, Deserialize, Clone)]
 pub struct ContentComponent {
     pub id: Option<String>,
@@ -390,6 +413,11 @@ pub struct EventStream {
 pub struct AdaptationSet {
     pub id: Option<i64>,
     pub BaseURL: Option<BaseURL>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    #[serde(rename = "xlink:href")]
+    pub href: Option<String>,
+    #[serde(rename = "xlink:actuate")]
+    pub actuate: Option<String>,
     pub group: Option<i64>,
     pub contentType: Option<String>,
     /// Content language, in RFC 5646 format
@@ -414,7 +442,7 @@ pub struct AdaptationSet {
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Representation")]
-    pub representations: Vec<Representation>,
+    pub representations: Option<Vec<Representation>>,
 }
 
 /// Describes a chunk of the content with a start time and a duration. Content can be split up into
@@ -429,6 +457,7 @@ pub struct Period {
     pub duration: Option<Duration>,
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Option<BaseURL>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "xlink:href")]
     pub href: Option<String>,
     #[serde(rename = "xlink:actuate")]
@@ -459,7 +488,15 @@ pub struct ServiceDescription {
     pub PlaybackRate: Option<PlaybackRate>,
 }
 
-/// The root node of a parsed DASH MPD manifest. 
+#[derive(Debug, Deserialize, Clone)]
+pub struct UTCTiming {
+    // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
+    // http-ntp:2014, ntp:2014, http-head:2014, direct:2014
+    pub schemeIdUri: Option<String>,
+    pub value: Option<String>,
+}
+
+/// The root node of a parsed DASH MPD manifest.
 #[derive(Debug, Deserialize, Clone)]
 pub struct MPD {
     #[serde(rename = "type")]
@@ -484,6 +521,7 @@ pub struct MPD {
     pub base_urls: Option<Vec<BaseURL>>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
+    pub UTCTiming: Option<UTCTiming>,
 }
 
 
@@ -498,6 +536,13 @@ fn is_absolute_url(s: &str) -> bool {
     s.starts_with("http://") ||
         s.starts_with("https://") ||
         s.starts_with("file://")
+}
+
+// From the DASH-IF-IOP-v4.0 specification, "If the value of the @xlink:href attribute is
+// urn:mpeg:dash:resolve-to-zero:2013, HTTP GET request is not issued, and the in-MPD element shall
+// be removed from the MPD."
+fn fetchable_xlink_href(href: &str) -> bool {
+    (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
 }
 
 /// Returns `true` if this AdaptationSet contains audio content.
@@ -516,15 +561,17 @@ pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    for r in a.representations.iter() {
-        if let Some(ct) = &r.contentType {
-            if ct == "audio" {
-                return true;
+    if let Some(reps) = &a.representations {
+        for r in reps.iter() {
+            if let Some(ct) = &r.contentType {
+                if ct == "audio" {
+                    return true;
+                }
             }
-        }
-        if let Some(mimetype) = &r.mimeType {
-            if mimetype.starts_with("audio/") {
-                return true;
+            if let Some(mimetype) = &r.mimeType {
+                if mimetype.starts_with("audio/") {
+                    return true;
+                }
             }
         }
     }
@@ -547,30 +594,33 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    for r in a.representations.iter() {
-        if let Some(ct) = &r.contentType {
-            if ct == "video" {
-                return true;
+    if let Some(reps) = &a.representations {
+        for r in reps.iter() {
+            if let Some(ct) = &r.contentType {
+                if ct == "video" {
+                    return true;
+                }
             }
-        }
-        if let Some(mimetype) = &r.mimeType {
-            if mimetype.starts_with("video/") {
-                return true;
+            if let Some(mimetype) = &r.mimeType {
+                if mimetype.starts_with("video/") {
+                    return true;
+                }
             }
         }
     }
     false
 }
 
+
 // From https://dashif.org/docs/DASH-IF-IOP-v4.3.pdf:
-// "For the avoidance of doubt, only %0[width]d is permitted and no other identifiers. The reason 
+// "For the avoidance of doubt, only %0[width]d is permitted and no other identifiers. The reason
 // is that such a string replacement can be easily implemented without requiring a specific library."
 //
 // Instead of pulling in C printf() or a reimplementation such as the printf_compat crate, we reimplement
 // this functionality directly.
 //
 // Example template: "$RepresentationID$/$Number%06d$.m4s"
-fn resolve_url_template(template: &str, params: &HashMap<&str, &str>) -> String {
+fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
     let mut result = template.to_string();
     for k in ["RepresentationID", "Number", "Time", "Bandwidth"] {
         // first check for simple case eg $Number$
@@ -624,6 +674,7 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 }
 
 
+
 /// Download the media stream content from a DASH MPD manifest.
 ///
 /// This involves fetching the manifest file, parsing it, identifying the relevant audio and video
@@ -672,7 +723,7 @@ pub fn fetch_mpd(client: &HttpClient,
             // https://dashif.org/docs/CR-Low-Latency-Live-r8.pdf
             //
             // TODO: look at algorithm used in function segment_numbers at
-            // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py 
+            // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
             return Err(anyhow!("Don't know how to download dynamic MPD"));
         }
     }
@@ -689,9 +740,36 @@ pub fn fetch_mpd(client: &HttpClient,
     let mut audio_segment_urls = Vec::new();
     let tmppath_video = tmp_file_path("dashmpd-video-track");
     let tmppath_audio = tmp_file_path("dashmpd-audio-track");
+    let mut tmpfile_video = BufWriter::new(File::create(tmppath_video.clone())
+                                           .context("Creating video tmpfile")?);
+    let mut tmpfile_audio = BufWriter::new(File::create(tmppath_audio.clone())
+                                           .context("Creating audio tmpfile")?);
     let mut have_audio = false;
     let mut have_video = false;
-    for period in &mpd.periods {
+    for mpd_period in &mpd.periods {
+        let mut period = mpd_period.clone();
+        // Resolve a possible xlink:href (though this seems in practice mostly to be used for ad
+        // insertion, so perhaps we should implement an option to ignore these).
+        if let Some(href) = &period.href {
+            if fetchable_xlink_href(href) {
+                let xlink_url;
+                if is_absolute_url(href) {
+                    xlink_url = Url::parse(href)?;
+                } else {
+                    // Note that we are joining against the original/redirected URL for the MPD, and
+                    // not against the currently scoped BaseURL
+                    xlink_url = redirected_url.join(href)?;
+                }
+                let xml = client.get(xlink_url)
+                    .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                    .header("Accept-language", "en-US,en")
+                    .send()?
+                    .text()
+                    .context("Resolving XLink on Period element")?;
+                let linked_period: Period = quick_xml::de::from_str(&xml)?;
+                period.clone_from(&linked_period);
+            }
+        }
         // The period_duration is specified either by the <Period> duration attribute, or by the
         // mediaPresentationDuration of the top-level MPD node.
         let mut period_duration_secs: f64 = 0.0;
@@ -710,15 +788,40 @@ pub fn fetch_mpd(client: &HttpClient,
                 base_url = base_url.join(&bu.base)?;
             }
         }
-        // Handle the AdaptationSet with contentType="audio". Note that some streams don't separate out
-        // audio and video streams, they have segments of .mp4 that can directly be appended
+        // Handle the AdaptationSet with audio content. Note that some streams don't separate out
+        // audio and video streams.
         let maybe_audio_adaptation = match &period.adaptations {
             Some(a) => a.iter().find(is_audio_adaptation),
             None => None,
         };
-        if let Some(audio) = maybe_audio_adaptation {
-            // the AdaptationSet may have a BaseURL (eg the test BBC streams). We use a scoped local variable
-            // to make sure we don't "corrupt" the base_url for the video segments. 
+        // TODO: we could perhaps factor out the treatment of the audio adaptation and video
+        // adaptation into a common handle_adaptation() function
+        if let Some(period_audio) = maybe_audio_adaptation {
+            let mut audio = period_audio.clone();
+            // Resolve a possible xlink:href on the AdaptationSet
+            if let Some(href) = &audio.href {
+                if fetchable_xlink_href(href) {
+                    let xlink_url;
+                    if is_absolute_url(href) {
+                        xlink_url = Url::parse(href)?;
+                    } else {
+                        // Note that we are joining against the original/redirected URL for the MPD, and
+                        // not against the currently scoped BaseURL
+                        xlink_url = redirected_url.join(href)?;
+                    }
+                    eprintln!("XLink AdaptationSet> resolving {}", xlink_url);
+                    let xml = client.get(xlink_url)
+                        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                        .header("Accept-language", "en-US,en")
+                        .send()?
+                        .text()
+                        .context("Resolving XLink on AdaptationSet element")?;
+                    let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)?;
+                    audio.clone_from(&linked_adaptation);
+                }
+            }
+            // The AdaptationSet may have a BaseURL (eg the test BBC streams). We use a local variable
+            // to make sure we don't "corrupt" the base_url for the video segments.
             let mut base_url = base_url.clone();
             if let Some(bu) = &audio.BaseURL {
                 if is_absolute_url(&bu.base) {
@@ -727,8 +830,35 @@ pub fn fetch_mpd(client: &HttpClient,
                     base_url = base_url.join(&bu.base)?;
                 }
             }
-            if let Ok(audio_repr) = audio.representations.iter()
-                .min_by_key(|x| x.bandwidth)
+            // Start by resolving any xlink:href elements on Representation nodes, which we need to
+            // do before the selection based on the @bandwidth attribute below.
+            let mut representations = Vec::<Representation>::new();
+            if let Some(reps) = audio.representations {
+                for r in reps.iter() {
+                    if let Some(href) = &r.href {
+                        if fetchable_xlink_href(href) {
+                            let xlink_url;
+                            if is_absolute_url(href) {
+                                xlink_url = Url::parse(href)?;
+                            } else {
+                                xlink_url = redirected_url.join(href)?;
+                            }
+                            let xml = client.get(xlink_url)
+                                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                                .header("Accept-language", "en-US,en")
+                                .send()?
+                                .text()
+                                .context("Resolving XLink on Representation element")?;
+                            let linked_representation: Representation = quick_xml::de::from_str(&xml)?;
+                            representations.push(linked_representation);
+                        }
+                    } else {
+                        representations.push(r.clone());
+                    }
+                }
+            }
+            if let Ok(audio_repr) = representations.iter()
+                .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
                 .context("Finding min bandwidth audio representation")
             {
                 // the Representation may have a BaseURL
@@ -766,31 +896,85 @@ pub fn fetch_mpd(client: &HttpClient,
                         start_number = s;
                     }
                 }
-                if let Some(st) = audio_repr.SegmentTemplate.as_ref() {
-                    let timescale = st.timescale.unwrap_or(timescale);
-                    let dict = HashMap::from([("RepresentationID", &audio_repr.id as &str)]);
-                    if let Some(init) = &st.initialization {
-                        opt_init = Some(init.to_string());
+                let rid = match &audio_repr.id {
+                    Some(id) => id,
+                    None => return Err(anyhow!("Missing @id on Representation node")),
+                };
+                let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                if let Some(b) = &audio_repr.bandwidth {
+                    dict.insert("Bandwidth", b.to_string());
+                }
+                // Now the 6 possible addressing modes: SegmentBase@indexRange, SegmentList, SegmentTimeline,
+                // SegmentTemplate@duration, SegmentTemplate@index
+                if let Some(sb) = &audio_repr.SegmentBase {
+                    // (1) SegmentBase@indexRange addressing mode
+                    if let Some(init) = &sb.initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let path = resolve_url_template(su, &dict);
+                            let init_url;
+                            if is_absolute_url(&path) {
+                                init_url = Url::parse(&path)?;
+                            } else {
+                                init_url = base_url.join(&path)?;
+                            }
+                            audio_segment_urls.push(init_url);
+                        }
                     }
-                    if let Some(init) = opt_init {
-                        let audio_init = resolve_url_template(&init, &dict);
-                        audio_segment_urls.push(base_url.join(&audio_init)?);
+                    // TODO: properly handle indexRange attribute
+                    audio_segment_urls.push(base_url.clone());
+                } else if let Some(sl) = &audio_repr.SegmentList {
+                    // (2) SegmentList addressing mode
+                    if let Some(init) = &sl.Initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let path = resolve_url_template(su, &dict);
+                            let init_url;
+                            if is_absolute_url(&path) {
+                                init_url = Url::parse(&path)?;
+                            } else {
+                                init_url = base_url.join(&path)?;
+                            }
+                            audio_segment_urls.push(init_url);
+                        } else {
+                            audio_segment_urls.push(base_url.clone());
+                        }
+                    }
+                    for su in sl.segment_urls.iter() {
+                        if let Some(m) = &su.media {
+                            let segment = base_url.join(m)?;
+                            audio_segment_urls.push(segment);
+                        }
+                    }
+                } else if audio_repr.SegmentTemplate.is_some() || audio.SegmentTemplate.is_some() {
+                    // Here we are either looking at a Representation.SegmentTemplate, or a
+                    // higher-level AdaptationSet.SegmentTemplate
+                    let st;
+                    if let Some(it) = &audio_repr.SegmentTemplate {
+                        st = it;
+                    } else if let Some(it) = &audio.SegmentTemplate {
+                        st = it;
+                    } else {
+                        panic!("impossible");
+                    }
+                    if let Some(i) = &st.initialization {
+                        opt_init = Some(i.to_string());
                     }
                     if let Some(m) = &st.media {
                         opt_media = Some(m.to_string());
                     }
-                    if let Some(media) = opt_media {
-                        let audio_path = resolve_url_template(&media, &dict);
-                        if let Some(stl) = &st.SegmentTimeline {
+                    if let Some(ts) = st.timescale {
+                        timescale = ts;
+                    }
+                    if let Some(stl) = &st.SegmentTimeline {
+                        // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if let Some(media) = opt_media {
+                            let audio_path = resolve_url_template(&media, &dict);
                             let mut segment_time = 0;
                             let mut segment_duration;
                             let mut number = start_number;
                             for s in &stl.segments {
-                                let time_str = format!("{}", segment_time);
-                                let number_str = format!("{}", number);
                                 // the URLTemplate may be based on $Time$, or on $Number$
-                                let dict = HashMap::from([("Time", &time_str as &str),
-                                                          ("Number", &number_str as &str)]);
+                                let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                          ("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
                                 audio_segment_urls.push(base_url.join(&path)?);
                                 number += 1;
@@ -817,10 +1001,8 @@ pub fn fetch_mpd(client: &HttpClient,
                                             break;
                                         }
                                         segment_time += segment_duration;
-                                        let time_str = format!("{}", segment_time);
-                                        let number_str = format!("{}", number);
-                                        let dict = HashMap::from([("Time", &time_str as &str),
-                                                                  ("Number", &number_str as &str)]);
+                                        let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                                  ("Number", number.to_string())]);
                                         let path = resolve_url_template(&audio_path, &dict);
                                         audio_segment_urls.push(base_url.join(&path)?);
                                         number += 1;
@@ -829,26 +1011,32 @@ pub fn fetch_mpd(client: &HttpClient,
                                 segment_time += segment_duration;
                             }
                         } else {
-                            // Segments are named using $Number$.
-                            // the SegmentTemplate duration is encoded as an u64
+                            return Err(anyhow!("SegmentTimeline without a media attribute"));
+                        }
+                    } else { // no SegmentTimeline element
+                        // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
+                        if let Some(init) = opt_init {
+                            let path = resolve_url_template(&init, &dict);
+                            audio_segment_urls.push(base_url.join(&path)?);
+                        }
+                        if let Some(media) = opt_media {
+                            let audio_path = resolve_url_template(&media, &dict);
+                            let timescale = st.timescale.unwrap_or(timescale);
                             let mut segment_duration: f64 = -1.0;
-                            // it was set on the Period.SegmentTemplate node
                             if let Some(d) = opt_duration {
+                                // it was set on the Period.SegmentTemplate node
                                 segment_duration = d;
                             }
                             if let Some(std) = st.duration {
                                 segment_duration = std as f64 / timescale as f64;
                             }
                             if segment_duration < 0.0 {
-                                // it wasn't set on the Period.SegmentTemplate node, nor on this
-                                // Representation.SegmentTemplate node
-                                return Err(anyhow!("Missing SegmentTemplate duration attribute"));
+                                return Err(anyhow!("Audio representation is missing SegmentTemplate @duration attribute"));
                             }
                             let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                             let mut number = start_number;
                             for _ in 1..total_number {
-                                let number_str = format!("{}", number);
-                                let dict = HashMap::from([("Number", &number_str as &str)]);
+                                let dict = HashMap::from([("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
                                 let segment_uri = base_url.join(&path)?;
                                 audio_segment_urls.push(segment_uri);
@@ -857,92 +1045,9 @@ pub fn fetch_mpd(client: &HttpClient,
                         }
                     }
                 } else {
-                    // We don't have a Representation.SegmentTemplate. We can use
-                    // - information from a SegmentBase node
-                    // - information from a SegmentList of SegmentURL
-                    // - information from an earlier AdaptationSet.SegmentTemplate
-                    let dict = HashMap::from([("RepresentationID", &audio_repr.id as &str)]);
-                    if let Some(sb) = audio_repr.SegmentBase.as_ref() {
-                        if let Some(init) = &sb.initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, &dict);
-                                let init_url;
-                                if is_absolute_url(&path) {
-                                    init_url = Url::parse(&path)?;
-                                } else {
-                                    init_url = base_url.join(&path)?;
-                                }
-                                audio_segment_urls.push(init_url);
-                            } else {
-                                // TODO: need to properly handle indexRange attribute
-                                audio_segment_urls.push(base_url.clone());
-                            }
-                        }
-                    } else if let Some(sl) = &audio_repr.SegmentList {
-                        // look for optional initialization segment
-                        if let Some(init) = &sl.Initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, &dict);
-                                let init_url;
-                                if is_absolute_url(&path) {
-                                    init_url = Url::parse(&path)?;
-                                } else {
-                                    init_url = base_url.join(&path)?;
-                                }
-                                audio_segment_urls.push(init_url);
-                            } else {
-                                audio_segment_urls.push(base_url.clone());
-                            }
-                        }
-                        for su in sl.segment_urls.iter() {
-                            if let Some(m) = &su.media {
-                                let segment = base_url.join(m)?;
-                                audio_segment_urls.push(segment);
-                            }
-                        }
-                    } else if let Some(st) = &audio.SegmentTemplate {
-                        // No Representation.SegmentTemplate node, no SegmentList, but we might have had
-                        // all the necessary download information in the SegmentTemplate node of the
-                        // Adaptation. An example of this type of MPD,
-                        // https://vod.infiniteplatform.tv/dash/vod-clear/ElephantsDream/default.mpd
-                        if let Some(init) = opt_init {
-                            let path = resolve_url_template(&init, &dict);
-                            audio_segment_urls.push(base_url.join(&path)?);
-                        }
-                        if let Some(media) = opt_media {
-                            let dict = HashMap::from([("RepresentationID", &audio_repr.id as &str)]);
-                            let audio_path = resolve_url_template(&media, &dict);
-                            // FIXME there is duplication here with the code for
-                            // Representation.SegmentTemplate without SegmentTimeline
-                            // The SegmentTemplate duration is encoded as an u64
-                            let timescale = st.timescale.unwrap_or(timescale);
-                            let mut segment_duration: f64 = -1.0;
-                            // it was set on the Period.SegmentTemplate node
-                            if let Some(d) = opt_duration {
-                                segment_duration = d;
-                            }
-                            if let Some(std) = st.duration {
-                                segment_duration = std as f64 / timescale as f64;
-                            }
-                            if segment_duration < 0.0 {
-                                return Err(anyhow!("Missing SegmentTemplate duration attribute"));
-                            }
-                            let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
-                            let mut number = start_number;
-                            for _ in 1..total_number {
-                                let number_str = format!("{}", number);
-                                let dict = HashMap::from([("Number", &number_str as &str)]);
-                                let path = resolve_url_template(&audio_path, &dict);
-                                let segment_uri = base_url.join(&path)?;
-                                audio_segment_urls.push(segment_uri);
-                                number += 1;
-                            }
-                        }
-                    }
+                    return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
                 }
-                // Concatenate the audio segments to a file on disk
-                let mut tmpfile_audio = File::create(tmppath_audio.clone())
-                    .context("Creating audio tmpfile")?;
+                // Concatenate the audio segments to a file on disk.
                 // In DASH, the first segment contains necessary headers to generate a valid MP4 file,
                 // so we should always abort if the first segment cannot be fetched. However, we could
                 // tolerate loss of subsequent segments.
@@ -954,7 +1059,6 @@ pub fn fetch_mpd(client: &HttpClient,
                     // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
                     if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                         e.insert(true);
-                        let dash_bytes;
                         if url.scheme() == "data" {
                             return Err(anyhow!("data URLs currently unsupported"));
                         } else {
@@ -972,9 +1076,9 @@ pub fn fetch_mpd(client: &HttpClient,
                                     .bytes()
                                     .map_err(categorize_reqwest_error)
                             };
-                            dash_bytes = retry(backoff, fetch)
+                            let dash_bytes = retry(backoff, fetch)
                                 .context("Fetching DASH audio segment")?;
-                            eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                            // eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
                             if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                                 log::error!("Unable to write DASH audio data: {:?}", e);
                                 return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
@@ -992,12 +1096,33 @@ pub fn fetch_mpd(client: &HttpClient,
                 }
             }
         }
-        
-        // Handle the AdaptationSet with contentType="video", or which includes a member representation
-        // that has contentType="video" or mimeType="video"
+
+        // Handle the AdaptationSet which contains video content
         let maybe_video_adaptation = period.adaptations.as_ref()
             .and_then(|a| a.iter().find(is_video_adaptation));
-        if let Some(video) = maybe_video_adaptation {
+        if let Some(period_video) = maybe_video_adaptation {
+            let mut video = period_video.clone();
+            // Resolve a possible xlink:href.
+            if let Some(href) = &video.href {
+                if fetchable_xlink_href(href) {
+                    let xlink_url;
+                    if is_absolute_url(href) {
+                        xlink_url = Url::parse(href)?;
+                    } else {
+                        // Note that we are joining against the original/redirected URL for the MPD, and
+                        // not against the currently scoped BaseURL
+                        xlink_url = redirected_url.join(href)?;
+                    }
+                    let xml = client.get(xlink_url)
+                        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                        .header("Accept-language", "en-US,en")
+                        .send()?
+                        .text()
+                        .context("Resolving XLink on AdaptationSet element")?;
+                    let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)?;
+                    video.clone_from(&linked_adaptation);
+                }
+            }
             // the AdaptationSet may have a BaseURL (eg the test BBC streams)
             if let Some(bu) = &video.BaseURL {
                 if is_absolute_url(&bu.base) {
@@ -1006,7 +1131,35 @@ pub fn fetch_mpd(client: &HttpClient,
                     base_url = base_url.join(&bu.base)?;
                 }
             }
-            if let Ok(video_repr) = video.representations.iter().min_by_key(|x| x.width)
+            // Start by resolving any xlink:href elements on Representation nodes, which we need to
+            // do before the selection based on the @bandwidth attribute below.
+            let mut representations = Vec::<Representation>::new();
+            if let Some(reps) = video.representations {
+                for r in reps.iter() {
+                    if let Some(href) = &r.href {
+                        if fetchable_xlink_href(href) {
+                            let xlink_url;
+                            if is_absolute_url(href) {
+                                xlink_url = Url::parse(href)?;
+                            } else {
+                                xlink_url = redirected_url.join(href)?;
+                            }
+                            let xml = client.get(xlink_url)
+                                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                                .header("Accept-language", "en-US,en")
+                                .send()?
+                                .text()
+                                .context("Resolving XLink on Representation element")?;
+                            let linked_representation: Representation = quick_xml::de::from_str(&xml)?;
+                            representations.push(linked_representation);
+                        }
+                    } else {
+                        representations.push(r.clone());
+                    }
+                }
+            }
+            if let Ok(video_repr) = representations.iter()
+                .min_by_key(|x| x.width)
                 .context("Finding video representation with lowest bandwith")
             {
                 if let Some(bu) = &video_repr.BaseURL {
@@ -1016,7 +1169,14 @@ pub fn fetch_mpd(client: &HttpClient,
                         base_url = base_url.join(&bu.base)?;
                     }
                 }
-                let dict = &HashMap::from([("RepresentationID", &video_repr.id as &str)]);
+                let rid = match &video_repr.id {
+                    Some(id) => id,
+                    None => return Err(anyhow!("Missing @id on Representation node")),
+                };
+                let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                if let Some(b) = &video_repr.bandwidth {
+                    dict.insert("Bandwidth", b.to_string());
+                }
                 let mut opt_init: Option<String> = None;
                 let mut opt_media: Option<String> = None;
                 let mut opt_duration: Option<f64> = None;
@@ -1043,39 +1203,79 @@ pub fn fetch_mpd(client: &HttpClient,
                         start_number = s;
                     }
                 }
-                if let Some(st) = video_repr.SegmentTemplate.as_ref() {
-                    if let Some(init) = &st.initialization {
-                        let init = resolve_url_template(init, dict);
-                        let init_url = base_url.join(&init)?;
-                        video_segment_urls.push(init_url);
+                // Now the 6 possible addressing modes: SegmentBase@indexRange, SegmentList,
+                // SegmentTemplate+SegmentTimeline, SegmentTemplate@duration, SegmentTemplate@index
+                if let Some(sb) = &video_repr.SegmentBase {
+                    // (1) SegmentBase@indexRange addressing mode
+                    if let Some(init) = &sb.initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let path = resolve_url_template(su, &dict);
+                            let init_url;
+                            if is_absolute_url(&path) {
+                                init_url = Url::parse(&path)?;
+                            } else {
+                                init_url = base_url.join(&path)?;
+                            }
+                            video_segment_urls.push(init_url);
+                        }
                     }
-                    let timescale = st.timescale.unwrap_or(timescale);
-                    // https://www.unified-streaming.com/blog/stop-numbering-underappreciated-power-dashs-segmenttimeline
-                    // The ​‘t’-element represents the timestamp of the first segment that has an exact
-                    // duration specified by the ​‘d’-element, whereas the ​‘r’-element tells the player how
-                    // many subsequent segments with the same duration are available.
-                    //         <SegmentTimeline>
-                    //           <S t="0" d="50" r="1933" />
-                    //           <S d="49" />
-                    //         </SegmentTimeline>
+                    // TODO: properly handle indexRange attribute
+                    video_segment_urls.push(base_url.clone());
+                } else if let Some(sl) = &video_repr.SegmentList {
+                    // (2) SegmentList addressing mode
+                    if let Some(init) = &sl.Initialization {
+                        if let Some(su) = &init.sourceURL {
+                            let path = resolve_url_template(su, &dict);
+                            let init_url;
+                            if is_absolute_url(&path) {
+                                init_url = Url::parse(&path)?;
+                            } else {
+                                init_url = base_url.join(&path)?;
+                            }
+                            video_segment_urls.push(init_url);
+                        } else {
+                            video_segment_urls.push(base_url.clone());
+                        }
+                    }
+                    for su in sl.segment_urls.iter() {
+                        if let Some(m) = &su.media {
+                            let segment = base_url.join(m)?;
+                            video_segment_urls.push(segment);
+                        }
+                    }
+                } else if video_repr.SegmentTemplate.is_some() || video.SegmentTemplate.is_some() {
+                    // Here we are either looking at a Representation.SegmentTemplate, or a
+                    // higher-level AdaptationSet.SegmentTemplate
+                    let st;
+                    if let Some(it) = &video_repr.SegmentTemplate {
+                        st = it;
+                    } else if let Some(it) = &video.SegmentTemplate {
+                        st = it;
+                    } else {
+                        panic!("impossible");
+                    }
+                    if let Some(i) = &st.initialization {
+                        opt_init = Some(i.to_string());
+                    }
                     if let Some(m) = &st.media {
                         opt_media = Some(m.to_string());
                     }
-                    if let Some(media) = opt_media {
-                        let media_path = resolve_url_template(&media, dict);
-                        if let Some(stl) = &st.SegmentTimeline {
+                    if let Some(ts) = st.timescale {
+                        timescale = ts;
+                    }
+                    if let Some(stl) = &st.SegmentTimeline {
+                        // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if let Some(media) = opt_media {
+                            let video_path = resolve_url_template(&media, &dict);
                             let mut segment_time = 0;
                             let mut segment_duration;
                             let mut number = start_number;
                             for s in &stl.segments {
                                 // the URLTemplate may be based on $Time$, or on $Number$
-                                let time_str = format!("{}", segment_time);
-                                let number_str = format!("{}", number);
-                                let dict = HashMap::from([("Time", &time_str as &str),
-                                                          ("Number", &number_str as &str)]);
-                                let path = resolve_url_template(&media_path, &dict);
-                                let segment_uri = base_url.join(&path)?;
-                                video_segment_urls.push(segment_uri);
+                                let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                          ("Number", number.to_string())]);
+                                let path = resolve_url_template(&video_path, &dict);
+                                video_segment_urls.push(base_url.join(&path)?);
                                 number += 1;
                                 if let Some(t) = s.t {
                                     segment_time = t;
@@ -1096,17 +1296,13 @@ pub fn fetch_mpd(client: &HttpClient,
                                             if count > r {
                                                 break;
                                             }
-                                        } else {
-                                            if segment_time as f64 > end_time {
-                                                break;
-                                            }
+                                        } else if segment_time as f64 > end_time {
+                                            break;
                                         }
                                         segment_time += segment_duration;
-                                        let time_str = format!("{}", segment_time);
-                                        let number_str = format!("{}", number);
-                                        let dict = HashMap::from([("Time", &time_str as &str),
-                                                                  ("Number", &number_str as &str)]);
-                                        let path = resolve_url_template(&media_path, &dict);
+                                        let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                                  ("Number", number.to_string())]);
+                                        let path = resolve_url_template(&video_path, &dict);
                                         video_segment_urls.push(base_url.join(&path)?);
                                         number += 1;
                                     }
@@ -1114,120 +1310,45 @@ pub fn fetch_mpd(client: &HttpClient,
                                 segment_time += segment_duration;
                             }
                         } else {
-                            // This is the case when we don't have a SegmentTimeline, see for example the BBC test case
-                            // http://rdmedia.bbc.co.uk/dash/ondemand/bbb/2/client_manifest-common_init.mpd
-                            // FIXME the duration of a period may also be determined implicitly by the start time
-                            // of the following period (see section 8 Period timing in
-                            // https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html)
-                            let mut segment_duration: f64 = -1.0;
-                            // it was set on the Period.SegmentTemplate node
-                            if let Some(d) = opt_duration {
-                                segment_duration = d;
-                            }
-                            if let Some(std) = st.duration {
-                                segment_duration = std as f64 / timescale as f64;
-                            }
-                            if segment_duration < 0.0 {
-                                // it wasn't set on the Period.SegmentTemplate node, nor on this
-                                // Representation.SegmentTemplate node
-                                return Err(anyhow!("Missing SegmentTemplate duration attribute"));
-                            }
-                            let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
-                            let mut number = st.startNumber.unwrap_or(start_number);
-                            for _ in 1..total_number {
-                                let number_str = format!("{}", number);
-                                let path = resolve_url_template(&media_path, &HashMap::from([("Number", &number_str as &str)]));
-                                let segment_url = base_url.join(&path)?;
-                                video_segment_urls.push(segment_url);
-                                number += 1;
-                            }
+                            return Err(anyhow!("SegmentTimeline without a media attribute"));
                         }
-                    }
-                } else {
-                    // We don't have a Representation.SegmentTemplate, but can use either
-                    // - information from a SegmentBase node
-                    // - information from a SegmentList of SegmentURL
-                    // - information from an earlier/higher-up AdaptationSet.SegmentTemplate
-                    if let Some(sb) = video_repr.SegmentBase.as_ref() {
-                        if let Some(init) = &sb.initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, dict);
-                                let init_url;
-                                if is_absolute_url(&path) {
-                                    init_url = Url::parse(&path)?;
-                                } else {
-                                    init_url = base_url.join(&path)?;
-                                }
-                                video_segment_urls.push(init_url);
-                            } else {
-                                video_segment_urls.push(base_url.clone());
-                            }
-                        }
-                    } else if let Some(sl) = &video_repr.SegmentList {
-                        // look for optional initialization segment
-                        if let Some(init) = &sl.Initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, dict);
-                                let init_url;
-                                if is_absolute_url(&path) {
-                                    init_url = Url::parse(&path)?;
-                                } else {
-                                    init_url = base_url.join(&path)?;
-                                }
-                                video_segment_urls.push(init_url);
-                            } else {
-                                video_segment_urls.push(base_url.clone());
-                            }
-                        }
-                        for su in sl.segment_urls.iter() {
-                            if let Some(m) = &su.media {
-                                let path = resolve_url_template(m, dict);
-                                let segment_url = base_url.join(&path)?;
-                                video_segment_urls.push(segment_url);
-                            }
-                        }
-                    } else if let Some(st) = &video.SegmentTemplate {
-                        // No Representation.SegmentTemplate node, no SegmentList, but we might have had
-                        // all the necessary download information in the SegmentTemplate node of the
-                        // Adaptation.
+                    } else { // no SegmentTimeline element
+                        // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
                         if let Some(init) = opt_init {
-                            let path = resolve_url_template(&init, dict);
+                            let path = resolve_url_template(&init, &dict);
                             video_segment_urls.push(base_url.join(&path)?);
                         }
+                        // FIXME we are not handling the case where this Adaptation.SegmentTemplate has a SegmentTimeline
+                        // (example MPD http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/twoperiods.mpd)
                         if let Some(media) = opt_media {
-                            let dict = HashMap::from([("RepresentationID", &video_repr.id as &str)]);
                             let video_path = resolve_url_template(&media, &dict);
-                            // FIXME there is duplication here with the code for
-                            // Representation.SegmentTemplate without SegmentTimeline.
-                            // The SegmentTemplate duration is encoded as an u64
                             let timescale = st.timescale.unwrap_or(timescale);
                             let mut segment_duration: f64 = -1.0;
-                            // it was set on the Period.SegmentTemplate node
                             if let Some(d) = opt_duration {
+                                // it was set on the Period.SegmentTemplate node
                                 segment_duration = d;
                             }
                             if let Some(std) = st.duration {
                                 segment_duration = std as f64 / timescale as f64;
                             }
                             if segment_duration < 0.0 {
-                                return Err(anyhow!("Missing SegmentTemplate duration attribute"));
+                                return Err(anyhow!("Video representation is missing SegmentTemplate @duration attribute"));
                             }
                             let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                             let mut number = start_number;
                             for _ in 1..total_number {
-                                let number_str = format!("{}", number);
-                                let dict = &HashMap::from([("Number", &number_str as &str)]);
-                                let path = resolve_url_template(&video_path, dict);
+                                let dict = HashMap::from([("Number", number.to_string())]);
+                                let path = resolve_url_template(&video_path, &dict);
                                 let segment_uri = base_url.join(&path)?;
                                 video_segment_urls.push(segment_uri);
                                 number += 1;
                             }
                         }
                     }
+                } else {
+                    return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
                 }
-                // Now fetch the segments and write them to the requested file path
-                let mut tmpfile_video = File::create(tmppath_video.clone())
-                    .context("Creating video tmpfile")?;
+                // Now fetch the video segments and write them to the requested file path
                 let mut seen_urls: HashMap<Url, bool> = HashMap::new();
                 for url in &video_segment_urls {
                     // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
@@ -1236,15 +1357,6 @@ pub fn fetch_mpd(client: &HttpClient,
                     // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
                     if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                         e.insert(true);
-                        // temporary
-                        let status = client.head(url.clone())
-                            .header("Accept", "video/*")
-                            .header("Referer", redirected_url.to_string())
-                            .send()?
-                            .status();
-                        if status != reqwest::StatusCode::OK {
-                            eprintln!("** Video segment {}, HTTP {}", url, status);
-                        }
                         let backoff = ExponentialBackoff::default();
                         let fetch = || {
                             client.get(url.clone())
@@ -1256,7 +1368,7 @@ pub fn fetch_mpd(client: &HttpClient,
                         };
                         let dash_bytes = retry_notify(backoff, fetch, notify_transient)
                             .context("Fetching DASH video segment")?;
-                        eprintln!("Video segment {} -> {} octets", url, dash_bytes.len());
+                        // eprintln!("Video segment {} -> {} octets", url, dash_bytes.len());
                         if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
                             return Err(anyhow!("Unable to write video data: {:?}", e));
                         }
@@ -1271,7 +1383,6 @@ pub fn fetch_mpd(client: &HttpClient,
                     log::info!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
                 }
             } else {
-                // FIXME look for SegmentTemplates here directly (not enclosed in an AdaptationSet or Representation)
                 return Err(anyhow!("Couldn't find lowest bandwidth video stream in DASH manifest"));
             }
         }
@@ -1334,6 +1445,9 @@ pub fn fetch_mpd(client: &HttpClient,
 }
 
 
+
+
+
 // This doesn't work correctly on Android (fix needed in the tempfile crate)
 fn tmp_file_path(_prefix: &str) -> String {
     let file = NamedTempFile::new()
@@ -1351,14 +1465,14 @@ mod tests {
     fn test_resolve_url_template() {
         use std::collections::HashMap;
         use crate::resolve_url_template;
-        
-        assert_eq!(resolve_url_template("AA$Time$BB", &HashMap::from([("Time", "ZZZ")])),
+
+        assert_eq!(resolve_url_template("AA$Time$BB", &HashMap::from([("Time", "ZZZ".to_string())])),
                    "AAZZZBB");
-        assert_eq!(resolve_url_template("AA$Number%06d$BB", &HashMap::from([("Number", "42")])),
+        assert_eq!(resolve_url_template("AA$Number%06d$BB", &HashMap::from([("Number", "42".to_string())])),
                    "AA000042BB");
-        let dict = HashMap::from([("RepresentationID", "640x480"),
-                                  ("Number", "42"),
-                                  ("Time", "ZZZ")]);
+        let dict = HashMap::from([("RepresentationID", "640x480".to_string()),
+                                  ("Number", "42".to_string()),
+                                  ("Time", "ZZZ".to_string())]);
         assert_eq!(resolve_url_template("AA/$RepresentationID$/segment-$Number%05d$.mp4", &dict),
                    "AA/640x480/segment-00042.mp4");
     }
@@ -1368,7 +1482,7 @@ mod tests {
     fn test_parse_xs_duration() {
         use std::time::Duration;
         use crate::parse_xs_duration;
-        
+
         assert!(parse_xs_duration("").is_err());
         assert!(parse_xs_duration("foobles").is_err());
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
@@ -1376,7 +1490,9 @@ mod tests {
         assert_eq!(parse_xs_duration("PT0H10M0.00S").ok(), Some(Duration::new(600, 0)));
         assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000)));
         assert_eq!(parse_xs_duration("PT0S").ok(), Some(Duration::new(0, 0)));
-        assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000))); 
+        // This test currently fails due to a bug in the iso8601 crate
+        assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
+        assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
         assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000)));
     }
