@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.0] - 2021-12-XX
+## [0.3.0] - 2021-12-28
 ### Changed
 - Downloading: support multi-period MPD manifests. 
 - Downloading: support remote resources using XLink (`xlink:href` attributes).
