@@ -809,7 +809,6 @@ pub fn fetch_mpd(client: &HttpClient,
                         // not against the currently scoped BaseURL
                         xlink_url = redirected_url.join(href)?;
                     }
-                    eprintln!("XLink AdaptationSet> resolving {}", xlink_url);
                     let xml = client.get(xlink_url)
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                         .header("Accept-language", "en-US,en")
@@ -966,6 +965,10 @@ pub fn fetch_mpd(client: &HttpClient,
                     }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if let Some(init) = opt_init {
+                            let path = resolve_url_template(&init, &dict);
+                            audio_segment_urls.push(base_url.join(&path)?);
+                        }
                         if let Some(media) = opt_media {
                             let audio_path = resolve_url_template(&media, &dict);
                             let mut segment_time = 0;
@@ -1265,6 +1268,10 @@ pub fn fetch_mpd(client: &HttpClient,
                     }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if let Some(init) = opt_init {
+                            let path = resolve_url_template(&init, &dict);
+                            video_segment_urls.push(base_url.join(&path)?);
+                        }
                         if let Some(media) = opt_media {
                             let video_path = resolve_url_template(&media, &dict);
                             let mut segment_time = 0;
@@ -1318,8 +1325,6 @@ pub fn fetch_mpd(client: &HttpClient,
                             let path = resolve_url_template(&init, &dict);
                             video_segment_urls.push(base_url.join(&path)?);
                         }
-                        // FIXME we are not handling the case where this Adaptation.SegmentTemplate has a SegmentTimeline
-                        // (example MPD http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/twoperiods.mpd)
                         if let Some(media) = opt_media {
                             let video_path = resolve_url_template(&media, &dict);
                             let timescale = st.timescale.unwrap_or(timescale);
