@@ -14,7 +14,7 @@ use clap::Arg;
 fn main() {
     let matches = clap::App::new("dash_stream_info")
         .about("Show codec and bandwith for audio and video streams specified in a DASH MPD")
-        .arg(Arg::with_name("url")
+        .arg(Arg::new("url")
              .takes_value(true)
              .value_name("URL")
              .index(1)
