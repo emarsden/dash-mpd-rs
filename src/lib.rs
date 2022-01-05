@@ -965,6 +965,9 @@ pub fn fetch_mpd(client: &HttpClient,
                     if let Some(ts) = st.timescale {
                         timescale = ts;
                     }
+                    if let Some(sn) = st.startNumber {
+                        start_number = sn;
+                    }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
                         if let Some(init) = opt_init {
@@ -1040,7 +1043,7 @@ pub fn fetch_mpd(client: &HttpClient,
                             }
                             let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                             let mut number = start_number;
-                            for _ in 1..total_number {
+                            for _ in 1..=total_number {
                                 let dict = HashMap::from([("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
                                 let segment_uri = base_url.join(&path)?;
@@ -1268,6 +1271,9 @@ pub fn fetch_mpd(client: &HttpClient,
                     if let Some(ts) = st.timescale {
                         timescale = ts;
                     }
+                    if let Some(sn) = st.startNumber {
+                        start_number = sn;
+                    }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
                         if let Some(init) = opt_init {
@@ -1343,7 +1349,7 @@ pub fn fetch_mpd(client: &HttpClient,
                             }
                             let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                             let mut number = start_number;
-                            for _ in 1..total_number {
+                            for _ in 1..=total_number {
                                 let dict = HashMap::from([("Number", number.to_string())]);
                                 let path = resolve_url_template(&video_path, &dict);
                                 let segment_uri = base_url.join(&path)?;
