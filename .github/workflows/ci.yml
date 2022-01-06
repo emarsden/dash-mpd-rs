@@ -46,4 +46,5 @@ jobs:
       - name: Build with libav feature
         uses: actions-rs/cargo@v1
         with:
-          command: build --features libav
+          command: build
+          args: --features libav
