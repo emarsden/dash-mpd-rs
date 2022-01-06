@@ -15,9 +15,13 @@
 fn test_itec1() {
     use std::time::Duration;
     use dash_mpd::fetch_mpd;
-    
+
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::new(30, 0))
+        .timeout(Duration::new(10, 0))
         .gzip(true)
         .build()
         .expect("Couldn't create reqwest HTTP client");
@@ -41,6 +45,10 @@ fn test_downloader() {
     use dash_mpd::{fetch_mpd, HttpClient};
     use colored::*;
 
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
     let client = reqwest::blocking::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.183 Safari/537.36")
         .timeout(Duration::new(10, 0))
