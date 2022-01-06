@@ -20,13 +20,17 @@ fn test_itec1() {
     if std::env::var("CI").is_ok() {
         return;
     }
+    let outfile = tempfile::NamedTempFile::new()
+       .expect("creating temporary output file");
+    let outpath = outfile.path().to_str()
+       .expect("obtaining name of temporary file");
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::new(10, 0))
         .gzip(true)
         .build()
         .expect("Couldn't create reqwest HTTP client");
     let manifest_url = "http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd";
-    assert!(fetch_mpd(&client, manifest_url, "/tmp/test-dash-out.mp4").is_ok());
+    assert!(fetch_mpd(&client, manifest_url, outpath).is_ok());
 }
 
 
