@@ -674,7 +674,9 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 }
 
 
-
+// We don't want to test this code example on the CI infrastructure as it's too expensive
+// and requires network access.
+#[cfg(not(doctest))]
 /// Download the media stream content from a DASH MPD manifest.
 ///
 /// This involves fetching the manifest file, parsing it, identifying the relevant audio and video
