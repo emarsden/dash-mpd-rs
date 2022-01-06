@@ -30,7 +30,7 @@ jobs:
       - name: Install ffmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
       - name: Checkout sources
         uses: actions/checkout@v2
       - name: Install toolchain
@@ -42,4 +42,6 @@ jobs:
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
+          command: build --features libav
           command: test
+
