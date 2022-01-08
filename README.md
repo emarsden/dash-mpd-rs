@@ -123,6 +123,15 @@ dash-mpd = "0.3"
 ```
 
 
+## Platforms
+
+This crate is tested on the following platforms:
+
+- Linux, with default features (ffmpeg or vlc as a subprocess) and libav support
+- MacOS, only with default features (problems building the ac-ffmpeg crate against current ffmpeg)
+- Microsoft Windows 10, only with default features
+
+
 
 ## License
 
