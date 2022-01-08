@@ -11,7 +11,6 @@ use anyhow::{Result, Context, anyhow};
 
 fn mux_audio_video_ffmpeg(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
     let ffmpeg = Command::new("ffmpeg")
-        .env_clear() 
         .args(["-hide_banner", "-nostats",
                "-loglevel", "error",  // or "warning", "info"
                "-y",  // overwrite output file if it exists
@@ -35,7 +34,6 @@ fn mux_audio_video_ffmpeg(audio_path: &str, video_path: &str, output_path: &str)
 // See https://wiki.videolan.org/Transcode/
 fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
     let vlc = Command::new("vlc")
-        .env_clear()
         .args(["--no-repeat", "--no-loop", "-I", "dummy",
                audio_path, video_path,
                "--sout-keep",
