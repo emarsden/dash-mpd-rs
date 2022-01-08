@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2022-01-08
+### Changed
+- Downloading: fix use of SegmentTemplate `@startNumber` attribute.
+- Downloading: fix regression concerning streams that use a SegmentTimeline.
+- Path fixes to allow tests and examples to run on Windows.
+
 ## [0.3.0] - 2021-12-28
 ### Changed
 - Downloading: support multi-period MPD manifests. 
@@ -31,4 +37,4 @@
 
 ## [0.1.0] - 2021-12-01
 
-- Initial release
+- Initial release.
