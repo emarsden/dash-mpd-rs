@@ -8,8 +8,10 @@
 use std::time::Duration;
 use dash_mpd::fetch_mpd;
 use tempfile::NamedTempFile;
+use env_logger::Env;
 
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::new(30, 0))
         .gzip(true)
