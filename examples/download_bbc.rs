@@ -5,26 +5,14 @@
 // Check the extended attributes associated with the downloaded file (on Unix platforms)
 // with "xattr -l /tmp/BBC-MPD-test.mp4"
 
-use std::time::Duration;
-use dash_mpd::fetch_mpd;
-use tempfile::NamedTempFile;
+use dash_mpd::fetch::DashDownloader;
 use env_logger::Env;
 
-fn main() {
+fn main () {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::new(30, 0))
-        .gzip(true)
-        .build()
-        .expect("Couldn't create reqwest HTTP client");
-    let outfile = NamedTempFile::new()
-       .expect("creating temporary output file");
-    let outpath = outfile.path().to_str()
-       .expect("obtaining name of temporary file");
     let url = "http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-ctv-events.mpd";
-    if let Err(e) = fetch_mpd(&client, url, outpath) {
-        eprintln!("Error downloading DASH MPD file: {:?}", e);
-    } else {
-        println!("Output saved to temporary file {}", outpath);
-    }
+    let dl_path = DashDownloader::new(url)
+        .worst_quality()
+        .download();
+    println!("Downloaded to {:?}", dl_path);
 }

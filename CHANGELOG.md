@@ -1,7 +1,13 @@
 # Changelog
 
-## [0.3.1] - 2022-01-08
+## [0.4.0] - 2022-01-XX
 ### Changed
+- Downloading: move to a builder pattern with DashDownloader API. The function `fetch_mpd` should
+  now be considered internal.
+- Downloading: preference for quality/bitrate can be specified.
+
+## [0.3.1] - 2022-01-08
+### Fixed
 - Downloading: fix use of SegmentTemplate `@startNumber` attribute.
 - Downloading: fix regression concerning streams that use a SegmentTimeline.
 - Path fixes to allow tests and examples to run on Windows.
@@ -11,7 +17,9 @@
 - Downloading: support multi-period MPD manifests. 
 - Downloading: support remote resources using XLink (`xlink:href` attributes).
 - The `id` and `bandwidth` attributes of a `Representation` node are now optional (for XLink
-  support).
+support).
+
+### Fixed
 - Downloading: fix handling of manifests with negative `@r` attribute on `S` nodes.
 - Downloading: fix handling of manifests with segment templates that use `$Bandwidth$`.
 
