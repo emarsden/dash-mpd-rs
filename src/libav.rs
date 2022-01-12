@@ -20,6 +20,7 @@
 
 use std::cmp::{min, max};
 use std::fs::File;
+use std::path::Path;
 use anyhow::{Context, Result, anyhow};
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
@@ -34,10 +35,12 @@ use ac_ffmpeg::format::muxer::OutputFormat;
 
 
 fn libav_open_input(path: &str) -> Result<DemuxerWithStreamInfo<File>> {
-    let input = File::open(path)?;
+    let input = File::open(path)
+        .context("opening input path")?;
     let io = IO::from_seekable_read_stream(input);
     Demuxer::builder()
-        .build(io)?
+        .build(io)
+        .context("building libav demuxer")?
         .find_stream_info(Some(std::time::Duration::new(2, 0)))
         .map_err(|(_, err)| anyhow!("Demuxer build error: {:?}", err))
 }
@@ -45,12 +48,14 @@ fn libav_open_input(path: &str) -> Result<DemuxerWithStreamInfo<File>> {
 fn libav_open_output(path: &str, elementary_streams: &[CodecParameters]) -> Result<Muxer<File>> {
     let output_format = OutputFormat::guess_from_file_name(path)
         .or_else(|| OutputFormat::find_by_name("mp4"))
-        .expect("libav can't guess output format");
-    let output = File::create(path)?;
+        .context("guessing libav output format")?;
+    let output = File::create(path)
+        .context("creating output file")?;
     let io = IO::from_seekable_write_stream(output);
     let mut muxer_builder = Muxer::builder();
     for codec_parameters in elementary_streams {
-        muxer_builder.add_stream(codec_parameters)?;
+        muxer_builder.add_stream(codec_parameters)
+            .context("adding libav stream to muxer")?;
     }
     muxer_builder
         // .interleaved(true)
@@ -66,10 +71,10 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 }
 
 
-pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) -> Result<()> {
+pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| log::info!("ffmpeg: {}", msg));
     let mut video_demuxer = libav_open_input(video_path)
-        .context("can't open input stream")?;
+        .context("opening input video stream")?;
     let (video_pos, video_codec) = video_demuxer
         .streams()
         .iter()
@@ -81,7 +86,7 @@ pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) ->
             }
             None
         })
-        .context("libav video codec not found")?;
+        .context("finding libav video codec")?;
     let mut audio_demuxer = libav_open_input(audio_path)?;
     let (audio_pos, audio_codec) = audio_demuxer
         .streams()
@@ -94,13 +99,15 @@ pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) ->
             }
             None
         })
-        .context("libav audio codec not found")?;
+        .context("finding libav audio codec")?;
 
-    let mut muxer = libav_open_output(output_path, &[video_codec, audio_codec])?;
+    let out = output_path.to_str().context("converting output path")?;
+    let mut muxer = libav_open_output(out, &[video_codec, audio_codec])
+        .context("opening libav output path")?;
     let mut last_dts: Timestamp = Timestamp::null();
 
     // wonder about memory consumption here, should we interleave the pushes?
-    while let Some(mut pkt) = video_demuxer.take()? {
+    while let Some(mut pkt) = video_demuxer.take().context("fetching video packet from libav demuxer")? {
         if pkt.stream_index() == video_pos {
             // We try to work around malformed media streams with fluctuating dts (decompression timestamp).
             // The dts must be strictly increasing according to av_write_frame(), but some streams (eg
@@ -139,12 +146,13 @@ pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) ->
                 pkt = pkt.with_dts(fixed_dts).with_pts(fixed_dts);
             }
             last_dts = pkt.dts();
-            muxer.push(pkt.with_stream_index(0))?;
+            muxer.push(pkt.with_stream_index(0))
+                .context("pushing video packet to libav muxer")?;
         }
     }
     muxer.flush()?;
     last_dts = Timestamp::null();
-    while let Some(mut pkt) = audio_demuxer.take()? {
+    while let Some(mut pkt) = audio_demuxer.take().context("fetching audio packet from libav demuxer")? {
         if pkt.stream_index() == audio_pos {
             // See comments concerning workarounds for invalid media streams in the code for the
             // video stream, above.
@@ -174,10 +182,11 @@ pub fn mux_audio_video(audio_path: &str, video_path: &str, output_path: &str) ->
                 pkt = pkt.with_dts(fixed_dts).with_pts(fixed_dts);
             }
             last_dts = pkt.dts();
-            muxer.push(pkt.with_stream_index(1))?;
+            muxer.push(pkt.with_stream_index(1))
+                .context("pushing audio packet to libav muxer")?;
         }
     }
-    muxer.flush()?;
-    muxer.close()?;
+    muxer.flush().context("flushing libav muxer")?;
+    muxer.close().context("closing libav muxer")?;
     Ok(())
 }
