@@ -5,7 +5,7 @@ services such as on-demand replay of TV content and video streaming services lik
 
 [![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
 [![Released API docs](https://docs.rs/dash-mpd/badge.svg)](https://docs.rs/dash-mpd/)
-[![CI](https://github.com/emarsden/dash-mpd-rs/workflows/ci/badge.svg)](https://github.com/emarsden/dash-mpd-rs/actions?query=workflow%3Aci)
+[![CI](https://github.com/emarsden/dash-mpd-rs/workflows/build/badge.svg)](https://github.com/emarsden/dash-mpd-rs/workflows/build/badge.svg)
 [![Dependency status](https://deps.rs/repo/github/emarsden/dash-mpd-rs/status.svg)](https://deps.rs/repo/github/emarsden/dash-mpd-rs)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
