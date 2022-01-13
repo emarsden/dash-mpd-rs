@@ -33,10 +33,10 @@ impl Default for QualityPreference {
 
 /// The DashDownloader allows the download of streaming media content from a DASH MPD manifest. This
 /// involves fetching the manifest file, parsing it, identifying the relevant audio and video
-/// representations, downloading all the segments, concatenating them and muxing them together to
-/// produce a single video file including audio. This should work with both MPEG-DASH MPD manifests
-/// (where the media segments are typically placed in MPEG-2 TS containers) and for
-/// [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
+/// representations, downloading all the segments, concatenating them then muxing the audio and
+/// video streams to produce a single video file including audio. This should work with both
+/// MPEG-DASH MPD manifests (where the media segments are typically placed in MPEG-2 TS containers)
+/// and for [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     mpd_url: String,
     output_path: Option<PathBuf>,
@@ -112,7 +112,6 @@ impl DashDownloader {
         self
     }
 
-    // Explanation concerning Into<PathBuf> https://nick.groenen.me/notes/rust-path-vs-pathbuf/
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
     pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<()> {
@@ -135,7 +134,6 @@ impl DashDownloader {
         let cwd = env::current_dir().context("obtaining current dir")?;
         let filename = generate_filename_from_url(&self.mpd_url);
         let outpath = cwd.join(filename);
-        eprintln!("Download> output file {:?}", outpath);
         self.output_path = Some(outpath.clone());
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
@@ -991,10 +989,10 @@ fn fetch_mpd(client: &HttpClient,
         mux_audio_video(&tmppath_audio, &tmppath_video, output_path)
             .context("muxing audio and video streams")?;
         if fs::remove_file(tmppath_audio).is_err() {
-            log::info!("Failed deleting temporary file for audio segments");
+            log::info!("Failed to delete temporary file for audio segments");
         }
         if fs::remove_file(tmppath_video).is_err() {
-            log::info!("Failed deleting temporary file for video segments");
+            log::info!("Failed to delete temporary file for video segments");
         }
     } else if have_audio {
         // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
