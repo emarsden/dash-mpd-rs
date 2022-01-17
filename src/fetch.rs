@@ -6,8 +6,9 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
+use std::sync::Arc;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use regex::Regex;
@@ -20,6 +21,13 @@ use crate::{parse, tmp_file_path, is_audio_adaptation, is_video_adaptation, mux_
 
 /// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::blocking::Client;
+
+/// Receives updates concerning the progression of the download, and can display this information to
+/// the user, for example using a progress bar.
+pub trait ProgressObserver {
+    fn update(&self, percent: u32);
+}
+
 
 /// Preference for retrieving media representation with highest quality (and highest file size) or
 /// lowest quality (and lowest file size).
@@ -42,6 +50,7 @@ pub struct DashDownloader {
     output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
+    progress_observers: Vec<Arc<dyn ProgressObserver>>,
 }
 
 
@@ -70,6 +79,7 @@ impl DashDownloader {
             output_path: None,
             http_client: None,
             quality_preference: QualityPreference::Lowest,
+            progress_observers: vec![],
         }
     }
 
@@ -95,6 +105,13 @@ impl DashDownloader {
     /// ```
     pub fn with_http_client(mut self, client: HttpClient) -> DashDownloader {
         self.http_client = Some(client);
+        self
+    }
+
+    /// Add a observer implementing the ProgressObserver trait, that will receive updates concerning
+    /// the progression of the download (allows implementation of a progress bar, for example).
+    pub fn add_progress_observer(mut self, observer: Arc<dyn ProgressObserver>) -> DashDownloader {
+        self.progress_observers.push(observer);
         self
     }
 
@@ -124,7 +141,7 @@ impl DashDownloader {
                 .context("building reqwest HTTP client")?;
             self.http_client = Some(client);
         }
-        fetch_mpd(&self.http_client.unwrap(), &self.mpd_url, &self.output_path.unwrap(), self.quality_preference)
+        fetch_mpd(self)
     }
 
     /// Download DASH streaming media content to a file in the current working directory and return
@@ -143,7 +160,7 @@ impl DashDownloader {
                 .context("building reqwest HTTP client")?;
             self.http_client = Some(client);
         }
-        fetch_mpd(&self.http_client.unwrap(), &self.mpd_url, &outpath, self.quality_preference)?;
+        fetch_mpd(self)?;
         Ok(outpath)
     }
 }
@@ -250,12 +267,11 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 }
 
 
-fn fetch_mpd(client: &HttpClient,
-             mpd_url: &str,
-             output_path: &Path,
-             quality_preference: QualityPreference) -> Result<()> {
+fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
+    let client = downloader.http_client.unwrap();
+    let output_path = &downloader.output_path.unwrap();
     let fetch = || {
-        client.get(mpd_url)
+        client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-language", "en-US,en")
             .send()
@@ -416,7 +432,7 @@ fn fetch_mpd(client: &HttpClient,
                 }
             }
             let maybe_audio_repr;
-            if quality_preference == QualityPreference::Lowest {
+            if downloader.quality_preference == QualityPreference::Lowest {
                 maybe_audio_repr = representations.iter()
                     .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
                     .context("finding min bandwidth audio representation");
@@ -623,53 +639,6 @@ fn fetch_mpd(client: &HttpClient,
                 } else {
                     return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
                 }
-                // Concatenate the audio segments to a file on disk.
-                // In DASH, the first segment contains necessary headers to generate a valid MP4 file,
-                // so we should always abort if the first segment cannot be fetched. However, we could
-                // tolerate loss of subsequent segments.
-                let mut seen_urls: HashMap<Url, bool> = HashMap::new();
-                for url in &audio_segment_urls {
-                    // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-                    // on the SegmentURL, which we are currently not handling correctly
-                    // Example here
-                    // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
-                    if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
-                        e.insert(true);
-                        if url.scheme() == "data" {
-                            return Err(anyhow!("data URLs currently unsupported"));
-                        } else {
-                            // We could download these segments in parallel using reqwest in async mode,
-                            // though that might upset some servers.
-                            let backoff = ExponentialBackoff::default();
-                            let fetch = || {
-                                client.get(url.clone())
-                                // Don't use only "audio/*" in Accept header because some web servers
-                                // (eg. media.axprod.net) are misconfigured and reject requests for
-                                // valid audio content (eg .m4s)
-                                    .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
-                                    .header("Referer", redirected_url.to_string())
-                                    .send()?
-                                    .bytes()
-                                    .map_err(categorize_reqwest_error)
-                            };
-                            let dash_bytes = retry(backoff, fetch)
-                                .context("fetching DASH audio segment")?;
-                            // eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
-                            if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                                log::error!("Unable to write DASH audio data: {:?}", e);
-                                return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
-                            }
-                            have_audio = true;
-                        }
-                    }
-                }
-                tmpfile_audio.flush().map_err(|e| {
-                    log::error!("Couldn't flush DASH audio file to disk: {:?}", e);
-                    e
-                })?;
-                if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
-                    log::info!("Wrote {:.1}MB to DASH audio stream", metadata.len() as f64 / (1024.0 * 1024.0));
-                }
             }
         }
 
@@ -737,7 +706,7 @@ fn fetch_mpd(client: &HttpClient,
                 }
             }
             let maybe_video_repr;
-            if quality_preference == QualityPreference::Lowest {
+            if downloader.quality_preference == QualityPreference::Lowest {
                 maybe_video_repr = representations.iter()
                     .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
                     .context("finding video representation with min bandwidth");
@@ -944,44 +913,104 @@ fn fetch_mpd(client: &HttpClient,
                 } else {
                     return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
                 }
-                // Now fetch the video segments and write them to the requested file path
-                let mut seen_urls: HashMap<Url, bool> = HashMap::new();
-                for url in &video_segment_urls {
-                    // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-                    // on the SegmentURL, which we are currently not handling correctly
-                    // Example here
-                    // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
-                    if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
-                        e.insert(true);
-                        let backoff = ExponentialBackoff::default();
-                        let fetch = || {
-                            client.get(url.clone())
-                                .header("Accept", "video/*")
-                                .header("Referer", redirected_url.to_string())
-                                .send()?
-                                .bytes()
-                                .map_err(categorize_reqwest_error)
-                        };
-                        let dash_bytes = retry_notify(backoff, fetch, notify_transient)
-                            .context("fetching DASH video segment")?;
-                        // eprintln!("Video segment {} -> {} octets", url, dash_bytes.len());
-                        if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                            return Err(anyhow!("Unable to write video data: {:?}", e));
-                        }
-                        have_video = true;
-                    }
-                }
-                tmpfile_video.flush().map_err(|e| {
-                    log::error!("Couldn't flush video file to disk: {:?}", e);
-                    e
-                })?;
-                if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
-                    log::info!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
-                }
             } else {
                 return Err(anyhow!("Couldn't find lowest bandwidth video stream in DASH manifest"));
             }
         }
+    }
+    // Concatenate the audio segments to a file on disk.
+    // In DASH, the first segment contains necessary headers to generate a valid MP4 file,
+    // so we should always abort if the first segment cannot be fetched. However, we could
+    // tolerate loss of subsequent segments.
+    let mut seen_urls: HashMap<Url, bool> = HashMap::new();
+    let segment_count = audio_segment_urls.len() + video_segment_urls.len();
+    let mut segment_counter = 0;
+    for url in &audio_segment_urls {
+        // Update any ProgressObservers
+        segment_counter += 1;
+        let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
+        for observer in &downloader.progress_observers {
+            observer.update(progress_percent);
+        }
+        // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
+        // on the SegmentURL, which we are currently not handling correctly
+        // Example here
+        // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+        if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
+            e.insert(true);
+            if url.scheme() == "data" {
+                return Err(anyhow!("data URLs currently unsupported"));
+            } else {
+                // We could download these segments in parallel using reqwest in async mode,
+                // though that might upset some servers.
+                let backoff = ExponentialBackoff::default();
+                let fetch = || {
+                    client.get(url.clone())
+                    // Don't use only "audio/*" in Accept header because some web servers
+                    // (eg. media.axprod.net) are misconfigured and reject requests for
+                    // valid audio content (eg .m4s)
+                        .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
+                        .header("Referer", redirected_url.to_string())
+                        .send()?
+                        .bytes()
+                        .map_err(categorize_reqwest_error)
+                };
+                let dash_bytes = retry(backoff, fetch)
+                    .context("fetching DASH audio segment")?;
+                // eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
+                    log::error!("Unable to write DASH audio data: {:?}", e);
+                    return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
+                }
+                have_audio = true;
+            }
+        }
+    }
+    tmpfile_audio.flush().map_err(|e| {
+        log::error!("Couldn't flush DASH audio file to disk: {:?}", e);
+        e
+    })?;
+    if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
+        log::info!("Wrote {:.1}MB to DASH audio stream", metadata.len() as f64 / (1024.0 * 1024.0));
+    }
+    // Now fetch the video segments and concatenate them to the video file path
+    for url in &video_segment_urls {
+        // Update any ProgressObservers
+        segment_counter += 1;
+        let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
+        for observer in &downloader.progress_observers {
+            observer.update(progress_percent);
+        }
+        // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
+        // on the SegmentURL, which we are currently not handling correctly
+        // Example here
+        // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+        if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
+            e.insert(true);
+            let backoff = ExponentialBackoff::default();
+            let fetch = || {
+                client.get(url.clone())
+                    .header("Accept", "video/*")
+                    .header("Referer", redirected_url.to_string())
+                    .send()?
+                    .bytes()
+                    .map_err(categorize_reqwest_error)
+            };
+            let dash_bytes = retry_notify(backoff, fetch, notify_transient)
+                .context("fetching DASH video segment")?;
+                        // eprintln!("Video segment {} -> {} octets", url, dash_bytes.len());
+            if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                return Err(anyhow!("Unable to write video data: {:?}", e));
+            }
+            have_video = true;
+        }
+    }
+    tmpfile_video.flush().map_err(|e| {
+        log::error!("Couldn't flush video file to disk: {:?}", e);
+        e
+    })?;
+    if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
+        log::info!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
     }
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream.
@@ -1017,18 +1046,21 @@ fn fetch_mpd(client: &HttpClient,
     } else {
         return Err(anyhow!("No audio or video streams found"));
     }
+    for observer in &downloader.progress_observers {
+        observer.update(100);
+    }
     // As per https://www.freedesktop.org/wiki/CommonExtendedAttributes/, set extended filesystem
     // attributes indicating metadata such as the origin URL, title, source and copyright, if
     // specified in the MPD manifest. This functionality is only active on platforms where the xattr
     // crate supports extended attributes (currently Linux, MacOS, FreeBSD, and NetBSD); on
     // unsupported Unix platforms it's a no-op. On other non-Unix platforms the crate doesn't build.
-    let origin_url = Url::parse(mpd_url)
+    let origin_url = Url::parse(&downloader.mpd_url)
         .context("Can't parse MPD URL")?;
     // Don't record the origin URL if it contains sensitive information such as passwords
     #[allow(clippy::collapsible_if)]
     if origin_url.username().is_empty() && origin_url.password().is_none() {
         #[cfg(target_family = "unix")]
-        if xattr::set(&output_path, "user.xdg.origin.url", mpd_url.as_bytes()).is_err() {
+        if xattr::set(&output_path, "user.xdg.origin.url", downloader.mpd_url.as_bytes()).is_err() {
             log::info!("Failed to set user.xdg.origin.url xattr on output file");
         }
     }

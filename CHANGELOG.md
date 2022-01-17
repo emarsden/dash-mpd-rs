@@ -1,6 +1,14 @@
 # Changelog
 
-## [0.4.0] - 2022-01-XX
+## [0.4.1] - 2022-01-XX
+### New
+- Function `add_progress_observer` provides support for implementing progress bar, using the
+  observer pattern.
+
+### Changed
+- fetch_mpd() function now takes only a single DashDownloader argument.
+
+## [0.4.0] - 2022-01-13
 ### Changed
 - Downloading: move to a builder pattern with DashDownloader API. The function `fetch_mpd` should
   now be considered internal.

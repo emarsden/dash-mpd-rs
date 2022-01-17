@@ -23,15 +23,16 @@ regex = "1"
 anyhow = "1"
 tempfile = "3"
 sanitise-file-name = "1"
-clap = "3"
 log = "0.4"
-env_logger = "0.9"
 
 [dev-dependencies]
+env_logger = "0.9"
 ffprobe = "0.3"
 sha2 = "0.10"
 hex-literal = "0.3"
 colored = "2"
+indicatif = "0.16"
+clap = "3"
 
 [features]
 libav = ["ac-ffmpeg"]
