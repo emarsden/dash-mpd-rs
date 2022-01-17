@@ -12,7 +12,7 @@
 
 
 #[test]
-fn test_itec1() {
+fn test_dl1() {
     use std::env;
     use std::path::PathBuf;
     use dash_mpd::fetch::DashDownloader;
@@ -21,7 +21,7 @@ fn test_itec1() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd";
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = PathBuf::from(env::temp_dir()).join("itec-elephants-dream.mp4");
     assert!(DashDownloader::new(mpd_url)
             .worst_quality()
