@@ -51,6 +51,7 @@ pub struct DashDownloader {
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
+    verbosity: u8,
 }
 
 
@@ -80,6 +81,7 @@ impl DashDownloader {
             http_client: None,
             quality_preference: QualityPreference::Lowest,
             progress_observers: vec![],
+            verbosity: 0,
         }
     }
 
@@ -126,6 +128,16 @@ impl DashDownloader {
     /// quality), prefer the Adaptation with the lowest bitrate (smallest output file).
     pub fn worst_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Lowest;
+        self
+    }
+
+    /// Set the verbosity level of the download process. Possible values for level:
+    /// - 0: no information is printed
+    /// - 1: basic information on the number of Periods and bandwidth of selected representations
+    /// - 2: information above + segment addressing mode
+    /// - 3 or larger: information above + size of each downloaded segment
+    pub fn verbosity(mut self, level: u8) -> DashDownloader {
+        self.verbosity = level;
         self
     }
 
@@ -315,6 +327,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
     let mut have_audio = false;
     let mut have_video = false;
+    if downloader.verbosity > 0 {
+        println!("DASH manifest has {} Periods", mpd.periods.len());
+    }
     for mpd_period in &mpd.periods {
         let mut period = mpd_period.clone();
         // Resolve a possible xlink:href (though this seems in practice mostly to be used for ad
@@ -442,6 +457,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     .context("finding max bandwidth audio representation");
             }
             if let Ok(audio_repr) = maybe_audio_repr {
+                if downloader.verbosity > 0 {
+                    if let Some(bw) = audio_repr.bandwidth {
+                        println!("Selected audio representation with bandwidth {}", bw);
+                    }
+                }
                 // the Representation may have a BaseURL
                 let mut base_url = base_url;
                 if let Some(bu) = &audio_repr.BaseURL {
@@ -489,6 +509,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 // SegmentTemplate@duration, SegmentTemplate@index
                 if let Some(sb) = &audio_repr.SegmentBase {
                     // (1) SegmentBase@indexRange addressing mode
+                    if downloader.verbosity > 1 {
+                        println!("Using SegmentBase@indexRange addressing mode for audio representation");
+                    }
                     if let Some(init) = &sb.initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
@@ -505,6 +528,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     audio_segment_urls.push(base_url.clone());
                 } else if let Some(sl) = &audio_repr.SegmentList {
                     // (2) SegmentList addressing mode
+                    if downloader.verbosity > 1 {
+                        println!("Using SegmentList addressing mode for audio representation");
+                    }
                     if let Some(init) = &sl.Initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
@@ -550,6 +576,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentTemplate+SegmentTimeline addressing mode for audio representation");
+                        }
                         if let Some(init) = opt_init {
                             let path = resolve_url_template(&init, &dict);
                             let url = base_url.join(&path).context("joining init with baseURL")?;
@@ -606,6 +635,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         }
                     } else { // no SegmentTimeline element
                         // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentTemplate addressing mode for audio representation");
+                        }
                         if let Some(init) = opt_init {
                             let path = resolve_url_template(&init, &dict);
                             let u = base_url.join(&path).context("joining init with baseURL")?;
@@ -716,6 +748,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     .context("finding video representation with max bandwidth ");
             }
             if let Ok(video_repr) = maybe_video_repr {
+                if downloader.verbosity > 0 {
+                    if let Some(bw) = video_repr.bandwidth {
+                        println!("Selected video representation with bandwidth {}", bw);
+                    }
+                }
                 if let Some(bu) = &video_repr.BaseURL {
                     if is_absolute_url(&bu.base) {
                         base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
@@ -762,6 +799,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 // SegmentTemplate+SegmentTimeline, SegmentTemplate@duration, SegmentTemplate@index
                 if let Some(sb) = &video_repr.SegmentBase {
                     // (1) SegmentBase@indexRange addressing mode
+                    if downloader.verbosity > 1 {
+                        println!("Using SegmentBase@indexRange addressing mode for video representation");
+                    }
                     if let Some(init) = &sb.initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
@@ -778,6 +818,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     video_segment_urls.push(base_url.clone());
                 } else if let Some(sl) = &video_repr.SegmentList {
                     // (2) SegmentList addressing mode
+                    if downloader.verbosity > 1 {
+                        println!("Using SegmentList addressing mode for video representation");
+                    }
                     if let Some(init) = &sl.Initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
@@ -824,6 +867,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                     if let Some(stl) = &st.SegmentTimeline {
                         // (3) SegmentTemplate with SegmentTimeline addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentTemplate+SegmentTimeline addressing mode for video representation");
+                        }
                         if let Some(init) = opt_init {
                             let path = resolve_url_template(&init, &dict);
                             let u = base_url.join(&path).context("joining init with BaseURL")?;
@@ -880,6 +926,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         }
                     } else { // no SegmentTimeline element
                         // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentTemplate addressing mode for video representation");
+                        }
                         if let Some(init) = opt_init {
                             let path = resolve_url_template(&init, &dict);
                             let u = base_url.join(&path).context("joining init with BaseURL")?;
@@ -923,6 +972,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // so we should always abort if the first segment cannot be fetched. However, we could
     // tolerate loss of subsequent segments.
     let mut seen_urls: HashMap<Url, bool> = HashMap::new();
+    if downloader.verbosity > 0 {
+        println!("Preparing to fetch {} audio and {} video segments",
+                 audio_segment_urls.len(),
+                 video_segment_urls.len());
+    }
     let segment_count = audio_segment_urls.len() + video_segment_urls.len();
     let mut segment_counter = 0;
     for url in &audio_segment_urls {
@@ -957,7 +1011,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 };
                 let dash_bytes = retry(backoff, fetch)
                     .context("fetching DASH audio segment")?;
-                // eprintln!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                if downloader.verbosity > 2 {
+                    println!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                }
                 if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                     log::error!("Unable to write DASH audio data: {:?}", e);
                     return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
@@ -998,7 +1054,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             };
             let dash_bytes = retry_notify(backoff, fetch, notify_transient)
                 .context("fetching DASH video segment")?;
-                        // eprintln!("Video segment {} -> {} octets", url, dash_bytes.len());
+            if downloader.verbosity > 2 {
+                println!("Video segment {} -> {} octets", url, dash_bytes.len());
+            }
             if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
                 return Err(anyhow!("Unable to write video data: {:?}", e));
             }
@@ -1015,6 +1073,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream.
     if have_audio && have_video {
+        if downloader.verbosity > 1 {
+            println!("Muxing audio and video streams");
+        }
         mux_audio_video(&tmppath_audio, &tmppath_video, output_path)
             .context("muxing audio and video streams")?;
         if fs::remove_file(tmppath_audio).is_err() {
@@ -1046,6 +1107,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     } else {
         return Err(anyhow!("No audio or video streams found"));
     }
+    if downloader.verbosity > 1 {
+        if let Ok(metadata) = fs::metadata(output_path) {
+            println!("Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
+        }
+    }
     for observer in &downloader.progress_observers {
         observer.update(100);
     }
@@ -1066,6 +1132,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     }
     if let Some(pi) = mpd.ProgramInformation {
         if let Some(t) = pi.Title {
+            // this if is empty on non-Unix
+            #[allow(unused_variables)]
             if let Some(tc) = t.content {
                 #[cfg(target_family = "unix")]
                 if xattr::set(&output_path, "user.dublincore.title", tc.as_bytes()).is_err() {
@@ -1074,6 +1142,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             }
         }
         if let Some(source) = pi.Source {
+            #[allow(unused_variables)]
             if let Some(sc) = source.content {
                 #[cfg(target_family = "unix")]
                 if xattr::set(&output_path, "user.dublincore.source", sc.as_bytes()).is_err() {
@@ -1082,6 +1151,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             }
         }
         if let Some(copyright) = pi.Copyright {
+            #[allow(unused_variables)]
             if let Some(cc) = copyright.content {
                 #[cfg(target_family = "unix")]
                 if xattr::set(&output_path, "user.dublincore.rights", cc.as_bytes()).is_err() {

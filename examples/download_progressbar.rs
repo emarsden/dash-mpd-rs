@@ -26,6 +26,9 @@ impl ProgressObserver for DownloadProgressBar {
         if percent <= 100 {
             self.bar.set_position(percent.into());
         }
+        if percent == 100 {
+            self.bar.finish();
+        }
     }
 }
 

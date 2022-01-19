@@ -13,6 +13,7 @@ fn main () {
     let url = "http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-ctv-events.mpd";
     let dl_path = DashDownloader::new(url)
         .worst_quality()
+        .verbosity(2)
         .download();
     println!("Downloaded to {:?}", dl_path);
 }
