@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use env_logger::Env;
 use clap::Arg;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 use dash_mpd::fetch::DashDownloader;
 use dash_mpd::fetch::ProgressObserver;
 
@@ -17,17 +17,22 @@ struct DownloadProgressBar {
 
 impl DownloadProgressBar {
     pub fn new() -> Self {
-        Self { bar: ProgressBar::new(100) }
+        let b = ProgressBar::new(100)
+            .with_style(ProgressStyle::default_bar()
+                        .template("[{elapsed}] {bar:50.cyan/blue} {wide_msg}")
+                        .progress_chars("#>-"));
+        Self { bar: b }
     }
 }
 
 impl ProgressObserver for DownloadProgressBar {
-    fn update(&self, percent: u32) {
+    fn update(&self, percent: u32, message: &str) {
         if percent <= 100 {
             self.bar.set_position(percent.into());
+            self.bar.set_message(message.to_string());
         }
         if percent == 100 {
-            self.bar.finish();
+            self.bar.finish_with_message("Done");
         }
     }
 }

@@ -25,7 +25,7 @@ pub type HttpClient = reqwest::blocking::Client;
 /// Receives updates concerning the progression of the download, and can display this information to
 /// the user, for example using a progress bar.
 pub trait ProgressObserver {
-    fn update(&self, percent: u32);
+    fn update(&self, percent: u32, message: &str);
 }
 
 
@@ -289,6 +289,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             .send()
             .map_err(categorize_reqwest_error)
     };
+    for observer in &downloader.progress_observers {
+        observer.update(1, "Fetching DASH manifest");
+    }
+    if downloader.verbosity > 0 {
+        println!("Fetching the DASH manifest");
+    }
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
     let backoff = ExponentialBackoff::default();
@@ -977,14 +983,15 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                  audio_segment_urls.len(),
                  video_segment_urls.len());
     }
-    let segment_count = audio_segment_urls.len() + video_segment_urls.len();
+    // The additional +2 is for our initial .mpd fetch action and final muxing action
+    let segment_count = audio_segment_urls.len() + video_segment_urls.len() + 2;
     let mut segment_counter = 0;
     for url in &audio_segment_urls {
         // Update any ProgressObservers
         segment_counter += 1;
         let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
         for observer in &downloader.progress_observers {
-            observer.update(progress_percent);
+            observer.update(progress_percent, "Fetching audio segments");
         }
         // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
         // on the SegmentURL, which we are currently not handling correctly
@@ -1027,7 +1034,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         e
     })?;
     if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
-        log::info!("Wrote {:.1}MB to DASH audio stream", metadata.len() as f64 / (1024.0 * 1024.0));
+        if downloader.verbosity > 1 {
+            println!("Wrote {:.1}MB to DASH audio stream", metadata.len() as f64 / (1024.0 * 1024.0));
+        }
     }
     // Now fetch the video segments and concatenate them to the video file path
     for url in &video_segment_urls {
@@ -1035,7 +1044,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         segment_counter += 1;
         let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
         for observer in &downloader.progress_observers {
-            observer.update(progress_percent);
+            observer.update(progress_percent, "Fetching video segments");
         }
         // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
         // on the SegmentURL, which we are currently not handling correctly
@@ -1068,7 +1077,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         e
     })?;
     if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
-        log::info!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
+        if downloader.verbosity > 1 {
+            println!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
+        }
+    }
+    for observer in &downloader.progress_observers {
+        observer.update(99, "Muxing audio and video");
     }
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream.
@@ -1111,9 +1125,6 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         if let Ok(metadata) = fs::metadata(output_path) {
             println!("Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
         }
-    }
-    for observer in &downloader.progress_observers {
-        observer.update(100);
     }
     // As per https://www.freedesktop.org/wiki/CommonExtendedAttributes/, set extended filesystem
     // attributes indicating metadata such as the origin URL, title, source and copyright, if
@@ -1159,6 +1170,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 }
             }
         }
+    }
+    for observer in &downloader.progress_observers {
+        observer.update(100, "Done");
     }
     Ok(())
 }

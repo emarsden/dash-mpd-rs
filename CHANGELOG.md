@@ -2,8 +2,10 @@
 
 ## [0.4.1] - 2022-01-XX
 ### New
-- Function `add_progress_observer` provides support for implementing progress bar, using the
-  observer pattern.
+- Function `add_progress_observer` on DashDownloader provides support for implementing progress bar,
+  using the observer pattern.
+- Function `verbosity` on DashDownloader provides support for setting the level of verbose messages
+  concerning the progression of the download.
 
 ### Changed
 - fetch_mpd() function now takes only a single DashDownloader argument.
