@@ -52,6 +52,7 @@ pub struct DashDownloader {
     quality_preference: QualityPreference,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     verbosity: u8,
+    record_metainformation: bool,
 }
 
 
@@ -82,6 +83,7 @@ impl DashDownloader {
             quality_preference: QualityPreference::Lowest,
             progress_observers: vec![],
             verbosity: 0,
+            record_metainformation: true,
         }
     }
 
@@ -138,6 +140,14 @@ impl DashDownloader {
     /// - 3 or larger: information above + size of each downloaded segment
     pub fn verbosity(mut self, level: u8) -> DashDownloader {
         self.verbosity = level;
+        self
+    }
+
+    /// If `record` is true, record metainformation concerning the media content (origin URL, title,
+    /// source and copyright metainformation if present in the manifest as extended attributes in the
+    /// output file.
+    pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
+        self.record_metainformation = record;
         self
     }
 
@@ -1132,7 +1142,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // crate supports extended attributes (currently Linux, MacOS, FreeBSD, and NetBSD); on
     // unsupported Unix platforms it's a no-op. On other non-Unix platforms the crate doesn't build.
     let origin_url = Url::parse(&downloader.mpd_url)
-        .context("Can't parse MPD URL")?;
+        .context("parsing MPD URL")?;
     // Don't record the origin URL if it contains sensitive information such as passwords
     #[allow(clippy::collapsible_if)]
     if origin_url.username().is_empty() && origin_url.password().is_none() {

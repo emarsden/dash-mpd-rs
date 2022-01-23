@@ -47,7 +47,6 @@
 // The DASH code in VLC: https://code.videolan.org/videolan/vlc/-/tree/master/modules/demux/dash
 // Streamlink source code: https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
 
-// TODO: allow user to specify preference for selecting representation (highest quality, lowest quality, etc.)
 // TODO: handle dynamic MPD as per https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
 // TODO: handle indexRange attribute, as per https://dash.akamaized.net/dash264/TestCasesMCA/dolby/2/1/ChID_voices_71_768_ddp.mpd
 

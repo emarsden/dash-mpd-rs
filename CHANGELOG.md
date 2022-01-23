@@ -6,6 +6,8 @@
   using the observer pattern.
 - Function `verbosity` on DashDownloader provides support for setting the level of verbose messages
   concerning the progression of the download.
+- Function `record_metainformation` controls whether metainformation such as the origin URL are
+  recorded in the output file as extended attributes.
 
 ### Changed
 - fetch_mpd() function now takes only a single DashDownloader argument.
