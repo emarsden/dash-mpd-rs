@@ -99,10 +99,13 @@ The experimental support for downloading content from an MPD manifest:
 use dash_mpd::fetch::DashDownloader;
 
 let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
-let dl_path = DashDownloader::new(url)
+match DashDownloader::new(url)
        .worst_quality()
-       .download();
-println!("Downloaded to {:?}", dl_path);
+       .download()
+{
+   Ok(path) => println!("Downloaded to {:?}", path),
+   Err(e) => eprintln!("Download failed: {:?}", e),
+}
 ```
 
 
