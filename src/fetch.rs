@@ -144,7 +144,7 @@ impl DashDownloader {
     }
 
     /// If `record` is true, record metainformation concerning the media content (origin URL, title,
-    /// source and copyright metainformation if present in the manifest as extended attributes in the
+    /// source and copyright metainformation) if present in the manifest as extended attributes in the
     /// output file.
     pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
         self.record_metainformation = record;

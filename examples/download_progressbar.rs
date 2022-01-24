@@ -3,6 +3,7 @@
 // Run with `cargo run --example download_progressbar -- --quality=best <URL>`
 //
 
+use std::process;
 use std::sync::Arc;
 use env_logger::Env;
 use clap::Arg;
@@ -60,6 +61,11 @@ fn main () {
             dl = dl.best_quality();
         }
     }
-    let dl_path = dl.download();
-    println!("Downloaded to {:?}", dl_path);
+    match dl.download() {
+        Ok(path) => println!("Downloaded to {:?}", path),
+        Err(e) => {
+            eprintln!("Download failed: {:?}", e);
+            process::exit(-1);
+        },
+    }
 }
