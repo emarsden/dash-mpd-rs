@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.4.1] - 2022-01-XX
+## [0.4.2] - 2022-02-XX
+### New
+- Function `with_ffmpeg` on DashDownloader allows the user to specify the location of the ffmpeg
+  binary to use for muxing (useful if it's not in the PATH).
+
+
+## [0.4.1] - 2022-01-24
 ### New
 - Function `add_progress_observer` on DashDownloader provides support for implementing progress bar,
   using the observer pattern.

@@ -53,6 +53,7 @@ pub struct DashDownloader {
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     verbosity: u8,
     record_metainformation: bool,
+    ffmpeg_location: Option<String>,
 }
 
 
@@ -68,10 +69,13 @@ pub struct DashDownloader {
 /// use dash_mpd::fetch::DashDownloader;
 ///
 /// let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
-/// let dl_path = DashDownloader::new(url)
+/// match DashDownloader::new(url)
 ///        .worst_quality()
-///        .download();
-/// println!("Downloaded to {:?}", dl_path);
+///        .download()
+/// {
+///    Ok(path) => println!("Downloaded to {:?}", path),
+///    Err(e) => eprintln!("Download failed: {:?}", e),
+/// }
 /// ```
 impl DashDownloader {
     /// Create a `DashDownloader` for the specified DASH manifest URL `mpd_url`.
@@ -84,6 +88,7 @@ impl DashDownloader {
             progress_observers: vec![],
             verbosity: 0,
             record_metainformation: true,
+            ffmpeg_location: None,
         }
     }
 
@@ -148,6 +153,12 @@ impl DashDownloader {
     /// output file.
     pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
         self.record_metainformation = record;
+        self
+    }
+
+    /// Specify the location of the `ffmpeg` variable, if not location in PATH.
+    pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
+        self.ffmpeg_location = Some(ffmpeg_path.to_string());
         self
     }
 
@@ -1100,7 +1111,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         if downloader.verbosity > 1 {
             println!("Muxing audio and video streams");
         }
-        mux_audio_video(&tmppath_audio, &tmppath_video, output_path)
+        mux_audio_video(&tmppath_audio, &tmppath_video, output_path, downloader.ffmpeg_location)
             .context("muxing audio and video streams")?;
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
