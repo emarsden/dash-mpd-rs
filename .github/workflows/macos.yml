@@ -1,0 +1,23 @@
+on: [push]
+
+name: macos
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Build tests
+      run: cargo test --verbose --no-run
+
+    - name: Run tests
+      run: cargo test --verbose
