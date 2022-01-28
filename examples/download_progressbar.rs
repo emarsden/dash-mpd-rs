@@ -55,6 +55,7 @@ fn main () {
         .get_matches();
     let url = matches.value_of("url").unwrap();
     let mut dl = DashDownloader::new(url)
+        .record_metainformation(false)
         .add_progress_observer(Arc::new(DownloadProgressBar::new()));
     if let Some(q) = matches.value_of("quality") {
         if q.eq("best") {
