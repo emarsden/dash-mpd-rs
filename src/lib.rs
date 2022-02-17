@@ -427,6 +427,7 @@ pub struct AdaptationSet {
     pub frameRate: Option<String>, // it can be something like "15/2"
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub ContentComponent: Option<ContentComponent>,
+    pub ContentProtection: Option<ContentProtection>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Representation")]

@@ -4,7 +4,7 @@
 ### New
 - Function `with_ffmpeg` on DashDownloader allows the user to specify the location of the ffmpeg
   binary to use for muxing (useful if it's not in the PATH).
-
+- Optional field `ContentProtection` added to the `AdaptationSet` node type.
 
 ## [0.4.1] - 2022-01-24
 ### New
