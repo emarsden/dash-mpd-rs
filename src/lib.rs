@@ -358,6 +358,9 @@ pub struct ContentProtection {
     #[serde(rename = "ref")]
     pub cpref: Option<String>,
     pub schemeIdUri: Option<String>,
+    // In fact will be cenc:pssh, where cenc is the urn:mpeg:cenc:2013 XML namespace, but the serde
+    // crate doesn't support XML namespaces
+    #[serde(rename = "pssh")]
     pub cenc_pssh: Option<CencPssh>,
     pub value: Option<String>,
 }
@@ -437,7 +440,7 @@ pub struct AdaptationSet {
     pub frameRate: Option<String>, // it can be something like "15/2"
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub ContentComponent: Option<ContentComponent>,
-    pub ContentProtection: Option<ContentProtection>,
+    pub ContentProtection: Option<Vec<ContentProtection>>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Representation")]
