@@ -363,14 +363,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         // insertion, so perhaps we should implement an option to ignore these).
         if let Some(href) = &period.href {
             if fetchable_xlink_href(href) {
-                let xlink_url;
-                if is_absolute_url(href) {
-                    xlink_url = Url::parse(href).context("parsing XLink URL")?;
+                let xlink_url = if is_absolute_url(href) {
+                    Url::parse(href).context("parsing XLink URL")?
                 } else {
                     // Note that we are joining against the original/redirected URL for the MPD, and
                     // not against the currently scoped BaseURL
-                    xlink_url = redirected_url.join(href).context("joining with XLink URL")?;
-                }
+                    redirected_url.join(href).context("joining with XLink URL")?
+                };
                 let xml = client.get(xlink_url)
                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                     .header("Accept-language", "en-US,en")
@@ -414,14 +413,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             // Resolve a possible xlink:href on the AdaptationSet
             if let Some(href) = &audio.href {
                 if fetchable_xlink_href(href) {
-                    let xlink_url;
-                    if is_absolute_url(href) {
-                        xlink_url = Url::parse(href).context("parsing XLink URL on AdaptationSet")?;
+                    let xlink_url = if is_absolute_url(href) {
+                        Url::parse(href).context("parsing XLink URL on AdaptationSet")?
                     } else {
                         // Note that we are joining against the original/redirected URL for the MPD, and
                         // not against the currently scoped BaseURL
-                        xlink_url = redirected_url.join(href).context("joining with XLink URL on AdaptationSet")?;
-                    }
+                        redirected_url.join(href).context("joining with XLink URL on AdaptationSet")?
+                    };
                     let xml = client.get(xlink_url)
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                         .header("Accept-language", "en-US,en")
@@ -451,13 +449,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 for r in reps.iter() {
                     if let Some(href) = &r.href {
                         if fetchable_xlink_href(href) {
-                            let xlink_url;
-                            if is_absolute_url(href) {
-                                xlink_url = Url::parse(href).context("parsing XLink URL for Representation")?;
+                            let xlink_url = if is_absolute_url(href) {
+                                Url::parse(href).context("parsing XLink URL for Representation")?
                             } else {
-                                xlink_url = redirected_url.join(href)
-                                    .context("joining with XLink URL for Representation")?;
-                            }
+                                redirected_url.join(href)
+                                    .context("joining with XLink URL for Representation")?
+                            };
                             let xml = client.get(xlink_url)
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                 .header("Accept-language", "en-US,en")
@@ -473,16 +470,15 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                 }
             }
-            let maybe_audio_repr;
-            if downloader.quality_preference == QualityPreference::Lowest {
-                maybe_audio_repr = representations.iter()
+            let maybe_audio_repr = if downloader.quality_preference == QualityPreference::Lowest {
+                representations.iter()
                     .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-                    .context("finding min bandwidth audio representation");
+                    .context("finding min bandwidth audio representation")
             } else {
-                maybe_audio_repr = representations.iter()
+                representations.iter()
                     .max_by_key(|x| x.bandwidth.unwrap_or(0))
-                    .context("finding max bandwidth audio representation");
-            }
+                    .context("finding max bandwidth audio representation")
+            };
             if let Ok(audio_repr) = maybe_audio_repr {
                 if downloader.verbosity > 0 {
                     if let Some(bw) = audio_repr.bandwidth {
@@ -542,12 +538,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     if let Some(init) = &sb.initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url;
-                            if is_absolute_url(&path) {
-                                init_url = Url::parse(&path).context("parsing sourceURL")?;
+                            let init_url = if is_absolute_url(&path) {
+                                Url::parse(&path).context("parsing sourceURL")?
                             } else {
-                                init_url = base_url.join(&path).context("joining with sourceURL")?;
-                            }
+                                base_url.join(&path).context("joining with sourceURL")?
+                            };
                             audio_segment_urls.push(init_url);
                         }
                     }
@@ -561,12 +556,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     if let Some(init) = &sl.Initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url;
-                            if is_absolute_url(&path) {
-                                init_url = Url::parse(&path).context("parsing sourceURL")?;
+                            let init_url = if is_absolute_url(&path) {
+                                Url::parse(&path).context("parsing sourceURL")?
                             } else {
-                                init_url = base_url.join(&path).context("joining with sourceURL")?;
-                            }
+                                base_url.join(&path).context("joining with sourceURL")?
+                            };
                             audio_segment_urls.push(init_url);
                         } else {
                             audio_segment_urls.push(base_url.clone());
@@ -709,14 +703,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             // Resolve a possible xlink:href.
             if let Some(href) = &video.href {
                 if fetchable_xlink_href(href) {
-                    let xlink_url;
-                    if is_absolute_url(href) {
-                        xlink_url = Url::parse(href).context("parsing XLink URL")?;
+                    let xlink_url = if is_absolute_url(href) {
+                        Url::parse(href).context("parsing XLink URL")?
                     } else {
                         // Note that we are joining against the original/redirected URL for the MPD, and
                         // not against the currently scoped BaseURL
-                        xlink_url = redirected_url.join(href).context("joining XLink URL with BaseURL")?;
-                    }
+                        redirected_url.join(href).context("joining XLink URL with BaseURL")?
+                    };
                     let xml = client.get(xlink_url)
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                         .header("Accept-language", "en-US,en")
@@ -743,12 +736,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 for r in reps.iter() {
                     if let Some(href) = &r.href {
                         if fetchable_xlink_href(href) {
-                            let xlink_url;
-                            if is_absolute_url(href) {
-                                xlink_url = Url::parse(href)?;
+                            let xlink_url = if is_absolute_url(href) {
+                                Url::parse(href)?
                             } else {
-                                xlink_url = redirected_url.join(href)?;
-                            }
+                                redirected_url.join(href)?
+                            };
                             let xml = client.get(xlink_url)
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                 .header("Accept-language", "en-US,en")
@@ -764,16 +756,15 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                 }
             }
-            let maybe_video_repr;
-            if downloader.quality_preference == QualityPreference::Lowest {
-                maybe_video_repr = representations.iter()
+            let maybe_video_repr = if downloader.quality_preference == QualityPreference::Lowest {
+                representations.iter()
                     .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-                    .context("finding video representation with min bandwidth");
+                    .context("finding video representation with min bandwidth")
             } else {
-                maybe_video_repr = representations.iter()
+                representations.iter()
                     .max_by_key(|x| x.bandwidth.unwrap_or(0))
-                    .context("finding video representation with max bandwidth ");
-            }
+                    .context("finding video representation with max bandwidth ")
+            };
             if let Ok(video_repr) = maybe_video_repr {
                 if downloader.verbosity > 0 {
                     if let Some(bw) = video_repr.bandwidth {
@@ -832,12 +823,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     if let Some(init) = &sb.initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url;
-                            if is_absolute_url(&path) {
-                                init_url = Url::parse(&path).context("parsing sourceURL")?;
+                            let init_url = if is_absolute_url(&path) {
+                                Url::parse(&path).context("parsing sourceURL")?
                             } else {
-                                init_url = base_url.join(&path).context("joining sourceURL with BaseURL")?;
-                            }
+                                base_url.join(&path).context("joining sourceURL with BaseURL")?
+                            };
                             video_segment_urls.push(init_url);
                         }
                     }
@@ -851,12 +841,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     if let Some(init) = &sl.Initialization {
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url;
-                            if is_absolute_url(&path) {
-                                init_url = Url::parse(&path).context("parsing sourceURL")?;
+                            let init_url = if is_absolute_url(&path) {
+                                Url::parse(&path).context("parsing sourceURL")?
                             } else {
-                                init_url = base_url.join(&path).context("joining sourceURL with BaseURL")?;
-                            }
+                                base_url.join(&path).context("joining sourceURL with BaseURL")?
+                            };
                             video_segment_urls.push(init_url);
                         } else {
                             video_segment_urls.push(base_url.clone());
