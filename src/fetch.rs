@@ -156,7 +156,7 @@ impl DashDownloader {
         self
     }
 
-    /// Specify the location of the `ffmpeg` variable, if not location in PATH.
+    /// Specify the location of the `ffmpeg` variable, if not located in PATH.
     pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
         self.ffmpeg_location = Some(ffmpeg_path.to_string());
         self
