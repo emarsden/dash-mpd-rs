@@ -28,7 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install ffmpeg
+      # As of 2022-03, ubuntu-latest is using focal-updates which has libavcodec-dev v4.2.4
+      # This does not include libavformat/bsf.h, which is required by the ac-ffmpeg crate.
+      # Try to obtain ffmpeg/libav v4.4 from a ppa.
         run: |
+          sudo add-apt-repository ppa:savoury1/ffmpeg4
           sudo apt-get update
           sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
       - name: Checkout sources
