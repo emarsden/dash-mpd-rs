@@ -341,6 +341,13 @@ pub struct ContentComponent {
     pub Accessibility: Option<Accessibility>,
 }
 
+/// A Common Encryption "Protection System Specific Header" box. Content is typically base64 encoded.
+#[derive(Debug, Deserialize, Clone)]
+pub struct CencPssh {
+    #[serde(rename = "$value")]
+    pub content: Option<String>,
+}
+
 /// Contains information on DRM (rights management / encryption) mechanisms used in the stream, such
 /// as Widevine and Playready. Note that this library is not able to download content with DRM. If
 /// this node is not present, no content protection is applied.
@@ -350,6 +357,9 @@ pub struct ContentProtection {
     pub refId: Option<String>,
     #[serde(rename = "ref")]
     pub cpref: Option<String>,
+    pub schemeIdUri: Option<String>,
+    pub cenc_pssh: Option<CencPssh>,
+    pub value: Option<String>,
 }
 
 /// The purpose of this media stream, such as captions, subtitle, main, alternate, supplementary,
