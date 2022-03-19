@@ -14,7 +14,7 @@ use env_logger::Env;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-    let matches = clap::App::new("dash_stream_info")
+    let matches = clap::Command::new("dash_stream_info")
         .about("Show codec and bandwith for audio and video streams specified in a DASH MPD")
         .arg(Arg::new("url")
              .takes_value(true)

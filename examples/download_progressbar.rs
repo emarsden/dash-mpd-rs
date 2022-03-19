@@ -40,7 +40,7 @@ impl ProgressObserver for DownloadProgressBar {
 
 fn main () {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-    let matches = clap::App::new("downloader_progressbar")
+    let matches = clap::Command::new("downloader_progressbar")
         .about("Download content from a DASH streaming media manifest")
         .arg(Arg::new("quality")
              .long("quality")
