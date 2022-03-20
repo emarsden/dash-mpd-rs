@@ -91,7 +91,7 @@ use crate::ffmpeg::mux_audio_video;
 //
 // Note bug in current version of the iso8601 crate which incorrectly parses strings like "PT344S"
 // (seen in a real MPD) as a zero duration. However, ISO 8601 standard as adopted by Indian Bureau
-// of Standards includes p29 an example "PT72H"
+// of Standards includes p29 an example "PT72H", as do various MPD manifests in the wild.
 // https://archive.org/details/gov.in.is.7900.2007/
 fn parse_xs_duration(s: &str) -> Result<Duration> {
     match iso8601::duration(s) {
@@ -107,13 +107,31 @@ fn parse_xs_duration(s: &str) -> Result<Duration> {
                     secs += day    as u64 * 60 * 60 * 24;
                     secs += month  as u64 * 60 * 60 * 24 * 31;
                     secs += year   as u64 * 60 * 60 * 24 * 31 * 365;
-                    Ok(Duration::new(secs, millisecond * 1000))
+                    Ok(Duration::new(secs, millisecond * 1000_000))
                 },
             }
         },
         Err(e) => Err(anyhow!("Couldn't parse XS duration {}: {:?}", s, e)),
     }
 }
+
+// The iso8601_duration crate can't handle durations with fractional seconds
+// fn parse_xs_duration_buggy(s: &str) -> Result<Duration> {
+//     match iso8601_duration::Duration::parse(s) {
+//         Ok(d) => {
+//             let nanos: u32 = 1000_000 * d.second.fract() as u32;
+//             let mut secs: u64 = d.second.trunc() as u64;
+//             secs += d.minute as u64 * 60;
+//             secs += d.hour   as u64 * 60 * 60;
+//             secs += d.day    as u64 * 60 * 60 * 24;
+//             secs += d.month  as u64 * 60 * 60 * 24 * 31;
+//             secs += d.year   as u64 * 60 * 60 * 24 * 31 * 365;
+//             Ok(Duration::new(secs, nanos))
+//         },
+//         Err(e) => Err(anyhow!("Couldn't parse XS duration {}: {:?}", s, e)),
+//     }
+// }
+
 
 
 // Deserialize an optional XML duration string to an Option<Duration>. This is a little trickier
@@ -627,12 +645,14 @@ mod tests {
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
         assert_eq!(parse_xs_duration("PT30M38S").ok(), Some(Duration::new(1838, 0)));
         assert_eq!(parse_xs_duration("PT0H10M0.00S").ok(), Some(Duration::new(600, 0)));
-        assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000)));
+        assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000_000)));
         assert_eq!(parse_xs_duration("PT0S").ok(), Some(Duration::new(0, 0)));
+        // This test fails due to a bug in the iso8601 crate
+        // assert_eq!(parse_xs_duration("PT0.5H1S").ok(), Some(Duration::new(30*60+1, 0)));
         // This test currently fails due to a bug in the iso8601 crate
         // assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
-        assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000)));
+        assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
-        assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000)));
+        assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000_000)));
     }
 }
