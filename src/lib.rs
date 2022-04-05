@@ -531,6 +531,9 @@ pub struct MPD {
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_xs_duration")]
     pub mediaPresentationDuration: Option<Duration>,
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_xs_duration")]
+    pub maxSegmentDuration: Option<Duration>,
     pub suggestedPresentationDelay: Option<String>,
     pub publishTime: Option<String>,
     pub availabilityStartTime: Option<String>,
