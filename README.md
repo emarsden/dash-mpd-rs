@@ -108,6 +108,8 @@ match DashDownloader::new(url)
 }
 ```
 
+An application that provides a commandline interface for this library is available separately in the
+[dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
 
 
 ## Installation
