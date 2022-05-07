@@ -33,11 +33,20 @@ fn mux_audio_video_ffmpeg(
                "-i", audio_path,
                "-i", video_path,
                "-c:v", "copy", "-c:a", "copy",
-               // select the mp4 muxer explicitly (output_path doesn't necessarily have a .mp4 extension)
+               "-movflags", "+faststart", "-preset", "veryfast",
+               // select the mp4 muxer explicitly (tmppath won't have a .mp4 extension)
                "-f", "mp4",
                tmppath])
         .output()
-        .context("running ffmpeg subprocess")?;
+        .context("spawning ffmpeg subprocess")?;
+    let msg = String::from_utf8_lossy(&ffmpeg.stdout);
+    if msg.len() > 0 {
+        log::info!("ffmpeg stdout: {}", msg);
+    }
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    if msg.len() > 0 {
+        log::info!("ffmpeg stderr: {}", msg);
+    }
     if ffmpeg.status.success() {
         let tmpfile = File::open(&tmppath).context("opening ffmpeg output")?;
         let mut muxed = BufReader::new(tmpfile);
@@ -47,8 +56,7 @@ fn mux_audio_video_ffmpeg(
             .context("copying ffmpeg output to output file")?;
         Ok(())
     } else {
-        let msg = String::from_utf8(ffmpeg.stderr)?;
-        Err(anyhow!("Failure running ffmpeg: {}", msg))
+        Err(anyhow!("Failure running ffmpeg"))
     }
 }
 
@@ -68,7 +76,7 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
                        tmppath),
                "vlc://quit"])
         .output()
-        .context("running VLC subprocess")?;
+        .context("spawning VLC subprocess")?;
     if vlc.status.success() {
         let tmpfile = File::open(&tmppath).context("opening VLC output")?;
         let mut muxed = BufReader::new(tmpfile);
