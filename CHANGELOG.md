@@ -1,5 +1,12 @@
 # Changelog
 
+
+## [0.4.3] - 2022-XX
+### Changed
+- An `AdaptationSet` node may contain multiple `ContentComponent` nodes.
+- Optional fields `frameRate` and `sar` added to `Representation` nodes.
+
+
 ## [0.4.2] - 2022-03-19
 ### New
 - Function `with_ffmpeg` on DashDownloader allows the user to specify the location of the ffmpeg

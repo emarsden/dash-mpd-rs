@@ -331,6 +331,8 @@ pub struct Representation {
     pub contentType: Option<String>,
     /// If present, this attribute is expected to be set to "progressive".
     pub scanType: Option<String>,
+    pub frameRate: Option<String>, // can be something like "15/2"
+    pub sar: Option<String>,
     pub bandwidth: Option<u64>,
     pub audioSamplingRate: Option<u64>,
     pub width: Option<u64>,
