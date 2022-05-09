@@ -18,7 +18,6 @@ quick-xml = { version = "0.22", features = ["serialize"] }
 ac-ffmpeg = { version = "0.17", optional = true }
 url = "2"
 backoff = "0.4"
-iso8601 = "0.4"
 regex = ">=1.5.5"
 anyhow = "1"
 tempfile = "3"

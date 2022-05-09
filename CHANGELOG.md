@@ -5,7 +5,7 @@
 ### Changed
 - An `AdaptationSet` node may contain multiple `ContentComponent` nodes.
 - Optional fields `frameRate` and `sar` added to `Representation` nodes.
-
+- Implement our own parser for ISO 8601 durations to avoid bugs in the iso8601 crate.
 
 ## [0.4.2] - 2022-03-19
 ### New

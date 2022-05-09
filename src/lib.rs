@@ -66,6 +66,7 @@ pub mod fetch;
 use anyhow::{Result, Context, anyhow};
 use serde::Deserialize;
 use serde::de;
+use regex::Regex;
 use std::time::Duration;
 use tempfile::NamedTempFile;
 #[cfg(feature = "libav")]
@@ -89,31 +90,103 @@ use crate::ffmpeg::mux_audio_video;
 // P0Y20M0D => 20 months (0 is permitted as a number, but is not required)
 // PT1M30.5S => 1 minute, 30.5 seconds
 //
-// Note bug in current version of the iso8601 crate which incorrectly parses strings like "PT344S"
-// (seen in a real MPD) as a zero duration. However, ISO 8601 standard as adopted by Indian Bureau
-// of Standards includes p29 an example "PT72H", as do various MPD manifests in the wild.
-// https://archive.org/details/gov.in.is.7900.2007/
+// Limitations: we can't represent negative durations (leading "-" character) due to the choice of a
+// std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H". 
 fn parse_xs_duration(s: &str) -> Result<Duration> {
-    match iso8601::duration(s) {
-        Ok(iso_duration) => {
-            match iso_duration {
-                iso8601::Duration::Weeks(w) => Ok(Duration::new(w as u64*60 * 60 * 24 * 7, 0)),
-                iso8601::Duration::YMDHMS {year, month, day, hour, minute, second, millisecond } => {
-                    // note that if year and month are specified, we are not going to do a very
-                    // good conversion here
-                    let mut secs: u64 = second.into();
-                    secs += minute as u64 * 60;
-                    secs += hour   as u64 * 60 * 60;
-                    secs += day    as u64 * 60 * 60 * 24;
-                    secs += month  as u64 * 60 * 60 * 24 * 31;
-                    secs += year   as u64 * 60 * 60 * 24 * 31 * 365;
-                    Ok(Duration::new(secs, millisecond * 1000_000))
-                },
+    let re = Regex::new(concat!(r"^(?P<sign>[+-])?P",
+                                r"(?:(?P<years>\d+)Y)?",
+                                r"(?:(?P<months>\d+)M)?",
+                                r"(?:(?P<weeks>\d+)W)?",
+                                r"(?:(?P<days>\d+)D)?",
+                                r"(?:(?P<hastime>T)", // time part must begin with a T
+                                r"(?:(?P<hours>\d+)H)?",
+                                r"(?:(?P<minutes>\d+)M)?",
+                                r"(?:(?P<seconds>\d+)(?:(?P<nanoseconds>[.,]\d+)?)S)?",
+                                r")?")).unwrap();
+    match re.captures(s) {
+        Some(m) => {
+            if m.name("hastime").is_none() &&
+               m.name("years").is_none() &&
+               m.name("months").is_none() &&
+               m.name("weeks").is_none() &&
+               m.name("days").is_none() {
+                  return Err(anyhow!("Couldn't parse empty XS duration"));
             }
+            let mut secs: u64 = 0;
+            let mut nsecs: u32 = 0;
+            if let Some(s) = m.name("nanoseconds") {
+                let mut s = &s.as_str()[1..]; // drop initial "."
+                if s.len() > 9 {
+                    s = &s[..9];
+                }
+                let padded = format!("{:0<9}", s);
+                nsecs = padded.parse::<u32>().unwrap();
+            }
+            if let Some(s) = m.name("seconds") {
+                let seconds = s.as_str().parse::<u64>().unwrap();
+                secs += seconds;
+            }
+            if let Some(s) = m.name("minutes") {
+                let minutes = s.as_str().parse::<u64>().unwrap();
+                secs += minutes * 60;
+            }
+            if let Some(s) = m.name("hours") {
+                let hours = s.as_str().parse::<u64>().unwrap();
+                secs += hours as u64 * 60 * 60;
+            }
+            if let Some(s) = m.name("days") {
+                let days = s.as_str().parse::<u64>().unwrap();
+                secs += days as u64 * 60 * 60 * 24;
+            }
+            if let Some(s) = m.name("weeks") {
+                let weeks = s.as_str().parse::<u64>().unwrap();
+                secs += weeks as u64 * 60 * 60 * 24 * 7;
+            }
+            if let Some(s) = m.name("months") {
+                let months = s.as_str().parse::<u64>().unwrap();
+                secs += months as u64 * 60 * 60 * 24 * 30;
+            }
+            if let Some(s) = m.name("years") {
+                let years = s.as_str().parse::<u64>().unwrap();
+                secs += years as u64 * 60 * 60 * 24 * 365;
+            }
+            if let Some(s) = m.name("sign") {
+                if s.as_str() == "-" {
+                    return Err(anyhow!("Can't represent negative durations"));
+                }
+            }
+            Ok(Duration::new(secs, nsecs))
         },
-        Err(e) => Err(anyhow!("Couldn't parse XS duration {}: {:?}", s, e)),
+        None => Err(anyhow!("Couldn't parse XS duration")),
     }
 }
+
+
+// Note bug in current version of the iso8601 crate which incorrectly parses
+// strings like "PT344S" (seen in a real MPD) as a zero duration. However, ISO 8601 standard as
+// adopted by Indian Bureau of Standards includes p29 an example "PT72H", as do various MPD
+// manifests in the wild. https://archive.org/details/gov.in.is.7900.2007/
+// fn parse_xs_duration_buggy(s: &str) -> Result<Duration> {
+//     match iso8601::duration(s) {
+//         Ok(iso_duration) => {
+//             match iso_duration {
+//                 iso8601::Duration::Weeks(w) => Ok(Duration::new(w as u64*60 * 60 * 24 * 7, 0)),
+//                 iso8601::Duration::YMDHMS {year, month, day, hour, minute, second, millisecond } => {
+//                     // note that if year and month are specified, we are not going to do a very
+//                     // good conversion here
+//                     let mut secs: u64 = second.into();
+//                     secs += minute as u64 * 60;
+//                     secs += hour   as u64 * 60 * 60;
+//                     secs += day    as u64 * 60 * 60 * 24;
+//                     secs += month  as u64 * 60 * 60 * 24 * 31;
+//                     secs += year   as u64 * 60 * 60 * 24 * 31 * 365;
+//                     Ok(Duration::new(secs, millisecond * 1000_000))
+//                 },
+//             }
+//         },
+//         Err(e) => Err(anyhow!("Couldn't parse XS duration {}: {:?}", s, e)),
+//     }
+// }
 
 // The iso8601_duration crate can't handle durations with fractional seconds
 // fn parse_xs_duration_buggy(s: &str) -> Result<Duration> {
@@ -647,17 +720,40 @@ mod tests {
 
         assert!(parse_xs_duration("").is_err());
         assert!(parse_xs_duration("foobles").is_err());
+        assert!(parse_xs_duration("P").is_err());
+        assert!(parse_xs_duration("1Y2M3DT4H5M6S").is_err()); // missing initial P
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
+        assert_eq!(parse_xs_duration("PT42M30S").ok(), Some(Duration::new(2550, 0)));
         assert_eq!(parse_xs_duration("PT30M38S").ok(), Some(Duration::new(1838, 0)));
         assert_eq!(parse_xs_duration("PT0H10M0.00S").ok(), Some(Duration::new(600, 0)));
         assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000_000)));
         assert_eq!(parse_xs_duration("PT0S").ok(), Some(Duration::new(0, 0)));
-        // This test fails due to a bug in the iso8601 crate
-        // assert_eq!(parse_xs_duration("PT0.5H1S").ok(), Some(Duration::new(30*60+1, 0)));
-        // This test currently fails due to a bug in the iso8601 crate
-        // assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
+        assert_eq!(parse_xs_duration("PT0.001S").ok(), Some(Duration::new(0, 1_000_000)));
+        assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
+        assert_eq!(parse_xs_duration("PT634.566S").ok(), Some(Duration::new(634, 566_000_000)));
+        assert_eq!(parse_xs_duration("PT72H").ok(), Some(Duration::new(72*60*60, 0)));
+        assert_eq!(parse_xs_duration("PT0H0M30.030S").ok(), Some(Duration::new(30, 30_000_000)));
+        assert_eq!(parse_xs_duration("PT1004199059S").ok(), Some(Duration::new(1004199059, 0)));
+        assert_eq!(parse_xs_duration("P0Y20M0D").ok(), Some(Duration::new(51840000, 0)));
+        assert_eq!(parse_xs_duration("PT1M30.5S").ok(), Some(Duration::new(90, 500_000_000)));
+        assert_eq!(parse_xs_duration("PT10M10S").ok(), Some(Duration::new(610, 0)));
         assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
+        assert!(parse_xs_duration("PW").is_err());
+        assert_eq!(parse_xs_duration("P0W").ok(), Some(Duration::new(0, 0)));
+        assert_eq!(parse_xs_duration("P26W").ok(), Some(Duration::new(15724800, 0)));
+        assert_eq!(parse_xs_duration("P52W").ok(), Some(Duration::new(31449600, 0)));
+        assert_eq!(parse_xs_duration("P0Y").ok(), Some(Duration::new(0, 0)));
+        assert_eq!(parse_xs_duration("P1Y").ok(), Some(Duration::new(31536000, 0)));
+        assert_eq!(parse_xs_duration("PT4H").ok(), Some(Duration::new(14400, 0)));
+        assert_eq!(parse_xs_duration("+PT4H").ok(), Some(Duration::new(14400, 0)));
+        assert_eq!(parse_xs_duration("P23DT23H").ok(), Some(Duration::new(2070000, 0)));
         assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000_000)));
+        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6.7S").ok(), Some(Duration::new(36993906, 700_000_000)));
+        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6,7S").ok(), Some(Duration::new(36993906, 700_000_000)));
+
+        // we are not currently handling fractional parts except in the seconds
+        // assert_eq!(parse_xs_duration("PT0.5H1S").ok(), Some(Duration::new(30*60+1, 0)));
+        // assert_eq!(parse_xs_duration("P0001-02-03T04:05:06").ok(), Some(Duration::new(36993906, 0)));
     }
 }
