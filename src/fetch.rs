@@ -581,7 +581,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     } else if let Some(it) = &audio.SegmentTemplate {
                         st = it;
                     } else {
-                        panic!("impossible");
+                        panic!("unreachable");
                     }
                     if let Some(i) = &st.initialization {
                         opt_init = Some(i.to_string());
@@ -689,8 +689,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                         }
                     }
+                } else if audio_repr.BaseURL.is_some() {
+                    if downloader.verbosity > 1 {
+                        println!("Using BaseURL addressing mode for audio representation");
+                    }
+                    audio_segment_urls.push(base_url);
                 } else {
-                    return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
+                    return Err(anyhow!("no usable addressing mode identified for audio representation"));
                 }
             }
         }
@@ -975,8 +980,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                         }
                     }
+                } else if video_repr.BaseURL.is_some() {
+                    if downloader.verbosity > 1 {
+                        println!("Using BaseURL addressing mode for video representation");
+                    }
+                    video_segment_urls.push(base_url);
                 } else {
-                    return Err(anyhow!("Need either a SegmentBase or a SegmentTemplate node"));
+                    return Err(anyhow!("no usable addressing mode identified for video representation"));
                 }
             } else {
                 return Err(anyhow!("Couldn't find lowest bandwidth video stream in DASH manifest"));
