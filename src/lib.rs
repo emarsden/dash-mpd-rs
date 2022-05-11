@@ -306,8 +306,10 @@ pub struct SegmentTemplate {
     pub index: Option<String>,
     pub SegmentTimeline: Option<SegmentTimeline>,
     pub startNumber: Option<u64>,
-    // note: the spec says this is an unsigned int, not an xs:duration
-    pub duration: Option<u64>,
+    // note: the spec says this is an unsigned int, not an xs:duration. In practice, some manifests
+    // use a floating point value (eg.
+    // https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd)
+    pub duration: Option<f64>,
     pub timescale: Option<u64>,
     pub presentationTimeOffset: Option<u64>,
     pub bitstreamSwitching: Option<String>,  // bool?
