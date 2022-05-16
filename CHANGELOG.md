@@ -1,11 +1,13 @@
 # Changelog
 
 
-## [0.4.3] - 2022-XX
+## [0.4.3] - 2022-05-16
 ### Changed
 - An `AdaptationSet` node may contain multiple `ContentComponent` nodes.
 - Optional fields `frameRate` and `sar` added to `Representation` nodes.
-- Implement our own parser for ISO 8601 durations to avoid bugs in the iso8601 crate.
+- Implement our own parser for ISO 8601 durations to avoid bugs in the iso8601 crate. This fixes
+  download support for several video publishers (content previously handled as if it had zero
+  length, due to this parsing bug).
 - Optional `SegmentTemplate@duration` field changed from u64 to f64 type. It is specified to
   be an unsigned int, but some manifests in the wild use a floating point value (eg.
   https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd). 
