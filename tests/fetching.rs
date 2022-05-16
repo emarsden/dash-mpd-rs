@@ -99,3 +99,65 @@ fn test_downloader() {
 
 }
 
+
+
+#[test]
+fn test_content_protection_parsing() {
+    use std::time::Duration;
+    use dash_mpd::{parse, MPD};
+
+    fn known_cp_name(name: &str) -> bool {
+        let known = &["cenc", "MSPR 2.0", "Widevine", "ClearKey1.0"];
+        known.contains(&name)
+    }
+
+    fn known_cp_scheme(scheme: &str) -> bool {
+        let known = &["urn:mpeg:dash:mp4protection:2011",
+                      "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95",
+                      "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",
+                      "urn:uuid:e2719d58-a985-b3c9-781a-b030af78d30e"];
+        known.contains(&scheme)
+    }
+
+    fn check_cp(mpd_url: &str) {
+        println!("Checking MPD URL {}", mpd_url);
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::new(30, 0))
+            .gzip(true)
+            .build()
+            .expect("Couldn't create reqwest HTTP client");
+        let xml = client.get(mpd_url)
+            .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+            .send()
+            .expect("requesting MPD content")
+            .text()
+            .expect("fetching MPD content");
+        let mpd: MPD = parse(&xml)
+            .expect("parsing MPD");
+        for p in mpd.periods {
+            if let Some(adapts) = p.adaptations {
+                for adap in adapts.iter() {
+                    if let Some(cpv) = &adap.ContentProtection {
+                        for cp in cpv.iter() {
+                            assert!(cp.value.is_some());
+                            if let Some(v) = &cp.value {
+                                assert!(known_cp_name(&v));
+                            }
+                            assert!(cp.schemeIdUri.is_some());
+                            if let Some(s) = &cp.schemeIdUri {
+                                assert!(known_cp_scheme(&s));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
+    check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd");
+    check_cp("https://dash-license.westus.cloudapp.azure.com/ClearKey_2160p/Manifest_ClearKey.mpd");
+}
