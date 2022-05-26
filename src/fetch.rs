@@ -391,6 +391,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         if let Some(d) = &period.duration {
             period_duration_secs = d.as_secs_f64();
         }
+        if downloader.verbosity > 1 {
+            println!("Period with duration {:.3} seconds", period_duration_secs);
+        }
         let mut base_url = toplevel_base_url.clone();
         // A BaseURL could be specified for each Period
         if let Some(bu) = &period.BaseURL {
@@ -570,6 +573,14 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         if let Some(m) = &su.media {
                             let segment = base_url.join(m).context("joining media with baseURL")?;
                             audio_segment_urls.push(segment);
+                        } else if let Some(bu) = &audio_repr.BaseURL {
+                            let base_url = if is_absolute_url(&bu.base) {
+                                Url::parse(&bu.base).context("parsing BaseURL")?
+                            } else {
+                                base_url.join(&bu.base).context("joining with BaseURL")?
+                            };
+                            // FIXME we are not correctly handling @mediaRange and @indexRange here
+                            audio_segment_urls.push(base_url.clone());
                         }
                     }
                 } else if audio_repr.SegmentTemplate.is_some() || audio.SegmentTemplate.is_some() {
@@ -861,6 +872,14 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             let segment = base_url.join(m)
                                 .context("joining media with BaseURL")?;
                             video_segment_urls.push(segment);
+                        } else if let Some(bu) = &video_repr.BaseURL {
+                            let base_url = if is_absolute_url(&bu.base) {
+                                Url::parse(&bu.base).context("parsing BaseURL")?
+                            } else {
+                                base_url.join(&bu.base).context("joining with BaseURL")?
+                            };
+                            // FIXME we are not correctly handling @mediaRange and @indexRange here
+                            video_segment_urls.push(base_url.clone());
                         }
                     }
                 } else if video_repr.SegmentTemplate.is_some() || video.SegmentTemplate.is_some() {

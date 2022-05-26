@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.4.4] - 2022-06-XX
+### Changed
+- Fixes to allow download of DASH streams with SegmentList addressing where the `SegmentURL` nodes
+  use `BaseURL` instead of `@media` paths (eg.
+  http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-single/mp4-main-single-mpd-AV-BS.mpd) 
+
 ## [0.4.3] - 2022-05-16
 ### Changed
 - An `AdaptationSet` node may contain multiple `ContentComponent` nodes.
