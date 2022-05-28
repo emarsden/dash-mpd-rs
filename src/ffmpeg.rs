@@ -68,12 +68,13 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
     let tmppath = tmpout.path().to_str()
        .context("obtaining name of temporary file")?;
     let vlc = Command::new("vlc")
-        .args(["--no-repeat", "--no-loop", "-I", "dummy",
-               audio_path, video_path,
+        .args(["-I", "dummy",
+               "--no-repeat", "--no-loop",
+               video_path,
+               "--input-slave", audio_path,
+               "--sout-mp4-faststart",
+               &format!("--sout=#std{{access=file,mux=mp4,dst={}}}", tmppath),
                "--sout-keep",
-               &format!("--sout=#gather:transcode{{{}}}:standard{{access=file,mux=mp4,dst={}}}",
-                       "vcodec=h264,vb=1024,scale=1,acodec=mp4a",
-                       tmppath),
                "vlc://quit"])
         .output()
         .context("spawning VLC subprocess")?;
