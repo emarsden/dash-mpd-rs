@@ -1148,6 +1148,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut audio, &mut sink)
             .context("copying from audio stream to output file")?;
+        if fs::remove_file(tmppath_audio).is_err() {
+            log::info!("Failed to delete temporary file for audio segments");
+        }
     } else if have_video {
         let tmpfile_video = File::open(&tmppath_video)
             .context("opening temporary video output file")?;
@@ -1157,6 +1160,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut video, &mut sink)
             .context("copying from video stream to output file")?;
+        if fs::remove_file(tmppath_video).is_err() {
+            log::info!("Failed to delete temporary file for video segments");
+        }
     } else {
         return Err(anyhow!("No audio or video streams found"));
     }
