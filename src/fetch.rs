@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use regex::Regex;
 use url::Url;
-use backoff::{retry, retry_notify, ExponentialBackoff};
+use backoff::{retry_notify, ExponentialBackoff};
 use anyhow::{Context, Result, anyhow};
 use crate::{MPD, Period, Representation, AdaptationSet};
 use crate::{parse, tmp_file_path, is_audio_adaptation, is_video_adaptation, mux_audio_video};
@@ -320,8 +320,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
     let backoff = ExponentialBackoff::default();
-    let response = retry(backoff, fetch)
+    let response = retry_notify(backoff, fetch, notify_transient)
         .context("requesting DASH manifest")?;
+    if ! response.status().is_success() {
+        return Err(anyhow!("HTTP error {} while fetching the DASH manifest", response.status()));
+    }
     let redirected_url = response.url().clone();
     let xml = response.text()
         .context("fetching DASH manifest")?;
@@ -960,7 +963,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                         let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                   ("Number", number.to_string())]);
                                         let path = resolve_url_template(&video_path, &dict);
-                                        let u = base_url.join(&path).context("joiing media with BaseURL")?;
+                                        let u = base_url.join(&path).context("joining media with BaseURL")?;
                                         video_segment_urls.push(u);
                                         number += 1;
                                     }
@@ -1028,6 +1031,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                  audio_segment_urls.len(),
                  video_segment_urls.len());
     }
+    let mut download_errors = 0;
     // The additional +2 is for our initial .mpd fetch action and final muxing action
     let segment_count = audio_segment_urls.len() + video_segment_urls.len() + 2;
     let mut segment_counter = 0;
@@ -1051,27 +1055,38 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 // though that might upset some servers.
                 let backoff = ExponentialBackoff::default();
                 let fetch = || {
-                    client.get(url.clone())
                     // Don't use only "audio/*" in Accept header because some web servers
                     // (eg. media.axprod.net) are misconfigured and reject requests for
                     // valid audio content (eg .m4s)
+                    client.get(url.clone())
                         .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
                         .header("Referer", redirected_url.to_string())
                         .header("Sec-Fetch-Mode", "navigate")
-                        .send()?
-                        .bytes()
+                        .send()
                         .map_err(categorize_reqwest_error)
                 };
-                let dash_bytes = retry(backoff, fetch)
+                let response = retry_notify(backoff, fetch, notify_transient)
                     .context("fetching DASH audio segment")?;
-                if downloader.verbosity > 2 {
-                    println!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                let status = response.status();
+                if status.is_success() {
+                    let dash_bytes = response.bytes()?;
+                    if downloader.verbosity > 2 {
+                        println!("Audio segment {} -> {} octets", url, dash_bytes.len());
+                    }
+                    if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
+                        log::error!("Unable to write DASH audio data: {:?}", e);
+                        return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
+                    }
+                    have_audio = true;
+                } else {
+                    if downloader.verbosity > 0 {
+                        eprintln!("HTTP error {} fetching audio segment {}", status, url);
+                    }
+                    download_errors += 1;
+                    if download_errors > 10 {
+                        return Err(anyhow!("More than 10 HTTP download errors"));
+                    }
                 }
-                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                    log::error!("Unable to write DASH audio data: {:?}", e);
-                    return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
-                }
-                have_audio = true;
             }
         }
     }
@@ -1104,19 +1119,30 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     .header("Accept", "video/*")
                     .header("Referer", redirected_url.to_string())
                     .header("Sec-Fetch-Mode", "navigate")
-                    .send()?
-                    .bytes()
+                    .send()
                     .map_err(categorize_reqwest_error)
             };
-            let dash_bytes = retry_notify(backoff, fetch, notify_transient)
+            let response = retry_notify(backoff, fetch, notify_transient)
                 .context("fetching DASH video segment")?;
-            if downloader.verbosity > 2 {
-                println!("Video segment {} -> {} octets", url, dash_bytes.len());
+            let status = response.status();
+            if status.is_success() {
+                let dash_bytes = response.bytes()?;
+                if downloader.verbosity > 2 {
+                    println!("Video segment {} -> {} octets", url, dash_bytes.len());
+                }
+                if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                    return Err(anyhow!("Unable to write video data: {:?}", e));
+                }
+                have_video = true;
+            } else {
+                if downloader.verbosity > 0 {
+                    eprintln!("HTTP error {} fetching video segment {}", status, url);
+                }
+                download_errors += 1;
+                if download_errors > 10 {
+                    return Err(anyhow!("More than 10 HTTP download errors"));
+                }
             }
-            if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                return Err(anyhow!("Unable to write video data: {:?}", e));
-            }
-            have_video = true;
         }
     }
     tmpfile_video.flush().map_err(|e| {
