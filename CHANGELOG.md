@@ -2,10 +2,11 @@
 
 
 ## [0.4.4] - 2022-06-XX
-### Changed
+### Fixed
 - Fixes to allow download of DASH streams with SegmentList addressing where the `SegmentURL` nodes
   use `BaseURL` instead of `@media` paths (eg.
   http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-single/mp4-main-single-mpd-AV-BS.mpd) 
+- Downloading: muxing using VLC should now work correctly.
 
 ## [0.4.3] - 2022-05-16
 ### Changed
