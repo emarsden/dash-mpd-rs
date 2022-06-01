@@ -306,7 +306,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     let fetch = || {
         client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-            .header("Accept-language", "en-US,en")
+            .header("Accept-Language", "en-US,en")
+            .header("Sec-Fetch-Mode", "navigate")
             .send()
             .map_err(categorize_reqwest_error)
     };
@@ -372,7 +373,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 };
                 let xml = client.get(xlink_url)
                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                    .header("Accept-language", "en-US,en")
+                    .header("Accept-Language", "en-US,en")
+                    .header("Sec-Fetch-Mode", "navigate")
                     .send()
                     .context("fetching XLink on Period element")?
                     .text()
@@ -425,7 +427,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     };
                     let xml = client.get(xlink_url)
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                        .header("Accept-language", "en-US,en")
+                        .header("Accept-Language", "en-US,en")
+                        .header("Sec-Fetch-Mode", "navigate")
                         .send()
                         .context("fetching XLink URL for AdaptationSet")?
                         .text()
@@ -460,7 +463,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             };
                             let xml = client.get(xlink_url)
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                                .header("Accept-language", "en-US,en")
+                                .header("Accept-Language", "en-US,en")
+                                .header("Sec-Fetch-Mode", "navigate")
                                 .send()?
                                 .text()
                                 .context("resolving XLink on Representation element")?;
@@ -728,7 +732,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     };
                     let xml = client.get(xlink_url)
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                        .header("Accept-language", "en-US,en")
+                        .header("Accept-Language", "en-US,en")
+                        .header("Sec-Fetch-Mode", "navigate")
                         .send()?
                         .text()
                         .context("resolving XLink on AdaptationSet element")?;
@@ -759,7 +764,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             };
                             let xml = client.get(xlink_url)
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                                .header("Accept-language", "en-US,en")
+                                .header("Accept-Language", "en-US,en")
+                                .header("Sec-Fetch-Mode", "navigate")
                                 .send()?
                                 .text()
                                 .context("resolving XLink on Representation element")?;
@@ -1051,6 +1057,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     // valid audio content (eg .m4s)
                         .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
                         .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate")
                         .send()?
                         .bytes()
                         .map_err(categorize_reqwest_error)
@@ -1096,6 +1103,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 client.get(url.clone())
                     .header("Accept", "video/*")
                     .header("Referer", redirected_url.to_string())
+                    .header("Sec-Fetch-Mode", "navigate")
                     .send()?
                     .bytes()
                     .map_err(categorize_reqwest_error)
@@ -1176,6 +1184,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // specified in the MPD manifest. This functionality is only active on platforms where the xattr
     // crate supports extended attributes (currently Linux, MacOS, FreeBSD, and NetBSD); on
     // unsupported Unix platforms it's a no-op. On other non-Unix platforms the crate doesn't build.
+    //
+    // TODO: on Windows, could use NTFS Alternate Data Streams
+    // https://en.wikipedia.org/wiki/NTFS#Alternate_data_stream_(ADS)
     #[cfg(target_family = "unix")]
     if downloader.record_metainformation {
         let origin_url = Url::parse(&downloader.mpd_url)
