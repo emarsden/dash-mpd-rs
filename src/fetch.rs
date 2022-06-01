@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
+use std::thread;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::sync::Arc;
@@ -51,6 +52,7 @@ pub struct DashDownloader {
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
+    sleep_between_requests: u8,
     verbosity: u8,
     record_metainformation: bool,
     ffmpeg_location: Option<String>,
@@ -86,6 +88,7 @@ impl DashDownloader {
             http_client: None,
             quality_preference: QualityPreference::Lowest,
             progress_observers: vec![],
+            sleep_between_requests: 0,
             verbosity: 0,
             record_metainformation: true,
             ffmpeg_location: None,
@@ -135,6 +138,13 @@ impl DashDownloader {
     /// quality), prefer the Adaptation with the lowest bitrate (smallest output file).
     pub fn worst_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Lowest;
+        self
+    }
+
+    /// Specify a number of seconds to sleep between network requests (default 0). This provides a
+    /// primitive mechanism for throttling bandwidth consumption.
+    pub fn sleep_between_requests(mut self, seconds: u8) -> DashDownloader {
+        self.sleep_between_requests = seconds;
         self
     }
 
@@ -1089,6 +1099,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 }
             }
         }
+        if downloader.sleep_between_requests > 0 {
+            thread::sleep(Duration::new(downloader.sleep_between_requests.into(), 0));
+        }
     }
     tmpfile_audio.flush().map_err(|e| {
         log::error!("Couldn't flush DASH audio file to disk: {:?}", e);
@@ -1143,6 +1156,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     return Err(anyhow!("More than 10 HTTP download errors"));
                 }
             }
+        }
+        if downloader.sleep_between_requests > 0 {
+            thread::sleep(Duration::new(downloader.sleep_between_requests.into(), 0));
         }
     }
     tmpfile_video.flush().map_err(|e| {

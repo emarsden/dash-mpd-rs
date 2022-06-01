@@ -2,6 +2,10 @@
 
 
 ## [0.4.4] - 2022-06-XX
+### New
+- Downloading: support for sleeping between network requests, a primitive mechanism for throttling
+  network bandwidth consumption (function `sleep_between_requests` on DashDownloader).
+
 ### Fixed
 - Fixes to allow download of DASH streams with SegmentList addressing where the `SegmentURL` nodes
   use `BaseURL` instead of `@media` paths (eg.
