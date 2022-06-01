@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.4.4] - 2022-06-XX
+## [0.4.4] - 2022-06-01
 ### New
 - Downloading: support for sleeping between network requests, a primitive mechanism for throttling
   network bandwidth consumption (function `sleep_between_requests` on DashDownloader).
