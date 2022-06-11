@@ -32,7 +32,7 @@ pub trait ProgressObserver {
 
 /// Preference for retrieving media representation with highest quality (and highest file size) or
 /// lowest quality (and lowest file size).
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum QualityPreference { Lowest, Highest }
 
 impl Default for QualityPreference {
