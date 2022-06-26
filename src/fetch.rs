@@ -1243,7 +1243,15 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             log::info!("Failed to delete temporary file for video segments");
         }
     } else {
-        return Err(anyhow!("No audio or video streams found"));
+        if downloader.fetch_video {
+            if downloader.fetch_audio {
+                return Err(anyhow!("No audio or video streams found"));
+            } else {
+                return Err(anyhow!("No video streams found"));
+            }
+        } else {
+            return Err(anyhow!("No audio streams found"));
+        }
     }
     if downloader.verbosity > 1 {
         if let Ok(metadata) = fs::metadata(output_path) {

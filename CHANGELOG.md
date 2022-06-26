@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.4.5] - 2022-07
+### New
+- Downloading: functions `audio_only` and `video_only` on DashDownloader allow the user to fetch
+  only the audio stream, or only the video stream (for streams in which audio and video content are
+  available separately).
+
 ## [0.4.4] - 2022-06-01
 ### New
 - Downloading: support for sleeping between network requests, a primitive mechanism for throttling
