@@ -445,7 +445,7 @@ pub struct CencPssh {
 
 /// Contains information on DRM (rights management / encryption) mechanisms used in the stream, such
 /// as Widevine and Playready. Note that this library is not able to download content with DRM. If
-/// this node is not present, no content protection is applied.
+/// this node is not present, no content protection is applied by the source.
 #[derive(Debug, Deserialize, Clone)]
 pub struct ContentProtection {
     pub robustness: Option<String>,
@@ -457,6 +457,9 @@ pub struct ContentProtection {
     // crate doesn't support XML namespaces
     #[serde(rename = "pssh")]
     pub cenc_pssh: Option<CencPssh>,
+    // the DRM key identifier
+    #[serde(rename = "cenc:default_KID")]
+    pub default_KID: Option<String>,
     pub value: Option<String>,
 }
 
