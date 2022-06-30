@@ -51,6 +51,7 @@ pub struct DashDownloader {
     output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
+    language_preference: Option<String>,
     fetch_video: bool,
     fetch_audio: bool,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
@@ -89,6 +90,7 @@ impl DashDownloader {
             output_path: None,
             http_client: None,
             quality_preference: QualityPreference::Lowest,
+            language_preference: None,
             fetch_video: true,
             fetch_audio: true,
             progress_observers: vec![],
@@ -142,6 +144,14 @@ impl DashDownloader {
     /// quality), prefer the Adaptation with the lowest bitrate (smallest output file).
     pub fn worst_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Lowest;
+        self
+    }
+
+    /// Preferred language when multiple audio streams with different languages are available. Must
+    /// be in RFC 5646 format (eg. "fr" or "en-AU"). If a preference is not specified and multiple
+    /// audio streams are present, the first one listed in the DASH manifest will be downloaded.
+    pub fn prefer_language(mut self, lang: String) -> DashDownloader {
+        self.language_preference = Some(lang);
         self
     }
 
@@ -264,6 +274,23 @@ fn fetchable_xlink_href(href: &str) -> bool {
     (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
 }
 
+
+// Return a measure of the distance between this AdaptationSet's lang attribute and the language
+// code specified by language_preference. If the AdaptationSet node has no lang attribute, return an
+// arbitrary large distance.
+fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 {
+    if let Some(lang) = &a.lang {
+        if lang.eq(language_preference) {
+            return 0;
+        }
+        if lang[0..2].eq(&language_preference[0..2]) {
+            return 5;
+        }
+        100
+    } else {
+        100
+    }
+}
 
 
 // From https://dashif.org/docs/DASH-IF-IOP-v4.3.pdf:
@@ -431,7 +458,15 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         // Handle the AdaptationSet with audio content. Note that some streams don't separate out
         // audio and video streams.
         let maybe_audio_adaptation = match &period.adaptations {
-            Some(a) => a.iter().find(is_audio_adaptation),
+            Some(a) => {
+                if let Some(ref lang) = downloader.language_preference {
+                    a.iter().filter(is_audio_adaptation)
+                        .min_by_key(|a| adaptation_lang_distance(a, lang))
+                } else {
+                    // returns the first audio adaptation found
+                    a.iter().find(is_audio_adaptation)
+                }
+            },
             None => None,
         };
         // TODO: we could perhaps factor out the treatment of the audio adaptation and video
@@ -1243,6 +1278,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             log::info!("Failed to delete temporary file for video segments");
         }
     } else {
+        #[allow(clippy::collapsible_else_if)]
         if downloader.fetch_video {
             if downloader.fetch_audio {
                 return Err(anyhow!("No audio or video streams found"));

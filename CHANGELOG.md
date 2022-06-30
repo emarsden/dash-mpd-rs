@@ -6,6 +6,11 @@
 - Downloading: functions `audio_only` and `video_only` on DashDownloader allow the user to fetch
   only the audio stream, or only the video stream (for streams in which audio and video content are
   available separately).
+- Downloading: function `prefer_language` on DashDownloader allows the user to specify the preferred
+  language when multiple audio streams with different languages are available. The argument must be
+  in RFC 5646 format (eg. "fr" or "en-AU"). If a preference is not specified and multiple audio
+  streams are present, the first one listed in the DASH manifest will be downloaded.
+
 
 ## [0.4.4] - 2022-06-01
 ### New

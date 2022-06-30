@@ -428,7 +428,7 @@ pub struct Representation {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ContentComponent {
     pub id: Option<String>,
-    /// Language in RFC 5646 format
+    /// Language in RFC 5646 format (eg. "fr-FR", "en-AU")
     pub lang: Option<String>,
     pub contentType: Option<String>,
     pub par: Option<String>,
@@ -518,6 +518,7 @@ pub struct AdaptationSet {
     #[serde(rename = "xlink:actuate")]
     pub actuate: Option<String>,
     pub group: Option<i64>,
+    // eg "audio", "video", "text"
     pub contentType: Option<String>,
     /// Content language, in RFC 5646 format
     pub lang: Option<String>,
@@ -526,8 +527,9 @@ pub struct AdaptationSet {
     pub subsegmentAlignment: Option<bool>,
     pub bitstreamSwitching: Option<bool>,
     pub audioSamplingRate: Option<u64>,
+    // eg "video/mp4"
     pub mimeType: Option<String>,
-    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
+    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381> (eg. "avc1.4D400C")
     pub codecs: Option<String>,
     pub minBandwidth: Option<u64>,
     pub maxBandwidth: Option<u64>,
@@ -701,7 +703,6 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
     }
     false
 }
-
 
 
 // This doesn't work correctly on Android (fix needed in the tempfile crate)
