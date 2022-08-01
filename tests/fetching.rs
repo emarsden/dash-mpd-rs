@@ -14,7 +14,6 @@
 #[test]
 fn test_dl1() {
     use std::env;
-    use std::path::PathBuf;
     use dash_mpd::fetch::DashDownloader;
 
     // Don't run download tests on CI infrastructure
@@ -22,7 +21,7 @@ fn test_dl1() {
         return;
     }
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = PathBuf::from(env::temp_dir()).join("itec-elephants-dream.mp4");
+    let out = env::temp_dir().join("itec-elephants-dream.mp4");
     assert!(DashDownloader::new(mpd_url)
             .worst_quality()
             .download_to(out.clone()).is_ok());
@@ -115,7 +114,9 @@ fn test_content_protection_parsing() {
         let known = &["urn:mpeg:dash:mp4protection:2011",
                       "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95",
                       "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",
-                      "urn:uuid:e2719d58-a985-b3c9-781a-b030af78d30e"];
+                      "urn:uuid:e2719d58-a985-b3c9-781a-b030af78d30e",
+                      "urn:uuid:5e629af5-38da-4063-8977-97ffbd9902d4",
+                      "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b"];
         known.contains(&scheme)
     }
 
@@ -139,13 +140,12 @@ fn test_content_protection_parsing() {
                 for adap in adapts.iter() {
                     if let Some(cpv) = &adap.ContentProtection {
                         for cp in cpv.iter() {
-                            assert!(cp.value.is_some());
                             if let Some(v) = &cp.value {
-                                assert!(known_cp_name(&v));
+                                assert!(known_cp_name(v));
                             }
                             assert!(cp.schemeIdUri.is_some());
                             if let Some(s) = &cp.schemeIdUri {
-                                assert!(known_cp_scheme(&s));
+                                assert!(known_cp_scheme(s));
                             }
                         }
                     }
@@ -159,5 +159,5 @@ fn test_content_protection_parsing() {
         return;
     }
     check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd");
-    check_cp("https://dash-license.westus.cloudapp.azure.com/ClearKey_2160p/Manifest_ClearKey.mpd");
+    check_cp("https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd");
 }
