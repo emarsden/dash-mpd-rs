@@ -30,7 +30,7 @@ ffprobe = "0.3"
 sha2 = "0.10"
 hex-literal = "0.3"
 colored = "2"
-indicatif = "0.16"
+indicatif = "0.17"
 clap = "3"
 
 [features]
