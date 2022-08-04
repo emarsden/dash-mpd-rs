@@ -93,6 +93,32 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
 }
 
 
+fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
+    let tmpout = NamedTempFile::new()
+       .context("creating temporary output file")?;
+    let tmppath = tmpout.path().to_str()
+       .context("obtaining name of temporary file")?;
+    let mkv = Command::new("mkvmerge")
+        .args(["--output", tmppath,
+               "--no-video", audio_path,
+               "--no-audio", video_path])
+        .output()
+        .context("spawning mkvmerge subprocess")?;
+    if mkv.status.success() {
+        let tmpfile = File::open(&tmppath).context("opening mkvmerge output")?;
+        let mut muxed = BufReader::new(tmpfile);
+        let outfile = File::create(output_path).context("creating output file")?;
+        let mut sink = BufWriter::new(outfile);
+        io::copy(&mut muxed, &mut sink)
+            .context("copying mkvmerge output to output file")?;
+        Ok(())
+    } else {
+        let msg = String::from_utf8(mkv.stderr)?;
+        Err(anyhow!("Failure running mkvmerge: {}", msg))
+    }
+}
+
+
 // First try ffmpeg subprocess, if that fails try vlc subprocess
 pub fn mux_audio_video(
     audio_path: &str,
@@ -100,12 +126,18 @@ pub fn mux_audio_video(
     output_path: &Path,
     ffmpeg_location: Option<String>) -> Result<()> {
     log::trace!("Muxing audio {}, video {}", audio_path, video_path);
-    if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location) {
-        log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
-        log::info!("Retrying mux with vlc subprocess");
-        if let Err(e) = mux_audio_video_vlc(audio_path, video_path, output_path) {
-            log::warn!("Muxing with vlc subprocess failed: {}", e);
-            Err(e)
+    if let Err(e) = mux_audio_video_mkvmerge(audio_path, video_path, output_path) {
+        log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
+        log::info!("Retyring mux with ffmpeg subprocess");
+        if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location) {
+            log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
+            log::info!("Retrying mux with vlc subprocess");
+            if let Err(e) = mux_audio_video_vlc(audio_path, video_path, output_path) {
+                log::warn!("Muxing with vlc subprocess failed: {}", e);
+                Err(e)
+            } else {
+                Ok(())
+            }
         } else {
             Ok(())
         }
