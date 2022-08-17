@@ -9,7 +9,6 @@ use std::path::Path;
 use std::io;
 use std::io::{BufReader, BufWriter};
 use std::process::Command;
-use tempfile::NamedTempFile;
 use anyhow::{Result, Context, anyhow};
 
 
@@ -18,7 +17,11 @@ fn mux_audio_video_ffmpeg(
     video_path: &str,
     output_path: &Path,
     ffmpeg_location: Option<String>) -> Result<()> {
-    let tmpout = NamedTempFile::new()
+    let tmpout = tempfile::Builder::new()
+       .prefix("dashmpdrs")
+       .suffix(".mp4")
+       .rand_bytes(5)
+       .tempfile()
        .context("creating temporary output file")?;
     let tmppath = tmpout.path().to_str()
         .context("obtaining name of temporary file")?;
@@ -63,7 +66,11 @@ fn mux_audio_video_ffmpeg(
 
 // See https://wiki.videolan.org/Transcode/
 fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
-    let tmpout = NamedTempFile::new()
+    let tmpout = tempfile::Builder::new()
+       .prefix("dashmpdrs")
+       .suffix(".mp4")
+       .rand_bytes(5)
+       .tempfile()
        .context("creating temporary output file")?;
     let tmppath = tmpout.path().to_str()
        .context("obtaining name of temporary file")?;
@@ -93,13 +100,29 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
 }
 
 
-fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
-    let tmpout = NamedTempFile::new()
+// mkvmerge on Windows is compiled using MinGW and isn't able to handle native paths, so we
+// create the temporary file in the current directory. 
+#[cfg(target_os = "windows")]
+fn temporary_outpath() -> String {
+   "dashmpdrs-tmp.mkv".to_string()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn temporary_outpath() -> String {
+    let tmpout = tempfile::Builder::new()
+       .prefix("dashmpdrs")
+       .suffix(".mkv")
+       .rand_bytes(5)
+       .tempfile()
        .context("creating temporary output file")?;
-    let tmppath = tmpout.path().to_str()
-       .context("obtaining name of temporary file")?;
+    tmpout.path().to_str()
+       .context("obtaining name of temporary output file")?
+}
+
+fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
+    let tmppath = temporary_outpath();
     let mkv = Command::new("mkvmerge")
-        .args(["--output", tmppath,
+        .args(["--output", &tmppath,
                "--no-video", audio_path,
                "--no-audio", video_path])
         .output()
@@ -111,9 +134,12 @@ fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Pa
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
             .context("copying mkvmerge output to output file")?;
+	#[cfg(target_os = "windows")]
+	std::fs::remove_file(tmppath).ok();
         Ok(())
     } else {
-        let msg = String::from_utf8(mkv.stderr)?;
+        // mkvmerge writes error messages to stdout, not to stderr
+        let msg = String::from_utf8(mkv.stdout)?;
         Err(anyhow!("Failure running mkvmerge: {}", msg))
     }
 }
@@ -128,7 +154,7 @@ pub fn mux_audio_video(
     log::trace!("Muxing audio {}, video {}", audio_path, video_path);
     if let Err(e) = mux_audio_video_mkvmerge(audio_path, video_path, output_path) {
         log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
-        log::info!("Retyring mux with ffmpeg subprocess");
+        log::info!("Retrying mux with ffmpeg subprocess");
         if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location) {
             log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
             log::info!("Retrying mux with vlc subprocess");
