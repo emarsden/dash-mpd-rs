@@ -314,6 +314,14 @@ pub struct SegmentTemplate {
     pub bitstreamSwitching: Option<String>,  // bool?
 }
 
+/// A URI string to which a new request for an updated manifest should be made. This feature is
+/// intended for servers and clients that can't use sticky HTTP redirects.
+#[derive(Debug, Deserialize, Clone)]
+pub struct Location {
+    #[serde(rename = "$value")]
+    pub url: String,
+}
+
 /// A URI string that specifies one or more common locations for Segments and other resources.
 #[derive(Debug, Deserialize, Clone)]
 pub struct BaseURL {
@@ -618,11 +626,12 @@ pub struct MPD {
     pub suggestedPresentationDelay: Option<String>,
     pub publishTime: Option<String>,
     pub availabilityStartTime: Option<String>,
-    #[serde(rename = "Period")]
+    #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
     pub base_urls: Option<Vec<BaseURL>>,
+    pub locations: Option<Vec<Location>>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
     pub UTCTiming: Option<UTCTiming>,

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.6] - 2022-08
+### New
+- Downloading: when built without libav support (the default configuration), try to use `mkvmerge`
+  (from the MkvToolnix suite) as a subprocess for muxing, before falling back to `ffmpeg` then to
+  `vlc`. `mkvmerge` will generate files in a Matroska container, which allows more codec flexibility
+  than MPEG-4. `mkvmerge` is available for Linux and other Unixes, Microsoft Windows and MacOS.
+- Add support for manifests containing a `Location` node. This allows the server to specify a new
+  URL from which the client should request an updated manifest (similar to an HTTP redirect).
 
 ## [0.4.5] - 2022-07-02
 ### New

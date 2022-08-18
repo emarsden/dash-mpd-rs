@@ -374,17 +374,42 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     }
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
-    let backoff = ExponentialBackoff::default();
-    let response = retry_notify(backoff, fetch, notify_transient)
+    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
         .context("requesting DASH manifest")?;
     if ! response.status().is_success() {
         return Err(anyhow!("HTTP error {} while fetching the DASH manifest", response.status()));
     }
-    let redirected_url = response.url().clone();
+    let mut redirected_url = response.url().clone();
     let xml = response.text()
         .context("fetching DASH manifest")?;
-    let mpd: MPD = parse(&xml)
+    let mut mpd: MPD = parse(&xml)
         .context("parsing DASH XML")?;
+    // From the DASH specification: "If at least one MPD.Location element is present, the value of
+    // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
+    if let Some(locations) = mpd.locations {
+        let new_url = &locations[0].url;
+        if downloader.verbosity > 0 {
+            println!("Redirecting to new manifest <Location> {}", new_url);
+        }
+        let fetch = || {
+            client.get(&downloader.mpd_url)
+                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                .header("Accept-Language", "en-US,en")
+                .header("Sec-Fetch-Mode", "navigate")
+                .send()
+                .map_err(categorize_reqwest_error)
+        };
+        let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+            .context("requesting relocated DASH manifest")?;
+        if ! response.status().is_success() {
+            return Err(anyhow!("HTTP error {} while fetching the relocated DASH manifest", response.status()));
+        }
+        redirected_url = response.url().clone();
+        let xml = response.text()
+            .context("fetching relocated DASH manifest")?;
+        mpd = parse(&xml)
+            .context("parsing relocated DASH XML")?;
+    }
     if let Some(mpdtype) = mpd.mpdtype {
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
@@ -1075,6 +1100,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         return Err(anyhow!("no usable addressing mode identified for video representation"));
                     }
                 } else {
+                    // FIXME we aren't correctly handling manifests without a Representation node
+                    // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
                     return Err(anyhow!("Couldn't find lowest bandwidth video stream in DASH manifest"));
                 }
             }
@@ -1120,7 +1147,6 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 } else {
                     // We could download these segments in parallel using reqwest in async mode,
                     // though that might upset some servers.
-                    let backoff = ExponentialBackoff::default();
                     let fetch = || {
                         // Don't use only "audio/*" in Accept header because some web servers
                         // (eg. media.axprod.net) are misconfigured and reject requests for
@@ -1132,7 +1158,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             .send()
                             .map_err(categorize_reqwest_error)
                     };
-                    let response = retry_notify(backoff, fetch, notify_transient)
+                    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
                         .context("fetching DASH audio segment")?;
                     let status = response.status();
                     if status.is_success() {
@@ -1189,7 +1215,6 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
             if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                 e.insert(true);
-                let backoff = ExponentialBackoff::default();
                 let fetch = || {
                     client.get(url.clone())
                         .header("Accept", "video/*")
@@ -1198,7 +1223,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         .send()
                         .map_err(categorize_reqwest_error)
                 };
-                let response = retry_notify(backoff, fetch, notify_transient)
+                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
                     .context("fetching DASH video segment")?;
                 let status = response.status();
                 if status.is_success() {
