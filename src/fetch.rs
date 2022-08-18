@@ -1080,8 +1080,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             }
         }
     }
-    let tmppath_audio = tmp_file_path("dashmpd-audio-track");
-    let tmppath_video = tmp_file_path("dashmpd-video-track");
+    let tmppath_audio = tmp_file_path("dashmpd-audio")?;
+    let tmppath_video = tmp_file_path("dashmpd-video")?;
     let mut seen_urls: HashMap<Url, bool> = HashMap::new();
     if downloader.verbosity > 0 {
         println!("Preparing to fetch {} audio and {} video segments",

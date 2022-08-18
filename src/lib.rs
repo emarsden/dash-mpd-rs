@@ -68,7 +68,6 @@ use serde::Deserialize;
 use serde::de;
 use regex::Regex;
 use std::time::Duration;
-use tempfile::NamedTempFile;
 #[cfg(feature = "libav")]
 use crate::libav::mux_audio_video;
 #[cfg(not(feature = "libav"))]
@@ -705,13 +704,17 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
 }
 
 
-// This doesn't work correctly on Android (fix needed in the tempfile crate)
-fn tmp_file_path(_prefix: &str) -> String {
-    let file = NamedTempFile::new()
-        .expect("Creating named temp file");
-    let path = file.path().to_str()
-        .expect("Creating named temp file");
-    path.to_string()
+// This doesn't work correctly on modern Android, where there is no global location for temporary
+// files (fix needed in the tempfile crate)
+fn tmp_file_path(prefix: &str) -> Result<String> {
+    let file = tempfile::Builder::new()
+        .prefix(prefix)
+        .rand_bytes(5)
+        .tempfile()
+        .context("creating temporary file")?;
+    let s = file.path().to_str()
+        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
+    Ok(s.to_string())
 }
 
 

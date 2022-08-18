@@ -1,9 +1,10 @@
-/// Muxing support using ffmpeg as a subprocess.
+/// Muxing support using mkvmerge/ffmpeg/vlc as a subprocess.
 ///
 /// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
 /// in file "libav.rs".
 
 
+use std::fs;
 use std::fs::File;
 use std::path::Path;
 use std::io;
@@ -100,27 +101,28 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
 }
 
 
-// mkvmerge on Windows is compiled using MinGW and isn't able to handle native paths, so we
+// mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
 // create the temporary file in the current directory. 
 #[cfg(target_os = "windows")]
-fn temporary_outpath() -> String {
+fn temporary_outpath() -> Result<String> {
    "dashmpdrs-tmp.mkv".to_string()
 }
 
 #[cfg(not(target_os = "windows"))]
-fn temporary_outpath() -> String {
+fn temporary_outpath() -> Result<String> {
     let tmpout = tempfile::Builder::new()
        .prefix("dashmpdrs")
        .suffix(".mkv")
        .rand_bytes(5)
        .tempfile()
        .context("creating temporary output file")?;
-    tmpout.path().to_str()
-       .context("obtaining name of temporary output file")?
+    let s = tmpout.path().to_str()
+        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
+    Ok(s.to_string())
 }
 
 fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
-    let tmppath = temporary_outpath();
+    let tmppath = temporary_outpath()?;
     let mkv = Command::new("mkvmerge")
         .args(["--output", &tmppath,
                "--no-video", audio_path,
@@ -135,7 +137,7 @@ fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Pa
         io::copy(&mut muxed, &mut sink)
             .context("copying mkvmerge output to output file")?;
 	#[cfg(target_os = "windows")]
-	std::fs::remove_file(tmppath).ok();
+	fs::remove_file(tmppath).ok();
         Ok(())
     } else {
         // mkvmerge writes error messages to stdout, not to stderr

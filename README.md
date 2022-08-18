@@ -32,11 +32,13 @@ functionality depends on the `reqwest` crate) and muxing audio and video segment
 
 If the library feature `libav` is enabled, muxing support (combining audio and video streams, which
 are often separated out in DASH streams) is provided by ffmpeg’s libav library, via the `ac_ffmpeg`
-crate. Otherwise, muxing is implemented by calling `ffmpeg` as a subprocess. The ffmpeg commandline
-application implements a number of checks and workarounds to fix invalid input streams that tend to
-exist in the wild. Some of these workarounds, but not all, are implemented here when using libav as
-a library, so download support tends to be more robust with the default configuration (using ffmpeg
-as a subprocess).
+crate. Otherwise, muxing is implemented by calling `mkvmerge`, `ffmpeg` or `vlc` as a subprocess. If
+the call to `mkvmerge` fails (for example because it is not installed), then `ffmpeg` is called, and
+if that fails `vlc` is called. Note that these commandline applications implement a number of checks
+and workarounds to fix invalid input streams that tend to exist in the wild. Some of these
+workarounds are implemented here when using libav as a library, but not all of them, so download
+support tends to be more robust with the default configuration (using an external application as a
+subprocess).
 
 
 ## DASH features supported
@@ -46,7 +48,8 @@ as a subprocess).
 - XLink elements (only with actuate=onLoad semantics), including resolve-to-zero
 - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
-- Media containers of types supported by ffmpeg or VLC (this includes ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
+- Media containers of types supported by mkvmerge, ffmpeg or VLC (this includes Matroska, ISO-BMFF /
+  CMAF / MP4, WebM, MPEG-2 TS)
 
 
 ## Limitations / unsupported features
@@ -68,13 +71,13 @@ fn main() {
         .timeout(Duration::new(10, 0))
         .gzip(true)
         .build()
-        .expect("Couldn't create reqwest HTTP client");
+        .expect("creating reqwest HTTP client");
     let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
-        .expect("Requesting MPD content")
+        .expect("requesting MPD content")
         .text()
-        .expect("Fetching MPD content");
+        .expect("fetching MPD content");
     let mpd: MPD = parse(&xml)
         .expect("parsing MPD");
     if let Some(pi) = mpd.ProgramInformation {
@@ -126,7 +129,8 @@ dash-mpd = "0.4"
 
 This crate is tested on the following platforms:
 
-- Linux, with default features (ffmpeg or vlc as a subprocess) and libav support, on AMD64 and Aarch64 architectures 
+- Linux, with default features (mkvmerge or ffmpeg or vlc as a subprocess) and libav support, on
+  AMD64 and Aarch64 architectures
 - MacOS, only with default features (problems building the ac-ffmpeg crate against current ffmpeg)
 - Microsoft Windows 10, only with default features
 - Android 11 on Aarch64 via termux (you'll need to install the rust, binutils and ffmpeg packages)
