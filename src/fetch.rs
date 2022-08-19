@@ -362,6 +362,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-Language", "en-US,en")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Sec-Fetch-Mode", "navigate")
             .send()
             .map_err(categorize_reqwest_error)
