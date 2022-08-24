@@ -68,11 +68,17 @@ use serde::Deserialize;
 use serde::de;
 use regex::Regex;
 use std::time::Duration;
+use chrono::DateTime;
 #[cfg(feature = "libav")]
 use crate::libav::mux_audio_video;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::mux_audio_video;
 
+
+
+/// Type representing an xs:dateTime, as per https://www.w3.org/TR/xmlschema-2/#dateTime
+// Something like 2021-06-03T13:00:00Z
+pub type XsDatetime = DateTime<chrono::offset::Utc>;
 
 
 
@@ -532,6 +538,7 @@ pub struct AdaptationSet {
     pub par: Option<String>,
     pub segmentAlignment: Option<bool>,
     pub subsegmentAlignment: Option<bool>,
+    pub subsegmentStartsWithSAP: Option<u64>,
     pub bitstreamSwitching: Option<bool>,
     pub audioSamplingRate: Option<u64>,
     // eg "video/mp4"
@@ -561,8 +568,7 @@ pub struct Period {
     pub id: Option<String>,
     pub start: Option<String>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_xs_duration")]
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
     pub duration: Option<Duration>,
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Option<BaseURL>,
@@ -614,18 +620,21 @@ pub struct MPD {
     #[serde(rename = "xsi:schemaLocation")]
     pub schemaLocation: Option<String>,
     pub profiles: Option<String>,
-    pub minBufferTime: Option<String>,
-    pub minimumUpdatePeriod: Option<String>,
-    pub timeShiftBufferDepth: Option<String>,
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_xs_duration")]
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    pub minBufferTime: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    pub minimumUpdatePeriod: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    pub timeShiftBufferDepth: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
     pub mediaPresentationDuration: Option<Duration>,
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_xs_duration")]
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
     pub maxSegmentDuration: Option<Duration>,
-    pub suggestedPresentationDelay: Option<String>,
-    pub publishTime: Option<String>,
-    pub availabilityStartTime: Option<String>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    pub suggestedPresentationDelay: Option<Duration>,
+    pub publishTime: Option<XsDatetime>,
+    pub availabilityStartTime: Option<XsDatetime>,
+    pub availabilityEndTime: Option<XsDatetime>,
     #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)

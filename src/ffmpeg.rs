@@ -4,7 +4,6 @@
 /// in file "libav.rs".
 
 
-use std::fs;
 use std::fs::File;
 use std::path::Path;
 use std::io;
@@ -137,7 +136,7 @@ fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Pa
         io::copy(&mut muxed, &mut sink)
             .context("copying mkvmerge output to output file")?;
 	#[cfg(target_os = "windows")]
-	fs::remove_file(tmppath).ok();
+	::std::fs::remove_file(tmppath).ok();
         Ok(())
     } else {
         // mkvmerge writes error messages to stdout, not to stderr

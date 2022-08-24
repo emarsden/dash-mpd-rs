@@ -8,6 +8,13 @@
   than MPEG-4. `mkvmerge` is available for Linux and other Unixes, Microsoft Windows and MacOS.
 - Add support for manifests containing a `Location` node. This allows the server to specify a new
   URL from which the client should request an updated manifest (similar to an HTTP redirect).
+- Change type of some attributes specified to be of type `xs:dateTime` to an `XsDatetime` instead of
+  an unserialized String, using serde support in the chrono crate (@publishTime,
+  @availabilityStartTime, @availabilityEndTime).
+- Change type of some attributes specified to be of type `xs:duration` to a `Duration` instead of an
+  unserialized String (@minBufferTime, @minimumUpdatePeriod, @timeShiftBufferDepth,
+  @mediaPresentationDuration, @suggestedPresentationDelay).
+
 
 ## [0.4.5] - 2022-07-02
 ### New

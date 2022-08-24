@@ -16,6 +16,7 @@ reqwest = { version = "0.11", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 quick-xml = { version = "0.23", features = ["serialize"] }
 ac-ffmpeg = { version = "0.17", optional = true }
+chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 backoff = "0.4"
 regex = ">=1.5.5"
