@@ -33,13 +33,18 @@ fetching segments of the content using HTTP or HTTPS requests (this functionalit
 
 If the library feature `libav` is enabled, muxing support (combining audio and video streams, which
 are often separated out in DASH streams) is provided by ffmpeg’s libav library, via the `ac_ffmpeg`
-crate. Otherwise, muxing is implemented by calling `mkvmerge`, `ffmpeg` or `vlc` as a subprocess. If
-the call to `mkvmerge` fails (for example because it is not installed), then `ffmpeg` is called, and
-if that fails `vlc` is called. Note that these commandline applications implement a number of checks
-and workarounds to fix invalid input streams that tend to exist in the wild. Some of these
-workarounds are implemented here when using libav as a library, but not all of them, so download
-support tends to be more robust with the default configuration (using an external application as a
-subprocess).
+crate. Otherwise, muxing is implemented by calling an external muxer, `mkvmerge`, `ffmpeg` or `vlc`
+as a subprocess. Note that these commandline applications implement a number of checks and
+workarounds to fix invalid input streams that tend to exist in the wild. Some of these workarounds
+are implemented here when using libav as a library, but not all of them, so download support tends
+to be more robust with the default configuration (using an external application as a subprocess).
+
+The choice of external muxer depends on the filename extension of the path supplied to `download_to()`
+(will be ".mp4" if you call `download()`):
+
+- .mkv: call mkvmerge first, then if that fails call ffmpeg
+- .mp4: call ffmpeg first, then if that fails call vlc
+- other: try ffmpeg, which supports many container formats
 
 
 ## DASH features supported

@@ -12,17 +12,22 @@ use std::process::Command;
 use anyhow::{Result, Context, anyhow};
 
 
+// ffmpeg can mux to many container types including mp4, mkv, avi
 fn mux_audio_video_ffmpeg(
     audio_path: &str,
     video_path: &str,
     output_path: &Path,
     ffmpeg_location: Option<String>) -> Result<()> {
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
     let tmpout = tempfile::Builder::new()
-       .prefix("dashmpdrs")
-       .suffix(".mp4")
-       .rand_bytes(5)
-       .tempfile()
-       .context("creating temporary output file")?;
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{}", container))
+        .rand_bytes(5)
+        .tempfile()
+        .context("creating temporary output file")?;
     let tmppath = tmpout.path().to_str()
         .context("obtaining name of temporary file")?;
     let mut ffmpeg_binary = "ffmpeg".to_string();
@@ -30,15 +35,16 @@ fn mux_audio_video_ffmpeg(
         ffmpeg_binary = loc;
     }
     let ffmpeg = Command::new(ffmpeg_binary)
-        .args(["-hide_banner", "-nostats",
+        .args(["-hide_banner",
+               "-nostats",
                "-loglevel", "error",  // or "warning", "info"
                "-y",  // overwrite output file if it exists
                "-i", audio_path,
                "-i", video_path,
                "-c:v", "copy", "-c:a", "copy",
                "-movflags", "+faststart", "-preset", "veryfast",
-               // select the mp4 muxer explicitly (tmppath won't have a .mp4 extension)
-               "-f", "mp4",
+               // select the muxer explicitly
+               "-f", container,
                tmppath])
         .output()
         .context("spawning ffmpeg subprocess")?;
@@ -65,6 +71,7 @@ fn mux_audio_video_ffmpeg(
 
 
 // See https://wiki.videolan.org/Transcode/
+// VLC could also mux to an mkv container if needed
 fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
     let tmpout = tempfile::Builder::new()
        .prefix("dashmpdrs")
@@ -103,25 +110,26 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
 // create the temporary file in the current directory. 
 #[cfg(target_os = "windows")]
-fn temporary_outpath() -> Result<String> {
-   Ok("dashmpdrs-tmp.mkv".to_string())
+fn temporary_outpath(suffix: &str) -> Result<String> {
+    Ok((format!("dashmpdrs-tmp{}", suffix)))
 }
 
 #[cfg(not(target_os = "windows"))]
-fn temporary_outpath() -> Result<String> {
+fn temporary_outpath(suffix: &str) -> Result<String> {
     let tmpout = tempfile::Builder::new()
        .prefix("dashmpdrs")
-       .suffix(".mkv")
+       .suffix(suffix)
        .rand_bytes(5)
        .tempfile()
        .context("creating temporary output file")?;
-    let s = tmpout.path().to_str()
-        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
-    Ok(s.to_string())
+    match tmpout.path().to_str() {
+        Some(s) => Ok(s.to_string()),
+        None => Ok(format!("/tmp/dashmpdrs-tmp{}", suffix)),
+    }
 }
 
 fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
-    let tmppath = temporary_outpath()?;
+    let tmppath = temporary_outpath(".mkv")?;
     let mkv = Command::new("mkvmerge")
         .args(["--output", &tmppath,
                "--no-video", audio_path,
@@ -153,23 +161,47 @@ pub fn mux_audio_video(
     output_path: &Path,
     ffmpeg_location: Option<String>) -> Result<()> {
     log::trace!("Muxing audio {}, video {}", audio_path, video_path);
-    if let Err(e) = mux_audio_video_mkvmerge(audio_path, video_path, output_path) {
-        log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
-        log::info!("Retrying mux with ffmpeg subprocess");
-        if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location) {
-            log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
-            log::info!("Retrying mux with vlc subprocess");
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    let mut muxer_preference = vec![];
+    if container.eq("mkv") {
+        muxer_preference.push("mkvmerge");
+        muxer_preference.push("ffmpeg");
+    } else if container.eq("mp4") {
+        muxer_preference.push("ffmpeg");
+        muxer_preference.push("vlc");
+    } else {
+        muxer_preference.push("ffmpeg");
+    }
+    log::info!("Muxer preference for {} is {:?}", container, muxer_preference);
+    for muxer in muxer_preference {
+        log::info!("Trying muxer {}", muxer);
+        if muxer.eq("mkvmerge") {
+            if let Err(e) =  mux_audio_video_mkvmerge(audio_path, video_path, output_path) {
+                log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
+            } else {
+                log::info!("Muxing with mkvmerge subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("ffmpeg") {
+            if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location.clone()) {
+                log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
+            } else {
+                log::info!("Muxing with ffmpeg subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("vlc") {
             if let Err(e) = mux_audio_video_vlc(audio_path, video_path, output_path) {
                 log::warn!("Muxing with vlc subprocess failed: {}", e);
-                Err(e)
             } else {
-                Ok(())
+                log::info!("Muxing with vlc subprocess succeeded");
+                return Ok(());
             }
-        } else {
-            Ok(())
         }
-    } else {
-        Ok(())
     }
+    log::warn!("All available muxers failed");
+    Err(anyhow!("All available muxers failed"))
 }
 

@@ -252,7 +252,6 @@ impl DashDownloader {
     }
 }
 
-
 fn generate_filename_from_url(url: &str) -> PathBuf {
     use sanitise_file_name::sanitise;
 
@@ -273,6 +272,8 @@ fn generate_filename_from_url(url: &str) -> PathBuf {
     if let Some(p) = path.strip_suffix(".mpd") {
         path = p;
     }
+    // We currently default to an MP4 container (could default to Matroska which is more flexible, but
+    // perhaps less commonly supported).
     PathBuf::from(sanitise(path) + ".mp4")
 }
 

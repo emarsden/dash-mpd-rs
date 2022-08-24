@@ -6,10 +6,11 @@
   configuration). Disabling it reduces code size and the number of dependencies pulled in.
 
 ### New
-- Downloading: when built without libav support (the default configuration), try to use `mkvmerge`
-  (from the MkvToolnix suite) as a subprocess for muxing, before falling back to `ffmpeg` then to
-  `vlc`. `mkvmerge` will generate files in a Matroska container, which allows more codec flexibility
-  than MPEG-4. `mkvmerge` is available for Linux and other Unixes, Microsoft Windows and MacOS.
+- Downloading: add support for `mkvmerge` as an external muxing tool. When built without libav support
+  (the default configuration) and downloading to a path with ".mkv" extension, try to use `mkvmerge`
+  (from the MkvToolnix suite) as a subprocess for muxing, before falling back to `ffmpeg`.
+  `mkvmerge` will generate files in a Matroska container, which allows more codec flexibility than
+  MPEG-4. `mkvmerge` is available for Linux and other Unixes, Microsoft Windows and MacOS.
 - Add support for manifests containing a `Location` node. This allows the server to specify a new
   URL from which the client should request an updated manifest (similar to an HTTP redirect).
 - Change type of some attributes specified to be of type `xs:dateTime` to an `XsDatetime` instead of
