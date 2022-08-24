@@ -1,6 +1,10 @@
 # Changelog
 
 ## [0.4.6] - 2022-08
+### Changed
+- Download support is conditional on the `fetch` crate feature being enabled (which is the default
+  configuration). Disabling it reduces code size and the number of dependencies pulled in.
+
 ### New
 - Downloading: when built without libav support (the default configuration), try to use `mkvmerge`
   (from the MkvToolnix suite) as a subprocess for muxing, before falling back to `ffmpeg` then to

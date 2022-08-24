@@ -56,23 +56,26 @@
 
 /// If library feature `libav` is enabled, muxing support (combining audio and video streams, which
 /// are often separated out in DASH streams) is provided by ffmpeg's libav library, via the
-/// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `ffmpeg` or `vlc` as a subprocess.
-#[cfg(feature = "libav")]
+/// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `ffmpeg` or `vlc` as a
+/// subprocess. The muxing support in libav and ffmpeg modules are only compiled when the fetch
+/// feature is enabled.
+#[cfg(all(feature = "fetch", feature = "libav"))]
 mod libav;
-#[cfg(not(feature = "libav"))]
+#[cfg(all(feature = "fetch", not(feature = "libav")))]
 mod ffmpeg;
+#[cfg(feature = "fetch")]
 pub mod fetch;
 
+#[cfg(all(feature = "fetch", feature = "libav"))]
+use crate::libav::mux_audio_video;
+#[cfg(all(feature = "fetch", not(feature = "libav")))]
+use crate::ffmpeg::mux_audio_video;
 use anyhow::{Result, Context, anyhow};
 use serde::Deserialize;
 use serde::de;
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
-#[cfg(feature = "libav")]
-use crate::libav::mux_audio_video;
-#[cfg(not(feature = "libav"))]
-use crate::ffmpeg::mux_audio_video;
 
 
 
@@ -720,22 +723,6 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
     }
     false
 }
-
-
-// This doesn't work correctly on modern Android, where there is no global location for temporary
-// files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str) -> Result<String> {
-    let file = tempfile::Builder::new()
-        .prefix(prefix)
-        .rand_bytes(5)
-        .tempfile()
-        .context("creating temporary file")?;
-    let s = file.path().to_str()
-        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
-    Ok(s.to_string())
-}
-
-
 
 
 #[cfg(test)]

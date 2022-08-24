@@ -25,10 +25,11 @@ When MPD files in practical use diverge from the formal standard, this library p
 interoperate with existing practice. 
 
 
-The library also provides experimental support for downloading content (audio or video) described by
-an MPD manifest. This involves selecting the alternative with the most appropriate encoding (in
-terms of bitrate, codec, etc.), fetching segments of the content using HTTP or HTTPS requests (this
-functionality depends on the `reqwest` crate) and muxing audio and video segments together.
+If the library feature `fetch` is enabled (which it is by default), the library also provides
+support for downloading content (audio or video) described by an MPD manifest. This involves
+selecting the alternative with the most appropriate encoding (in terms of bitrate, codec, etc.),
+fetching segments of the content using HTTP or HTTPS requests (this functionality depends on the
+`reqwest` crate) and muxing audio and video segments together.
 
 If the library feature `libav` is enabled, muxing support (combining audio and video streams, which
 are often separated out in DASH streams) is provided by ffmpeg’s libav library, via the `ac_ffmpeg`
@@ -96,7 +97,7 @@ fn main() {
 }
 ```
 
-The experimental support for downloading content from an MPD manifest:
+To download content from an MPD manifest:
 
 ```rust
 use dash_mpd::fetch::DashDownloader;
@@ -123,6 +124,14 @@ Add to your `Cargo.toml` file:
 [dependencies]
 dash-mpd = "0.4"
 ```
+
+If you don’t need the download functionality and wish to reduce code size, use:
+
+```toml
+[dependencies]
+dash-mpd = { version = "0.4", default-features = false }
+```
+
 
 
 ## Platforms

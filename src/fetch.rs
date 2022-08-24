@@ -17,11 +17,27 @@ use url::Url;
 use backoff::{retry_notify, ExponentialBackoff};
 use anyhow::{Context, Result, anyhow};
 use crate::{MPD, Period, Representation, AdaptationSet};
-use crate::{parse, tmp_file_path, is_audio_adaptation, is_video_adaptation, mux_audio_video};
+use crate::{parse, is_audio_adaptation, is_video_adaptation, mux_audio_video};
 
 
 /// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::blocking::Client;
+
+
+// This doesn't work correctly on modern Android, where there is no global location for temporary
+// files (fix needed in the tempfile crate)
+fn tmp_file_path(prefix: &str) -> Result<String> {
+    let file = tempfile::Builder::new()
+        .prefix(prefix)
+        .rand_bytes(5)
+        .tempfile()
+        .context("creating temporary file")?;
+    let s = file.path().to_str()
+        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
+    Ok(s.to_string())
+}
+
+
 
 /// Receives updates concerning the progression of the download, and can display this information to
 /// the user, for example using a progress bar.

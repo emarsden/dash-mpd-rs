@@ -12,18 +12,18 @@ publish = true
 edition = "2021"
 
 [dependencies]
-reqwest = { version = "0.11", default-features = false, features = ["blocking", "gzip", "brotli", "rustls-tls", "socks"] }
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 quick-xml = { version = "0.23", features = ["serialize"] }
-ac-ffmpeg = { version = "0.17", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
-url = "2"
-backoff = "0.4"
 regex = ">=1.5.5"
 anyhow = "1"
-tempfile = "3"
-sanitise-file-name = "1"
-log = "0.4"
+url = { version = "2", optional = true }
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "gzip", "brotli", "rustls-tls", "socks"], optional = true }
+backoff = { version = "0.4", optional = true }
+tempfile = { version = "3", optional = true }
+sanitise-file-name = { version = "1", optional = true }
+ac-ffmpeg = { version = "0.17", optional = true }
 
 [dev-dependencies]
 env_logger = "0.9"
@@ -35,6 +35,8 @@ indicatif = "0.17"
 clap = "3"
 
 [features]
+default = ["fetch"]
+fetch = ["url", "reqwest", "backoff", "tempfile", "sanitise-file-name"]
 libav = ["ac-ffmpeg"]
 
 [target.'cfg(unix)'.dependencies]
