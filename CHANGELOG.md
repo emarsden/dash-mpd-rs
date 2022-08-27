@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4.6] - 2022-08
+## [0.4.6] - 2022-08-27
 ### Changed
 - Download support is conditional on the `fetch` crate feature being enabled (which is the default
   configuration). Disabling it reduces code size and the number of dependencies pulled in.

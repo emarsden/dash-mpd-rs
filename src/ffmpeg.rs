@@ -111,7 +111,7 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
 // create the temporary file in the current directory. 
 #[cfg(target_os = "windows")]
 fn temporary_outpath(suffix: &str) -> Result<String> {
-    Ok((format!("dashmpdrs-tmp{}", suffix)))
+    Ok(format!("dashmpdrs-tmp{}", suffix))
 }
 
 #[cfg(not(target_os = "windows"))]
