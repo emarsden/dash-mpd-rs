@@ -14,7 +14,7 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
-quick-xml = { version = "0.23", features = ["serialize"] }
+quick-xml = { version = "0.24", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 regex = ">=1.5.5"
 anyhow = "1"
