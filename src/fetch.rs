@@ -15,8 +15,7 @@ use std::collections::hash_map::Entry;
 use regex::Regex;
 use url::Url;
 use backoff::{retry_notify, ExponentialBackoff};
-use anyhow::{Context, Result, anyhow};
-use crate::{MPD, Period, Representation, AdaptationSet};
+use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, is_audio_adaptation, is_video_adaptation, mux_audio_video};
 
 
@@ -26,12 +25,12 @@ pub type HttpClient = reqwest::blocking::Client;
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str) -> Result<String> {
+fn tmp_file_path(prefix: &str) -> Result<String, DashMpdError> {
     let file = tempfile::Builder::new()
         .prefix(prefix)
         .rand_bytes(5)
         .tempfile()
-        .context("creating temporary file")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
     let s = file.path().to_str()
         .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
     Ok(s.to_string())
@@ -95,7 +94,7 @@ pub struct DashDownloader {
 ///        .download()
 /// {
 ///    Ok(path) => println!("Downloaded to {:?}", path),
-///    Err(e) => eprintln!("Download failed: {:?}", e),
+///    Err(e) => eprintln!("Download failed: {}", e),
 /// }
 /// ```
 impl DashDownloader {
@@ -218,14 +217,14 @@ impl DashDownloader {
 
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
-    pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<()> {
+    pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<(), DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
                 .timeout(Duration::new(10, 0))
                 .gzip(true)
                 .build()
-                .context("building reqwest HTTP client")?;
+                .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
         }
         fetch_mpd(self)
@@ -234,8 +233,9 @@ impl DashDownloader {
     /// Download DASH streaming media content to a file in the current working directory and return
     /// the corresponding `PathBuf`. The name of the output file is derived from the manifest URL. The
     /// output file will be overwritten if it already exists.
-    pub fn download(mut self) -> Result<PathBuf> {
-        let cwd = env::current_dir().context("obtaining current dir")?;
+    pub fn download(mut self) -> Result<PathBuf, DashMpdError> {
+        let cwd = env::current_dir()
+            .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
         let filename = generate_filename_from_url(&self.mpd_url);
         let outpath = cwd.join(filename);
         self.output_path = Some(outpath.clone());
@@ -244,7 +244,7 @@ impl DashDownloader {
                 .timeout(Duration::new(10, 0))
                 .gzip(true)
                 .build()
-                .context("building reqwest HTTP client")?;
+                .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
         }
         fetch_mpd(self)?;
@@ -368,11 +368,11 @@ fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error>
 }
 
 fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
-    log::info!("Transient error at {:?}: {:?}", dur, err);
+    log::info!("Transient error after {:?}: {:?}", dur, err);
 }
 
 
-fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
+fn fetch_mpd(downloader: DashDownloader) -> Result<(), DashMpdError> {
     let client = downloader.http_client.unwrap();
     let output_path = &downloader.output_path.unwrap();
     let fetch = || {
@@ -393,15 +393,16 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
     let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-        .context("requesting DASH manifest")?;
-    if ! response.status().is_success() {
-        return Err(anyhow!("HTTP error {} while fetching the DASH manifest", response.status()));
+        .map_err(|e| DashMpdError::Network(format!("requesting DASH manifest: {}", e)))?;
+    if !response.status().is_success() {
+        let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
+        return Err(DashMpdError::Network(msg));
     }
     let mut redirected_url = response.url().clone();
     let xml = response.text()
-        .context("fetching DASH manifest")?;
+        .map_err(|e| DashMpdError::Network(format!("fetching DASH manifest: {}", e)))?;
     let mut mpd: MPD = parse(&xml)
-        .context("parsing DASH XML")?;
+        .map_err(|e| DashMpdError::Parsing(format!("parsing DASH XML: {}", e)))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
     if let Some(locations) = mpd.locations {
@@ -418,30 +419,33 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 .map_err(categorize_reqwest_error)
         };
         let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-            .context("requesting relocated DASH manifest")?;
-        if ! response.status().is_success() {
-            return Err(anyhow!("HTTP error {} while fetching the relocated DASH manifest", response.status()));
+            .map_err(|e| DashMpdError::Network(format!("requesting relocated DASH manifest: {}", e)))?;
+        if !response.status().is_success() {
+            let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
+            return Err(DashMpdError::Network(msg));
         }
         redirected_url = response.url().clone();
         let xml = response.text()
-            .context("fetching relocated DASH manifest")?;
+            .map_err(|e| DashMpdError::Network(format!("fetching relocated DASH manifest: {}", e)))?;
         mpd = parse(&xml)
-            .context("parsing relocated DASH XML")?;
+            .map_err(|e| DashMpdError::Parsing(format!("parsing relocated DASH XML: {}", e)))?;
     }
     if let Some(mpdtype) = mpd.mpdtype {
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
-            return Err(anyhow!("Don't know how to download dynamic MPD"));
+            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
         }
     }
     let mut toplevel_base_url = redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
     if let Some(bases) = &mpd.base_urls {
         if is_absolute_url(&bases[0].base) {
-            toplevel_base_url = Url::parse(&bases[0].base).context("parsing BaseURL")?;
+            toplevel_base_url = Url::parse(&bases[0].base)
+                .map_err(|e| DashMpdError::Parsing(format!("parsing BaseURL: {}", e)))?;
         } else {
-            toplevel_base_url = redirected_url.join(&bases[0].base).context("parsing BaseURL")?;
+            toplevel_base_url = redirected_url.join(&bases[0].base)
+                .map_err(|e| DashMpdError::Parsing(format!("parsing BaseURL: {}", e)))?;
         }
     }
     let mut video_segment_urls = Vec::new();
@@ -458,22 +462,29 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         if let Some(href) = &period.href {
             if fetchable_xlink_href(href) {
                 let xlink_url = if is_absolute_url(href) {
-                    Url::parse(href).context("parsing XLink URL")?
+                    Url::parse(href)
+                        .map_err(|e| DashMpdError::Parsing(
+                            format!("parsing XLink URL: {}", e)))?
                 } else {
                     // Note that we are joining against the original/redirected URL for the MPD, and
                     // not against the currently scoped BaseURL
-                    redirected_url.join(href).context("joining with XLink URL")?
+                    redirected_url.join(href)
+                        .map_err(|e| DashMpdError::Parsing(
+                            format!("joining with XLink URL: {}", e)))?
                 };
                 let xml = client.get(xlink_url)
                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                     .header("Accept-Language", "en-US,en")
                     .header("Sec-Fetch-Mode", "navigate")
                     .send()
-                    .context("fetching XLink on Period element")?
+                    .map_err(|e| DashMpdError::Network(
+                        format!("fetching XLink on Period element: {}", e)))?
                     .text()
-                    .context("resolving XLink on Period element")?;
+                    .map_err(|e| DashMpdError::Network(
+                        format!("resolving XLink on Period element: {}", e)))?;
                 let linked_period: Period = quick_xml::de::from_str(&xml)
-                    .context("parsing Period XLink XML")?;
+                    .map_err(|e| DashMpdError::Parsing(
+                        format!("parsing Period XLink XML: {}", e)))?;
                 period.clone_from(&linked_period);
             }
         }
@@ -493,9 +504,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         // A BaseURL could be specified for each Period
         if let Some(bu) = &period.BaseURL {
             if is_absolute_url(&bu.base) {
-                base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
+                base_url = Url::parse(&bu.base)
+                    .map_err(|e| DashMpdError::Parsing(format!("parsing BaseURL: {:?}", e)))?;
             } else {
-                base_url = base_url.join(&bu.base).context("joining with BaseURL")?;
+                base_url = base_url.join(&bu.base)
+                    .map_err(|e| DashMpdError::Parsing(format!("joining with BaseURL: {:?}", e)))?;
             }
         }
         // Handle the AdaptationSet with audio content. Note that some streams don't separate out
@@ -521,22 +534,29 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 if let Some(href) = &audio.href {
                     if fetchable_xlink_href(href) {
                         let xlink_url = if is_absolute_url(href) {
-                            Url::parse(href).context("parsing XLink URL on AdaptationSet")?
+                            Url::parse(href)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("parsing XLink URL on AdaptationSet: {}", e)))?
                         } else {
                             // Note that we are joining against the original/redirected URL for the MPD, and
                             // not against the currently scoped BaseURL
-                            redirected_url.join(href).context("joining with XLink URL on AdaptationSet")?
+                            redirected_url.join(href)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("parsing XLink URL on AdaptationSet: {}", e)))?
                         };
                         let xml = client.get(xlink_url)
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
                             .send()
-                            .context("fetching XLink URL for AdaptationSet")?
+                            .map_err(|e| DashMpdError::Network(
+                                format!("fetching XLink URL for AdaptationSet: {}", e)))?
                             .text()
-                            .context("resolving XLink on AdaptationSet element")?;
+                            .map_err(|e| DashMpdError::Network(
+                                format!("resolving XLink on AdaptationSet element: {}", e)))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
-                            .context("parsing XML for AdaptationSet XLink")?;
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("parsing XML for XLink AdaptationSet: {}", e)))?;
                         audio.clone_from(&linked_adaptation);
                     }
                 }
@@ -545,9 +565,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 let mut base_url = base_url.clone();
                 if let Some(bu) = &audio.BaseURL {
                     if is_absolute_url(&bu.base) {
-                        base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
+                        base_url = Url::parse(&bu.base)
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("parsing BaseURL: {}", e)))?;
                     } else {
-                        base_url = base_url.join(&bu.base).context("joining with BaseURL")?;
+                        base_url = base_url.join(&bu.base)
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("joining with BaseURL: {}", e)))?;
                     }
                 }
                 // Start by resolving any xlink:href elements on Representation nodes, which we need to
@@ -558,20 +582,27 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         if let Some(href) = &r.href {
                             if fetchable_xlink_href(href) {
                                 let xlink_url = if is_absolute_url(href) {
-                                    Url::parse(href).context("parsing XLink URL for Representation")?
+                                    Url::parse(href)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing XLink URL for Representation: {}", e)))?
                                 } else {
                                     redirected_url.join(href)
-                                        .context("joining with XLink URL for Representation")?
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining with XLink URL for Representation: {}", e)))?
                                 };
                                 let xml = client.get(xlink_url)
                                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                     .header("Accept-Language", "en-US,en")
                                     .header("Sec-Fetch-Mode", "navigate")
-                                    .send()?
+                                    .send()
+                                    .map_err(|e| DashMpdError::Network(
+                                        format!("fetching XLink URL for Representation: {}", e)))?
                                     .text()
-                                    .context("resolving XLink on Representation element")?;
+                                    .map_err(|e| DashMpdError::Network(
+                                        format!("resolving XLink URL for Representation: {}", e)))?;
                                 let linked_representation: Representation = quick_xml::de::from_str(&xml)
-                                    .context("parsing XLink XML for Representation")?;
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("parsing XLink XML for Representation: {}", e)))?;
                                 representations.push(linked_representation);
                             }
                         } else {
@@ -582,13 +613,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 let maybe_audio_repr = if downloader.quality_preference == QualityPreference::Lowest {
                     representations.iter()
                         .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-                        .context("finding min bandwidth audio representation")
                 } else {
                     representations.iter()
                         .max_by_key(|x| x.bandwidth.unwrap_or(0))
-                        .context("finding max bandwidth audio representation")
                 };
-                if let Ok(audio_repr) = maybe_audio_repr {
+                if let Some(audio_repr) = maybe_audio_repr {
                     if downloader.verbosity > 0 {
                         if let Some(bw) = audio_repr.bandwidth {
                             println!("Selected audio representation with bandwidth {}", bw);
@@ -598,9 +627,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     let mut base_url = base_url;
                     if let Some(bu) = &audio_repr.BaseURL {
                         if is_absolute_url(&bu.base) {
-                            base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
+                            base_url = Url::parse(&bu.base)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("parsing BaseURL: {}", e)))?;
                         } else {
-                            base_url = base_url.join(&bu.base).context("joining with BaseURL")?;
+                            base_url = base_url.join(&bu.base)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("joining with BaseURL: {}", e)))?;
                         }
                     }
                     let mut opt_init: Option<String> = None;
@@ -631,7 +664,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                     let rid = match &audio_repr.id {
                         Some(id) => id,
-                        None => return Err(anyhow!("Missing @id on Representation node")),
+                        None => return Err(
+                            DashMpdError::UnhandledMediaStream(
+                                "Missing @id on Representation node".to_string())),
                     };
                     let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
                     if let Some(b) = &audio_repr.bandwidth {
@@ -648,9 +683,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path).context("parsing sourceURL")?
+                                    Url::parse(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing sourceURL: {}", e)))?
                                 } else {
-                                    base_url.join(&path).context("joining with sourceURL")?
+                                    base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining with sourceURL: {}", e)))?
                                 };
                                 audio_segment_urls.push(init_url);
                             }
@@ -666,9 +705,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path).context("parsing sourceURL")?
+                                    Url::parse(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing sourceURL: {}", e)))?
                                 } else {
-                                    base_url.join(&path).context("joining with sourceURL")?
+                                    base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining with sourceURL: {}", e)))?
                                 };
                                 audio_segment_urls.push(init_url);
                             } else {
@@ -677,13 +720,19 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         }
                         for su in sl.segment_urls.iter() {
                             if let Some(m) = &su.media {
-                                let segment = base_url.join(m).context("joining media with baseURL")?;
+                                let segment = base_url.join(m)
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining media with baseURL: {}", e)))?;
                                 audio_segment_urls.push(segment);
                             } else if let Some(bu) = &audio_repr.BaseURL {
                                 let base_url = if is_absolute_url(&bu.base) {
-                                    Url::parse(&bu.base).context("parsing BaseURL")?
+                                    Url::parse(&bu.base)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing BaseURL: {}", e)))?
                                 } else {
-                                    base_url.join(&bu.base).context("joining with BaseURL")?
+                                    base_url.join(&bu.base)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining with BaseURL: {}", e)))?
                                 };
                                 // FIXME we are not correctly handling @mediaRange and @indexRange here
                                 audio_segment_urls.push(base_url.clone());
@@ -719,7 +768,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let url = base_url.join(&path).context("joining init with baseURL")?;
+                                let url = base_url.join(&path)
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining init with BaseURL: {}", e)))?;
                                 audio_segment_urls.push(url);
                             }
                             if let Some(media) = opt_media {
@@ -732,7 +783,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&audio_path, &dict);
-                                    let u = base_url.join(&path).context("joining media with baseURL")?;
+                                    let u = base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining media with BaseURL: {}", e)))?;
                                     audio_segment_urls.push(u);
                                     number += 1;
                                     if let Some(t) = s.t {
@@ -761,7 +814,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                             let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                       ("Number", number.to_string())]);
                                             let path = resolve_url_template(&audio_path, &dict);
-                                            let u = base_url.join(&path).context("joining media with baseURL")?;
+                                            let u = base_url.join(&path)
+                                                .map_err(|e| DashMpdError::Parsing(
+                                                    format!("joining media with BaseURL: {}", e)))?;
                                             audio_segment_urls.push(u);
                                             number += 1;
                                         }
@@ -769,7 +824,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     segment_time += segment_duration;
                                 }
                             } else {
-                                return Err(anyhow!("SegmentTimeline without a media attribute"));
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "SegmentTimeline without a media attribute".to_string()));
                             }
                         } else { // no SegmentTimeline element
                             // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
@@ -778,7 +834,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let u = base_url.join(&path).context("joining init with baseURL")?;
+                                let u = base_url.join(&path)
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining init with BaseURL: {}", e)))?;
                                 audio_segment_urls.push(u);
                             }
                             if let Some(media) = opt_media {
@@ -793,14 +851,17 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     segment_duration = std as f64 / timescale as f64;
                                 }
                                 if segment_duration < 0.0 {
-                                    return Err(anyhow!("Audio representation is missing SegmentTemplate @duration attribute"));
+                                    return Err(DashMpdError::UnhandledMediaStream(
+                                        "Audio representation is missing SegmentTemplate @duration attribute".to_string()));
                                 }
                                 let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                                 let mut number = start_number;
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&audio_path, &dict);
-                                    let segment_uri = base_url.join(&path).context("joining media with baseURL")?;
+                                    let segment_uri = base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining media with BaseURL: {}", e)))?;
                                     audio_segment_urls.push(segment_uri);
                                     number += 1;
                                 }
@@ -812,7 +873,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         }
                         audio_segment_urls.push(base_url);
                     } else {
-                        return Err(anyhow!("no usable addressing mode identified for audio representation"));
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            "no usable addressing mode identified for audio representation".to_string()));
                     }
                 }
             }
@@ -828,30 +890,41 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 if let Some(href) = &video.href {
                     if fetchable_xlink_href(href) {
                         let xlink_url = if is_absolute_url(href) {
-                            Url::parse(href).context("parsing XLink URL")?
+                            Url::parse(href)
+                                .map_err(|e| DashMpdError::Parsing(format!("parsing XLink URL: {}", e)))?
                         } else {
                             // Note that we are joining against the original/redirected URL for the MPD, and
                             // not against the currently scoped BaseURL
-                            redirected_url.join(href).context("joining XLink URL with BaseURL")?
+                            redirected_url.join(href)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("joining XLink URL with BaseURL: {}", e)))?
                         };
                         let xml = client.get(xlink_url)
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
-                            .send()?
+                            .send()
+                            .map_err(|e| DashMpdError::Network(
+                                format!("fetching XLink URL for video Adaptation: {}", e)))?
                             .text()
-                            .context("resolving XLink on AdaptationSet element")?;
+                            .map_err(|e| DashMpdError::Network(
+                                format!("resolving XLink URL for video Adaptation: {}", e)))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
-                            .context("parsing XML for XLink AdaptationSet")?;
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("parsing XML for XLink AdaptationSet: {}", e)))?;
                         video.clone_from(&linked_adaptation);
                     }
                 }
                 // the AdaptationSet may have a BaseURL (eg the test BBC streams)
                 if let Some(bu) = &video.BaseURL {
                     if is_absolute_url(&bu.base) {
-                        base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
+                        base_url = Url::parse(&bu.base)
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("parsing BaseURL: {}", e)))?;
                     } else {
-                        base_url = base_url.join(&bu.base).context("joining base with BaseURL")?;
+                        base_url = base_url.join(&bu.base)
+                            .map_err(|e| DashMpdError::Parsing(
+                                format!("joining base with BaseURL: {}", e)))?;
                     }
                 }
                 // Start by resolving any xlink:href elements on Representation nodes, which we need to
@@ -862,19 +935,27 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         if let Some(href) = &r.href {
                             if fetchable_xlink_href(href) {
                                 let xlink_url = if is_absolute_url(href) {
-                                    Url::parse(href)?
+                                    Url::parse(href)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing XLink on Representation element: {}", e)))?
                                 } else {
-                                    redirected_url.join(href)?
+                                    redirected_url.join(href)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining XLink on Representation element: {}", e)))?
                                 };
                                 let xml = client.get(xlink_url)
                                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                     .header("Accept-Language", "en-US,en")
                                     .header("Sec-Fetch-Mode", "navigate")
-                                    .send()?
+                                    .send()
+                                    .map_err(|e| DashMpdError::Network(
+                                        format!("fetching XLink URL for video Representation: {}", e)))?
                                     .text()
-                                    .context("resolving XLink on Representation element")?;
+                                    .map_err(|e| DashMpdError::Network(
+                                        format!("resolving XLink URL for video Representation: {}", e)))?;
                                 let linked_representation: Representation = quick_xml::de::from_str(&xml)
-                                    .context("parsing XLink XML for Representation")?;
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("parsing XLink XML for Representation: {}", e)))?;
                                 representations.push(linked_representation);
                             }
                         } else {
@@ -885,13 +966,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                 let maybe_video_repr = if downloader.quality_preference == QualityPreference::Lowest {
                     representations.iter()
                         .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-                        .context("finding video representation with min bandwidth")
                 } else {
                     representations.iter()
                         .max_by_key(|x| x.bandwidth.unwrap_or(0))
-                        .context("finding video representation with max bandwidth ")
                 };
-                if let Ok(video_repr) = maybe_video_repr {
+                if let Some(video_repr) = maybe_video_repr {
                     if downloader.verbosity > 0 {
                         if let Some(bw) = video_repr.bandwidth {
                             println!("Selected video representation with bandwidth {}", bw);
@@ -899,15 +978,19 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                     }
                     if let Some(bu) = &video_repr.BaseURL {
                         if is_absolute_url(&bu.base) {
-                            base_url = Url::parse(&bu.base).context("parsing BaseURL")?;
+                            base_url = Url::parse(&bu.base)
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("parsing BaseURL: {}", e)))?;
                         } else {
                             base_url = base_url.join(&bu.base)
-                                .context("joining base with BaseURL")?;
+                                .map_err(|e| DashMpdError::Parsing(
+                                    format!("joining base with BaseURL: {}", e)))?;
                         }
                     }
                     let rid = match &video_repr.id {
                         Some(id) => id,
-                        None => return Err(anyhow!("Missing @id on Representation node")),
+                        None => return Err(DashMpdError::UnhandledMediaStream(
+                            "Missing @id on Representation node".to_string())),
                     };
                     let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
                     if let Some(b) = &video_repr.bandwidth {
@@ -950,9 +1033,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path).context("parsing sourceURL")?
+                                    Url::parse(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing sourceURL: {}", e)))?
                                 } else {
-                                    base_url.join(&path).context("joining sourceURL with BaseURL")?
+                                    base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining sourceURL with BaseURL: {}", e)))?
                                 };
                                 video_segment_urls.push(init_url);
                             }
@@ -968,9 +1055,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path).context("parsing sourceURL")?
+                                    Url::parse(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing sourceURL: {}", e)))?
                                 } else {
-                                    base_url.join(&path).context("joining sourceURL with BaseURL")?
+                                    base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining sourceURL with BaseURL: {}", e)))?
                                 };
                                 video_segment_urls.push(init_url);
                             } else {
@@ -980,13 +1071,18 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         for su in sl.segment_urls.iter() {
                             if let Some(m) = &su.media {
                                 let segment = base_url.join(m)
-                                    .context("joining media with BaseURL")?;
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining media with BaseURL: {}", e)))?;
                                 video_segment_urls.push(segment);
                             } else if let Some(bu) = &video_repr.BaseURL {
                                 let base_url = if is_absolute_url(&bu.base) {
-                                    Url::parse(&bu.base).context("parsing BaseURL")?
+                                    Url::parse(&bu.base)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("parsing BaseURL: {}", e)))?
                                 } else {
-                                    base_url.join(&bu.base).context("joining with BaseURL")?
+                                    base_url.join(&bu.base)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining with parsing BaseURL: {}", e)))?
                                 };
                                 // FIXME we are not correctly handling @mediaRange and @indexRange here
                                 video_segment_urls.push(base_url.clone());
@@ -1022,7 +1118,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let u = base_url.join(&path).context("joining init with BaseURL")?;
+                                let u = base_url.join(&path)
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining init with BaseURL: {}", e)))?;
                                 video_segment_urls.push(u);
                             }
                             if let Some(media) = opt_media {
@@ -1035,7 +1133,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);
-                                    let u = base_url.join(&path).context("joining media with BaseURL")?;
+                                    let u = base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining media with BaseURL: {}", e)))?;
                                     video_segment_urls.push(u);
                                     number += 1;
                                     if let Some(t) = s.t {
@@ -1064,7 +1164,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                             let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                       ("Number", number.to_string())]);
                                             let path = resolve_url_template(&video_path, &dict);
-                                            let u = base_url.join(&path).context("joining media with BaseURL")?;
+                                            let u = base_url.join(&path)
+                                                .map_err(|e| DashMpdError::Parsing(
+                                                    format!("joining media with BaseURL: {}", e)))?;
                                             video_segment_urls.push(u);
                                             number += 1;
                                         }
@@ -1072,7 +1174,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     segment_time += segment_duration;
                                 }
                             } else {
-                                return Err(anyhow!("SegmentTimeline without a media attribute"));
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "SegmentTimeline without a media attribute".to_string()));
                             }
                         } else { // no SegmentTimeline element
                             // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
@@ -1081,7 +1184,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let u = base_url.join(&path).context("joining init with BaseURL")?;
+                                let u = base_url.join(&path)
+                                    .map_err(|e| DashMpdError::Parsing(
+                                        format!("joining init with BaseURL: {}", e)))?;
                                 video_segment_urls.push(u);
                             }
                             if let Some(media) = opt_media {
@@ -1096,14 +1201,17 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                                     segment_duration = std as f64 / timescale as f64;
                                 }
                                 if segment_duration < 0.0 {
-                                    return Err(anyhow!("Video representation is missing SegmentTemplate @duration attribute"));
+                                    return Err(DashMpdError::UnhandledMediaStream(
+                                        "Video representation is missing SegmentTemplate @duration attribute".to_string()));
                                 }
                                 let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
                                 let mut number = start_number;
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);
-                                    let segment_uri = base_url.join(&path).context("joining media with BaseURL")?;
+                                    let segment_uri = base_url.join(&path)
+                                        .map_err(|e| DashMpdError::Parsing(
+                                            format!("joining media with BaseURL: {}", e)))?;
                                     video_segment_urls.push(segment_uri);
                                     number += 1;
                                 }
@@ -1115,12 +1223,14 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         }
                         video_segment_urls.push(base_url);
                     } else {
-                        return Err(anyhow!("no usable addressing mode identified for video representation"));
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            "no usable addressing mode identified for video representation".to_string()));
                     }
                 } else {
                     // FIXME we aren't correctly handling manifests without a Representation node
                     // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
-                    return Err(anyhow!("Couldn't find lowest bandwidth video stream in DASH manifest"));
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "Couldn't find lowest bandwidth video stream in DASH manifest".to_string()));
                 }
             }
         }
@@ -1145,7 +1255,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // tolerate loss of subsequent segments.
     if downloader.fetch_audio {
         let tmpfile_audio = File::create(tmppath_audio.clone())
-            .context("creating audio tmpfile")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
         for url in &audio_segment_urls {
             // Update any ProgressObservers
@@ -1161,7 +1271,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                 e.insert(true);
                 if url.scheme() == "data" {
-                    return Err(anyhow!("data URLs currently unsupported"));
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "data URLs currently unsupported".to_string()));
                 } else {
                     // We could download these segments in parallel using reqwest in async mode,
                     // though that might upset some servers.
@@ -1177,25 +1288,28 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                             .map_err(categorize_reqwest_error)
                     };
                     let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                        .context("fetching DASH audio segment")?;
-                    let status = response.status();
-                    if status.is_success() {
-                        let dash_bytes = response.bytes()?;
+                        .map_err(|e| DashMpdError::Network(
+                            format!("fetching DASH audio segment: {}", e)))?;
+                    if response.status().is_success() {
+                        let dash_bytes = response.bytes()
+                            .map_err(|e| DashMpdError::Network(
+                                format!("fetching DASH audio segment bytes: {}", e)))?;
                         if downloader.verbosity > 2 {
                             println!("Audio segment {} -> {} octets", url, dash_bytes.len());
                         }
                         if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                             log::error!("Unable to write DASH audio data: {:?}", e);
-                            return Err(anyhow!("Unable to write DASH audio data: {:?}", e));
+                            return Err(DashMpdError::Io(e, String::from("unable to write DASH audio data")));
                         }
                         have_audio = true;
                     } else {
                         if downloader.verbosity > 0 {
-                            eprintln!("HTTP error {} fetching audio segment {}", status, url);
+                            eprintln!("HTTP error {} fetching audio segment {}", response.status().as_str(), url);
                         }
                         download_errors += 1;
                         if download_errors > 10 {
-                            return Err(anyhow!("More than 10 HTTP download errors"));
+                            return Err(DashMpdError::Network(
+                                String::from("more than 10 HTTP download errors")));
                         }
                     }
                 }
@@ -1205,8 +1319,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             }
         }
         tmpfile_audio.flush().map_err(|e| {
-            log::error!("Couldn't flush DASH audio file to disk: {:?}", e);
-            e
+            log::error!("Couldn't flush DASH audio file to disk: {}", e);
+            DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
         })?;
         if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
             if downloader.verbosity > 1 {
@@ -1218,7 +1332,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     // Now fetch the video segments and concatenate them to the video file path
     if downloader.fetch_video {
         let tmpfile_video = File::create(tmppath_video.clone())
-            .context("creating video tmpfile")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
         for url in &video_segment_urls {
             // Update any ProgressObservers
@@ -1242,24 +1356,27 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
                         .map_err(categorize_reqwest_error)
                 };
                 let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                    .context("fetching DASH video segment")?;
-                let status = response.status();
-                if status.is_success() {
-                    let dash_bytes = response.bytes()?;
+                    .map_err(|e| DashMpdError::Network(
+                        format!("fetching DASH video segment: {}", e)))?;
+                if response.status().is_success() {
+                    let dash_bytes = response.bytes()
+                        .map_err(|e| DashMpdError::Network(
+                            format!("fetching DASH video segment: {}", e)))?;
                     if downloader.verbosity > 2 {
                         println!("Video segment {} -> {} octets", url, dash_bytes.len());
                     }
                     if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                        return Err(anyhow!("Unable to write video data: {:?}", e));
+                        return Err(DashMpdError::Io(e, String::from("unable to write video data")));
                     }
                     have_video = true;
                 } else {
                     if downloader.verbosity > 0 {
-                        eprintln!("HTTP error {} fetching video segment {}", status, url);
+                        eprintln!("HTTP error {} fetching video segment {}", response.status().as_str(), url);
                     }
                     download_errors += 1;
                     if download_errors > 10 {
-                        return Err(anyhow!("More than 10 HTTP download errors"));
+                        return Err(DashMpdError::Network(
+                            String::from("more than 10 HTTP download errors")));
                     }
                 }
             }
@@ -1268,8 +1385,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
             }
         }
         tmpfile_video.flush().map_err(|e| {
-            log::error!("Couldn't flush video file to disk: {:?}", e);
-            e
+            log::error!("Couldn't flush video file to disk: {}", e);
+            DashMpdError::Io(e, String::from("flushing video file to disk"))
         })?;
         if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
             if downloader.verbosity > 1 {
@@ -1286,8 +1403,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         if downloader.verbosity > 1 {
             println!("Muxing audio and video streams");
         }
-        mux_audio_video(&tmppath_audio, &tmppath_video, output_path, downloader.ffmpeg_location)
-            .context("muxing audio and video streams")?;
+        mux_audio_video(&tmppath_audio, &tmppath_video, output_path, downloader.ffmpeg_location)?;
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
         }
@@ -1298,25 +1414,25 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
         // it might fail if temporary files and our output are on different filesystems.
         let tmpfile_audio = File::open(&tmppath_audio)
-            .context("opening temporary audio output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary audio output file")))?;
         let mut audio = BufReader::new(tmpfile_audio);
         let output_file = File::create(output_path)
-            .context("creating output file for video")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut audio, &mut sink)
-            .context("copying from audio stream to output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("copying from audio stream to output file")))?;
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
         }
     } else if have_video {
         let tmpfile_video = File::open(&tmppath_video)
-            .context("opening temporary video output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary video output file")))?;
         let mut video = BufReader::new(tmpfile_video);
         let output_file = File::create(output_path)
-            .context("creating output file for video")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut video, &mut sink)
-            .context("copying from video stream to output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("copying from video stream to output file")))?;
         if fs::remove_file(tmppath_video).is_err() {
             log::info!("Failed to delete temporary file for video segments");
         }
@@ -1324,12 +1440,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
         #[allow(clippy::collapsible_else_if)]
         if downloader.fetch_video {
             if downloader.fetch_audio {
-                return Err(anyhow!("No audio or video streams found"));
+                return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
             } else {
-                return Err(anyhow!("No video streams found"));
+                return Err(DashMpdError::UnhandledMediaStream("no video streams found".to_string()));
             }
         } else {
-            return Err(anyhow!("No audio streams found"));
+            return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
     }
     if downloader.verbosity > 1 {
@@ -1348,7 +1464,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<()> {
     #[cfg(target_family = "unix")]
     if downloader.record_metainformation {
         let origin_url = Url::parse(&downloader.mpd_url)
-            .context("parsing MPD URL")?;
+            .map_err(|e| DashMpdError::Parsing(format!("parsing MPD URL: {}", e)))?;
         // Don't record the origin URL if it contains sensitive information such as passwords
         #[allow(clippy::collapsible_if)]
         if origin_url.username().is_empty() && origin_url.password().is_none() {

@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.4.6"
+version = "0.5.0"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse and fetch an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -17,7 +17,7 @@ serde = { version = "1", features = ["derive"] }
 quick-xml = { version = "0.24", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 regex = ">=1.5.5"
-anyhow = "1"
+thiserror = "1"
 url = { version = "2", optional = true }
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "gzip", "brotli", "rustls-tls", "socks"], optional = true }
 backoff = { version = "0.4", optional = true }

@@ -21,7 +21,6 @@
 use std::cmp::{min, max};
 use std::fs::File;
 use std::path::Path;
-use anyhow::{Context, Result, anyhow};
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;
@@ -30,37 +29,39 @@ use ac_ffmpeg::format::demuxer::Demuxer;
 use ac_ffmpeg::format::demuxer::DemuxerWithStreamInfo;
 use ac_ffmpeg::format::muxer::Muxer;
 use ac_ffmpeg::format::muxer::OutputFormat;
+use crate::DashMpdError;
 
 
 
 
-fn libav_open_input(path: &str) -> Result<DemuxerWithStreamInfo<File>> {
+fn libav_open_input(path: &str) -> Result<DemuxerWithStreamInfo<File>, DashMpdError> {
     let input = File::open(path)
-        .context("opening input path")?;
+        .map_err(|_| DashMpdError::Muxing(String::from("opening libav input path")))?;
     let io = IO::from_seekable_read_stream(input);
     Demuxer::builder()
         .build(io)
-        .context("building libav demuxer")?
+        .map_err(|_| DashMpdError::Muxing(String::from("building libav demuxer")))?
         .find_stream_info(Some(std::time::Duration::new(2, 0)))
-        .map_err(|(_, err)| anyhow!("Demuxer build error: {:?}", err))
+        .map_err(|(_, _e)| DashMpdError::Muxing(String::from("building libav demuxer")))
 }
 
-fn libav_open_output(path: &str, elementary_streams: &[CodecParameters]) -> Result<Muxer<File>> {
+fn libav_open_output(path: &str, elementary_streams: &[CodecParameters]) -> Result<Muxer<File>, DashMpdError> {
     let output_format = OutputFormat::guess_from_file_name(path)
         .or_else(|| OutputFormat::find_by_name("mp4"))
-        .context("guessing libav output format")?;
+        .ok_or_else(|| DashMpdError::Muxing(String::from("guessing libav output format")))?;
     let output = File::create(path)
-        .context("creating output file")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
     let io = IO::from_seekable_write_stream(output);
     let mut muxer_builder = Muxer::builder();
     for codec_parameters in elementary_streams {
         muxer_builder.add_stream(codec_parameters)
-            .context("adding libav stream to muxer")?;
+            .map_err(|_| DashMpdError::Muxing(String::from("adding libav stream to muxer")))?;
     }
     muxer_builder
         // .interleaved(true)
         .build(io, output_format)
-        .map_err(|e| anyhow!("Error building libav muxer: {:?}", e))
+        .map_err(|e| DashMpdError::Muxing(
+            format!("building libav muxer: {:?}", e)))
 }
 
 
@@ -76,10 +77,10 @@ pub fn mux_audio_video(
     video_path: &str,
     output_path: &Path,
     // this parameter will be ignored when built with the libav feature
-    _ffmpeg_location: Option<String>) -> Result<()> {
+    _ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| log::info!("ffmpeg: {}", msg));
     let mut video_demuxer = libav_open_input(video_path)
-        .context("opening input video stream")?;
+        .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
     let (video_pos, video_codec) = video_demuxer
         .streams()
         .iter()
@@ -91,7 +92,7 @@ pub fn mux_audio_video(
             }
             None
         })
-        .context("finding libav video codec")?;
+        .ok_or_else(|| DashMpdError::Muxing(String::from("finding libav video codec")))?;
     let mut audio_demuxer = libav_open_input(audio_path)?;
     let (audio_pos, audio_codec) = audio_demuxer
         .streams()
@@ -104,15 +105,16 @@ pub fn mux_audio_video(
             }
             None
         })
-        .context("finding libav audio codec")?;
+        .ok_or_else(|| DashMpdError::Muxing(String::from("finding libav audio codec")))?;
 
-    let out = output_path.to_str().context("converting output path")?;
-    let mut muxer = libav_open_output(out, &[video_codec, audio_codec])
-        .context("opening libav output path")?;
+    let out = output_path.to_str()
+        .ok_or_else(|| DashMpdError::Muxing(String::from("converting output path")))?;
+    let mut muxer = libav_open_output(out, &[video_codec, audio_codec])?;
     let mut last_dts: Timestamp = Timestamp::null();
 
     // wonder about memory consumption here, should we interleave the pushes?
-    while let Some(mut pkt) = video_demuxer.take().context("fetching video packet from libav demuxer")? {
+    while let Some(mut pkt) = video_demuxer.take()
+        .map_err(|_| DashMpdError::Muxing(String::from("fetching video packet from libav demuxer")))? {
         if pkt.stream_index() == video_pos {
             // We try to work around malformed media streams with fluctuating dts (decompression timestamp).
             // The dts must be strictly increasing according to av_write_frame(), but some streams (eg
@@ -152,12 +154,14 @@ pub fn mux_audio_video(
             }
             last_dts = pkt.dts();
             muxer.push(pkt.with_stream_index(0))
-                .context("pushing video packet to libav muxer")?;
+                .map_err(|_| DashMpdError::Muxing(String::from("pushing video packet to libav muxer")))?;
         }
     }
-    muxer.flush()?;
+    muxer.flush()
+        .map_err(|_| DashMpdError::Muxing(String::from("flushing libav muxer")))?;
     last_dts = Timestamp::null();
-    while let Some(mut pkt) = audio_demuxer.take().context("fetching audio packet from libav demuxer")? {
+    while let Some(mut pkt) = audio_demuxer.take()
+        .map_err(|_| DashMpdError::Muxing(String::from("fetching audio packet from libav demuxer")))? {
         if pkt.stream_index() == audio_pos {
             // See comments concerning workarounds for invalid media streams in the code for the
             // video stream, above.
@@ -188,10 +192,12 @@ pub fn mux_audio_video(
             }
             last_dts = pkt.dts();
             muxer.push(pkt.with_stream_index(1))
-                .context("pushing audio packet to libav muxer")?;
+                .map_err(|_| DashMpdError::Muxing(String::from("pushing audio packet to libav muxer")))?;
         }
     }
-    muxer.flush().context("flushing libav muxer")?;
-    muxer.close().context("closing libav muxer")?;
+    muxer.flush()
+        .map_err(|_| DashMpdError::Muxing(String::from("flushing libav muxer")))?;
+    muxer.close()
+        .map_err(|_| DashMpdError::Muxing(String::from("closing libav muxer")))?;
     Ok(())
 }

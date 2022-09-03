@@ -9,7 +9,7 @@ use std::path::Path;
 use std::io;
 use std::io::{BufReader, BufWriter};
 use std::process::Command;
-use anyhow::{Result, Context, anyhow};
+use crate::DashMpdError;
 
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
@@ -17,7 +17,7 @@ fn mux_audio_video_ffmpeg(
     audio_path: &str,
     video_path: &str,
     output_path: &Path,
-    ffmpeg_location: Option<String>) -> Result<()> {
+    ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -27,9 +27,13 @@ fn mux_audio_video_ffmpeg(
         .suffix(&format!(".{}", container))
         .rand_bytes(5)
         .tempfile()
-        .context("creating temporary output file")?;
-    let tmppath = tmpout.path().to_str()
-        .context("obtaining name of temporary file")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
     let mut ffmpeg_binary = "ffmpeg".to_string();
     if let Some(loc) = ffmpeg_location {
         ffmpeg_binary = loc;
@@ -47,7 +51,7 @@ fn mux_audio_video_ffmpeg(
                "-f", container,
                tmppath])
         .output()
-        .context("spawning ffmpeg subprocess")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = String::from_utf8_lossy(&ffmpeg.stdout);
     if msg.len() > 0 {
         log::info!("ffmpeg stdout: {}", msg);
@@ -57,30 +61,39 @@ fn mux_audio_video_ffmpeg(
         log::info!("ffmpeg stderr: {}", msg);
     }
     if ffmpeg.status.success() {
-        let tmpfile = File::open(&tmppath).context("opening ffmpeg output")?;
+        let tmpfile = File::open(&tmppath)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
         let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path).context("creating output file")?;
+        let outfile = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
-            .context("copying ffmpeg output to output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         Ok(())
     } else {
-        Err(anyhow!("Failure running ffmpeg"))
+        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
 
 
 // See https://wiki.videolan.org/Transcode/
 // VLC could also mux to an mkv container if needed
-fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
+fn mux_audio_video_vlc(
+    audio_path: &str,
+    video_path: &str,
+    output_path: &Path) -> Result<(), DashMpdError> {
     let tmpout = tempfile::Builder::new()
-       .prefix("dashmpdrs")
-       .suffix(".mp4")
-       .rand_bytes(5)
-       .tempfile()
-       .context("creating temporary output file")?;
-    let tmppath = tmpout.path().to_str()
-       .context("obtaining name of temporary file")?;
+        .prefix("dashmpdrs")
+        .suffix(".mp4")
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
     let vlc = Command::new("vlc")
         .args(["-I", "dummy",
                "--no-repeat", "--no-loop",
@@ -91,65 +104,72 @@ fn mux_audio_video_vlc(audio_path: &str, video_path: &str, output_path: &Path) -
                "--sout-keep",
                "vlc://quit"])
         .output()
-        .context("spawning VLC subprocess")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
     if vlc.status.success() {
-        let tmpfile = File::open(&tmppath).context("opening VLC output")?;
+        let tmpfile = File::open(&tmppath)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening VLC output")))?;
         let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path).context("creating output file")?;
+        let outfile = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
-            .context("copying VLC output to output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
         Ok(())
     } else {
-        let msg = String::from_utf8(vlc.stderr)?;
-        Err(anyhow!("Failure running vlc: {}", msg))
+        let msg = String::from_utf8_lossy(&vlc.stderr);
+        Err(DashMpdError::Muxing(format!("running VLC: {}", msg)))
     }
 }
 
 
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
-// create the temporary file in the current directory. 
+// create the temporary file in the current directory.
 #[cfg(target_os = "windows")]
-fn temporary_outpath(suffix: &str) -> Result<String> {
+fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
     Ok(format!("dashmpdrs-tmp{}", suffix))
 }
 
 #[cfg(not(target_os = "windows"))]
-fn temporary_outpath(suffix: &str) -> Result<String> {
+fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
     let tmpout = tempfile::Builder::new()
-       .prefix("dashmpdrs")
-       .suffix(suffix)
-       .rand_bytes(5)
-       .tempfile()
-       .context("creating temporary output file")?;
+        .prefix("dashmpdrs")
+        .suffix(suffix)
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     match tmpout.path().to_str() {
         Some(s) => Ok(s.to_string()),
         None => Ok(format!("/tmp/dashmpdrs-tmp{}", suffix)),
     }
 }
 
-fn mux_audio_video_mkvmerge(audio_path: &str, video_path: &str, output_path: &Path) -> Result<()> {
+fn mux_audio_video_mkvmerge(
+    audio_path: &str,
+    video_path: &str,
+    output_path: &Path) -> Result<(), DashMpdError> {
     let tmppath = temporary_outpath(".mkv")?;
     let mkv = Command::new("mkvmerge")
         .args(["--output", &tmppath,
                "--no-video", audio_path,
                "--no-audio", video_path])
         .output()
-        .context("spawning mkvmerge subprocess")?;
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     if mkv.status.success() {
-        let tmpfile = File::open(&tmppath).context("opening mkvmerge output")?;
+        let tmpfile = File::open(&tmppath)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening mkvmerge output")))?;
         let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path).context("creating output file")?;
+        let outfile = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening output file")))?;
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
-            .context("copying mkvmerge output to output file")?;
+            .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
 	#[cfg(target_os = "windows")]
 	::std::fs::remove_file(tmppath).ok();
         Ok(())
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
-        let msg = String::from_utf8(mkv.stdout)?;
-        Err(anyhow!("Failure running mkvmerge: {}", msg))
+        let msg = String::from_utf8_lossy(&mkv.stdout);
+        Err(DashMpdError::Muxing(format!("running mkvmerge: {}", msg)))
     }
 }
 
@@ -159,7 +179,7 @@ pub fn mux_audio_video(
     audio_path: &str,
     video_path: &str,
     output_path: &Path,
-    ffmpeg_location: Option<String>) -> Result<()> {
+    ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
     log::trace!("Muxing audio {}, video {}", audio_path, video_path);
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
@@ -202,6 +222,6 @@ pub fn mux_audio_video(
         }
     }
     log::warn!("All available muxers failed");
-    Err(anyhow!("All available muxers failed"))
+    Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 

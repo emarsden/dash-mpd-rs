@@ -1,5 +1,13 @@
 # Changelog
 
+
+## [0.5.0] - 2022-09
+### Changed
+- API change: reworked the error handling using an error enumeration DashMpdError and the
+  `thiserror` crate, instead of the `anyhow` crate. This allows clients of the library to handle
+  errors depending on their type (I/O, network, parsing, muxing, etc.).
+
+
 ## [0.4.6] - 2022-08-27
 ### Changed
 - Download support is conditional on the `fetch` crate feature being enabled (which is the default

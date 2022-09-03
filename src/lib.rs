@@ -70,7 +70,6 @@ pub mod fetch;
 use crate::libav::mux_audio_video;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::mux_audio_video;
-use anyhow::{Result, Context, anyhow};
 use serde::Deserialize;
 use serde::de;
 use regex::Regex;
@@ -83,6 +82,24 @@ use chrono::DateTime;
 // Something like 2021-06-03T13:00:00Z
 pub type XsDatetime = DateTime<chrono::offset::Utc>;
 
+
+#[derive(thiserror::Error, Debug)]
+pub enum DashMpdError {
+    #[error("parse error {0}")]
+    Parsing(String),
+    #[error("invalid Duration: {0}")]
+    InvalidDuration(String),
+    #[error("invalid media stream: {0}")]
+    UnhandledMediaStream(String),
+    #[error("I/O error {1}")]
+    Io(#[source] std::io::Error, String),
+    #[error("network error {0}")]
+    Network(String),
+    #[error("muxing error {0}")]
+    Muxing(String),
+    #[error("unknown error {0}")]
+    Other(String),
+}
 
 
 // Parse an XML duration string, as per https://www.w3.org/TR/xmlschema-2/#duration
@@ -100,7 +117,7 @@ pub type XsDatetime = DateTime<chrono::offset::Utc>;
 //
 // Limitations: we can't represent negative durations (leading "-" character) due to the choice of a
 // std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H". 
-fn parse_xs_duration(s: &str) -> Result<Duration> {
+fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
     let re = Regex::new(concat!(r"^(?P<sign>[+-])?P",
                                 r"(?:(?P<years>\d+)Y)?",
                                 r"(?:(?P<months>\d+)M)?",
@@ -118,7 +135,7 @@ fn parse_xs_duration(s: &str) -> Result<Duration> {
                m.name("months").is_none() &&
                m.name("weeks").is_none() &&
                m.name("days").is_none() {
-                  return Err(anyhow!("Couldn't parse empty XS duration"));
+                  return Err(DashMpdError::InvalidDuration("empty".to_string()));
             }
             let mut secs: u64 = 0;
             let mut nsecs: u32 = 0;
@@ -160,12 +177,12 @@ fn parse_xs_duration(s: &str) -> Result<Duration> {
             }
             if let Some(s) = m.name("sign") {
                 if s.as_str() == "-" {
-                    return Err(anyhow!("Can't represent negative durations"));
+                    return Err(DashMpdError::InvalidDuration("can't represent negative durations".to_string()));
                 }
             }
             Ok(Duration::new(secs, nsecs))
         },
-        None => Err(anyhow!("Couldn't parse XS duration")),
+        None => Err(DashMpdError::InvalidDuration("couldn't parse XS duration".to_string())),
     }
 }
 
@@ -651,10 +668,12 @@ pub struct MPD {
 
 
 /// Parse an MPD manifest, provided as an XML string, returning an `MPD` node.
-pub fn parse(xml: &str) -> Result<MPD> {
-    let mpd: MPD = quick_xml::de::from_str(xml)
-        .context("parsing MPD XML")?;
-    Ok(mpd)
+pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
+    let mpd: Result<MPD, quick_xml::DeError> = quick_xml::de::from_str(xml);
+    match mpd {
+        Ok(mpd) => Ok(mpd),
+        Err(e) => Err(DashMpdError::Parsing(e.to_string())),
+    }
 }
 
 
