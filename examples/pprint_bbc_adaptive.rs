@@ -13,13 +13,13 @@ fn main() {
         .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
-        .expect("Couldn't create reqwest HTTP client");
+        .expect("couldn't create reqwest HTTP client");
     let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
-        .expect("Requesting MPD content")
+        .expect("requesting MPD content")
         .text()
-        .expect("Fetching MPD content");
+        .expect("fetching MPD content");
     let mpd: MPD = parse(&xml)
         .expect("parsing MPD");
     if let Some(pi) = mpd.ProgramInformation {

@@ -6,7 +6,7 @@
 - API change: reworked the error handling using an error enumeration DashMpdError and the
   `thiserror` crate, instead of the `anyhow` crate. This allows clients of the library to handle
   errors depending on their type (I/O, network, parsing, muxing, etc.).
-
+- Update required version of chrono crate to resolve security vulnerability RUSTSEC-2020-0159.
 
 ## [0.4.6] - 2022-08-27
 ### Changed

@@ -129,14 +129,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.4"
+dash-mpd = "0.5"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.4", default-features = false }
+dash-mpd = { version = "0.5", default-features = false }
 ```
 
 
