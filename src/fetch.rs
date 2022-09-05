@@ -62,8 +62,8 @@ impl Default for QualityPreference {
 /// MPEG-DASH MPD manifests (where the media segments are typically placed in MPEG-2 TS containers)
 /// and for [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
-    mpd_url: String,
-    output_path: Option<PathBuf>,
+    pub mpd_url: String,
+    pub output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
     language_preference: Option<String>,
@@ -73,7 +73,9 @@ pub struct DashDownloader {
     sleep_between_requests: u8,
     verbosity: u8,
     record_metainformation: bool,
-    ffmpeg_location: Option<String>,
+    pub ffmpeg_location: Option<String>,
+    pub vlc_location: Option<String>,
+    pub mkvmerge_location: Option<String>,
 }
 
 
@@ -113,6 +115,8 @@ impl DashDownloader {
             verbosity: 0,
             record_metainformation: true,
             ffmpeg_location: None,
+	    vlc_location: None,
+	    mkvmerge_location: None,
         }
     }
 
@@ -209,9 +213,21 @@ impl DashDownloader {
         self
     }
 
-    /// Specify the location of the `ffmpeg` variable, if not located in PATH.
+    /// Specify the location of the `ffmpeg` application, if not located in PATH.
     pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
         self.ffmpeg_location = Some(ffmpeg_path.to_string());
+        self
+    }
+
+    /// Specify the location of the VLC application, if not located in PATH.
+    pub fn with_vlc(mut self, vlc_path: &str) -> DashDownloader {
+        self.vlc_location = Some(vlc_path.to_string());
+        self
+    }
+
+    /// Specify the location of the mkvmerge application, if not located in PATH.
+    pub fn with_mkvmerge(mut self, mkvmerge_path: &str) -> DashDownloader {
+        self.mkvmerge_location = Some(mkvmerge_path.to_string());
         self
     }
 
@@ -373,8 +389,8 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 
 
 fn fetch_mpd(downloader: DashDownloader) -> Result<(), DashMpdError> {
-    let client = downloader.http_client.unwrap();
-    let output_path = &downloader.output_path.unwrap();
+    let client = &downloader.http_client.as_ref().unwrap();
+    let output_path = &downloader.output_path.as_ref().unwrap().clone();
     let fetch = || {
         client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
@@ -1403,7 +1419,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<(), DashMpdError> {
         if downloader.verbosity > 1 {
             println!("Muxing audio and video streams");
         }
-        mux_audio_video(&tmppath_audio, &tmppath_video, output_path, downloader.ffmpeg_location)?;
+        mux_audio_video(&downloader, &tmppath_audio, &tmppath_video)?;
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
         }

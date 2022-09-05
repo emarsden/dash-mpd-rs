@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [0.5.1] - 2022-09-
+### New
+- New options .with_vlc() and with_mkvmerge() on DashDownloader to alllow the locations of VLC
+  and mkvmerge applications to be specified, if in a non-standard location. Aligns with the existing
+  functionality to specify the location of the ffmpeg binary.
+
+
 ## [0.5.0] - 2022-09
 ### Changed
 - API change: reworked the error handling using an error enumeration DashMpdError and the

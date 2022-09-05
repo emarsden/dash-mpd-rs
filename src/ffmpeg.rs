@@ -5,19 +5,20 @@
 
 
 use std::fs::File;
-use std::path::Path;
 use std::io;
 use std::io::{BufReader, BufWriter};
 use std::process::Command;
 use crate::DashMpdError;
+use crate::fetch::DashDownloader;
 
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
 fn mux_audio_video_ffmpeg(
+    downloader: &DashDownloader,
     audio_path: &str,
-    video_path: &str,
-    output_path: &Path,
-    ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
+    video_path: &str) -> Result<(), DashMpdError> {
+    let output_path = downloader.output_path.as_ref()
+              .expect("muxer called without specifying output_path");
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -35,8 +36,8 @@ fn mux_audio_video_ffmpeg(
             io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
             String::from("")))?;
     let mut ffmpeg_binary = "ffmpeg".to_string();
-    if let Some(loc) = ffmpeg_location {
-        ffmpeg_binary = loc;
+    if let Some(loc) = &downloader.ffmpeg_location {
+        ffmpeg_binary = String::from(loc);
     }
     let ffmpeg = Command::new(ffmpeg_binary)
         .args(["-hide_banner",
@@ -79,9 +80,11 @@ fn mux_audio_video_ffmpeg(
 // See https://wiki.videolan.org/Transcode/
 // VLC could also mux to an mkv container if needed
 fn mux_audio_video_vlc(
+    downloader: &DashDownloader,
     audio_path: &str,
-    video_path: &str,
-    output_path: &Path) -> Result<(), DashMpdError> {
+    video_path: &str) -> Result<(), DashMpdError> {
+    let output_path = downloader.output_path.as_ref()
+              .expect("muxer called without specifying output_path");
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(".mp4")
@@ -94,7 +97,11 @@ fn mux_audio_video_vlc(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
             String::from("")))?;
-    let vlc = Command::new("vlc")
+    let mut vlc_binary = "vlc".to_string();
+    if let Some(loc) = &downloader.vlc_location {
+        vlc_binary = String::from(loc);
+    }
+    let vlc = Command::new(vlc_binary)
         .args(["-I", "dummy",
                "--no-repeat", "--no-loop",
                video_path,
@@ -144,11 +151,17 @@ fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
 }
 
 fn mux_audio_video_mkvmerge(
+    downloader: &DashDownloader,
     audio_path: &str,
-    video_path: &str,
-    output_path: &Path) -> Result<(), DashMpdError> {
+    video_path: &str) -> Result<(), DashMpdError> {
+    let output_path = downloader.output_path.as_ref()
+              .expect("muxer called without specifying output_path");
     let tmppath = temporary_outpath(".mkv")?;
-    let mkv = Command::new("mkvmerge")
+    let mut mkvmerge_binary = "mkvmerge".to_string();
+    if let Some(loc) = &downloader.mkvmerge_location {
+        mkvmerge_binary = String::from(loc);
+    }
+    let mkv = Command::new(mkvmerge_binary)
         .args(["--output", &tmppath,
                "--no-video", audio_path,
                "--no-audio", video_path])
@@ -176,11 +189,12 @@ fn mux_audio_video_mkvmerge(
 
 // First try ffmpeg subprocess, if that fails try vlc subprocess
 pub fn mux_audio_video(
+    downloader: &DashDownloader,
     audio_path: &str,
-    video_path: &str,
-    output_path: &Path,
-    ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
+    video_path: &str) -> Result<(), DashMpdError> {
     log::trace!("Muxing audio {}, video {}", audio_path, video_path);
+    let output_path = downloader.output_path.as_ref()
+              .expect("muxer called without specifying output_path");
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -199,21 +213,21 @@ pub fn mux_audio_video(
     for muxer in muxer_preference {
         log::info!("Trying muxer {}", muxer);
         if muxer.eq("mkvmerge") {
-            if let Err(e) =  mux_audio_video_mkvmerge(audio_path, video_path, output_path) {
+            if let Err(e) =  mux_audio_video_mkvmerge(downloader, audio_path, video_path) {
                 log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
             } else {
                 log::info!("Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
-            if let Err(e) = mux_audio_video_ffmpeg(audio_path, video_path, output_path, ffmpeg_location.clone()) {
+            if let Err(e) = mux_audio_video_ffmpeg(downloader, audio_path, video_path) {
                 log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
             } else {
                 log::info!("Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("vlc") {
-            if let Err(e) = mux_audio_video_vlc(audio_path, video_path, output_path) {
+            if let Err(e) = mux_audio_video_vlc(downloader, audio_path, video_path) {
                 log::warn!("Muxing with vlc subprocess failed: {}", e);
             } else {
                 log::info!("Muxing with vlc subprocess succeeded");
