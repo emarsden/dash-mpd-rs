@@ -250,8 +250,8 @@ impl DashDownloader {
     /// the filename extension of the path `out`. If the filename extension is `.mp4`, an MPEG-4
     /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise
     /// the heuristics implemented by ffmpeg will apply (e.g. an `.avi` extension will generate
-    /// an AVI container). 
-    pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<(), DashMpdError> {
+    /// an AVI container).
+    pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
@@ -269,7 +269,7 @@ impl DashDownloader {
     /// output file will be overwritten if it already exists.
     ///
     /// The downloaded media will be placed in an MPEG-4 container (to select another media container,
-    /// see the `download_to` function). 
+    /// see the `download_to` function).
     pub fn download(mut self) -> Result<PathBuf, DashMpdError> {
         let cwd = env::current_dir()
             .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
@@ -284,8 +284,7 @@ impl DashDownloader {
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
         }
-        fetch_mpd(self)?;
-        Ok(outpath)
+        fetch_mpd(self)
     }
 }
 
@@ -409,7 +408,7 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 }
 
 
-fn fetch_mpd(downloader: DashDownloader) -> Result<(), DashMpdError> {
+fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     let client = &downloader.http_client.as_ref().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
     let fetch = || {
@@ -1537,7 +1536,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<(), DashMpdError> {
     for observer in &downloader.progress_observers {
         observer.update(100, "Done");
     }
-    Ok(())
+    Ok(PathBuf::from(output_path))
 }
 
 

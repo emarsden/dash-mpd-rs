@@ -27,7 +27,7 @@ fn main() {
         .timeout(Duration::new(10, 0))
         .gzip(true)
         .build()
-        .expect("Couldn't create reqwest HTTP client");
+        .expect("creating reqwest HTTP client");
     let xml = client.get(url)
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .header("Accept-language", "en-US,en")

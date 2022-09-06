@@ -33,7 +33,7 @@ fn main () {
         .unwrap_or(env::var("http_proxy")
                    .unwrap_or("socks5://127.0.0.1:9050".to_string()));
     let proxy = reqwest::Proxy::http(http_proxy)
-        .expect("Can't connect to HTTP proxy");
+        .expect("connecting to HTTP proxy");
     let client = reqwest::blocking::Client::builder()
         .proxy(proxy)
         .user_agent("Mozilla/5.0")
@@ -41,9 +41,9 @@ fn main () {
         .timeout(Duration::new(10, 0))
         .gzip(true)
         .build()
-        .expect("Couldn't create reqwest HTTP client");
+        .expect("creating reqwest HTTP client");
     let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = PathBuf::from(env::temp_dir()).join("cloudflarestream.mp4");
+    let out = PathBuf::from(env::temp_dir()).join("cloudflarestream.mkv");
     if let Err(e) = DashDownloader::new(url)
         .with_http_client(client)
         .worst_quality()

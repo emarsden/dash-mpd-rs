@@ -8,6 +8,7 @@ use std::sync::Arc;
 use env_logger::Env;
 use clap::Arg;
 use indicatif::{ProgressBar, ProgressStyle};
+use colored::*;
 use dash_mpd::fetch::DashDownloader;
 use dash_mpd::fetch::ProgressObserver;
 
@@ -63,10 +64,10 @@ fn main () {
             dl = dl.best_quality();
         }
     }
-    match dl.download() {
+    match dl.download_to("media.mkv") {
         Ok(path) => println!("Downloaded to {:?}", path),
         Err(e) => {
-            eprintln!("Download failed: {:?}", e);
+            eprintln!("{}: {:?}", "Download failed".red(), e);
             process::exit(-1);
         },
     }
