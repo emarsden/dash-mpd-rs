@@ -78,7 +78,7 @@ use chrono::DateTime;
 
 
 
-/// Type representing an xs:dateTime, as per https://www.w3.org/TR/xmlschema-2/#dateTime
+/// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
 // Something like 2021-06-03T13:00:00Z
 pub type XsDatetime = DateTime<chrono::offset::Utc>;
 

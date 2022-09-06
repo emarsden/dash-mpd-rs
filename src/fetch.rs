@@ -214,12 +214,24 @@ impl DashDownloader {
     }
 
     /// Specify the location of the `ffmpeg` application, if not located in PATH.
+    ///
+    /// Example
+    /// ```rust
+    /// #[cfg(target_os = "unix")]
+    /// let ddl = ddl.with_ffmpeg("/opt/ffmpeg-next/bin/ffmpeg");
+    /// ```
     pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
         self.ffmpeg_location = ffmpeg_path.to_string();
         self
     }
 
     /// Specify the location of the VLC application, if not located in PATH.
+    ///
+    /// Example
+    /// ```rust
+    /// #[cfg(target_os = "windows")]
+    /// let ddl = ddl.with_vlc("C:/Program Files/VideoLAN/VLC/vlc.exe");
+    /// ```
     pub fn with_vlc(mut self, vlc_path: &str) -> DashDownloader {
         self.vlc_location = vlc_path.to_string();
         self
@@ -233,6 +245,12 @@ impl DashDownloader {
 
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
+    ///
+    /// Note that the media container format used when muxing audio and video streams depends on
+    /// the filename extension of the path `out`. If the filename extension is `.mp4`, an MPEG-4
+    /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise
+    /// the heuristics implemented by ffmpeg will apply (e.g. an `.avi` extension will generate
+    /// an AVI container). 
     pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<(), DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
@@ -249,6 +267,9 @@ impl DashDownloader {
     /// Download DASH streaming media content to a file in the current working directory and return
     /// the corresponding `PathBuf`. The name of the output file is derived from the manifest URL. The
     /// output file will be overwritten if it already exists.
+    ///
+    /// The downloaded media will be placed in an MPEG-4 container (to select another media container,
+    /// see the `download_to` function). 
     pub fn download(mut self) -> Result<PathBuf, DashMpdError> {
         let cwd = env::current_dir()
             .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
