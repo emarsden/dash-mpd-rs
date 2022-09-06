@@ -35,18 +35,15 @@ fn mux_audio_video_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
             String::from("")))?;
-    let mut ffmpeg_binary = "ffmpeg".to_string();
-    if let Some(loc) = &downloader.ffmpeg_location {
-        ffmpeg_binary = String::from(loc);
-    }
-    let ffmpeg = Command::new(ffmpeg_binary)
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(["-hide_banner",
                "-nostats",
                "-loglevel", "error",  // or "warning", "info"
                "-y",  // overwrite output file if it exists
                "-i", audio_path,
                "-i", video_path,
-               "-c:v", "copy", "-c:a", "copy",
+               "-c:v", "copy",
+               "-c:a", "copy",
                "-movflags", "+faststart", "-preset", "veryfast",
                // select the muxer explicitly
                "-f", container,
@@ -97,11 +94,7 @@ fn mux_audio_video_vlc(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
             String::from("")))?;
-    let mut vlc_binary = "vlc".to_string();
-    if let Some(loc) = &downloader.vlc_location {
-        vlc_binary = String::from(loc);
-    }
-    let vlc = Command::new(vlc_binary)
+    let vlc = Command::new(&downloader.vlc_location)
         .args(["-I", "dummy",
                "--no-repeat", "--no-loop",
                video_path,
@@ -157,11 +150,7 @@ fn mux_audio_video_mkvmerge(
     let output_path = downloader.output_path.as_ref()
               .expect("muxer called without specifying output_path");
     let tmppath = temporary_outpath(".mkv")?;
-    let mut mkvmerge_binary = "mkvmerge".to_string();
-    if let Some(loc) = &downloader.mkvmerge_location {
-        mkvmerge_binary = String::from(loc);
-    }
-    let mkv = Command::new(mkvmerge_binary)
+    let mkv = Command::new(&downloader.mkvmerge_location)
         .args(["--output", &tmppath,
                "--no-video", audio_path,
                "--no-audio", video_path])

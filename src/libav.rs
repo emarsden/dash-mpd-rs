@@ -20,7 +20,6 @@
 
 use std::cmp::{min, max};
 use std::fs::File;
-use std::path::Path;
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;
@@ -30,7 +29,7 @@ use ac_ffmpeg::format::demuxer::DemuxerWithStreamInfo;
 use ac_ffmpeg::format::muxer::Muxer;
 use ac_ffmpeg::format::muxer::OutputFormat;
 use crate::DashMpdError;
-
+use crate::fetch::DashDownloader;
 
 
 
@@ -73,11 +72,9 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 
 
 pub fn mux_audio_video(
+    downloader: &DashDownloader,
     audio_path: &str,
-    video_path: &str,
-    output_path: &Path,
-    // this parameter will be ignored when built with the libav feature
-    _ffmpeg_location: Option<String>) -> Result<(), DashMpdError> {
+    video_path: &str) -> Result<(), DashMpdError> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| log::info!("ffmpeg: {}", msg));
     let mut video_demuxer = libav_open_input(video_path)
         .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
@@ -107,7 +104,7 @@ pub fn mux_audio_video(
         })
         .ok_or_else(|| DashMpdError::Muxing(String::from("finding libav audio codec")))?;
 
-    let out = output_path.to_str()
+    let out = &downloader.output_path.as_ref().unwrap().to_str()
         .ok_or_else(|| DashMpdError::Muxing(String::from("converting output path")))?;
     let mut muxer = libav_open_output(out, &[video_codec, audio_codec])?;
     let mut last_dts: Timestamp = Timestamp::null();

@@ -73,9 +73,9 @@ pub struct DashDownloader {
     sleep_between_requests: u8,
     verbosity: u8,
     record_metainformation: bool,
-    pub ffmpeg_location: Option<String>,
-    pub vlc_location: Option<String>,
-    pub mkvmerge_location: Option<String>,
+    pub ffmpeg_location: String,
+    pub vlc_location: String,
+    pub mkvmerge_location: String,
 }
 
 
@@ -114,9 +114,9 @@ impl DashDownloader {
             sleep_between_requests: 0,
             verbosity: 0,
             record_metainformation: true,
-            ffmpeg_location: None,
-	    vlc_location: None,
-	    mkvmerge_location: None,
+            ffmpeg_location: if cfg!(windows) { String::from("ffmpeg.exe") } else { String::from("ffmpeg") },
+	    vlc_location: if cfg!(windows) { String::from("vlc.exe") } else { String::from("vlc") },
+	    mkvmerge_location: if cfg!(windows) { String::from("mkvmerge.exe") } else { String::from("mkvmerge") },
         }
     }
 
@@ -133,7 +133,7 @@ impl DashDownloader {
     ///      .timeout(Duration::new(10, 0))
     ///      .gzip(true)
     ///      .build()
-    ///      .expect("Couldn't create reqwest HTTP client");
+    ///      .expect("creating reqwest HTTP client");
     ///  let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     ///  let out = PathBuf::from(env::temp_dir()).join("cloudflarestream.mp4");
     ///  DashDownloader::new(url)
@@ -215,19 +215,19 @@ impl DashDownloader {
 
     /// Specify the location of the `ffmpeg` application, if not located in PATH.
     pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
-        self.ffmpeg_location = Some(ffmpeg_path.to_string());
+        self.ffmpeg_location = ffmpeg_path.to_string();
         self
     }
 
     /// Specify the location of the VLC application, if not located in PATH.
     pub fn with_vlc(mut self, vlc_path: &str) -> DashDownloader {
-        self.vlc_location = Some(vlc_path.to_string());
+        self.vlc_location = vlc_path.to_string();
         self
     }
 
     /// Specify the location of the mkvmerge application, if not located in PATH.
     pub fn with_mkvmerge(mut self, mkvmerge_path: &str) -> DashDownloader {
-        self.mkvmerge_location = Some(mkvmerge_path.to_string());
+        self.mkvmerge_location = mkvmerge_path.to_string();
         self
     }
 
