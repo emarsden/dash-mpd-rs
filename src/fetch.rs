@@ -268,14 +268,14 @@ impl DashDownloader {
     /// the corresponding `PathBuf`. The name of the output file is derived from the manifest URL. The
     /// output file will be overwritten if it already exists.
     ///
-    /// The downloaded media will be placed in an MPEG-4 container (to select another media container,
-    /// see the `download_to` function).
+    /// The downloaded media will be placed in an MPEG-4 container. To select another media container,
+    /// see the `download_to` function.
     pub fn download(mut self) -> Result<PathBuf, DashMpdError> {
         let cwd = env::current_dir()
             .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
         let filename = generate_filename_from_url(&self.mpd_url);
         let outpath = cwd.join(filename);
-        self.output_path = Some(outpath.clone());
+        self.output_path = Some(outpath);
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
                 .timeout(Duration::new(10, 0))

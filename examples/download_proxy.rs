@@ -44,12 +44,16 @@ fn main () {
         .expect("creating reqwest HTTP client");
     let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = PathBuf::from(env::temp_dir()).join("cloudflarestream.mkv");
-    if let Err(e) = DashDownloader::new(url)
+    match DashDownloader::new(url)
         .with_http_client(client)
         .worst_quality()
-        .download_to(out)
-    {
-        eprintln!("Download failed: {:?}", e);
-        process::exit(-1);
+        .download_to(out) {
+	Err(e) => {
+          eprintln!("Download failed: {:?}", e);
+          process::exit(-1);
+        },
+	Ok(path) => {
+	  println!("Stream downloaded to {}", path.display());
+	},
     }
 }
