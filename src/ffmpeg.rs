@@ -59,7 +59,7 @@ fn mux_audio_video_ffmpeg(
         log::info!("ffmpeg stderr: {}", msg);
     }
     if ffmpeg.status.success() {
-        let tmpfile = File::open(&tmppath)
+        let tmpfile = File::open(tmppath)
             .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
         let mut muxed = BufReader::new(tmpfile);
         let outfile = File::create(output_path)
@@ -106,7 +106,7 @@ fn mux_audio_video_vlc(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
     if vlc.status.success() {
-        let tmpfile = File::open(&tmppath)
+        let tmpfile = File::open(tmppath)
             .map_err(|e| DashMpdError::Io(e, String::from("opening VLC output")))?;
         let mut muxed = BufReader::new(tmpfile);
         let outfile = File::create(output_path)

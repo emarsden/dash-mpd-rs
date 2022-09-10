@@ -1505,28 +1505,28 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         #[allow(clippy::collapsible_if)]
         if origin_url.username().is_empty() && origin_url.password().is_none() {
             #[cfg(target_family = "unix")]
-            if xattr::set(&output_path, "user.xdg.origin.url", downloader.mpd_url.as_bytes()).is_err() {
+            if xattr::set(output_path, "user.xdg.origin.url", downloader.mpd_url.as_bytes()).is_err() {
                 log::info!("Failed to set user.xdg.origin.url xattr on output file");
             }
         }
         if let Some(pi) = mpd.ProgramInformation {
             if let Some(t) = pi.Title {
                 if let Some(tc) = t.content {
-                    if xattr::set(&output_path, "user.dublincore.title", tc.as_bytes()).is_err() {
+                    if xattr::set(output_path, "user.dublincore.title", tc.as_bytes()).is_err() {
                         log::info!("Failed to set user.dublincore.title xattr on output file");
                     }
                 }
             }
             if let Some(source) = pi.Source {
                 if let Some(sc) = source.content {
-                    if xattr::set(&output_path, "user.dublincore.source", sc.as_bytes()).is_err() {
+                    if xattr::set(output_path, "user.dublincore.source", sc.as_bytes()).is_err() {
                         log::info!("Failed to set user.dublincore.source xattr on output file");
                     }
                 }
             }
             if let Some(copyright) = pi.Copyright {
                 if let Some(cc) = copyright.content {
-                    if xattr::set(&output_path, "user.dublincore.rights", cc.as_bytes()).is_err() {
+                    if xattr::set(output_path, "user.dublincore.rights", cc.as_bytes()).is_err() {
                         log::info!("Failed to set user.dublincore.rights xattr on output file");
                     }
                 }
