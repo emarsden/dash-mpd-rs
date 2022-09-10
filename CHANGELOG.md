@@ -1,16 +1,17 @@
 # Changelog
 
 
-## [0.5.1] - 2022-09-
+## [0.5.1] - 2022-09-10
 ### New
 - New functions `with_vlc()` and `with_mkvmerge()` on `DashDownloader` to allow the location of VLC
   and mkvmerge applications to be specified, if in a non-standard location. Aligns with the existing
   functionality to specify the location of the ffmpeg binary.
 
 ### Changed
-- The default path for the external muxing applications depends on the platform (for instance
+- The default path for the external muxing applications now depends on the platform (for instance
   "ffmpeg.exe" on Windows and "ffmpeg" elsewhere). 
 - The `download_to()` function returns the path that the media was downloaded to, instead of `()`.
+
 
 ## [0.5.0] - 2022-09-03
 ### Changed
