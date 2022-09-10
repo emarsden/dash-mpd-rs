@@ -12,12 +12,12 @@ publish = true
 edition = "2021"
 
 [dependencies]
-log = "0.4"
 serde = { version = "1", features = ["derive"] }
-quick-xml = { version = "0.24", features = ["serialize"] }
+quick-xml = { version = "0.25", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 regex = ">=1.5.5"
 thiserror = "1"
+log = "0.4"
 url = { version = "2", optional = true }
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "gzip", "brotli", "rustls-tls", "socks"], optional = true }
 backoff = { version = "0.4", optional = true }
