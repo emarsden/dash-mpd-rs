@@ -109,7 +109,9 @@ fn main() {
 }
 ```
 
-See example [dash_stream_info.rs](blob/main/examples/dash_stream_info.rs) for more information.
+See example
+[dash_stream_info.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/dash_stream_info.rs)
+for more information.
 
 
 To **generate an MPD manifest programmatically**:
@@ -144,7 +146,7 @@ fn main() {
 }
 ```
 
-See example [serialize.rs](blob/main/examples/serialize.rs) for more detail.
+See example [serialize.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/serialize.rs) for more detail.
 
 
 
@@ -163,11 +165,10 @@ match DashDownloader::new(url)
 }
 ```
 
-See example [download_bbc.rs](blob/main/examples/download_bbc.rs) for a little more detail.
+See example [download_bbc.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/download_bbc.rs) for a little more detail.
 
-
-An application that provides a commandline interface for this library is available separately in the
-[dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
+An application that provides a convenient commandline interface for the download functionality is
+available separately in the [dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
 
 
 ## Installation
