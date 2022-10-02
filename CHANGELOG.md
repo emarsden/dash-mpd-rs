@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.0] - 2022-10-02
+### New
+- Serialization support to allow programmatic generation of an MPD manifest (in XML format) from Rust
+  structs. See `examples/serialize.rs` for some example code. 
+
 
 ## [0.5.1] - 2022-09-10
 ### New
