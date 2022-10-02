@@ -1,7 +1,10 @@
 # dash-mpd
 
-A Rust library for parsing and downloading media content from a DASH MPD file, as used by video
-services such as on-demand replay of TV content and video streaming services like YouTube. 
+A Rust library for parsing, serializing and downloading media content from a DASH MPD file, as used
+by video services such as on-demand replay of TV content and video streaming services like YouTube.
+Allows both parsing of a DASH manifest (XML format) to Rust structs (deserialization) and
+programmatic generation of an MPD manifest (serialization). The library also allows you to download
+media content from a streaming server.
 
 [![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
 [![Released API docs](https://docs.rs/dash-mpd/badge.svg)](https://docs.rs/dash-mpd/)
@@ -18,11 +21,11 @@ content. DASH MPD manifests can be used both with content encoded as MPEG and as
 good explanation of adaptive bitrate video streaming at
 [howvideo.works](https://howvideo.works/#dash).
 
-This library provides a serde-based parser for the DASH MPD format, as formally defined in ISO/IEC
-standard 23009-1:2019. XML schema files are
-[available for no cost from ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/).
-When MPD files in practical use diverge from the formal standard, this library prefers to
-interoperate with existing practice. 
+This library provides a serde-based parser (deserializer) and serializer for the DASH MPD format, as
+formally defined in ISO/IEC standard 23009-1:2019. XML schema files are [available for no cost from
+ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). When MPD
+files in practical use diverge from the formal standard, this library prefers to interoperate with
+existing practice.
 
 
 If the library feature `fetch` is enabled (which it is by default), the library also provides
@@ -70,6 +73,8 @@ The choice of external muxer depends on the filename extension of the path suppl
 
 ## Usage
 
+To **parse** the contents of an MPD manifest into Rust structs:
+
 ```rust
 use std::time::Duration;
 use dash_mpd::{MPD, parse};
@@ -104,7 +109,40 @@ fn main() {
 }
 ```
 
-To download content from an MPD manifest:
+To **generate an MPD manifest programmatically**:
+
+```rust
+use serde::ser::Serialize;
+use quick_xml::writer::Writer;
+use quick_xml::se::Serializer;
+use dash_mpd::{MPD, ProgramInformation, Title};
+
+fn main() {
+   let mut buffer = Vec::new();
+   let writer = Writer::new_with_indent(&mut buffer, b' ', 2);
+   let mut ser = Serializer::with_root(writer, Some("MPD"));
+
+   let pi = ProgramInformation {
+       Title: Some(Title { content: Some("My serialization example".into()) }),
+       lang: Some("eng".into()),
+       moreInformationURL: Some("https://github.com/emarsden/dash-mpd-rs".into()),
+       ..Default::default()
+   };
+   let mpd = MPD {
+       mpdtype: Some("static".into()),
+       xmlns: Some("urn:mpeg:dash:schema:mpd:2011".into()),
+       ProgramInformation: Some(pi),
+       ..Default::default()
+   };
+
+   mpd.serialize(&mut ser)
+       .expect("serializing MPD struct");
+   let xml = String::from_utf8(buffer.clone()).unwrap();
+}
+```
+
+
+To **download content** from an MPD manifest:
 
 ```rust
 use dash_mpd::fetch::DashDownloader;
@@ -129,14 +167,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.5"
+dash-mpd = "0.6"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.5", default-features = false }
+dash-mpd = { version = "0.6", default-features = false }
 ```
 
 
@@ -156,5 +194,4 @@ This crate is tested on the following platforms:
 ## License
 
 This project is licensed under the MIT license. For more information, see the `LICENSE-MIT` file.
-
 

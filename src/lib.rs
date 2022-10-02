@@ -70,8 +70,9 @@ pub mod fetch;
 use crate::libav::mux_audio_video;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::mux_audio_video;
-use serde::Deserialize;
+use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
+use serde_with::skip_serializing_none;
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
@@ -251,6 +252,20 @@ where
     }
 }
 
+fn serialize_xs_duration<S>(oxs: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if let Some(xs) = oxs {
+        let secs = xs.as_secs();
+        let ms = xs.subsec_millis();
+        serializer.serialize_str(&format!("PT{}.{:03}S", secs, ms))
+    } else {
+        // in fact this won't be called because of the #[skip_serializing_none] annotation
+        serializer.serialize_none()
+    }
+}
+
 
 // The MPD format is documented by ISO using an XML Schema at
 // https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD-edition2.xsd
@@ -263,28 +278,36 @@ where
 // possible field.
 
 /// The title of the media stream.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Title {
     #[serde(rename = "$value")]
     pub content: Option<String>,
 }
 
 /// The original source of the media stream.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Source {
     #[serde(rename = "$value")]
     pub content: Option<String>,
 }
 
 /// Copyright information concerning the media stream.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Copyright {
     #[serde(rename = "$value")]
     pub content: Option<String>,
 }
 
 /// Metainformation concerning the media stream (title, language, etc.)
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct ProgramInformation {
     pub Title: Option<Title>,
     pub Source: Option<Source>,
@@ -295,7 +318,9 @@ pub struct ProgramInformation {
 }
 
 /// Describes a sequence of contiguous Segments with identical duration.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct S {
     /// time
     pub t: Option<i64>,
@@ -308,7 +333,8 @@ pub struct S {
 
 /// Contains a sequence of `S` elements, each of which describes a sequence of contiguous segments of
 /// identical duration.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct SegmentTimeline {
     #[serde(rename = "S")]
     pub segments: Vec<S>,
@@ -316,7 +342,9 @@ pub struct SegmentTimeline {
 
 /// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
 /// segment to produce a media stream.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Initialization {
     pub sourceURL: Option<String>,
     pub range: Option<String>,
@@ -324,7 +352,9 @@ pub struct Initialization {
 
 /// Allows template-based `SegmentURL` construction. Specifies various substitution rules using
 /// dynamic values such as `$Time$` and `$Number$` that map to a sequence of Segments.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct SegmentTemplate {
     pub initialization: Option<String>,
     pub media: Option<String>,
@@ -342,14 +372,17 @@ pub struct SegmentTemplate {
 
 /// A URI string to which a new request for an updated manifest should be made. This feature is
 /// intended for servers and clients that can't use sticky HTTP redirects.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Location {
     #[serde(rename = "$value")]
     pub url: String,
 }
 
 /// A URI string that specifies one or more common locations for Segments and other resources.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct BaseURL {
     #[serde(rename = "$value")]
     pub base: String,
@@ -359,7 +392,9 @@ pub struct BaseURL {
 }
 
 /// Specifies some common information concerning media segments.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct SegmentBase {
     #[serde(rename = "Initialization")]
     pub initialization: Option<Initialization>,
@@ -372,7 +407,9 @@ pub struct SegmentBase {
 }
 
 /// The URL of a media segment.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct SegmentURL {
     pub media: Option<String>, // actually an URI
     pub mediaRange: Option<String>,
@@ -381,7 +418,9 @@ pub struct SegmentURL {
 }
 
 /// Contains a sequence of SegmentURL elements.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
     pub duration: Option<u64>,
@@ -399,7 +438,9 @@ pub struct SegmentList {
     pub segment_urls: Vec<SegmentURL>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Resync {
     pub dT: Option<u64>,
     pub dImax: Option<u64>,
@@ -409,7 +450,9 @@ pub struct Resync {
 }
 
 /// Specifies information concerning the audio channel (eg. stereo, multichannel).
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct AudioChannelConfiguration {
     pub id: Option<String>,
     pub schemeIdUri: Option<String>,
@@ -417,7 +460,9 @@ pub struct AudioChannelConfiguration {
 }
 
 /// Specifies the accessibility scheme used by the media content.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Accessibility {
     pub id: Option<String>,
     pub schemeIdUri: Option<String>,
@@ -427,7 +472,9 @@ pub struct Accessibility {
 /// A representation describes a version of the content, using a specific encoding and bitrate.
 /// Streams often have multiple representations with different bitrates, to allow the client to
 /// select that most suitable to its network conditions.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Representation {
     // no id for a linked Representation (with xlink:href)
     pub id: Option<String>,
@@ -458,7 +505,9 @@ pub struct Representation {
 }
 
 /// Describes a media content component.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct ContentComponent {
     pub id: Option<String>,
     /// Language in RFC 5646 format (eg. "fr-FR", "en-AU")
@@ -470,7 +519,9 @@ pub struct ContentComponent {
 }
 
 /// A Common Encryption "Protection System Specific Header" box. Content is typically base64 encoded.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct CencPssh {
     #[serde(rename = "$value")]
     pub content: Option<String>,
@@ -479,7 +530,9 @@ pub struct CencPssh {
 /// Contains information on DRM (rights management / encryption) mechanisms used in the stream, such
 /// as Widevine and Playready. Note that this library is not able to download content with DRM. If
 /// this node is not present, no content protection is applied by the source.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct ContentProtection {
     pub robustness: Option<String>,
     pub refId: Option<String>,
@@ -498,32 +551,42 @@ pub struct ContentProtection {
 
 /// The purpose of this media stream, such as captions, subtitle, main, alternate, supplementary,
 /// commentary, and dub.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Role {
     pub schemeIdUri: Option<String>,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Viewpoint {
     pub schemeIdUri: Option<String>,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Binary {
     #[serde(rename = "$value")]
     pub content: Option<Vec<u8>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Signal {
     #[serde(rename = "Binary")]
     pub contents: Option<Vec<Binary>>,
 }
 
 /// A DASH event.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Event {
     pub id: Option<String>,
     pub duration: Option<u64>,
@@ -531,7 +594,9 @@ pub struct Event {
     pub signals: Option<Vec<Signal>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct EventStream {
     pub timescale: Option<u64>,
     pub schemeIdUri: Option<String>,
@@ -541,7 +606,9 @@ pub struct EventStream {
 
 /// Contains a set of Representations. For example, if multiple language streams are available for
 /// the audio content, each one can be in its own AdaptationSet.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct AdaptationSet {
     pub id: Option<i64>,
     pub BaseURL: Option<BaseURL>,
@@ -583,12 +650,15 @@ pub struct AdaptationSet {
 
 /// Describes a chunk of the content with a start time and a duration. Content can be split up into
 /// multiple periods (such as chapters, advertising segments).
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Period {
     pub id: Option<String>,
     pub start: Option<String>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub duration: Option<Duration>,
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Option<BaseURL>,
@@ -602,7 +672,9 @@ pub struct Period {
     pub adaptations: Option<Vec<AdaptationSet>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Latency {
     pub min: Option<f64>,
     pub max: Option<f64>,
@@ -610,20 +682,26 @@ pub struct Latency {
     pub referenceId: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct PlaybackRate {
     pub min: f64,
     pub max: f64,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct ServiceDescription {
     pub id: Option<String>,
     pub Latency: Option<Latency>,
     pub PlaybackRate: Option<PlaybackRate>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct UTCTiming {
     // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
     // http-ntp:2014, ntp:2014, http-head:2014, direct:2014
@@ -632,7 +710,9 @@ pub struct UTCTiming {
 }
 
 /// The root node of a parsed DASH MPD manifest.
-#[derive(Debug, Deserialize, Clone)]
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct MPD {
     #[serde(rename = "type")]
     pub mpdtype: Option<String>,
@@ -641,16 +721,22 @@ pub struct MPD {
     pub schemaLocation: Option<String>,
     pub profiles: Option<String>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub minBufferTime: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub minimumUpdatePeriod: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub timeShiftBufferDepth: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub mediaPresentationDuration: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub maxSegmentDuration: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     pub suggestedPresentationDelay: Option<Duration>,
     pub publishTime: Option<XsDatetime>,
     pub availabilityStartTime: Option<XsDatetime>,
