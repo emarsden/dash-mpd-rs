@@ -1,6 +1,9 @@
-//! A Rust library for parsing and downloading media content from a DASH MPD manifest, as used for
-//! on-demand replay of TV content and video streaming services.
-//!
+//! A Rust library for parsing, serializing and downloading media content from a DASH MPD manifest,
+//! as used for on-demand replay of TV content and video streaming services. Allows both parsing of
+//! a DASH manifest (XML format) to Rust structs (deserialization) and programmatic generation of an
+//! MPD manifest (serialization). The library also allows you to download media content from a
+//! streaming server.
+
 //! [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
 //! streaming over HTTP), also called MPEG-DASH, is a technology used for media streaming over the
 //! web, commonly used for video on demand (VOD) services. The Media Presentation Description (MPD)
@@ -8,8 +11,9 @@
 //! DASH client uses to determine which assets to request in order to perform adaptive streaming of
 //! the content. DASH MPD manifests can be used both with content encoded as MPEG and as WebM.
 //!
-//! This library provides a serde-based parser for the DASH MPD format, as formally defined in
-//! ISO/IEC standard 23009-1:2019. XML schema files are [available for no cost from
+//! This library provides a serde-based parser (deserializer) and serializer for the DASH MPD
+//! format, as formally defined in ISO/IEC standard 23009-1:2019. XML schema files are [available
+//! for no cost from
 //! ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). When
 //! MPD files in practical use diverge from the formal standard, this library prefers to
 //! interoperate with existing practice.
@@ -256,6 +260,7 @@ fn serialize_xs_duration<S>(oxs: &Option<Duration>, serializer: S) -> Result<S::
 where
     S: Serializer,
 {
+    // this is a very simple-minded way of converting to an ISO 8601 duration
     if let Some(xs) = oxs {
         let secs = xs.as_secs();
         let ms = xs.subsec_millis();
@@ -273,8 +278,9 @@ where
 // We occasionally diverge from the standard when in-the-wild implementations do.
 // Some reference code for DASH is at https://github.com/bitmovin/libdash
 //
-// We are using the quick_xml + serde crates to deserialize the XML content to Rust structs. Note
-// that serde will ignore unknown fields when deserializing, so we don't need to cover every single
+// We are using the quick_xml + serde crates to deserialize the XML content to Rust structs, and the
+// reverse serialization process of programmatically generating XML from Rust structs. Note that
+// serde will ignore unknown fields when deserializing, so we don't need to cover every single
 // possible field.
 
 /// The title of the media stream.
