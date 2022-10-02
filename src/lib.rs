@@ -28,7 +28,8 @@
 //! - XLink elements (only with actuate=onLoad semantics, resolve-to-zero supported)
 //! - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
 //!   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
-//! - Media containers of types supported by ffmpeg or VLC (this includes ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
+//! - Media containers of types supported by mkvmerge, ffmpeg or VLC (this includes Matroska,
+//!   ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
 //!
 //!
 //! ## Limitations / unsupported features
@@ -56,9 +57,8 @@
 
 /// If library feature `libav` is enabled, muxing support (combining audio and video streams, which
 /// are often separated out in DASH streams) is provided by ffmpeg's libav library, via the
-/// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `ffmpeg` or `vlc` as a
-/// subprocess. The muxing support in libav and ffmpeg modules are only compiled when the fetch
-/// feature is enabled.
+/// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `mkvmerge`, `ffmpeg` or `vlc` as
+/// a subprocess. The muxing support is only compiled when the fetch feature is enabled.
 #[cfg(all(feature = "fetch", feature = "libav"))]
 mod libav;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]

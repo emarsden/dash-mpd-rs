@@ -45,10 +45,10 @@ them, so download support tends to be more robust with the default configuration
 application as a subprocess).
 
 The choice of external muxer depends on the filename extension of the path supplied to `download_to()`
-(will be ".mp4" if you call `download()`):
+(will be `.mp4` if you call `download()`):
 
-- .mkv: call mkvmerge first, then if that fails call ffmpeg
-- .mp4: call ffmpeg first, then if that fails call vlc
+- `.mkv`: call mkvmerge first, then if that fails call ffmpeg
+- `.mp4`: call ffmpeg first, then if that fails call vlc
 - other: try ffmpeg, which supports many container formats
 
 
@@ -109,6 +109,9 @@ fn main() {
 }
 ```
 
+See example [dash_stream_info.rs](blob/main/examples/dash_stream_info.rs) for more information.
+
+
 To **generate an MPD manifest programmatically**:
 
 ```rust
@@ -141,6 +144,9 @@ fn main() {
 }
 ```
 
+See example [serialize.rs](blob/main/examples/serialize.rs) for more detail.
+
+
 
 To **download content** from an MPD manifest:
 
@@ -156,6 +162,9 @@ match DashDownloader::new(url)
    Err(e) => eprintln!("Download failed: {:?}", e),
 }
 ```
+
+See example [download_bbc.rs](blob/main/examples/download_bbc.rs) for a little more detail.
+
 
 An application that provides a commandline interface for this library is available separately in the
 [dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
