@@ -46,20 +46,20 @@ fn main () {
         .about("Download content from a DASH streaming media manifest")
         .arg(Arg::new("quality")
              .long("quality")
-             .takes_value(true)
-             .possible_value("best")
-             .possible_value("worst"))
+             .num_args(1)
+             .value_parser(["best", "worst"]))
         .arg(Arg::new("url")
-             .takes_value(true)
+             .num_args(1)
              .value_name("MPD-URL")
+             .help("URL of the MPD manifest")
              .required(true)
              .index(1))
         .get_matches();
-    let url = matches.value_of("url").unwrap();
+    let url = matches.get_one::<String>("url").unwrap();
     let mut dl = DashDownloader::new(url)
         .record_metainformation(false)
         .add_progress_observer(Arc::new(DownloadProgressBar::new()));
-    if let Some(q) = matches.value_of("quality") {
+    if let Some(q) = matches.get_one::<String>("quality") {
         if q.eq("best") {
             dl = dl.best_quality();
         }

@@ -15,14 +15,15 @@ use env_logger::Env;
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let matches = clap::Command::new("dash_stream_info")
-        .about("Show codec and bandwith for audio and video streams specified in a DASH MPD")
+        .about("Show codec and bandwidth for audio and video streams specified in a DASH MPD")
         .arg(Arg::new("url")
-             .takes_value(true)
+             .num_args(1)
              .value_name("URL")
+             .help("URL of the MPD manifest")
              .index(1)
              .required(true))
         .get_matches();
-    let url = matches.value_of("url").unwrap();
+    let url = matches.get_one::<String>("url").unwrap();
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::new(10, 0))
         .gzip(true)
