@@ -689,7 +689,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             opt_media = Some(m.to_string());
                         }
                         if let Some(d) = st.duration {
-                            opt_duration = Some(d as f64);
+                            opt_duration = Some(d);
                         }
                         if let Some(ts) = st.timescale {
                             timescale = ts;
@@ -884,7 +884,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     segment_duration = d;
                                 }
                                 if let Some(std) = st.duration {
-                                    segment_duration = std as f64 / timescale as f64;
+                                    segment_duration = std / timescale as f64;
                                 }
                                 if segment_duration < 0.0 {
                                     return Err(DashMpdError::UnhandledMediaStream(
@@ -1049,7 +1049,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             opt_media = Some(m.to_string());
                         }
                         if let Some(d) = st.duration {
-                            opt_duration = Some(d as f64);
+                            opt_duration = Some(d);
                         }
                         if let Some(ts) = st.timescale {
                             timescale = ts;
@@ -1234,7 +1234,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     segment_duration = d;
                                 }
                                 if let Some(std) = st.duration {
-                                    segment_duration = std as f64 / timescale as f64;
+                                    segment_duration = std / timescale as f64;
                                 }
                                 if segment_duration < 0.0 {
                                     return Err(DashMpdError::UnhandledMediaStream(
