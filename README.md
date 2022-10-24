@@ -17,8 +17,9 @@ streaming over HTTP), also called MPEG-DASH, is a technology used for media stre
 commonly used for video on demand (VOD) services. The Media Presentation Description (MPD) is a
 description of the resources (manifest or “playlist”) forming a streaming service, that a DASH
 client uses to determine which assets to request in order to perform adaptive streaming of the
-content. DASH MPD manifests can be used both with content encoded as MPEG and as WebM. There is a
-good explanation of adaptive bitrate video streaming at
+content. DASH MPD manifests can be used both with content encoded as H.264/MPEG and as WebM, and
+with file segments using either MPEG-2 Transport Stream (M2TS) container format or fragmented MPEG-4
+(also called CFF). There is a good explanation of adaptive bitrate video streaming at
 [howvideo.works](https://howvideo.works/#dash).
 
 This library provides a serde-based parser (deserializer) and serializer for the DASH MPD format, as

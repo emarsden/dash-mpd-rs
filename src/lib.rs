@@ -681,6 +681,34 @@ pub struct Period {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
+pub struct Reporting {
+    pub schemeIdUri: Option<String>,
+    pub value: Option<String>,
+    #[serde(rename = "dvb:reportingUrl")]
+    pub reportingUrl: Option<String>,
+    #[serde(rename = "dvb:probability")]
+    pub probability: Option<u64>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Range {
+    pub starttime: Option<Duration>,
+    pub duration: Option<Duration>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Metrics {
+    pub metrics: String,
+    pub reporting: Vec<Reporting>,
+    pub range: Vec<Range>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Latency {
     pub min: Option<f64>,
     pub max: Option<f64>,
@@ -715,17 +743,30 @@ pub struct UTCTiming {
     pub value: Option<String>,
 }
 
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct LeapSecondInformation {
+    pub availabilityStartLeapOffset: Option<i64>,
+    pub nextAvailabilityStartLeapOffset: Option<i64>,
+    pub nextLeapChangeTime: Option<XsDatetime>,
+}
+
 /// The root node of a parsed DASH MPD manifest.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct MPD {
+    /// The Presentation Type, either "static" or "dynamic" (a live stream for which segments become
+    /// available over time).
     #[serde(rename = "type")]
     pub mpdtype: Option<String>,
     pub xmlns: Option<String>,
     #[serde(rename = "xsi:schemaLocation")]
     pub schemaLocation: Option<String>,
     pub profiles: Option<String>,
+    /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
+    /// under ideal network conditions with bandwidth matching the @bandwidth attribute.
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
     pub minBufferTime: Option<Duration>,
@@ -741,6 +782,7 @@ pub struct MPD {
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
     pub maxSegmentDuration: Option<Duration>,
+    /// A suggested delay of the presentation compared to the Live edge.
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
     pub suggestedPresentationDelay: Option<Duration>,
@@ -755,7 +797,10 @@ pub struct MPD {
     pub locations: Option<Vec<Location>>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
-    pub UTCTiming: Option<UTCTiming>,
+    pub Metrics: Vec<Metrics>,
+    pub UTCTiming: Vec<UTCTiming>,
+    /// Correction for leap seconds, used by the DASH Low Latency specification. 
+    pub LeapSecondInformation: Option<LeapSecondInformation>,
 }
 
 
