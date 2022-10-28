@@ -25,7 +25,7 @@ fn mux_audio_video_ffmpeg(
     };
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
-        .suffix(&format!(".{}", container))
+        .suffix(&format!(".{container}"))
         .rand_bytes(5)
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
@@ -100,7 +100,7 @@ fn mux_audio_video_vlc(
                video_path,
                "--input-slave", audio_path,
                "--sout-mp4-faststart",
-               &format!("--sout=#std{{access=file,mux=mp4,dst={}}}", tmppath),
+               &format!("--sout=#std{{access=file,mux=mp4,dst={tmppath}}}"),
                "--sout-keep",
                "vlc://quit"])
         .output()
@@ -117,7 +117,7 @@ fn mux_audio_video_vlc(
         Ok(())
     } else {
         let msg = String::from_utf8_lossy(&vlc.stderr);
-        Err(DashMpdError::Muxing(format!("running VLC: {}", msg)))
+        Err(DashMpdError::Muxing(format!("running VLC: {msg}")))
     }
 }
 
@@ -139,7 +139,7 @@ fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     match tmpout.path().to_str() {
         Some(s) => Ok(s.to_string()),
-        None => Ok(format!("/tmp/dashmpdrs-tmp{}", suffix)),
+        None => Ok(format!("/tmp/dashmpdrs-tmp{suffix}")),
     }
 }
 
@@ -171,7 +171,7 @@ fn mux_audio_video_mkvmerge(
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
         let msg = String::from_utf8_lossy(&mkv.stdout);
-        Err(DashMpdError::Muxing(format!("running mkvmerge: {}", msg)))
+        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
     }
 }
 
@@ -181,7 +181,7 @@ pub fn mux_audio_video(
     downloader: &DashDownloader,
     audio_path: &str,
     video_path: &str) -> Result<(), DashMpdError> {
-    log::trace!("Muxing audio {}, video {}", audio_path, video_path);
+    log::trace!("Muxing audio {audio_path}, video {video_path}");
     let output_path = downloader.output_path.as_ref()
               .expect("muxer called without specifying output_path");
     let container = match output_path.extension() {
@@ -198,26 +198,26 @@ pub fn mux_audio_video(
     } else {
         muxer_preference.push("ffmpeg");
     }
-    log::info!("Muxer preference for {} is {:?}", container, muxer_preference);
+    log::info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
         log::info!("Trying muxer {}", muxer);
         if muxer.eq("mkvmerge") {
             if let Err(e) =  mux_audio_video_mkvmerge(downloader, audio_path, video_path) {
-                log::warn!("Muxing with mkvmerge subprocess failed: {}", e);
+                log::warn!("Muxing with mkvmerge subprocess failed: {e}");
             } else {
                 log::info!("Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
             if let Err(e) = mux_audio_video_ffmpeg(downloader, audio_path, video_path) {
-                log::warn!("Muxing with ffmpeg subprocess failed: {}", e);
+                log::warn!("Muxing with ffmpeg subprocess failed: {e}");
             } else {
                 log::info!("Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("vlc") {
             if let Err(e) = mux_audio_video_vlc(downloader, audio_path, video_path) {
-                log::warn!("Muxing with vlc subprocess failed: {}", e);
+                log::warn!("Muxing with vlc subprocess failed: {e}");
             } else {
                 log::info!("Muxing with vlc subprocess succeeded");
                 return Ok(());

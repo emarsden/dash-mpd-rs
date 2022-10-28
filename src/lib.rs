@@ -149,7 +149,7 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
                 if s.len() > 9 {
                     s = &s[..9];
                 }
-                let padded = format!("{:0<9}", s);
+                let padded = format!("{s:0<9}");
                 nsecs = padded.parse::<u32>().unwrap();
             }
             if let Some(s) = m.name("seconds") {
@@ -264,7 +264,7 @@ where
     if let Some(xs) = oxs {
         let secs = xs.as_secs();
         let ms = xs.subsec_millis();
-        serializer.serialize_str(&format!("PT{}.{:03}S", secs, ms))
+        serializer.serialize_str(&format!("PT{secs}.{ms:03}S"))
     } else {
         // in fact this won't be called because of the #[skip_serializing_none] annotation
         serializer.serialize_none()
