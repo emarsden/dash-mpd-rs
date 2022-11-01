@@ -654,6 +654,16 @@ pub struct AdaptationSet {
     pub representations: Option<Vec<Representation>>,
 }
 
+/// Identifies the asset to which a given Period belongs. Can be used to implement
+/// client functionality that depends on distinguishing between ads and main content.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct AssetIdentifier {
+    pub schemeIdUri: Option<String>,
+    pub value: Option<String>,
+}
+
 /// Describes a chunk of the content with a start time and a duration. Content can be split up into
 /// multiple periods (such as chapters, advertising segments).
 #[skip_serializing_none]
@@ -676,6 +686,7 @@ pub struct Period {
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
     pub adaptations: Option<Vec<AdaptationSet>>,
+    pub asset_identifier: Option<AssetIdentifier>,
 }
 
 #[skip_serializing_none]
