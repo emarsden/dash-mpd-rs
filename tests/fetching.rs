@@ -172,7 +172,7 @@ fn test_error_missing_mpd() {
 
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
-        return;
+        panic!("requesting DASH manifest");
     }
     let out = std::env::temp_dir().join("failure1.mkv");
     DashDownloader::new("http://httpbin.org/status/404")
@@ -189,7 +189,7 @@ fn test_error_xlink_gone() {
 
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
-        return;
+        panic!("fetching XLink");
     }
     let out = std::env::temp_dir().join("failure1.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
