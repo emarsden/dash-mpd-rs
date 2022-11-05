@@ -56,13 +56,13 @@ fn main () {
         minHeight: Some(800),
         frameRate: Some("15/2".to_string()),
         bitstreamSwitching: Some(true),
-        representations: Some(vec!(rep1, rep2)),
+        representations: vec!(rep1, rep2),
         ..Default::default()
     };
     let period = Period {
         id: Some("1".to_string()),
         duration: Some(Duration::new(42, 0)),
-        adaptations: Some(vec!(adapt)),
+        adaptations: vec!(adapt),
         ..Default::default()
     };
     let mpd = MPD {
