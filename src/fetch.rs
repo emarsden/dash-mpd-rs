@@ -452,8 +452,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
-    if let Some(locations) = mpd.locations {
-        let new_url = &locations[0].url;
+    if !mpd.locations.is_empty() {
+        let new_url = &mpd.locations[0].url;
         if downloader.verbosity > 0 {
             println!("Redirecting to new manifest <Location> {new_url}");
         }
@@ -488,7 +488,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     }
     let mut toplevel_base_url = redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
-    if let Some(bases) = &mpd.base_urls {
+    if !mpd.base_urls.is_empty() {
+        let bases = mpd.base_urls;
         if is_absolute_url(&bases[0].base) {
             toplevel_base_url = Url::parse(&bases[0].base)
                 .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -559,18 +560,14 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         }
         // Handle the AdaptationSet with audio content. Note that some streams don't separate out
         // audio and video streams.
-        let maybe_audio_adaptation = match &period.adaptations {
-            Some(a) => {
-                if let Some(ref lang) = downloader.language_preference {
-                    a.iter().filter(is_audio_adaptation)
-                        .min_by_key(|a| adaptation_lang_distance(a, lang))
-                } else {
-                    // returns the first audio adaptation found
-                    a.iter().find(is_audio_adaptation)
-                }
-            },
-            None => None,
+        let maybe_audio_adaptation = if let Some(ref lang) = downloader.language_preference {
+            period.adaptations.iter().filter(is_audio_adaptation)
+                .min_by_key(|a| adaptation_lang_distance(a, lang))
+        } else {
+            // returns the first audio adaptation found
+            period.adaptations.iter().find(is_audio_adaptation)
         };
+
         // TODO: we could perhaps factor out the treatment of the audio adaptation and video
         // adaptation into a common handle_adaptation() function
         if downloader.fetch_audio {
@@ -618,34 +615,32 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 // Start by resolving any xlink:href elements on Representation nodes, which we need to
                 // do before the selection based on the @bandwidth attribute below.
                 let mut representations = Vec::<Representation>::new();
-                if let Some(reps) = audio.representations {
-                    for r in reps.iter() {
-                        if let Some(href) = &r.href {
-                            if fetchable_xlink_href(href) {
-                                let xlink_url = if is_absolute_url(href) {
-                                    Url::parse(href)
-                                        .map_err(|e| parse_error("parsing XLink URL for Representation", e))?
-                                } else {
-                                    redirected_url.join(href)
-                                        .map_err(|e| parse_error("joining with XLink URL for Representation", e))?
-                                };
-                                let xml = client.get(xlink_url)
-                                    .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                                    .header("Accept-Language", "en-US,en")
-                                    .header("Sec-Fetch-Mode", "navigate")
-                                    .send()
-                                    .map_err(|e| network_error("fetching XLink URL for Representation", e))?
-                                    .error_for_status()
-                                    .map_err(|e| network_error("fetching XLink URL for Representation", e))?
-                                    .text()
-                                    .map_err(|e| network_error("resolving XLink URL for Representation", e))?;
-                                let linked_representation: Representation = quick_xml::de::from_str(&xml)
-                                    .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
-                                representations.push(linked_representation);
-                            }
-                        } else {
-                            representations.push(r.clone());
+                for r in audio.representations.iter() {
+                    if let Some(href) = &r.href {
+                        if fetchable_xlink_href(href) {
+                            let xlink_url = if is_absolute_url(href) {
+                                Url::parse(href)
+                                    .map_err(|e| parse_error("parsing XLink URL for Representation", e))?
+                            } else {
+                                redirected_url.join(href)
+                                    .map_err(|e| parse_error("joining with XLink URL for Representation", e))?
+                            };
+                            let xml = client.get(xlink_url)
+                                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                                .header("Accept-Language", "en-US,en")
+                                .header("Sec-Fetch-Mode", "navigate")
+                                .send()
+                                .map_err(|e| network_error("fetching XLink URL for Representation", e))?
+                                .error_for_status()
+                                .map_err(|e| network_error("fetching XLink URL for Representation", e))?
+                                .text()
+                                .map_err(|e| network_error("resolving XLink URL for Representation", e))?;
+                            let linked_representation: Representation = quick_xml::de::from_str(&xml)
+                                .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
+                            representations.push(linked_representation);
                         }
+                    } else {
+                        representations.push(r.clone());
                     }
                 }
                 let maybe_audio_repr = if downloader.quality_preference == QualityPreference::Lowest {
@@ -906,8 +901,11 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
 
         // Handle the AdaptationSet which contains video content
         if downloader.fetch_video {
+            /*
             let maybe_video_adaptation = period.adaptations.as_ref()
-                .and_then(|a| a.iter().find(is_video_adaptation)); 
+                .and_then(|a| a.iter().find(is_video_adaptation));
+            */
+            let maybe_video_adaptation = period.adaptations.iter().find(is_video_adaptation);
             if let Some(period_video) = maybe_video_adaptation {
                 let mut video = period_video.clone();
                 // Resolve a possible xlink:href.
@@ -950,34 +948,32 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 // Start by resolving any xlink:href elements on Representation nodes, which we need to
                 // do before the selection based on the @bandwidth attribute below.
                 let mut representations = Vec::<Representation>::new();
-                if let Some(reps) = video.representations {
-                    for r in reps.iter() {
-                        if let Some(href) = &r.href {
-                            if fetchable_xlink_href(href) {
-                                let xlink_url = if is_absolute_url(href) {
-                                    Url::parse(href)
-                                        .map_err(|e| parse_error("parsing XLink on Representation element", e))?
-                                } else {
-                                    redirected_url.join(href)
-                                        .map_err(|e| parse_error("joining XLink on Representation element", e))?
-                                };
-                                let xml = client.get(xlink_url)
-                                    .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                                    .header("Accept-Language", "en-US,en")
-                                    .header("Sec-Fetch-Mode", "navigate")
-                                    .send()
-                                    .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
-                                    .error_for_status()
-                                    .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
-                                    .text()
-                                    .map_err(|e| network_error("resolving XLink URL for video Representation", e))?;
-                                let linked_representation: Representation = quick_xml::de::from_str(&xml)
-                                    .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
-                                representations.push(linked_representation);
-                            }
-                        } else {
-                            representations.push(r.clone());
+                for r in video.representations.iter() {
+                    if let Some(href) = &r.href {
+                        if fetchable_xlink_href(href) {
+                            let xlink_url = if is_absolute_url(href) {
+                                Url::parse(href)
+                                    .map_err(|e| parse_error("parsing XLink on Representation element", e))?
+                            } else {
+                                redirected_url.join(href)
+                                    .map_err(|e| parse_error("joining XLink on Representation element", e))?
+                            };
+                            let xml = client.get(xlink_url)
+                                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                                .header("Accept-Language", "en-US,en")
+                                .header("Sec-Fetch-Mode", "navigate")
+                                .send()
+                                .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
+                                .error_for_status()
+                                .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
+                                .text()
+                                .map_err(|e| network_error("resolving XLink URL for video Representation", e))?;
+                            let linked_representation: Representation = quick_xml::de::from_str(&xml)
+                                .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
+                            representations.push(linked_representation);
                         }
+                    } else {
+                        representations.push(r.clone());
                     }
                 }
                 let maybe_video_repr = if downloader.quality_preference == QualityPreference::Lowest {

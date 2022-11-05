@@ -498,7 +498,7 @@ pub struct Representation {
     pub audioSamplingRate: Option<u64>,
     pub width: Option<u64>,
     pub height: Option<u64>,
-    pub startsWithSAP: Option<u64>,
+    pub startWithSAP: Option<u64>,
     pub BaseURL: Option<BaseURL>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     pub SegmentTemplate: Option<SegmentTemplate>,
@@ -578,7 +578,7 @@ pub struct Viewpoint {
 #[serde(default)]
 pub struct Binary {
     #[serde(rename = "$value")]
-    pub content: Option<Vec<u8>>,
+    pub content: Vec<u8>,
 }
 
 #[skip_serializing_none]
@@ -586,7 +586,7 @@ pub struct Binary {
 #[serde(default)]
 pub struct Signal {
     #[serde(rename = "Binary")]
-    pub contents: Option<Vec<Binary>>,
+    pub content: Vec<Binary>,
 }
 
 /// A DASH event.
@@ -596,8 +596,9 @@ pub struct Signal {
 pub struct Event {
     pub id: Option<String>,
     pub duration: Option<u64>,
+    pub timescale: Option<u64>,
     #[serde(rename = "Signal")]
-    pub signals: Option<Vec<Signal>>,
+    pub signal: Vec<Signal>,
 }
 
 #[skip_serializing_none]
@@ -607,7 +608,25 @@ pub struct EventStream {
     pub timescale: Option<u64>,
     pub schemeIdUri: Option<String>,
     #[serde(rename = "Event")]
-    pub events: Option<Vec<Event>>,
+    pub event: Vec<Event>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct EssentialProperty {
+    pub id: Option<String>,
+    pub schemeIdUri: String,
+    pub value: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct SupplementalProperty {
+    pub id: Option<String>,
+    pub schemeIdUri: String,
+    pub value: Option<String>,
 }
 
 /// Contains a set of Representations. For example, if multiple language streams are available for
@@ -646,12 +665,12 @@ pub struct AdaptationSet {
     pub maxHeight: Option<u64>,
     pub frameRate: Option<String>, // it can be something like "15/2"
     pub SegmentTemplate: Option<SegmentTemplate>,
-    pub ContentComponent: Option<Vec<ContentComponent>>,
-    pub ContentProtection: Option<Vec<ContentProtection>>,
+    pub ContentComponent: Vec<ContentComponent>,
+    pub ContentProtection: Vec<ContentProtection>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     #[serde(rename = "Representation")]
-    pub representations: Option<Vec<Representation>>,
+    pub representations: Vec<Representation>,
 }
 
 /// Identifies the asset to which a given Period belongs. Can be used to implement
@@ -685,7 +704,7 @@ pub struct Period {
     pub actuate: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
-    pub adaptations: Option<Vec<AdaptationSet>>,
+    pub adaptations: Vec<AdaptationSet>,
     pub asset_identifier: Option<AssetIdentifier>,
 }
 
@@ -804,14 +823,18 @@ pub struct MPD {
     pub periods: Vec<Period>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
-    pub base_urls: Option<Vec<BaseURL>>,
-    pub locations: Option<Vec<Location>>,
+    pub base_urls: Vec<BaseURL>,
+    pub locations: Vec<Location>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
     pub Metrics: Vec<Metrics>,
     pub UTCTiming: Vec<UTCTiming>,
     /// Correction for leap seconds, used by the DASH Low Latency specification. 
     pub LeapSecondInformation: Option<LeapSecondInformation>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
 }
 
 
@@ -841,17 +864,15 @@ pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    if let Some(reps) = &a.representations {
-        for r in reps.iter() {
-            if let Some(ct) = &r.contentType {
-                if ct == "audio" {
-                    return true;
-                }
+    for r in a.representations.iter() {
+        if let Some(ct) = &r.contentType {
+            if ct == "audio" {
+                return true;
             }
-            if let Some(mimetype) = &r.mimeType {
-                if mimetype.starts_with("audio/") {
-                    return true;
-                }
+        }
+        if let Some(mimetype) = &r.mimeType {
+            if mimetype.starts_with("audio/") {
+                return true;
             }
         }
     }
@@ -874,17 +895,15 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    if let Some(reps) = &a.representations {
-        for r in reps.iter() {
-            if let Some(ct) = &r.contentType {
-                if ct == "video" {
-                    return true;
-                }
+    for r in a.representations.iter() {
+        if let Some(ct) = &r.contentType {
+            if ct == "video" {
+                return true;
             }
-            if let Some(mimetype) = &r.mimeType {
-                if mimetype.starts_with("video/") {
-                    return true;
-                }
+        }
+        if let Some(mimetype) = &r.mimeType {
+            if mimetype.starts_with("video/") {
+                return true;
             }
         }
     }

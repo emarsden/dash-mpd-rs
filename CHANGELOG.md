@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1] - 2022-11-XX
+### Changed
+- API change: rationalize struct field types: fields that were of type Option<Vec<>> (such as
+  MPD.Periods and Period.Representations) become Vec<> in the serialized representation. If none
+  present, the vector is empty. This simplifies iteration over their contents.
+
+
 ## [0.6.0] - 2022-10-02
 ### New
 - Serialization support to allow programmatic generation of an MPD manifest (in XML format) from Rust

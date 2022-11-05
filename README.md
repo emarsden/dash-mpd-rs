@@ -198,7 +198,7 @@ This crate is tested on the following platforms:
   AMD64 and Aarch64 architectures
 - MacOS, only with default features (problems building the ac-ffmpeg crate against current ffmpeg)
 - Microsoft Windows 10, only with default features
-- Android 11 on Aarch64 via termux (you'll need to install the rust, binutils and ffmpeg packages)
+- Android 11 on Aarch64 via [termux](https://termux.dev/) (you'll need to install the rust, binutils and ffmpeg packages)
 - OpenBSD/AMD64, only with default features (libav support not tested)
 
 
