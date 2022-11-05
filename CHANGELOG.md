@@ -1,6 +1,9 @@
 # Changelog
 
 ## [0.6.1] - 2022-11-XX
+### New
+- Support for data URLs in initialization segments (per RFC 2397).
+
 ### Changed
 - API change: rationalize struct field types: fields that were of type Option<Vec<>> (such as
   MPD.Periods and Period.Representations) become Vec<> in the serialized representation. If none

@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use regex::Regex;
 use url::Url;
+use data_url::DataUrl;
 use backoff::{retry_notify, ExponentialBackoff};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, is_audio_adaptation, is_video_adaptation, mux_audio_video};
@@ -255,7 +256,7 @@ impl DashDownloader {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
-                .timeout(Duration::new(10, 0))
+                .timeout(Duration::new(30, 0))
                 .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
@@ -1263,15 +1264,36 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching audio segments");
             }
-            // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-            // on the SegmentURL, which we are currently not handling correctly
-            // Example here
-            // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+            /*
+            Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
+            on the SegmentURL, which we are currently not handling correctly. Example at
+            http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+            */
             if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                 e.insert(true);
+                /*
+                A manifest may use a data URL (RFC 2397) to embed media content such as the
+                initialization segment directly in the manifest (recommended by YouTube for live
+                streaming, but uncommon in practice).
+                */
                 if url.scheme() == "data" {
-                    return Err(DashMpdError::UnhandledMediaStream(
-                        "data URLs currently unsupported".to_string()));
+                    let us = &url.to_string();
+                    let du = DataUrl::process(us)
+                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                    if du.mime_type().type_ != "audio" {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            String::from("expecting audio content in data URL")));
+                    }
+                    let (body, _fragment) = du.decode_to_vec()
+                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Audio segment data URL -> {} octets", body.len());
+                    }
+                    if let Err(e) = tmpfile_audio.write_all(&body) {
+                        log::error!("Unable to write DASH audio data: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                    }
+                    have_audio = true;
                 } else {
                     // We could download these segments in parallel using reqwest in async mode,
                     // though that might upset some servers.
@@ -1298,7 +1320,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         }
                         if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                             log::error!("Unable to write DASH audio data: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("unable to write DASH audio data")));
+                            return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
                         }
                         have_audio = true;
                     } else {
@@ -1340,42 +1362,63 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching video segments");
             }
-            // Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-            // on the SegmentURL, which we are currently not handling correctly
-            // Example here
-            // http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+            /*
+            Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
+            on the SegmentURL, which we are currently not handling correctly. Example at 
+            http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+            */
             if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
                 e.insert(true);
-                let fetch = || {
-                    client.get(url.clone())
-                        .header("Accept", "video/*")
-                        .header("Referer", redirected_url.to_string())
-                        .header("Sec-Fetch-Mode", "navigate")
-                        .send()
-                        .map_err(categorize_reqwest_error)?
-                        .error_for_status()
-                        .map_err(categorize_reqwest_error)
-                };
-                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                    .map_err(|e| network_error("fetching DASH video segment", e))?;
-                if response.status().is_success() {
-                    let dash_bytes = response.bytes()
-                        .map_err(|e| network_error("fetching DASH video segment", e))?;
-                    if downloader.verbosity > 2 {
-                        println!("Video segment {url} -> {} octets", dash_bytes.len());
+                if url.scheme() == "data" {
+                    let us = &url.to_string();
+                    let du = DataUrl::process(us)
+                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                    if du.mime_type().type_ != "video" {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            String::from("expecting video content in data URL")));
                     }
-                    if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                        return Err(DashMpdError::Io(e, String::from("unable to write video data")));
+                    let (body, _fragment) = du.decode_to_vec()
+                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Video segment data URL -> {} octets", body.len());
+                    }
+                    if let Err(e) = tmpfile_video.write_all(&body) {
+                        log::error!("Unable to write DASH video data: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
                     }
                     have_video = true;
                 } else {
-                    if downloader.verbosity > 0 {
-                        eprintln!("HTTP error {} fetching video segment {url}", response.status().as_str());
-                    }
-                    download_errors += 1;
-                    if download_errors > 10 {
-                        return Err(DashMpdError::Network(
-                            String::from("more than 10 HTTP download errors")));
+                    let fetch = || {
+                        client.get(url.clone())
+                            .header("Accept", "video/*")
+                            .header("Referer", redirected_url.to_string())
+                            .header("Sec-Fetch-Mode", "navigate")
+                            .send()
+                            .map_err(categorize_reqwest_error)?
+                            .error_for_status()
+                            .map_err(categorize_reqwest_error)
+                    };
+                    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+                        .map_err(|e| network_error("fetching DASH video segment", e))?;
+                    if response.status().is_success() {
+                        let dash_bytes = response.bytes()
+                            .map_err(|e| network_error("fetching DASH video segment", e))?;
+                        if downloader.verbosity > 2 {
+                            println!("Video segment {url} -> {} octets", dash_bytes.len());
+                        }
+                        if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                            return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                        }
+                        have_video = true;
+                    } else {
+                        if downloader.verbosity > 0 {
+                            eprintln!("HTTP error {} fetching video segment {url}", response.status().as_str());
+                        }
+                        download_errors += 1;
+                        if download_errors > 10 {
+                            return Err(DashMpdError::Network(
+                                String::from("more than 10 HTTP download errors")));
+                        }
                     }
                 }
             }
