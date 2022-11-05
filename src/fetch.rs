@@ -489,13 +489,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     }
     let mut toplevel_base_url = redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
-    if !mpd.base_urls.is_empty() {
-        let bases = mpd.base_urls;
-        if is_absolute_url(&bases[0].base) {
-            toplevel_base_url = Url::parse(&bases[0].base)
+    if !mpd.base_url.is_empty() {
+        if is_absolute_url(&mpd.base_url[0].base) {
+            toplevel_base_url = Url::parse(&mpd.base_url[0].base)
                 .map_err(|e| parse_error("parsing BaseURL", e))?;
         } else {
-            toplevel_base_url = redirected_url.join(&bases[0].base)
+            toplevel_base_url = redirected_url.join(&mpd.base_url[0].base)
                 .map_err(|e| parse_error("parsing BaseURL", e))?;
         }
     }
@@ -550,7 +549,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         }
         let mut base_url = toplevel_base_url.clone();
         // A BaseURL could be specified for each Period
-        if let Some(bu) = &period.BaseURL {
+        if !period.BaseURL.is_empty() {
+            let bu = &period.BaseURL[0];
             if is_absolute_url(&bu.base) {
                 base_url = Url::parse(&bu.base)
                     .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -604,7 +604,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 // The AdaptationSet may have a BaseURL (eg the test BBC streams). We use a local variable
                 // to make sure we don't "corrupt" the base_url for the video segments.
                 let mut base_url = base_url.clone();
-                if let Some(bu) = &audio.BaseURL {
+                if !audio.BaseURL.is_empty() {
+                    let bu = &audio.BaseURL[0];
                     if is_absolute_url(&bu.base) {
                         base_url = Url::parse(&bu.base)
                             .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -659,7 +660,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     }
                     // the Representation may have a BaseURL
                     let mut base_url = base_url;
-                    if let Some(bu) = &audio_repr.BaseURL {
+                    if !audio_repr.BaseURL.is_empty() {
+                        let bu = &audio_repr.BaseURL[0];
                         if is_absolute_url(&bu.base) {
                             base_url = Url::parse(&bu.base)
                                 .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -751,7 +753,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 let segment = base_url.join(m)
                                     .map_err(|e| parse_error("joining media with baseURL", e))?;
                                 audio_segment_urls.push(segment);
-                            } else if let Some(bu) = &audio_repr.BaseURL {
+                            } else if !audio_repr.BaseURL.is_empty() {
+                                let bu = &audio_repr.BaseURL[0];
                                 let base_url = if is_absolute_url(&bu.base) {
                                     Url::parse(&bu.base)
                                         .map_err(|e| parse_error("parsing BaseURL", e))?
@@ -887,11 +890,13 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 }
                             }
                         }
-                    } else if audio_repr.BaseURL.is_some() {
+                    } else if !audio_repr.BaseURL.is_empty() {
                         if downloader.verbosity > 1 {
                             println!("Using BaseURL addressing mode for audio representation");
                         }
-                        audio_segment_urls.push(base_url);
+                        let bu = Url::parse(&audio_repr.BaseURL[0].base)
+                            .map_err(|e| parse_error("parsing BaseURL", e))?;
+                        audio_segment_urls.push(bu);
                     } else {
                         return Err(DashMpdError::UnhandledMediaStream(
                             "no usable addressing mode identified for audio representation".to_string()));
@@ -937,7 +942,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     }
                 }
                 // the AdaptationSet may have a BaseURL (eg the test BBC streams)
-                if let Some(bu) = &video.BaseURL {
+                if !video.BaseURL.is_empty() {
+                    let bu = &video.BaseURL[0];
                     if is_absolute_url(&bu.base) {
                         base_url = Url::parse(&bu.base)
                             .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -990,7 +996,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             println!("Selected video representation with bandwidth {bw}");
                         }
                     }
-                    if let Some(bu) = &video_repr.BaseURL {
+                    if !video_repr.BaseURL.is_empty() {
+                        let bu = &video_repr.BaseURL[0];
                         if is_absolute_url(&bu.base) {
                             base_url = Url::parse(&bu.base)
                                 .map_err(|e| parse_error("parsing BaseURL", e))?;
@@ -1081,7 +1088,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 let segment = base_url.join(m)
                                     .map_err(|e| parse_error("joining media with BaseURL", e))?;
                                 video_segment_urls.push(segment);
-                            } else if let Some(bu) = &video_repr.BaseURL {
+                            } else if !video_repr.BaseURL.is_empty() {
+                                let bu = &video_repr.BaseURL[0];
                                 let base_url = if is_absolute_url(&bu.base) {
                                     Url::parse(&bu.base)
                                         .map_err(|e| parse_error("parsing BaseURL", e))?
@@ -1217,7 +1225,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 }
                             }
                         }
-                    } else if video_repr.BaseURL.is_some() {
+                    } else if !video_repr.BaseURL.is_empty() {
                         if downloader.verbosity > 1 {
                             println!("Using BaseURL addressing mode for video representation");
                         }

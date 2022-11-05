@@ -499,7 +499,7 @@ pub struct Representation {
     pub width: Option<u64>,
     pub height: Option<u64>,
     pub startWithSAP: Option<u64>,
-    pub BaseURL: Option<BaseURL>,
+    pub BaseURL: Vec<BaseURL>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
@@ -595,6 +595,7 @@ pub struct Signal {
 #[serde(default)]
 pub struct Event {
     pub id: Option<String>,
+    pub presentationTime: Option<u64>,
     pub duration: Option<u64>,
     pub timescale: Option<u64>,
     #[serde(rename = "Signal")]
@@ -636,7 +637,7 @@ pub struct SupplementalProperty {
 #[serde(default)]
 pub struct AdaptationSet {
     pub id: Option<i64>,
-    pub BaseURL: Option<BaseURL>,
+    pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "xlink:href")]
     pub href: Option<String>,
@@ -696,7 +697,7 @@ pub struct Period {
     #[serde(serialize_with = "serialize_xs_duration")]
     pub duration: Option<Duration>,
     pub bitstreamSwitching: Option<bool>,
-    pub BaseURL: Option<BaseURL>,
+    pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "xlink:href")]
     pub href: Option<String>,
@@ -823,7 +824,7 @@ pub struct MPD {
     pub periods: Vec<Period>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
-    pub base_urls: Vec<BaseURL>,
+    pub base_url: Vec<BaseURL>,
     pub locations: Vec<Location>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,

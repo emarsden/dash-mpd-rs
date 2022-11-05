@@ -7,7 +7,9 @@
 ### Changed
 - API change: rationalize struct field types: fields that were of type Option<Vec<>> (such as
   MPD.Periods and Period.Representations) become Vec<> in the serialized representation. If none
-  present, the vector is empty. This simplifies iteration over their contents.
+  present, the vector is empty. This simplifies iteration over their contents. Some items such as
+  BaseURL that can appear multiple times changed to Vec<> instead of Option<>.
+- Add missing `Event@presentationTime` attribute.
 
 
 ## [0.6.0] - 2022-10-02

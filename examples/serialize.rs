@@ -33,7 +33,7 @@ fn main () {
         width: Some(1920),
         height: Some(800),
         bandwidth: Some(1980081),
-        BaseURL: Some(BaseURL { base: "https://example.net/foobles/".to_string(), ..Default::default() }),
+        BaseURL: vec!(BaseURL { base: "https://example.net/foobles/".to_string(), ..Default::default() }),
         ..Default::default()
     };
     let rep2 = Representation {
@@ -43,7 +43,7 @@ fn main () {
         width: Some(800),
         height: Some(600),
         bandwidth: Some(180081),
-        BaseURL: Some(BaseURL { base: "https://example.net/foobles/".to_string(), ..Default::default() }),
+        BaseURL: vec!(BaseURL { base: "https://example.net/foobles/".to_string(), ..Default::default() }),
         ..Default::default()
     };
     let adapt = AdaptationSet {
