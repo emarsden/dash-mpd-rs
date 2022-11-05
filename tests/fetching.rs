@@ -135,18 +135,14 @@ fn test_content_protection_parsing() {
         let mpd: MPD = parse(&xml)
             .expect("parsing MPD");
         for p in mpd.periods {
-            if let Some(adapts) = p.adaptations {
-                for adap in adapts.iter() {
-                    if let Some(cpv) = &adap.ContentProtection {
-                        for cp in cpv.iter() {
-                            if let Some(v) = &cp.value {
-                                assert!(known_cp_name(v));
-                            }
-                            assert!(cp.schemeIdUri.is_some());
-                            if let Some(s) = &cp.schemeIdUri {
-                                assert!(known_cp_scheme(s));
-                            }
-                        }
+            for adap in p.adaptations.iter() {
+                for cp in adap.ContentProtection.iter() {
+                    if let Some(v) = &cp.value {
+                        assert!(known_cp_name(v));
+                    }
+                    assert!(cp.schemeIdUri.is_some());
+                    if let Some(s) = &cp.schemeIdUri {
+                        assert!(known_cp_scheme(s));
                     }
                 }
             }
