@@ -652,6 +652,7 @@ pub struct AdaptationSet {
     #[serde(rename = "xlink:actuate")]
     pub actuate: Option<String>,
     pub group: Option<i64>,
+    pub selectionPriority: Option<u64>,
     // eg "audio", "video", "text"
     pub contentType: Option<String>,
     /// Content language, in RFC 5646 format

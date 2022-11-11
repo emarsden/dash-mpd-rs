@@ -10,6 +10,8 @@
   present, the vector is empty. This simplifies iteration over their contents. Some items such as
   BaseURL that can appear multiple times changed to Vec<> instead of Option<>.
 - Add missing `Event@presentationTime` attribute.
+- Add missing `AdaptationSet > Label` node type.
+- Add missing `AdaptationSet@selectionPriority` attribute.
 
 
 ## [0.6.0] - 2022-10-02
