@@ -630,6 +630,13 @@ pub struct SupplementalProperty {
     pub value: Option<String>,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Label {
+    #[serde(rename = "$value")]
+    pub content: String,
+}
+
 /// Contains a set of Representations. For example, if multiple language streams are available for
 /// the audio content, each one can be in its own AdaptationSet.
 #[skip_serializing_none]
@@ -637,6 +644,7 @@ pub struct SupplementalProperty {
 #[serde(default)]
 pub struct AdaptationSet {
     pub id: Option<i64>,
+    pub label: Option<Label>,
     pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "xlink:href")]
