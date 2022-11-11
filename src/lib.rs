@@ -373,7 +373,7 @@ pub struct SegmentTemplate {
     pub duration: Option<f64>,
     pub timescale: Option<u64>,
     pub presentationTimeOffset: Option<u64>,
-    pub bitstreamSwitching: Option<String>,  // bool?
+    pub bitstreamSwitching: Option<bool>,
 }
 
 /// A URI string to which a new request for an updated manifest should be made. This feature is
