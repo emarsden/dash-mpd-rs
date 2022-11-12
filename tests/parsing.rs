@@ -1,6 +1,9 @@
 // Tests for the parsing support
 
 
+// Currently a nightly-only feature
+// use std::assert_matches::assert_matches;
+
 
 #[test]
 fn test_mpd_parser () {
@@ -23,5 +26,6 @@ fn test_mpd_parser () {
     let case3 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></PeriodZ></MPD>"#;
     let res = parse(case3);
     assert!(res.is_err());
+    // assert_matches!(parse(case3), Err(DashMpdError::Parsing));
 }
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.1] - 2022-11-XX
+## [0.6.1] - 2022-11-12
 ### New
 - Support for data URLs in initialization segments (per RFC 2397).
 
