@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] - 2022-11
+### Changed
+### New
+- Added attribute `Representation@mediaStreamStructureId`.
+
+
 ## [0.6.1] - 2022-11-12
 ### New
 - Support for data URLs in initialization segments (per RFC 2397).

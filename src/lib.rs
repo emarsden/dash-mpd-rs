@@ -501,6 +501,7 @@ pub struct Representation {
     pub startWithSAP: Option<u64>,
     pub BaseURL: Vec<BaseURL>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
+    pub mediaStreamStructureId: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
