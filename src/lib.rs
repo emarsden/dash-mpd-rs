@@ -56,7 +56,6 @@
 // TODO: handle indexRange attribute, as per https://dash.akamaized.net/dash264/TestCasesMCA/dolby/2/1/ChID_voices_71_768_ddp.mpd
 
 
-
 #![allow(non_snake_case)]
 
 /// If library feature `libav` is enabled, muxing support (combining audio and video streams, which
@@ -80,7 +79,6 @@ use serde_with::skip_serializing_none;
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
-
 
 
 /// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
@@ -372,6 +370,8 @@ pub struct SegmentTemplate {
     // https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd)
     pub duration: Option<f64>,
     pub timescale: Option<u64>,
+    /// Indicates a possible offset between media segment start/end points and period start/end points.
+    pub eptDelta: Option<i64>,
     pub presentationTimeOffset: Option<u64>,
     pub bitstreamSwitching: Option<bool>,
 }
