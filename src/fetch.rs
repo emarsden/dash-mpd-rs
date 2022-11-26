@@ -11,10 +11,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::sync::Arc;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use regex::Regex;
 use url::Url;
 use data_url::DataUrl;
+use reqwest::header::RANGE;
 use backoff::{retry_notify, ExponentialBackoff};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, is_audio_adaptation, is_video_adaptation, mux_audio_video};
@@ -70,6 +70,7 @@ pub struct DashDownloader {
     language_preference: Option<String>,
     fetch_video: bool,
     fetch_audio: bool,
+    content_type_checks: bool,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
     verbosity: u8,
@@ -77,6 +78,27 @@ pub struct DashDownloader {
     pub ffmpeg_location: String,
     pub vlc_location: String,
     pub mkvmerge_location: String,
+}
+
+
+// Parse a range specifier, such as Initialization@range or SegmentBase@indexRange attributes, of
+// the form "45-67"
+fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
+    let v: Vec<&str> = range.split_terminator('-').collect();
+    if v.len() != 2 {
+        return Err(DashMpdError::Parsing(format!("invalid range specifier: {}", range)));
+    }
+    let start: u64 = v[0].parse()
+        .map_err(|_| DashMpdError::Parsing(String::from("invalid start for range specifier")))?;
+    let end: u64 = v[1].parse()
+        .map_err(|_| DashMpdError::Parsing(String::from("invalid end for range specifier")))?;
+    Ok((start, end))
+}
+
+struct MediaFragment {
+    url: Url,
+    start_byte: Option<u64>,
+    end_byte: Option<u64>,
 }
 
 
@@ -111,6 +133,7 @@ impl DashDownloader {
             language_preference: None,
             fetch_video: true,
             fetch_audio: true,
+            content_type_checks: true,
             progress_observers: vec![],
             sleep_between_requests: 0,
             verbosity: 0,
@@ -176,16 +199,23 @@ impl DashDownloader {
     }
 
     /// If the media stream has separate audio and video streams, only download the video stream.
-    pub fn video_only(mut self)  -> DashDownloader {
+    pub fn video_only(mut self) -> DashDownloader {
         self.fetch_audio = false;
         self.fetch_video = true;
         self
     }
 
     /// If the media stream has separate audio and video streams, only download the audio stream.
-    pub fn audio_only(mut self)  -> DashDownloader {
+    pub fn audio_only(mut self) -> DashDownloader {
         self.fetch_audio = true;
         self.fetch_video = false;
+        self
+    }
+
+    /// Don't check that the content-type of downloaded segments corresponds to audio or video
+    /// content (may be necessary with poorly configured HTTP servers).
+    pub fn without_content_type_checks(mut self) -> DashDownloader {
+        self.content_type_checks = false;
         self
     }
 
@@ -326,6 +356,32 @@ fn is_absolute_url(s: &str) -> bool {
 // be removed from the MPD."
 fn fetchable_xlink_href(href: &str) -> bool {
     (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
+}
+
+// Return true if the response includes a content-type header corresponding to audio. We need to
+// allow "video/" MIME types because some servers return "video/mp4" content-type for audio segments
+// in an MP4 container, and we accept application/octet-stream headers because some servers are
+// poorly configured.
+fn content_type_audio_p(response: &reqwest::blocking::Response) -> bool {
+    if let Some(ct) = response.headers().get("content-type") {
+        let ctb = ct.as_bytes();
+        ctb.starts_with(b"audio/") ||
+            ctb.starts_with(b"video/") ||
+            ctb.starts_with(b"application/octet-stream")
+    } else {
+        false
+    }
+}
+
+// Return true if the response includes a content-type header corresponding to video.
+fn content_type_video_p(response: &reqwest::blocking::Response) -> bool {
+    if let Some(ct) = response.headers().get("content-type") {
+        let ctb = ct.as_bytes();
+        ctb.starts_with(b"video/") ||
+            ctb.starts_with(b"application/octet-stream")
+    } else {
+        false
+    }
 }
 
 
@@ -498,8 +554,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 .map_err(|e| parse_error("parsing BaseURL", e))?;
         }
     }
-    let mut video_segment_urls = Vec::new();
-    let mut audio_segment_urls = Vec::new();
+    let mut audio_fragments = Vec::new();
+    let mut video_fragments = Vec::new();
     let mut have_audio = false;
     let mut have_video = false;
     if downloader.verbosity > 0 {
@@ -553,10 +609,10 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             let bu = &period.BaseURL[0];
             if is_absolute_url(&bu.base) {
                 base_url = Url::parse(&bu.base)
-                    .map_err(|e| parse_error("parsing BaseURL", e))?;
+                    .map_err(|e| parse_error("parsing Period BaseURL", e))?;
             } else {
                 base_url = base_url.join(&bu.base)
-                    .map_err(|e| parse_error("joining with BaseURL", e))?;
+                    .map_err(|e| parse_error("joining with Period BaseURL", e))?;
             }
         }
         // Handle the AdaptationSet with audio content. Note that some streams don't separate out
@@ -608,10 +664,10 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     let bu = &audio.BaseURL[0];
                     if is_absolute_url(&bu.base) {
                         base_url = Url::parse(&bu.base)
-                            .map_err(|e| parse_error("parsing BaseURL", e))?;
+                            .map_err(|e| parse_error("parsing AdaptationSet BaseURL", e))?;
                     } else {
                         base_url = base_url.join(&bu.base)
-                            .map_err(|e| parse_error("joining with BaseURL", e))?;
+                            .map_err(|e| parse_error("joining with AdaptationSet BaseURL", e))?;
                     }
                 }
                 // Start by resolving any xlink:href elements on Representation nodes, which we need to
@@ -664,10 +720,10 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         let bu = &audio_repr.BaseURL[0];
                         if is_absolute_url(&bu.base) {
                             base_url = Url::parse(&bu.base)
-                                .map_err(|e| parse_error("parsing BaseURL", e))?;
+                                .map_err(|e| parse_error("parsing Representation BaseURL", e))?;
                         } else {
                             base_url = base_url.join(&bu.base)
-                                .map_err(|e| parse_error("joining with BaseURL", e))?;
+                                .map_err(|e| parse_error("joining with Representation BaseURL", e))?;
                         }
                     }
                     let mut opt_init: Option<String> = None;
@@ -706,34 +762,27 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     if let Some(b) = &audio_repr.bandwidth {
                         dict.insert("Bandwidth", b.to_string());
                     }
-                    // Now the 6 possible addressing modes: SegmentBase@indexRange, SegmentList, SegmentTimeline,
-                    // SegmentTemplate@duration, SegmentTemplate@index
-                    if let Some(sb) = &audio_repr.SegmentBase {
-                        // (1) SegmentBase@indexRange addressing mode
-                        if downloader.verbosity > 1 {
-                            println!("Using SegmentBase@indexRange addressing mode for audio representation");
-                        }
-                        if let Some(init) = &sb.initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, &dict);
-                                let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path)
-                                        .map_err(|e| parse_error("parsing sourceURL", e))?
-                                } else {
-                                    base_url.join(&path)
-                                        .map_err(|e| parse_error("joining with sourceURL", e))?
-                                };
-                                audio_segment_urls.push(init_url);
-                            }
-                        }
-                        // TODO: properly handle indexRange attribute
-                        audio_segment_urls.push(base_url.clone());
-                    } else if let Some(sl) = &audio_repr.SegmentList {
-                        // (2) SegmentList addressing mode
+                    // Now the 6 possible addressing modes: (1) SegmentList,
+                    // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
+                    // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
+                    
+                    // Though SegmentBase and SegmentList addressing modes are supposed to be
+                    // mutually exclusive, some manifests in the wild use both. So we try to work
+                    // around the brokenness.
+                    // Example: http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+                    if let Some(sl) = &audio_repr.SegmentList {
+                        // (1) SegmentList addressing mode
                         if downloader.verbosity > 1 {
                             println!("Using SegmentList addressing mode for audio representation");
                         }
+                        let mut start_byte: Option<u64> = None;
+                        let mut end_byte: Option<u64> = None;
                         if let Some(init) = &sl.Initialization {
+                            if let Some(range) = &init.range {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let init_url = if is_absolute_url(&path) {
@@ -743,27 +792,37 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     base_url.join(&path)
                                         .map_err(|e| parse_error("joining with sourceURL", e))?
                                 };
-                                audio_segment_urls.push(init_url);
+                                audio_fragments.push(MediaFragment{url: init_url, start_byte, end_byte})
                             } else {
-                                audio_segment_urls.push(base_url.clone());
+                                audio_fragments.push(
+                                    MediaFragment{url: base_url.clone(), start_byte, end_byte})
                             }
                         }
                         for su in sl.segment_urls.iter() {
+                            start_byte = None;
+                            end_byte = None;
+                            // we are ignoring SegmentURL@indexRange
+                            if let Some(range) = &su.mediaRange {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
                             if let Some(m) = &su.media {
-                                let segment = base_url.join(m)
+                                let u = base_url.join(m)
                                     .map_err(|e| parse_error("joining media with baseURL", e))?;
-                                audio_segment_urls.push(segment);
+                                audio_fragments.push(
+                                    MediaFragment{url: u, start_byte, end_byte})
                             } else if !audio_repr.BaseURL.is_empty() {
                                 let bu = &audio_repr.BaseURL[0];
                                 let base_url = if is_absolute_url(&bu.base) {
                                     Url::parse(&bu.base)
-                                        .map_err(|e| parse_error("parsing BaseURL", e))?
+                                        .map_err(|e| parse_error("parsing Representation BaseURL", e))?
                                 } else {
                                     base_url.join(&bu.base)
-                                        .map_err(|e| parse_error("joining with BaseURL", e))?
+                                        .map_err(|e| parse_error("joining with Representation BaseURL", e))?
                                 };
-                                // FIXME we are not correctly handling @mediaRange and @indexRange here
-                                audio_segment_urls.push(base_url.clone());
+                                audio_fragments.push(
+                                    MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None})
                             }
                         }
                     } else if audio_repr.SegmentTemplate.is_some() || audio.SegmentTemplate.is_some() {
@@ -790,15 +849,16 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             start_number = sn;
                         }
                         if let Some(stl) = &st.SegmentTimeline {
-                            // (3) SegmentTemplate with SegmentTimeline addressing mode
+                            // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
+                            // "explicit addressing" in certain DASH-IF documents)
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate+SegmentTimeline addressing mode for audio representation");
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let url = base_url.join(&path)
+                                let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                                audio_segment_urls.push(url);
+                                audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None})
                             }
                             if let Some(media) = opt_media {
                                 let audio_path = resolve_url_template(&media, &dict);
@@ -812,7 +872,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     let path = resolve_url_template(&audio_path, &dict);
                                     let u = base_url.join(&path)
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                    audio_segment_urls.push(u);
+                                    audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
                                     if let Some(t) = s.t {
                                         segment_time = t;
@@ -842,7 +902,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                             let path = resolve_url_template(&audio_path, &dict);
                                             let u = base_url.join(&path)
                                                 .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                            audio_segment_urls.push(u);
+                                            audio_fragments.push(
+                                                MediaFragment{url: u, start_byte: None, end_byte: None});
                                             number += 1;
                                         }
                                     }
@@ -853,7 +914,9 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     "SegmentTimeline without a media attribute".to_string()));
                             }
                         } else { // no SegmentTimeline element
-                            // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
+                            // (3) SegmentTemplate@duration addressing mode or (4)
+                            // SegmentTemplate@index addressing mode (also called "simple
+                            // addressing" in certain DASH-IF documents)
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate addressing mode for audio representation");
                             }
@@ -861,7 +924,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 let path = resolve_url_template(&init, &dict);
                                 let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                                audio_segment_urls.push(u);
+                                audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None})
                             }
                             if let Some(media) = opt_media {
                                 let audio_path = resolve_url_template(&media, &dict);
@@ -883,21 +946,67 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&audio_path, &dict);
-                                    let segment_uri = base_url.join(&path)
+                                    let u = base_url.join(&path)
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                    audio_segment_urls.push(segment_uri);
+                                    audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
                                 }
                             }
                         }
-                    } else if !audio_repr.BaseURL.is_empty() {
+                    } else if let Some(sb) = &audio_repr.SegmentBase {
+                        // (5) SegmentBase@indexRange addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentBase@indexRange addressing mode for audio representation");
+                        }
+                        // The SegmentBase@indexRange attribute points to a byte range in the media
+                        // file that contains index information (an sidx box for MPEG files, or a
+                        // Cues entry for a DASH-WebM stream). To be fully compliant, we should
+                        // download and parse these (for example using the sidx crate) then download
+                        // the referenced content segments. In practice, it seems that the
+                        // indexRange information is mostly provided by DASH encoders to allow
+                        // clients to rewind and fast-foward a stream, and is not necessary if we
+                        // download the full content specified by BaseURL.
+                        //
+                        // Our strategy: if there is a SegmentBase > Initialization > SourceURL
+                        // node, download that first, respecting the byte range if it is specified.
+                        // Otherwise, download the full content specified by the BaseURL for this
+                        // segment (ignoring any indexRange attributes).
+                        let mut start_byte: Option<u64> = None;
+                        let mut end_byte: Option<u64> = None;
+                        if let Some(init) = &sb.initialization {
+                            if let Some(range) = &init.range {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
+                            if let Some(su) = &init.sourceURL {
+                                let path = resolve_url_template(su, &dict);
+                                let u = if is_absolute_url(&path) {
+                                    Url::parse(&path)
+                                        .map_err(|e| parse_error("parsing sourceURL", e))?
+                                } else {
+                                    base_url.join(&path)
+                                        .map_err(|e| parse_error("joining with sourceURL", e))?
+                                };
+                                audio_fragments.push(MediaFragment{url: u, start_byte, end_byte});
+                            }
+                        }
+                        audio_fragments.push(MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None});
+                    } else if audio_fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
+                        // (6) plain BaseURL addressing mode
                         if downloader.verbosity > 1 {
                             println!("Using BaseURL addressing mode for audio representation");
                         }
-                        let bu = Url::parse(&audio_repr.BaseURL[0].base)
-                            .map_err(|e| parse_error("parsing BaseURL", e))?;
-                        audio_segment_urls.push(bu);
-                    } else {
+                        let u = if is_absolute_url(&audio_repr.BaseURL[0].base) {
+                            Url::parse(&audio_repr.BaseURL[0].base)
+                            .map_err(|e| parse_error("parsing BaseURL", e))?
+                        } else {
+                            base_url.join(&audio_repr.BaseURL[0].base)
+                                .map_err(|e| parse_error("joining Representation BaseURL", e))?
+                        };
+                        audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None})
+                    }
+                    if audio_fragments.is_empty() {
                         return Err(DashMpdError::UnhandledMediaStream(
                             "no usable addressing mode identified for audio representation".to_string()));
                     }
@@ -907,10 +1016,6 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
 
         // Handle the AdaptationSet which contains video content
         if downloader.fetch_video {
-            /*
-            let maybe_video_adaptation = period.adaptations.as_ref()
-                .and_then(|a| a.iter().find(is_video_adaptation));
-            */
             let maybe_video_adaptation = period.adaptations.iter().find(is_video_adaptation);
             if let Some(period_video) = maybe_video_adaptation {
                 let mut video = period_video.clone();
@@ -1041,53 +1146,50 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             start_number = s;
                         }
                     }
-                    // Now the 6 possible addressing modes: SegmentBase@indexRange, SegmentList,
-                    // SegmentTemplate+SegmentTimeline, SegmentTemplate@duration, SegmentTemplate@index
-                    if let Some(sb) = &video_repr.SegmentBase {
-                        // (1) SegmentBase@indexRange addressing mode
-                        if downloader.verbosity > 1 {
-                            println!("Using SegmentBase@indexRange addressing mode for video representation");
-                        }
-                        if let Some(init) = &sb.initialization {
-                            if let Some(su) = &init.sourceURL {
-                                let path = resolve_url_template(su, &dict);
-                                let init_url = if is_absolute_url(&path) {
-                                    Url::parse(&path)
-                                        .map_err(|e| parse_error("parsing sourceURL", e))?
-                                } else {
-                                    base_url.join(&path)
-                                        .map_err(|e| parse_error("joining sourceURL with BaseURL", e))?
-                                };
-                                video_segment_urls.push(init_url);
-                            }
-                        }
-                        // TODO: properly handle indexRange attribute
-                        video_segment_urls.push(base_url.clone());
-                    } else if let Some(sl) = &video_repr.SegmentList {
-                        // (2) SegmentList addressing mode
+                    // Now the 6 possible addressing modes: (1) SegmentList,
+                    // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
+                    // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
+                    if let Some(sl) = &video_repr.SegmentList {
+                        // (1) SegmentList addressing mode
                         if downloader.verbosity > 1 {
                             println!("Using SegmentList addressing mode for video representation");
                         }
+                        let mut start_byte: Option<u64> = None;
+                        let mut end_byte: Option<u64> = None;
                         if let Some(init) = &sl.Initialization {
+                            if let Some(range) = &init.range {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
-                                let init_url = if is_absolute_url(&path) {
+                                let u = if is_absolute_url(&path) {
                                     Url::parse(&path)
                                         .map_err(|e| parse_error("parsing sourceURL", e))?
                                 } else {
                                     base_url.join(&path)
                                         .map_err(|e| parse_error("joining sourceURL with BaseURL", e))?
                                 };
-                                video_segment_urls.push(init_url);
+                                video_fragments.push(MediaFragment{url: u, start_byte, end_byte});
                             } else {
-                                video_segment_urls.push(base_url.clone());
+                                video_fragments.push(
+                                    MediaFragment{url: base_url.clone(), start_byte, end_byte});
                             }
                         }
                         for su in sl.segment_urls.iter() {
+                            start_byte = None;
+                            end_byte = None;
+                            // we are ignoring @indexRange
+                            if let Some(range) = &su.mediaRange {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
                             if let Some(m) = &su.media {
-                                let segment = base_url.join(m)
+                                let u = base_url.join(m)
                                     .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                video_segment_urls.push(segment);
+                                video_fragments.push(MediaFragment{url: u, start_byte, end_byte});
                             } else if !video_repr.BaseURL.is_empty() {
                                 let bu = &video_repr.BaseURL[0];
                                 let base_url = if is_absolute_url(&bu.base) {
@@ -1097,8 +1199,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     base_url.join(&bu.base)
                                         .map_err(|e| parse_error("joining with BaseURL", e))?
                                 };
-                                // FIXME we are not correctly handling @mediaRange and @indexRange here
-                                video_segment_urls.push(base_url.clone());
+                                video_fragments.push(
+                                    MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None});
                             }
                         }
                     } else if video_repr.SegmentTemplate.is_some() || video.SegmentTemplate.is_some() {
@@ -1125,7 +1227,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             start_number = sn;
                         }
                         if let Some(stl) = &st.SegmentTimeline {
-                            // (3) SegmentTemplate with SegmentTimeline addressing mode
+                            // (2) SegmentTemplate with SegmentTimeline addressing mode
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate+SegmentTimeline addressing mode for video representation");
                             }
@@ -1133,7 +1235,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 let path = resolve_url_template(&init, &dict);
                                 let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                                video_segment_urls.push(u);
+                                video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                             }
                             if let Some(media) = opt_media {
                                 let video_path = resolve_url_template(&media, &dict);
@@ -1147,7 +1249,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     let path = resolve_url_template(&video_path, &dict);
                                     let u = base_url.join(&path)
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                    video_segment_urls.push(u);
+                                    video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
                                     if let Some(t) = s.t {
                                         segment_time = t;
@@ -1177,7 +1279,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                             let path = resolve_url_template(&video_path, &dict);
                                             let u = base_url.join(&path)
                                                 .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                            video_segment_urls.push(u);
+                                            video_fragments.push(
+                                                MediaFragment{url: u, start_byte: None, end_byte: None});
                                             number += 1;
                                         }
                                     }
@@ -1188,7 +1291,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                     "SegmentTimeline without a media attribute".to_string()));
                             }
                         } else { // no SegmentTimeline element
-                            // (4) SegmentTemplate@duration addressing mode or (5) SegmentTemplate@index addressing mode
+                            // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index addressing mode
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate addressing mode for video representation");
                             }
@@ -1196,7 +1299,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 let path = resolve_url_template(&init, &dict);
                                 let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                                video_segment_urls.push(u);
+                                video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                             }
                             if let Some(media) = opt_media {
                                 let video_path = resolve_url_template(&media, &dict);
@@ -1218,19 +1321,54 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);
-                                    let segment_uri = base_url.join(&path)
+                                    let u = base_url.join(&path)
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                    video_segment_urls.push(segment_uri);
+                                    video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
                                 }
                             }
                         }
-                    } else if !video_repr.BaseURL.is_empty() {
+                    } else if let Some(sb) = &video_repr.SegmentBase {
+                        // (5) SegmentBase@indexRange addressing mode
+                        if downloader.verbosity > 1 {
+                            println!("Using SegmentBase@indexRange addressing mode for video representation");
+                        }
+                        let mut start_byte: Option<u64> = None;
+                        let mut end_byte: Option<u64> = None;
+                        if let Some(init) = &sb.initialization {
+                            if let Some(range) = &init.range {
+                                let (s, e) = parse_range(range)?;
+                                start_byte = Some(s);
+                                end_byte = Some(e);
+                            }
+                            if let Some(su) = &init.sourceURL {
+                                let path = resolve_url_template(su, &dict);
+                                let u = if is_absolute_url(&path) {
+                                    Url::parse(&path)
+                                        .map_err(|e| parse_error("parsing sourceURL", e))?
+                                } else {
+                                    base_url.join(&path)
+                                        .map_err(|e| parse_error("joining with sourceURL", e))?
+                                };
+                                video_fragments.push(MediaFragment{url: u, start_byte, end_byte});
+                            }
+                        }
+                        video_fragments.push(MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None});
+                    } else if video_fragments.is_empty() && !video_repr.BaseURL.is_empty() {
+                        // (6) BaseURL addressing mode
                         if downloader.verbosity > 1 {
                             println!("Using BaseURL addressing mode for video representation");
                         }
-                        video_segment_urls.push(base_url);
-                    } else {
+                        let u = if is_absolute_url(&video_repr.BaseURL[0].base) {
+                            Url::parse(&video_repr.BaseURL[0].base)
+                            .map_err(|e| parse_error("parsing BaseURL", e))?
+                        } else {
+                            base_url.join(&video_repr.BaseURL[0].base)
+                                .map_err(|e| parse_error("joining Representation BaseURL", e))?
+                        };
+                        video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
+                    }
+                    if video_fragments.is_empty() {
                         return Err(DashMpdError::UnhandledMediaStream(
                             "no usable addressing mode identified for video representation".to_string()));
                     }
@@ -1245,18 +1383,17 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     }
     let tmppath_audio = tmp_file_path("dashmpd-audio")?;
     let tmppath_video = tmp_file_path("dashmpd-video")?;
-    let mut seen_urls: HashMap<Url, bool> = HashMap::new();
     if downloader.verbosity > 0 {
         println!("Preparing to fetch {} audio and {} video segments",
-                 audio_segment_urls.len(),
-                 video_segment_urls.len());
+                 audio_fragments.len(),
+                 video_fragments.len());
     }
     let mut download_errors = 0;
     // The additional +2 is for our initial .mpd fetch action and final muxing action
-    let segment_count = audio_segment_urls.len() + video_segment_urls.len() + 2;
+    let segment_count = audio_fragments.len() + video_fragments.len() + 2;
     let mut segment_counter = 0;
 
-    // Concatenate the audio segments to a file on disk.
+    // Concatenate the audio segments to a file.
     //
     // FIXME: in DASH, the first segment contains headers that are necessary to generate a valid MP4
     // file, so we should always abort if the first segment cannot be fetched. However, we could
@@ -1265,66 +1402,73 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         let tmpfile_audio = File::create(tmppath_audio.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
-        for url in &audio_segment_urls {
+        for frag in &audio_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
             let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching audio segments");
             }
+            let url = &frag.url;
             /*
-            Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-            on the SegmentURL, which we are currently not handling correctly. Example at
-            http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
-            */
-            if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
-                e.insert(true);
-                /*
-                A manifest may use a data URL (RFC 2397) to embed media content such as the
-                initialization segment directly in the manifest (recommended by YouTube for live
-                streaming, but uncommon in practice).
-                */
-                if url.scheme() == "data" {
-                    let us = &url.to_string();
-                    let du = DataUrl::process(us)
-                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                    if du.mime_type().type_ != "audio" {
-                        return Err(DashMpdError::UnhandledMediaStream(
-                            String::from("expecting audio content in data URL")));
+            A manifest may use a data URL (RFC 2397) to embed media content such as the
+            initialization segment directly in the manifest (recommended by YouTube for live
+            streaming, but uncommon in practice).
+             */
+            if url.scheme() == "data" {
+                let us = &url.to_string();
+                let du = DataUrl::process(us)
+                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                if du.mime_type().type_ != "audio" {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        String::from("expecting audio content in data URL")));
+                }
+                let (body, _fragment) = du.decode_to_vec()
+                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                if downloader.verbosity > 2 {
+                    println!("Audio segment data URL -> {} octets", body.len());
+                }
+                if let Err(e) = tmpfile_audio.write_all(&body) {
+                    log::error!("Unable to write DASH audio data: {e:?}");
+                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                }
+                have_audio = true;
+            } else {
+                // We could download these segments in parallel using reqwest in async mode,
+                // though that might upset some servers.
+                let fetch = || {
+                    // Don't use only "audio/*" in Accept header because some web servers
+                    // (eg. media.axprod.net) are misconfigured and reject requests for
+                    // valid audio content (eg .m4s)
+                    let mut req = client.get(url.clone())
+                        .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
+                        .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate");
+                    if let Some(sb) = &frag.start_byte {
+                        if let Some(eb) = &frag.end_byte {
+                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                        }
                     }
-                    let (body, _fragment) = du.decode_to_vec()
-                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                    if downloader.verbosity > 2 {
-                        println!("Audio segment data URL -> {} octets", body.len());
-                    }
-                    if let Err(e) = tmpfile_audio.write_all(&body) {
-                        log::error!("Unable to write DASH audio data: {e:?}");
-                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                    }
-                    have_audio = true;
-                } else {
-                    // We could download these segments in parallel using reqwest in async mode,
-                    // though that might upset some servers.
-                    let fetch = || {
-                        // Don't use only "audio/*" in Accept header because some web servers
-                        // (eg. media.axprod.net) are misconfigured and reject requests for
-                        // valid audio content (eg .m4s)
-                        client.get(url.clone())
-                            .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
-                            .header("Referer", redirected_url.to_string())
-                            .header("Sec-Fetch-Mode", "navigate")
-                            .send()
-                            .map_err(categorize_reqwest_error)?
-                            .error_for_status()
-                            .map_err(categorize_reqwest_error)
-                    };
-                    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                        .map_err(|e| network_error("fetching DASH audio segment", e))?;
-                    if response.status().is_success() {
+                    req.send()
+                        .map_err(categorize_reqwest_error)?
+                        .error_for_status()
+                        .map_err(categorize_reqwest_error)
+                };
+                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+                    .map_err(|e| network_error("fetching DASH audio segment", e))?;
+                if response.status().is_success() {
+                    if !downloader.content_type_checks || content_type_audio_p(&response) {
                         let dash_bytes = response.bytes()
                             .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
                         if downloader.verbosity > 2 {
-                            println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                            if let Some(sb) = &frag.start_byte {
+                                if let Some(eb) = &frag.end_byte {
+                                    println!("Audio segment {} range {sb}-{eb} -> {} octets",
+                                             &frag.url, dash_bytes.len());
+                                }
+                            } else {
+                                println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                            }
                         }
                         if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
                             log::error!("Unable to write DASH audio data: {e:?}");
@@ -1332,14 +1476,16 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         }
                         have_audio = true;
                     } else {
-                        if downloader.verbosity > 0 {
-                            eprintln!("HTTP error {} fetching audio segment {url}", response.status().as_str());
-                        }
-                        download_errors += 1;
-                        if download_errors > 10 {
-                            return Err(DashMpdError::Network(
-                                String::from("more than 10 HTTP download errors")));
-                        }
+                        log::warn!("Ignoring segment {url} with non-audio content-type");
+                    }
+                } else {
+                    if downloader.verbosity > 0 {
+                        eprintln!("HTTP error {} fetching audio segment {url}", response.status().as_str());
+                    }
+                    download_errors += 1;
+                    if download_errors > 10 {
+                        return Err(DashMpdError::Network(
+                            String::from("more than 10 HTTP download errors")));
                     }
                 }
             }
@@ -1358,75 +1504,83 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         }
     } // if downloader.fetch_audio
 
-    // Now fetch the video segments and concatenate them to the video file path
+    // Now fetch the video segments and concatenate them to the video file
     if downloader.fetch_video {
         let tmpfile_video = File::create(tmppath_video.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
-        for url in &video_segment_urls {
+        for frag in &video_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
             let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching video segments");
             }
-            /*
-            Don't download repeated URLs multiple times: they may be caused by a MediaRange parameter
-            on the SegmentURL, which we are currently not handling correctly. Example at 
-            http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
-            */
-            if let Entry::Vacant(e) = seen_urls.entry(url.clone()) {
-                e.insert(true);
-                if url.scheme() == "data" {
-                    let us = &url.to_string();
-                    let du = DataUrl::process(us)
-                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                    if du.mime_type().type_ != "video" {
-                        return Err(DashMpdError::UnhandledMediaStream(
-                            String::from("expecting video content in data URL")));
+            if frag.url.scheme() == "data" {
+                let us = &frag.url.to_string();
+                let du = DataUrl::process(us)
+                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                if du.mime_type().type_ != "video" {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        String::from("expecting video content in data URL")));
+                }
+                let (body, _fragment) = du.decode_to_vec()
+                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                if downloader.verbosity > 2 {
+                    println!("Video segment data URL -> {} octets", body.len());
+                }
+                if let Err(e) = tmpfile_video.write_all(&body) {
+                    log::error!("Unable to write DASH video data: {e:?}");
+                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                }
+                have_video = true;
+            } else {
+                let fetch = || {
+                    let mut req = client.get(frag.url.clone())
+                        .header("Accept", "video/*")
+                        .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate");
+                    if let Some(sb) = &frag.start_byte {
+                        if let Some(eb) = &frag.end_byte {
+                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                        }
                     }
-                    let (body, _fragment) = du.decode_to_vec()
-                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                    if downloader.verbosity > 2 {
-                        println!("Video segment data URL -> {} octets", body.len());
-                    }
-                    if let Err(e) = tmpfile_video.write_all(&body) {
-                        log::error!("Unable to write DASH video data: {e:?}");
-                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                    }
-                    have_video = true;
-                } else {
-                    let fetch = || {
-                        client.get(url.clone())
-                            .header("Accept", "video/*")
-                            .header("Referer", redirected_url.to_string())
-                            .header("Sec-Fetch-Mode", "navigate")
-                            .send()
-                            .map_err(categorize_reqwest_error)?
-                            .error_for_status()
-                            .map_err(categorize_reqwest_error)
-                    };
-                    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                        .map_err(|e| network_error("fetching DASH video segment", e))?;
-                    if response.status().is_success() {
+                    req.send()
+                        .map_err(categorize_reqwest_error)?
+                        .error_for_status()
+                        .map_err(categorize_reqwest_error)
+                };
+                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+                    .map_err(|e| network_error("fetching DASH video segment", e))?;
+                if response.status().is_success() {
+                    if !downloader.content_type_checks || content_type_video_p(&response) {
                         let dash_bytes = response.bytes()
                             .map_err(|e| network_error("fetching DASH video segment", e))?;
                         if downloader.verbosity > 2 {
-                            println!("Video segment {url} -> {} octets", dash_bytes.len());
+                            if let Some(sb) = &frag.start_byte {
+                                if let Some(eb) = &frag.end_byte {
+                                    println!("Video segment {} range {sb}-{eb} -> {} octets",
+                                             &frag.url, dash_bytes.len());
+                                }
+                            } else {
+                                println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                            }
                         }
                         if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
                             return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
                         }
                         have_video = true;
                     } else {
-                        if downloader.verbosity > 0 {
-                            eprintln!("HTTP error {} fetching video segment {url}", response.status().as_str());
-                        }
-                        download_errors += 1;
-                        if download_errors > 10 {
-                            return Err(DashMpdError::Network(
-                                String::from("more than 10 HTTP download errors")));
-                        }
+                        log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                    }
+                } else {
+                    if downloader.verbosity > 0 {
+                        eprintln!("HTTP error {} fetching video segment {}", response.status().as_str(), &frag.url);
+                    }
+                    download_errors += 1;
+                    if download_errors > 10 {
+                        return Err(DashMpdError::Network(
+                            String::from("more than 10 HTTP download errors")));
                     }
                 }
             }
@@ -1454,12 +1608,6 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             println!("Muxing audio and video streams");
         }
         mux_audio_video(&downloader, &tmppath_audio, &tmppath_video)?;
-        if fs::remove_file(tmppath_audio).is_err() {
-            log::info!("Failed to delete temporary file for audio segments");
-        }
-        if fs::remove_file(tmppath_video).is_err() {
-            log::info!("Failed to delete temporary file for video segments");
-        }
     } else if have_audio {
         // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
         // it might fail if temporary files and our output are on different filesystems.
@@ -1470,10 +1618,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut audio, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying from audio stream to output file")))?;
-        if fs::remove_file(tmppath_audio).is_err() {
-            log::info!("Failed to delete temporary file for audio segments");
-        }
+            .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
     } else if have_video {
         let tmpfile_video = File::open(&tmppath_video)
             .map_err(|e| DashMpdError::Io(e, String::from("opening temporary video output file")))?;
@@ -1482,10 +1627,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut video, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying from video stream to output file")))?;
-        if fs::remove_file(tmppath_video).is_err() {
-            log::info!("Failed to delete temporary file for video segments");
-        }
+            .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
     } else {
         #[allow(clippy::collapsible_else_if)]
         if downloader.fetch_video {
@@ -1497,6 +1639,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         } else {
             return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
+    }
+    if fs::remove_file(tmppath_audio).is_err() {
+        log::info!("Failed to delete temporary file for audio segments");
+    }
+    if fs::remove_file(tmppath_video).is_err() {
+        log::info!("Failed to delete temporary file for video segments");
     }
     if downloader.verbosity > 1 {
         if let Ok(metadata) = fs::metadata(output_path) {

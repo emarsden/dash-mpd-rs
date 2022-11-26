@@ -2,9 +2,17 @@
 
 ## [0.6.2] - 2022-11
 ### Changed
+- Downloading: implement support for `SegmentURL@mediaRange` and `Initialization@range` using HTTP
+  byte range requests. This allows us to download crazy DASH manifests that misuse Twitter's CDN by
+  prepending dummy PNG headers to media segments
+  (https://twitter.com/David3141593/status/1587978423120666625).
 - Fixed default value for `SegmentTemplate@startNumber` when downloading (1 instead of 0).
 ### New
+- We now check that the HTTP content-type of downloaded segments corresponds to audio or video content.
+  New function `without_content_type_checks` on `DashDownloader` to disable these checks (may be
+  necessary with poorly configured HTTP servers). 
 - Added attribute `Representation@mediaStreamStructureId`.
+- Added attribute `SegmentTemplate@eptDelta`.
 
 
 ## [0.6.1] - 2022-11-12
