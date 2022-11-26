@@ -28,7 +28,7 @@ sanitise-file-name = { version = "1", optional = true }
 ac-ffmpeg = { version = "0.17", optional = true }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10"
 ffprobe = "0.3"
 sha2 = "0.10"
 hex-literal = "0.3"
