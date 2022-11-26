@@ -822,7 +822,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                         .map_err(|e| parse_error("joining with Representation BaseURL", e))?
                                 };
                                 audio_fragments.push(
-                                    MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None})
+                                    MediaFragment{url: base_url.clone(), start_byte, end_byte})
                             }
                         }
                     } else if audio_repr.SegmentTemplate.is_some() || audio.SegmentTemplate.is_some() {
@@ -1200,7 +1200,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                         .map_err(|e| parse_error("joining with BaseURL", e))?
                                 };
                                 video_fragments.push(
-                                    MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None});
+                                    MediaFragment{url: base_url.clone(), start_byte, end_byte});
                             }
                         }
                     } else if video_repr.SegmentTemplate.is_some() || video.SegmentTemplate.is_some() {
