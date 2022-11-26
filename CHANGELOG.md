@@ -2,6 +2,7 @@
 
 ## [0.6.2] - 2022-11
 ### Changed
+- Fixed default value for `SegmentTemplate@startNumber` when downloading (1 instead of 0).
 ### New
 - Added attribute `Representation@mediaStreamStructureId`.
 

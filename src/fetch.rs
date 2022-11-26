@@ -674,7 +674,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     let mut opt_media: Option<String> = None;
                     let mut opt_duration: Option<f64> = None;
                     let mut timescale = 1;
-                    let mut start_number = 0;
+                    let mut start_number = 1;
                     // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
                     // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
                     // nodes in an enclosed Representation node. Don't download media segments here, only
@@ -1019,7 +1019,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     let mut opt_media: Option<String> = None;
                     let mut opt_duration: Option<f64> = None;
                     let mut timescale = 1;
-                    let mut start_number = 0;
+                    let mut start_number = 1;
                     // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
                     // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
                     // nodes in an enclosed Representation node. Don't download media segments here, only
