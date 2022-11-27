@@ -70,6 +70,8 @@ pub struct DashDownloader {
     language_preference: Option<String>,
     fetch_video: bool,
     fetch_audio: bool,
+    keep_video: bool,
+    keep_audio: bool,
     content_type_checks: bool,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
@@ -133,6 +135,8 @@ impl DashDownloader {
             language_preference: None,
             fetch_video: true,
             fetch_audio: true,
+            keep_video: false,
+            keep_audio: false,
             content_type_checks: true,
             progress_observers: vec![],
             sleep_between_requests: 0,
@@ -209,6 +213,18 @@ impl DashDownloader {
     pub fn audio_only(mut self) -> DashDownloader {
         self.fetch_audio = true;
         self.fetch_video = false;
+        self
+    }
+
+    /// Don't delete the file containing video once muxing is complete.
+    pub fn keep_video(mut self) -> DashDownloader {
+        self.keep_video = true;
+        self
+    }
+
+    /// Don't delete the file containing audio once muxing is complete.
+    pub fn keep_audio(mut self) -> DashDownloader {
+        self.keep_audio = true;
         self
     }
 
@@ -1640,11 +1656,19 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
             return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
     }
-    if fs::remove_file(tmppath_audio).is_err() {
-        log::info!("Failed to delete temporary file for audio segments");
+    if downloader.keep_audio {
+        println!("Audio stream kept in file {tmppath_audio}");
+    } else {
+        if fs::remove_file(tmppath_audio).is_err() {
+            log::info!("Failed to delete temporary file for audio segments");
+        }
     }
-    if fs::remove_file(tmppath_video).is_err() {
-        log::info!("Failed to delete temporary file for video segments");
+    if downloader.keep_video {
+        println!("Video stream kept in file {tmppath_video}");
+    } else {
+        if fs::remove_file(tmppath_video).is_err() {
+            log::info!("Failed to delete temporary file for video segments");
+        }
     }
     if downloader.verbosity > 1 {
         if let Ok(metadata) = fs::metadata(output_path) {

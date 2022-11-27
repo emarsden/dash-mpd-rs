@@ -11,6 +11,8 @@
 - We now check that the HTTP content-type of downloaded segments corresponds to audio or video content.
   New function `without_content_type_checks` on `DashDownloader` to disable these checks (may be
   necessary with poorly configured HTTP servers). 
+- Added functions `keep_video` and `keep_audio` on `DashDownloader` to retain video and audio
+  streams on disk after muxing.
 - Added attribute `Representation@mediaStreamStructureId`.
 - Added attribute `SegmentTemplate@eptDelta`.
 
