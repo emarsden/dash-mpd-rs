@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.2] - 2022-11
+## [0.6.2] - 2022-11-27
 ### Changed
 - Downloading: implement support for `SegmentURL@mediaRange` and `Initialization@range` using HTTP
   byte range requests. This allows us to download crazy DASH manifests that misuse Twitter's CDN by
