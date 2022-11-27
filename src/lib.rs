@@ -676,6 +676,7 @@ pub struct AdaptationSet {
     pub maxHeight: Option<u64>,
     pub frameRate: Option<String>, // it can be something like "15/2"
     pub SegmentTemplate: Option<SegmentTemplate>,
+    pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
     pub ContentProtection: Vec<ContentProtection>,
     pub Accessibility: Option<Accessibility>,

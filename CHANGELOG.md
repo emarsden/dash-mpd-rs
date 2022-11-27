@@ -7,6 +7,7 @@
   prepending dummy PNG headers to media segments
   (https://twitter.com/David3141593/status/1587978423120666625).
 - Fixed default value for `SegmentTemplate@startNumber` when downloading (1 instead of 0).
+- Fix: an AdaptationSet may contain a SegmentList.
 ### New
 - We now check that the HTTP content-type of downloaded segments corresponds to audio or video content.
   New function `without_content_type_checks` on `DashDownloader` to disable these checks (may be
