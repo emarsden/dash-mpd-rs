@@ -88,7 +88,7 @@ pub struct DashDownloader {
 fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
     let v: Vec<&str> = range.split_terminator('-').collect();
     if v.len() != 2 {
-        return Err(DashMpdError::Parsing(format!("invalid range specifier: {}", range)));
+        return Err(DashMpdError::Parsing(format!("invalid range specifier: {range}")));
     }
     let start: u64 = v[0].parse()
         .map_err(|_| DashMpdError::Parsing(String::from("invalid start for range specifier")))?;
@@ -120,8 +120,8 @@ struct MediaFragment {
 ///        .worst_quality()
 ///        .download()
 /// {
-///    Ok(path) => println!("Downloaded to {:?}", path),
-///    Err(e) => eprintln!("Download failed: {}", e),
+///    Ok(path) => println!("Downloaded to {path:?}"),
+///    Err(e) => eprintln!("Download failed: {e}"),
 /// }
 /// ```
 impl DashDownloader {
@@ -482,11 +482,11 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 
 // fn network_error(why: &str, e: reqwest::Error) -> DashMpdError {
 fn network_error(why: &str, e: impl std::error::Error) -> DashMpdError {
-    DashMpdError::Network(format!("{}: {}", why, e))
+    DashMpdError::Network(format!("{why}: {e}"))
 }
 
 fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
-    DashMpdError::Parsing(format!("{}: {}", why, e))
+    DashMpdError::Parsing(format!("{why}: {e:#?}"))
 }
 
 
