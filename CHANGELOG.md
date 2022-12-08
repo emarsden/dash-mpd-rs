@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3] - 2022-12
+### Changed
+- Fix: xs:datetime fields such as `MPD@publishTime` and `MPD@availabilityStartTime` without a
+  timezone are now parsed correctly instead of triggering an error. Issue seen with YouTube DASH
+  manifests, reported by erg43hergeg.
+
+
 ## [0.6.2] - 2022-11-27
 ### Changed
 - Downloading: implement support for `SegmentURL@mediaRange` and `Initialization@range` using HTTP

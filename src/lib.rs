@@ -82,7 +82,7 @@ use chrono::DateTime;
 
 
 /// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
-// Something like 2021-06-03T13:00:00Z
+// Something like 2021-06-03T13:00:00Z or 2022-12-06T22:27:53
 pub type XsDatetime = DateTime<chrono::offset::Utc>;
 
 
@@ -92,6 +92,8 @@ pub enum DashMpdError {
     Parsing(String),
     #[error("invalid Duration: {0}")]
     InvalidDuration(String),
+    #[error("invalid DateTime: {0}")]
+    InvalidDateTime(String),
     #[error("invalid media stream: {0}")]
     UnhandledMediaStream(String),
     #[error("I/O error {1}")]
@@ -268,6 +270,64 @@ where
         serializer.serialize_none()
     }
 }
+
+
+// We can't use the parsing functionality from the chrono crate, because that assumes RFC 3339
+// format (including a timezone), whereas the xs:dateTime type (as per
+// <https://www.w3.org/TR/xmlschema-2/#dateTime>) allows the timezone to be omitted.
+fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
+    use iso8601::Date;
+    use chrono::{LocalResult, NaiveDate, TimeZone};
+    use num_traits::cast::FromPrimitive;
+    match iso8601::datetime(s) {
+        Ok(dt) => {
+            let nd = match dt.date {
+                Date::YMD { year, month, day } =>
+                    NaiveDate::from_ymd_opt(year, month, day)
+                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
+                Date::Week { year, ww, d } => {
+                    let d = chrono::Weekday::from_u32(d)
+                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
+                    NaiveDate::from_isoywd_opt(year, ww, d)
+                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
+                },
+                Date::Ordinal { year, ddd } =>
+                    NaiveDate::from_yo_opt(year, ddd)
+                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
+            };
+            let nd = nd.and_hms_nano_opt(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond*1000)
+                .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
+            let tz_secs = dt.time.tz_offset_hours * 3600 + dt.time.tz_offset_minutes * 60;
+            match chrono::FixedOffset::east_opt(tz_secs)
+                .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
+                .from_local_datetime(&nd)
+            {
+                LocalResult::Single(local) => Ok(local.with_timezone(&chrono::Utc)),
+                _ => return Err(DashMpdError::InvalidDateTime(s.to_string())),
+            }
+        },
+        Err(_) => Err(DashMpdError::InvalidDateTime(s.to_string())),
+    }
+}
+
+// Deserialize an optional XML datetime string (type xs:datetime) to an Option<XsDatetime>.
+fn deserialize_xs_datetime<'de, D>(deserializer: D) -> Result<Option<XsDatetime>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    match <Option<String>>::deserialize(deserializer) {
+        Ok(optstring) => match optstring {
+            Some(xs) => match parse_xs_datetime(&xs) {
+                Ok(d) => Ok(Some(d)),
+                Err(e) => Err(de::Error::custom(e)),
+            },
+            None => Ok(None),
+        },
+        // the field isn't present; return an Ok(None)
+        Err(_) => Ok(None),
+    }
+}
+
 
 
 // The MPD format is documented by ISO using an XML Schema at
@@ -791,6 +851,7 @@ pub struct UTCTiming {
 pub struct LeapSecondInformation {
     pub availabilityStartLeapOffset: Option<i64>,
     pub nextAvailabilityStartLeapOffset: Option<i64>,
+    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
 
@@ -828,8 +889,11 @@ pub struct MPD {
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
     pub suggestedPresentationDelay: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
     pub publishTime: Option<XsDatetime>,
+    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
     pub availabilityStartTime: Option<XsDatetime>,
+    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
     pub availabilityEndTime: Option<XsDatetime>,
     #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
