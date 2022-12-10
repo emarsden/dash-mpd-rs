@@ -305,7 +305,7 @@ fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
                 .from_local_datetime(&nd)
             {
                 LocalResult::Single(local) => Ok(local.with_timezone(&chrono::Utc)),
-                _ => return Err(DashMpdError::InvalidDateTime(s.to_string())),
+                _ => Err(DashMpdError::InvalidDateTime(s.to_string())),
             }
         },
         Err(_) => Err(DashMpdError::InvalidDateTime(s.to_string())),

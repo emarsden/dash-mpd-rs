@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.3] - 2022-12
+## [0.6.3] - 2022-12-10
 ### Changed
 - Fix: xs:datetime fields such as `MPD@publishTime` and `MPD@availabilityStartTime` without a
   timezone are now parsed correctly instead of triggering an error. Issue seen with YouTube DASH
