@@ -274,7 +274,9 @@ where
 
 // We can't use the parsing functionality from the chrono crate, because that assumes RFC 3339
 // format (including a timezone), whereas the xs:dateTime type (as per
-// <https://www.w3.org/TR/xmlschema-2/#dateTime>) allows the timezone to be omitted.
+// <https://www.w3.org/TR/xmlschema-2/#dateTime>) allows the timezone to be omitted. For more on the
+// complicated relationship between ISO 8601 and RFC 3339, see
+// <https://ijmacd.github.io/rfc3339-iso8601/>.
 fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
     use iso8601::Date;
     use chrono::{LocalResult, NaiveDate, TimeZone};
@@ -445,7 +447,10 @@ pub struct Location {
     pub url: String,
 }
 
-/// A URI string that specifies one or more common locations for Segments and other resources.
+/// A URI string that specifies one or more common locations for Segments and other resources, used
+/// as a prefix for SegmentURLs. Can be specified at the level of the MPD node, or Period,
+/// AdaptationSet, Representation, and can be nested (the client should combine the prefix on MPD
+/// and on Representation, for example).
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -537,7 +542,7 @@ pub struct Accessibility {
 
 /// A representation describes a version of the content, using a specific encoding and bitrate.
 /// Streams often have multiple representations with different bitrates, to allow the client to
-/// select that most suitable to its network conditions.
+/// select that most suitable to its network conditions (adaptive bitrate or ABR streaming).
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -554,6 +559,7 @@ pub struct Representation {
     pub scanType: Option<String>,
     pub frameRate: Option<String>, // can be something like "15/2"
     pub sar: Option<String>,
+    /// The average bandwidth of the Representation.
     pub bandwidth: Option<u64>,
     pub audioSamplingRate: Option<u64>,
     pub width: Option<u64>,
