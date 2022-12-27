@@ -47,7 +47,7 @@ fn test_downloader() {
         return;
     }
     fn check_mpd(mpd_url: &str, octets: u64, digest: &[u8]) {
-        println!("Checking MPD URL {}", mpd_url);
+        println!("Checking MPD URL {mpd_url}");
         match DashDownloader::new(mpd_url).download() {
             Ok(path) => {
                 // check that ffprobe identifies this as a media file
@@ -66,13 +66,13 @@ fn test_downloader() {
                         }
                     }
                 } else {
-                    eprintln!("   {} on {}", "ffprobe failed".red(), mpd_url);
+                    eprintln!("   {} on {mpd_url}", "ffprobe failed".red());
                 }
                 let mut sha256 = Sha256::new();
                 let mut media = std::fs::File::open(path)
-                    .expect("Can't open media file");
+                    .expect("opening media file");
                 let octets_downloaded = io::copy(&mut media, &mut sha256)
-                    .expect("Couldn't read media file contents");
+                    .expect("reading media file contents");
                 let difference_ratio = (octets_downloaded as f64 - octets as f64) / octets as f64;
                 if  difference_ratio.abs() > 0.1 {
                     eprintln!("   {:.1}% difference in download sizes", difference_ratio * 100.0);
@@ -83,7 +83,7 @@ fn test_downloader() {
                 }
                 // We leave the downloaded file in the filesystem, in case further analysis is needed.
             },
-            Err(e) => eprintln!("Failed to fetch MPD {}: {:?}", mpd_url, e),
+            Err(e) => eprintln!("Failed to fetch MPD {mpd_url}: {e:?}"),
         }
     }
 
@@ -120,7 +120,7 @@ fn test_content_protection_parsing() {
     }
 
     fn check_cp(mpd_url: &str) {
-        println!("Checking MPD URL {}", mpd_url);
+        println!("Checking MPD URL {mpd_url}");
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::new(30, 0))
             .gzip(true)

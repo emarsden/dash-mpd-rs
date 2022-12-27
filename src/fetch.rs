@@ -523,6 +523,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         .map_err(|e| network_error("fetching DASH manifest", e))?;
     let mut mpd: MPD = parse(&xml)
         .map_err(|e| parse_error("parsing DASH XML", e))?;
+    eprintln!("!!!MPD> {mpd:#?}");
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
     if !mpd.locations.is_empty() {
