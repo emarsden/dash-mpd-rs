@@ -4,21 +4,10 @@
 
 use std::time::Duration;
 use chrono::prelude::*;
-use env_logger::Env;
-use serde::ser::Serialize;
-use quick_xml::writer::Writer;
-use quick_xml::se::Serializer;
-use dash_mpd::{MPD, BaseURL, Representation, AdaptationSet, Period, ProgramInformation, Copyright};
-use dash_mpd::{Title};
+use dash_mpd::{MPD, BaseURL, Representation, AdaptationSet, Period, ProgramInformation, Copyright, Title};
 
 
 fn main () {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
-    let mut buffer = Vec::new();
-    let writer = Writer::new_with_indent(&mut buffer, b' ', 2);
-    let mut ser = Serializer::with_root(writer, Some("MPD"));
-
     let pi = ProgramInformation {
         Title: Some(Title { content: Some("My serialization example".into()) }),
         Copyright: Some(Copyright { content: Some("MIT Licenced".into()) }),
@@ -74,14 +63,12 @@ fn main () {
         ..Default::default()
     };
 
-    mpd.serialize(&mut ser)
+    let xml = quick_xml::se::to_string(&mpd)
         .expect("serializing MPD struct");
-    let xml = String::from_utf8(buffer.clone()).unwrap();
-    println!("{}", xml);
+    println!("{xml}");
     // check round-trippability
     if let Err(e) = dash_mpd::parse(&xml) {
-        eprintln!("Can't deserialize ou serialized XML: {:?}", e);
+        eprintln!("Can't deserialize our serialized XML: {e:?}");
     }
 }
-
 
