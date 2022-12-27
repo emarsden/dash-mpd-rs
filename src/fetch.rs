@@ -325,7 +325,7 @@ impl DashDownloader {
         self.output_path = Some(outpath);
         if self.http_client.is_none() {
             let client = reqwest::blocking::Client::builder()
-                .timeout(Duration::new(10, 0))
+                .timeout(Duration::new(30, 0))
                 .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
