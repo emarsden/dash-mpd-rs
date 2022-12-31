@@ -4,6 +4,10 @@
 // Currently a nightly-only feature
 // use std::assert_matches::assert_matches;
 
+use std::fs;
+use std::path::PathBuf;
+use std::time::Duration;
+
 
 #[test]
 fn test_mpd_parser () {
@@ -36,6 +40,28 @@ fn test_mpd_parser () {
     assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.base_url.len(), 2);
+
+    let case5 = r#"<MPD type="static" minBufferTime="PT1S">
+    <Period duration="PT2S">
+      <AdaptationSet mimeType="video/mp4">
+        <Representation bandwidth="42" id="3"></Representation>
+      </AdaptationSet>
+    </Period></MPD>"#;
+    let res = parse(case5);
+    assert!(res.is_ok());
+    let mpd = res.unwrap();
+    assert!(mpd.mpdtype.is_some());
+    assert_eq!(mpd.mpdtype.unwrap(), "static");
+    assert_eq!(mpd.minBufferTime.unwrap(), Duration::new(1, 0));
+    assert_eq!(mpd.periods.len(), 1);
+    let p1 = &mpd.periods[0];
+    assert_eq!(p1.duration.unwrap(), Duration::new(2, 0));
+    assert_eq!(p1.adaptations.len(), 1);
+    let a1 = &p1.adaptations[0];
+    assert_eq!(a1.mimeType.as_ref().unwrap(), "video/mp4");
+    assert_eq!(a1.representations.len(), 1);
+    let r1 = &a1.representations[0];
+    assert_eq!(r1.bandwidth.unwrap(), 42);
 }
 
 #[test]
@@ -89,3 +115,25 @@ fn test_datetime_parsing () {
     assert!(res.is_err());
 }
 
+#[test]
+fn test_file_parsing() {
+    use dash_mpd::parse;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("aws");
+    path.set_extension("xml");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    assert!(res.is_ok());
+    let mpd = res.unwrap();
+    assert_eq!(mpd.minBufferTime.unwrap(), Duration::new(30, 0));
+    let mp = mpd.periods.iter()
+        .filter(|p| p.id.is_some())
+        .find(|p| p.id.as_ref().unwrap().eq("8778696_PT0S_0"));
+    assert!(mp.is_some());
+    let p1 = mp.unwrap();
+    assert_eq!(p1.BaseURL.len(), 1);
+    assert!(p1.BaseURL[0].base.contains("mediatailor.us-west-2"));
+}
