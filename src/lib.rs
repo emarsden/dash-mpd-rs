@@ -379,7 +379,9 @@ pub struct ProgramInformation {
     pub Source: Option<Source>,
     pub Copyright: Option<Copyright>,
     /// Language in RFC 5646 format
+    #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    #[serde(rename = "@moreInformationURL")]
     pub moreInformationURL: Option<String>,
 }
 
@@ -389,11 +391,14 @@ pub struct ProgramInformation {
 #[serde(default)]
 pub struct S {
     /// time
+    #[serde(rename = "@t")]
     pub t: Option<i64>,
     /// the duration (shall not exceed the value of MPD@maxSegmentDuration)
+    #[serde(rename = "@d")]
     pub d: i64,
     /// the repeat count (number of contiguous Segments with identical MPD duration minus one),
     /// defaulting to zero if not present
+    #[serde(rename = "@r")]
     pub r: Option<i64>,
 }
 
@@ -412,7 +417,9 @@ pub struct SegmentTimeline {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Initialization {
+    #[serde(rename = "@sourceURL")]
     pub sourceURL: Option<String>,
+    #[serde(rename = "@range")]
     pub range: Option<String>,
 }
 
@@ -422,19 +429,28 @@ pub struct Initialization {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SegmentTemplate {
+    #[serde(rename = "@initialization")]
     pub initialization: Option<String>,
+    #[serde(rename = "@media")]
     pub media: Option<String>,
+    #[serde(rename = "@index")]
     pub index: Option<String>,
     pub SegmentTimeline: Option<SegmentTimeline>,
+    #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
     // note: the spec says this is an unsigned int, not an xs:duration. In practice, some manifests
     // use a floating point value (eg.
     // https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd)
+    #[serde(rename = "@duration")]
     pub duration: Option<f64>,
+    #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
     /// Indicates a possible offset between media segment start/end points and period start/end points.
+    #[serde(rename = "@eptDelta")]
     pub eptDelta: Option<i64>,
+    #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
+    #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
 }
 
@@ -459,6 +475,7 @@ pub struct BaseURL {
     pub base: String,
     /// Elements with the same `@serviceLocation` value are likely to have their URLs resolve to
     /// services at a common network location, for example the same CDN.
+    #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
 }
 
@@ -469,11 +486,17 @@ pub struct BaseURL {
 pub struct SegmentBase {
     #[serde(rename = "Initialization")]
     pub initialization: Option<Initialization>,
+    #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
+    #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
+    #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
+    #[serde(rename = "@availabilityTimeOffset")]
     pub availabilityTimeOffset: Option<f64>,
+    #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
 }
 
@@ -482,9 +505,13 @@ pub struct SegmentBase {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SegmentURL {
+    #[serde(rename = "@media")]
     pub media: Option<String>, // actually an URI
+    #[serde(rename = "@mediaRange")]
     pub mediaRange: Option<String>,
+    #[serde(rename = "@index")]
     pub index: Option<String>, // actually an URI
+    #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
 }
 
@@ -494,15 +521,20 @@ pub struct SegmentURL {
 #[serde(default)]
 pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
+    #[serde(rename = "@duration")]
     pub duration: Option<u64>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "xlink:href")]
+    // actually xlink:href
+    #[serde(rename = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "xlink:actuate")]
+    // actually xlink:actuate
+    #[serde(rename = "@actuate")]
     pub actuate: Option<String>,
-    #[serde(rename = "xlink:type")]
+    // actually xlink:type
+    #[serde(rename = "@type")]
     pub sltype: Option<String>,
-    #[serde(rename = "xlink:show")]
+    // atually xlink:show
+    #[serde(rename = "@show")]
     pub show: Option<String>,
     pub Initialization: Option<Initialization>,
     #[serde(rename = "SegmentURL")]
@@ -513,10 +545,13 @@ pub struct SegmentList {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Resync {
+    #[serde(rename = "@dT")]
     pub dT: Option<u64>,
+    #[serde(rename = "@dImax")]
     pub dImax: Option<u64>,
+    #[serde(rename = "@dImin")]
     pub dImin: Option<u64>,
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub rtype: Option<String>,
 }
 
@@ -525,8 +560,11 @@ pub struct Resync {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct AudioChannelConfiguration {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -535,8 +573,11 @@ pub struct AudioChannelConfiguration {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Accessibility {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -548,32 +589,46 @@ pub struct Accessibility {
 #[serde(default)]
 pub struct Representation {
     // no id for a linked Representation (with xlink:href)
+    #[serde(rename = "@id")]
     pub id: Option<String>,
     // The specification says that @mimeType is mandatory, but it's not always present on
     // akamaized.net MPDs
+    #[serde(rename = "@mimeType")]
     pub mimeType: Option<String>,
     /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
+    #[serde(rename = "@codecs")]
     pub codecs: Option<String>,
+    #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
     /// If present, this attribute is expected to be set to "progressive".
+    #[serde(rename = "@scanType")]
     pub scanType: Option<String>,
+    #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // can be something like "15/2"
+    #[serde(rename = "@sar")]
     pub sar: Option<String>,
     /// The average bandwidth of the Representation.
+    #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
+    #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
+    #[serde(rename = "@width")]
     pub width: Option<u64>,
+    #[serde(rename = "@height")]
     pub height: Option<u64>,
+    #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
     pub BaseURL: Vec<BaseURL>,
     pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
+    #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
     pub Resync: Option<Resync>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "xlink:href")]
+    // actually xlink:href
+    #[serde(rename = "@href")]
     pub href: Option<String>,
 }
 
@@ -582,11 +637,16 @@ pub struct Representation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct ContentComponent {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
     /// Language in RFC 5646 format (eg. "fr-FR", "en-AU")
+    #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
+    #[serde(rename = "@par")]
     pub par: Option<String>,
+    #[serde(rename = "@tag")]
     pub tag: Option<String>,
     pub Accessibility: Option<Accessibility>,
 }
@@ -607,18 +667,22 @@ pub struct CencPssh {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct ContentProtection {
+    #[serde(rename = "@robustness")]
     pub robustness: Option<String>,
+    #[serde(rename = "@refId")]
     pub refId: Option<String>,
-    #[serde(rename = "ref")]
+    #[serde(rename = "@ref")]
     pub cpref: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     // In fact will be cenc:pssh, where cenc is the urn:mpeg:cenc:2013 XML namespace, but the serde
     // crate doesn't support XML namespaces
     #[serde(rename = "pssh")]
     pub cenc_pssh: Option<CencPssh>,
-    // the DRM key identifier
-    #[serde(rename = "cenc:default_KID")]
+    // the DRM key identifier (actually cenc:default_KID)
+    #[serde(rename = "@default_KID")]
     pub default_KID: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -628,7 +692,9 @@ pub struct ContentProtection {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Role {
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -636,7 +702,9 @@ pub struct Role {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Viewpoint {
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -661,9 +729,13 @@ pub struct Signal {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Event {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@presentationTime")]
     pub presentationTime: Option<u64>,
+    #[serde(rename = "@duration")]
     pub duration: Option<u64>,
+    #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
     #[serde(rename = "Signal")]
     pub signal: Vec<Signal>,
@@ -673,7 +745,9 @@ pub struct Event {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct EventStream {
+    #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "Event")]
     pub event: Vec<Event>,
@@ -683,8 +757,11 @@ pub struct EventStream {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct EssentialProperty {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -692,8 +769,11 @@ pub struct EssentialProperty {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SupplementalProperty {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -710,36 +790,58 @@ pub struct Label {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct AdaptationSet {
+    #[serde(rename = "@id")]
     pub id: Option<i64>,
     pub label: Option<Label>,
     pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "xlink:href")]
+    // actually xlink:href
+    #[serde(rename = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "xlink:actuate")]
+    // actually xlink:actuate
+    #[serde(rename = "@actuate")]
     pub actuate: Option<String>,
+    #[serde(rename = "@group")]
     pub group: Option<i64>,
+    #[serde(rename = "@selectionPriority")]
     pub selectionPriority: Option<u64>,
     // eg "audio", "video", "text"
+    #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
     /// Content language, in RFC 5646 format
+    #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    #[serde(rename = "@par")]
     pub par: Option<String>,
+    #[serde(rename = "@segmentAlignment")]
     pub segmentAlignment: Option<bool>,
+    #[serde(rename = "@subsegmentAlignment")]
     pub subsegmentAlignment: Option<bool>,
+    #[serde(rename = "@subsegmentStartsWithSAP")]
     pub subsegmentStartsWithSAP: Option<u64>,
+    #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
+    #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
     // eg "video/mp4"
+    #[serde(rename = "@mimeType")]
     pub mimeType: Option<String>,
     /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381> (eg. "avc1.4D400C")
+    #[serde(rename = "@codecs")]
     pub codecs: Option<String>,
+    #[serde(rename = "@minBandwidth")]
     pub minBandwidth: Option<u64>,
+    #[serde(rename = "@maxBandwidth")]
     pub maxBandwidth: Option<u64>,
+    #[serde(rename = "@minWidth")]
     pub minWidth: Option<u64>,
+    #[serde(rename = "@maxWidth")]
     pub maxWidth: Option<u64>,
+    #[serde(rename = "@minHeight")]
     pub minHeight: Option<u64>,
+    #[serde(rename = "@maxHeight")]
     pub maxHeight: Option<u64>,
+    #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // it can be something like "15/2"
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentList: Option<SegmentList>,
@@ -757,7 +859,9 @@ pub struct AdaptationSet {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct AssetIdentifier {
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -767,18 +871,24 @@ pub struct AssetIdentifier {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Period {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@start")]
     pub start: Option<String>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@duration")]
     pub duration: Option<Duration>,
+    #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "xlink:href")]
+    // actually xlink:href
+    #[serde(rename = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "xlink:actuate")]
+    // actually xlink:actuate
+    #[serde(rename = "@actuate")]
     pub actuate: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
@@ -790,18 +900,24 @@ pub struct Period {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Reporting {
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
-    #[serde(rename = "dvb:reportingUrl")]
+    // actually dvb:reportingUrl
+    #[serde(rename = "@reportingUrl")]
     pub reportingUrl: Option<String>,
-    #[serde(rename = "dvb:probability")]
+    // actually dvb:probability
+    #[serde(rename = "@probability")]
     pub probability: Option<u64>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Range {
+    #[serde(rename = "@starttime")]
     pub starttime: Option<Duration>,
+    #[serde(rename = "@duration")]
     pub duration: Option<Duration>,
 }
 
@@ -809,6 +925,7 @@ pub struct Range {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Metrics {
+    #[serde(rename = "@metrics")]
     pub metrics: String,
     pub reporting: Vec<Reporting>,
     pub range: Vec<Range>,
@@ -818,9 +935,13 @@ pub struct Metrics {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Latency {
+    #[serde(rename = "@min")]
     pub min: Option<f64>,
+    #[serde(rename = "@max")]
     pub max: Option<f64>,
+    #[serde(rename = "@target")]
     pub target: Option<f64>,
+    #[serde(rename = "@referenceId")]
     pub referenceId: Option<String>,
 }
 
@@ -828,7 +949,9 @@ pub struct Latency {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct PlaybackRate {
+    #[serde(rename = "@min")]
     pub min: f64,
+    #[serde(rename = "@max")]
     pub max: f64,
 }
 
@@ -836,6 +959,7 @@ pub struct PlaybackRate {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct ServiceDescription {
+    #[serde(rename = "@id")]
     pub id: Option<String>,
     pub Latency: Option<Latency>,
     pub PlaybackRate: Option<PlaybackRate>,
@@ -847,7 +971,9 @@ pub struct ServiceDescription {
 pub struct UTCTiming {
     // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
     // http-ntp:2014, ntp:2014, http-head:2014, direct:2014
+    #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
     pub value: Option<String>,
 }
 
@@ -855,9 +981,12 @@ pub struct UTCTiming {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct LeapSecondInformation {
+    #[serde(rename = "@availabilityStartLeapOffset")]
     pub availabilityStartLeapOffset: Option<i64>,
+    #[serde(rename = "@nextAvailabilityStartLeapOffset")]
     pub nextAvailabilityStartLeapOffset: Option<i64>,
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[serde(rename = "@nextLeapChangeTime")]
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
 
@@ -868,38 +997,50 @@ pub struct LeapSecondInformation {
 pub struct MPD {
     /// The Presentation Type, either "static" or "dynamic" (a live stream for which segments become
     /// available over time).
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
+    #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
-    #[serde(rename = "xsi:schemaLocation")]
+    // actually xsi:schemaLocation
+    #[serde(rename = "@schemaLocation")]
     pub schemaLocation: Option<String>,
+    #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
     /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
     /// under ideal network conditions with bandwidth matching the @bandwidth attribute.
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@minBufferTime")]
     pub minBufferTime: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@minimumUpdatePeriod")]
     pub minimumUpdatePeriod: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@timeShiftBufferDepth")]
     pub timeShiftBufferDepth: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@mediaPresentationDuration")]
     pub mediaPresentationDuration: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@maxSegmentDuration")]
     pub maxSegmentDuration: Option<Duration>,
     /// A suggested delay of the presentation compared to the Live edge.
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@suggestedPresentationDelay")]
     pub suggestedPresentationDelay: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[serde(rename = "@publishTime")]
     pub publishTime: Option<XsDatetime>,
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[serde(rename = "@availabilityStartTime")]
     pub availabilityStartTime: Option<XsDatetime>,
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[serde(rename = "@availabilityEndTime")]
     pub availabilityEndTime: Option<XsDatetime>,
     #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
