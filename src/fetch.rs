@@ -17,7 +17,8 @@ use data_url::DataUrl;
 use reqwest::header::RANGE;
 use backoff::{retry_notify, ExponentialBackoff};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
-use crate::{parse, is_audio_adaptation, is_video_adaptation, mux_audio_video};
+use crate::{parse, mux_audio_video};
+use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type};
 
 
 /// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
@@ -70,6 +71,7 @@ pub struct DashDownloader {
     language_preference: Option<String>,
     fetch_video: bool,
     fetch_audio: bool,
+    fetch_subtitles: bool,
     keep_video: bool,
     keep_audio: bool,
     content_type_checks: bool,
@@ -135,6 +137,7 @@ impl DashDownloader {
             language_preference: None,
             fetch_video: true,
             fetch_audio: true,
+            fetch_subtitles: false,
             keep_video: false,
             keep_audio: false,
             content_type_checks: true,
@@ -225,6 +228,14 @@ impl DashDownloader {
     /// Don't delete the file containing audio once muxing is complete.
     pub fn keep_audio(mut self) -> DashDownloader {
         self.keep_audio = true;
+        self
+    }
+
+    /// Fetch subtitles if they are available. If subtitles are available, embed the subtitles in
+    /// the downloaded media file (if the container format is mp4 or mkv), or to download them to a
+    /// file named with the same name as the media output and a ".vtt" or ".ttml" extension.
+    pub fn fetch_subtitles(mut self) -> DashDownloader {
+        self.fetch_subtitles = true;
         self
     }
 
@@ -1503,6 +1514,49 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
                     return Err(DashMpdError::UnhandledMediaStream(
                         "Couldn't find lowest bandwidth video stream in DASH manifest".to_string()));
+                }
+            }
+        }
+        // now check for subtitles
+        let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
+            period.adaptations.iter().filter(is_subtitle_adaptation)
+                .min_by_key(|a| adaptation_lang_distance(a, lang))
+        } else {
+            // returns the first subtitle adaptation found
+            period.adaptations.iter().find(is_subtitle_adaptation)
+        };
+        if let Some(sta) = maybe_subtitle_adaptation {
+            for rep in sta.representations.iter() {
+                println!("Got subtitle rep {rep:?}");
+                // TODO: handle a possible XLink reference (non-empty href attribute)
+                for st_bu in rep.BaseURL.iter() {
+                    let st_url = if is_absolute_url(&st_bu.base) {
+                        Url::parse(&st_bu.base)
+                            .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
+                    } else {
+                        base_url.join(&st_bu.base)
+                            .map_err(|e| parse_error("joining subtitle BaseURL", e))?
+                    };
+                    let subs = client.get(st_url.clone())
+                        .header("Referer", redirected_url.to_string())
+                        .send()
+                        .map_err(|e| network_error("fetching subtitles", e))?
+                        .error_for_status()
+                        .map_err(|e| network_error("fetching subtitles", e))?
+                        .bytes()
+                        .map_err(|e| network_error("retrieving subtitles", e))?;
+                    let ext = subtitle_type(&sta);
+                    let mut subs_path = output_path.clone();
+                    subs_path.set_extension(ext);
+                    let mut subs_file = File::create(subs_path)
+                        .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Subtitle {st_url} -> {} octets", subs.len());
+                    }
+                    if let Err(e) = subs_file.write_all(&subs) {
+                        log::error!("Unable to write subtitle file: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
+                    }
                 }
             }
         }

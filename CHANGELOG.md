@@ -1,9 +1,12 @@
 # Changelog
 
 ## [0.6.4] - 2022-12
+### New
+- Preliminary support for fetching subtitles (see function `fetch_subtitles` on `DashDownloader`). 
 ### Changed
 - Update dependency quick-xml to v0.27
 - Simplify serialization example using new version of the quick-xml crate.
+
 
 
 ## [0.6.3] - 2022-12-10

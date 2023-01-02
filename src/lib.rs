@@ -992,6 +992,34 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
     false
 }
 
+/// Returns `true` if this AdaptationSet contains subtitle content.
+///
+/// For now, it contains subtitles if the `mimeType` attribute is "text/vtt".
+pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
+    if let Some(mimetype) = &a.mimeType {
+        if mimetype.eq("text/vtt") ||
+            mimetype.eq("application/ttml+xml")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+// Returns "vtt" or "ttml"
+pub fn subtitle_type(a: &&AdaptationSet) -> String {
+    if let Some(mimetype) = &a.mimeType {
+        // WebVTT, almost the same as SRT
+        if mimetype.eq("text/vtt") {
+            return String::from("vtt");
+        } else if mimetype.eq("application/ttml+xml") {
+            return String::from("ttml");
+        }
+    }
+    // fallback
+    String::from("sub")
+}
+
 
 #[cfg(test)]
 mod tests {
