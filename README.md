@@ -82,7 +82,7 @@ use dash_mpd::{MPD, parse};
 
 fn main() {
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::new(10, 0))
+        .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
         .expect("creating reqwest HTTP client");
@@ -104,7 +104,7 @@ fn main() {
     }
     for p in mpd.periods {
         if let Some(d) = p.duration {
-            println!("Contains Period of duration {:?}", d);
+            println!("Contains Period of duration {d:?}");
         }
     }
 }
@@ -118,16 +118,9 @@ for more information.
 To **generate an MPD manifest programmatically**:
 
 ```rust
-use serde::ser::Serialize;
-use quick_xml::writer::Writer;
-use quick_xml::se::Serializer;
 use dash_mpd::{MPD, ProgramInformation, Title};
 
 fn main() {
-   let mut buffer = Vec::new();
-   let writer = Writer::new_with_indent(&mut buffer, b' ', 2);
-   let mut ser = Serializer::with_root(writer, Some("MPD"));
-
    let pi = ProgramInformation {
        Title: Some(Title { content: Some("My serialization example".into()) }),
        lang: Some("eng".into()),
@@ -141,9 +134,8 @@ fn main() {
        ..Default::default()
    };
 
-   mpd.serialize(&mut ser)
-       .expect("serializing MPD struct");
-   let xml = String::from_utf8(buffer.clone()).unwrap();
+   let xml = quick_xml::se::to_string(&mpd)
+        .expect("serializing MPD struct");
 }
 ```
 
@@ -161,8 +153,8 @@ match DashDownloader::new(url)
        .worst_quality()
        .download()
 {
-   Ok(path) => println!("Downloaded to {:?}", path),
-   Err(e) => eprintln!("Download failed: {:?}", e),
+   Ok(path) => println!("Downloaded to {path:?}"),
+   Err(e) => eprintln!("Download failed: {e:?}"),
 }
 ```
 
