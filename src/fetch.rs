@@ -161,7 +161,7 @@ impl DashDownloader {
     ///
     /// let client = reqwest::blocking::Client::builder()
     ///      .user_agent("Mozilla/5.0")
-    ///      .timeout(Duration::new(10, 0))
+    ///      .timeout(Duration::new(30, 0))
     ///      .gzip(true)
     ///      .build()
     ///      .expect("creating reqwest HTTP client");
