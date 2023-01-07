@@ -1135,11 +1135,20 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
 
 /// Returns `true` if this AdaptationSet contains subtitle content.
 ///
-/// For now, it contains subtitles if the `mimeType` attribute is "text/vtt".
+/// For now, it contains subtitles if the `@mimeType` attribute is "text/vtt" (WebVTT) or
+/// "application/ttml+xml" or "application/x-sami" (SAMI). Further work needed to handle an
+/// Adaptation that contains a Representation with @contentType="text" and @codecs="stpp" or a
+/// subset like @codecs="stpp.ttml.im1t" (fragmented TTML in an MP4 container) or @codecs="wvtt"
+/// (fragmented VTTcue in an MP4 container).
+///
+/// The DVB-DASH specification also allows for closed captions for hearing impaired viewers in an
+/// AdaptationSet with Accessibility node having @SchemeIdUri =
+/// "urn:tva:metadata:cs:AudioPurposeCS:2007" and @value=2.
 pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
     if let Some(mimetype) = &a.mimeType {
         if mimetype.eq("text/vtt") ||
-            mimetype.eq("application/ttml+xml")
+            mimetype.eq("application/ttml+xml") ||
+            mimetype.eq("application/x-sami")
         {
             return true;
         }
