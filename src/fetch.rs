@@ -1,7 +1,7 @@
 //! Support for downloading content from DASH MPD media streams.
 
 use std::env;
-use std::fs;
+use fs_err as fs;
 use std::fs::File;
 use std::io;
 use std::io::Write;

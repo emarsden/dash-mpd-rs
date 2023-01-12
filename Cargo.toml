@@ -20,6 +20,7 @@ num-traits = "0.2"
 iso8601 = "0.5"
 regex = ">=1.5.5"
 thiserror = "1"
+fs-err = "2.9"
 log = "0.4"
 url = { version = "2", optional = true }
 data-url = { version = "0.2", optional = true }
