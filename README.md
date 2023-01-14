@@ -62,13 +62,15 @@ The choice of external muxer depends on the filename extension of the path suppl
   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
 - Media containers of types supported by mkvmerge, ffmpeg or VLC (this includes Matroska, ISO-BMFF /
   CMAF / MP4, WebM, MPEG-2 TS)
+- WebVTT, TTML and SMIL subtitles (preliminary support). There is some support for subtitles that
+  are made available in wvtt format, that will be converted to SRT format using the MP4Box
+  commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is installed.
 
 
 ## Limitations / unsupported features
 
 - Dynamic MPD manifests, that are used for live streaming/OTT TV
 - Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
-- Subtitles (eg. WebVTT and TTML streams)
 - XLink with actuate=onRequest
 
 
@@ -158,7 +160,9 @@ match DashDownloader::new(url)
 }
 ```
 
-See example [download_bbc.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/download_bbc.rs) for a little more detail.
+See example
+[download_bbc.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/download_bbc.rs) for a
+little more detail.
 
 An application that provides a convenient commandline interface for the download functionality is
 available separately in the [dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
