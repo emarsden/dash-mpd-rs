@@ -477,6 +477,8 @@ pub struct BaseURL {
     /// services at a common network location, for example the same CDN.
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
+    #[serde(rename = "@priority")]
+    pub priority: i64,  // actually dvb:priority
 }
 
 /// Specifies some common information concerning media segments.
@@ -1153,21 +1155,84 @@ pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
+    let mut text_ct = false;
+    if let Some(contentType) = &a.contentType {
+        if contentType.eq("text") {
+            text_ct = true;
+        }
+    }
+    for r in a.representations.iter() {
+        if let Some(ct) = &r.contentType {
+            if ct == "text" {
+                text_ct = true;
+            }
+        }
+        if text_ct {
+            if let Some(codecs) = &r.codecs {
+                if codecs == "wvtt" ||
+                    codecs == "stpp" ||
+                    codecs.starts_with("stpp.")
+                {
+                    return true;
+                }
+            }
+        }
+    }
     false
 }
 
-// Returns "vtt" or "ttml"
-pub fn subtitle_type(a: &&AdaptationSet) -> String {
+// Incomplete, see https://en.wikipedia.org/wiki/Subtitles#Subtitle_formats
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SubtitleType {
+    /// W3C WebVTT, as used in particular for HTML5 media
+    Vtt,
+    /// SubRip
+    Srt,
+    /// MPSub
+    Sub,
+    /// Advanced Substation Alpha
+    Ass,
+    /// MPEG-4 Timed Text, aka MP4TT aka 3GPP-TT
+    Ttxt,
+    /// Timed Text Markup Language
+    Ttml,
+    /// Synchronized Accessible Media Interchange
+    Sami,
+    /// Binary WebVTT in a wvtt box in fragmented MP4 container, as specified by ISO/IEC
+    /// 14496-30:2014. Mostly intended for live streams where it's not possible to provide a
+    /// standalone VTT file.
+    Wvtt,
+    /// XML content (generally TTML) in an stpp box in fragmented MP4 container
+    Stpp,
+    Unknown,
+}
+
+pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
     if let Some(mimetype) = &a.mimeType {
         // WebVTT, almost the same as SRT
         if mimetype.eq("text/vtt") {
-            return String::from("vtt");
+            return SubtitleType::Vtt;
         } else if mimetype.eq("application/ttml+xml") {
-            return String::from("ttml");
+            return SubtitleType::Ttml;
+        } else if mimetype.eq("application/x-sami") {
+            return SubtitleType::Sami;
         }
     }
-    // fallback
-    String::from("sub")
+    for r in a.representations.iter() {
+        if let Some(codecs) = &r.codecs {
+            if codecs == "wvtt" {
+                // can be extracted with https://github.com/xhlove/dash-subtitle-extractor
+                return SubtitleType::Wvtt;
+            }
+            if codecs == "stpp" {
+                return SubtitleType::Stpp;
+            }
+            if codecs.starts_with("stpp.") {
+                return SubtitleType::Stpp;
+            }
+        }
+    }
+    SubtitleType::Unknown
 }
 
 

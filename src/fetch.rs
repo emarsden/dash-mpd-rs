@@ -8,6 +8,7 @@ use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::thread;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::Duration;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -18,7 +19,7 @@ use reqwest::header::RANGE;
 use backoff::{retry_notify, ExponentialBackoff};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video};
-use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type};
+use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type, SubtitleType};
 
 
 /// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
@@ -231,9 +232,9 @@ impl DashDownloader {
         self
     }
 
-    /// Fetch subtitles if they are available. If subtitles are available, embed the subtitles in
-    /// the downloaded media file (if the container format is mp4 or mkv), or to download them to a
-    /// file named with the same name as the media output and a ".vtt" or ".ttml" extension.
+    /// Fetch subtitles if they are available. If subtitles are available, download them to a file
+    /// named with the same name as the media output and an appropriate extension (".vtt", ".ttml",
+    /// ".srt", etc.).
     pub fn fetch_subtitles(mut self) -> DashDownloader {
         self.fetch_subtitles = true;
         self
@@ -390,24 +391,26 @@ fn fetchable_xlink_href(href: &str) -> bool {
 // in an MP4 container, and we accept application/octet-stream headers because some servers are
 // poorly configured.
 fn content_type_audio_p(response: &reqwest::blocking::Response) -> bool {
-    if let Some(ct) = response.headers().get("content-type") {
-        let ctb = ct.as_bytes();
-        ctb.starts_with(b"audio/") ||
-            ctb.starts_with(b"video/") ||
-            ctb.starts_with(b"application/octet-stream")
-    } else {
-        false
+    match response.headers().get("content-type") {
+        Some(ct) => {
+            let ctb = ct.as_bytes();
+            ctb.starts_with(b"audio/") ||
+                ctb.starts_with(b"video/") ||
+                ctb.starts_with(b"application/octet-stream")
+        },
+        None => false,
     }
 }
 
 // Return true if the response includes a content-type header corresponding to video.
 fn content_type_video_p(response: &reqwest::blocking::Response) -> bool {
-    if let Some(ct) = response.headers().get("content-type") {
-        let ctb = ct.as_bytes();
-        ctb.starts_with(b"video/") ||
-            ctb.starts_with(b"application/octet-stream")
-    } else {
-        false
+    match response.headers().get("content-type") {
+        Some(ct) => {
+            let ctb = ct.as_bytes();
+            ctb.starts_with(b"video/") ||
+                ctb.starts_with(b"application/octet-stream")
+        },
+        None => false,
     }
 }
 
@@ -1543,17 +1546,53 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         .map_err(|e| network_error("fetching subtitles", e))?
                         .bytes()
                         .map_err(|e| network_error("retrieving subtitles", e))?;
-                    let ext = subtitle_type(&sta);
                     let mut subs_path = output_path.clone();
-                    subs_path.set_extension(ext);
-                    let mut subs_file = File::create(subs_path)
+                    let subtype = subtitle_type(&sta);
+                    match subtype {
+                        SubtitleType::Vtt => subs_path.set_extension("vtt"),
+                        SubtitleType::Srt => subs_path.set_extension("srt"),
+                        SubtitleType::Ttml => subs_path.set_extension("ttml"),
+                        SubtitleType::Sami => subs_path.set_extension("sami"),
+                        SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
+                        SubtitleType::Stpp => subs_path.set_extension("stpp"),
+                        _ => subs_path.set_extension("sub"),
+                    };
+                    let mut subs_file = File::create(subs_path.clone())
                         .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
                     if downloader.verbosity > 2 {
                         println!("Subtitle {st_url} -> {} octets", subs.len());
                     }
-                    if let Err(e) = subs_file.write_all(&subs) {
-                        log::error!("Unable to write subtitle file: {e:?}");
-                        return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
+                    match subs_file.write_all(&subs) {
+                        Ok(()) => {
+                            if downloader.verbosity > 0 {
+                                println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
+                            }
+                        },
+                        Err(e) => {
+                            log::error!("Unable to write subtitle file: {e:?}");
+                            return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
+                        },
+                    }
+                    if subtype == SubtitleType::Wvtt {
+                        let mut out = subs_path.clone();
+                        out.set_extension("srt");
+                        let mp4box = Command::new("MP4Box")
+                            .args(["-srt", "1", "-out", &out.to_string_lossy(), &subs_path.to_string_lossy()])
+                            .output()
+                            .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
+                        let msg = String::from_utf8_lossy(&mp4box.stdout);
+                        if msg.len() > 0 {
+                            log::info!("MP4Box stdout: {msg}");
+                        }
+                        let msg = String::from_utf8_lossy(&mp4box.stderr);
+                        if msg.len() > 0 {
+                            log::info!("MP4Box stderr: {msg}");
+                        }
+                        if mp4box.status.success() {
+                            log::info!("Converted WVTT subtitles to SRT");
+                        } else {
+                            log::warn!("Error running MP4Box to convert WVTT subtitles");
+                        }
                     }
                 }
             }
