@@ -1,12 +1,17 @@
 # Changelog
 
-## [0.6.4] - 2022-12
+## [0.6.4] - 2023-01-14
 ### New
-- Preliminary support for fetching subtitles (see function `fetch_subtitles` on `DashDownloader`). 
+- Preliminary support for fetching subtitles (see function `fetch_subtitles` on `DashDownloader`).
+  There is support for subtitles in WebVTT format (an AdaptationSet node with a `@mimeType`
+  attribute of "text/vtt"), TTML (`@mimeType` of "application/ttml+xml") and SAMI (`@mimeType` of
+  "application/x-sami"). There is also some support for WVTT (binary WebVTT in a wvtt box in
+  fragmented MP4 container, as specified by ISO/IEC 14496-30:2014) and for STPP format (TTML in a
+  fragmented MP4 container). WVTT subtitles will be converted to SRT format using the MP4Box
+  commandline application, if it is available in the PATH.
 ### Changed
 - Update dependency quick-xml to v0.27
 - Simplify serialization example using new version of the quick-xml crate.
-
 
 
 ## [0.6.3] - 2022-12-10
