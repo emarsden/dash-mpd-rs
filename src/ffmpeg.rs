@@ -52,11 +52,11 @@ fn mux_audio_video_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = String::from_utf8_lossy(&ffmpeg.stdout);
     if msg.len() > 0 {
-        log::info!("ffmpeg stdout: {}", msg);
+        log::info!("ffmpeg stdout: {msg}");
     }
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
     if msg.len() > 0 {
-        log::info!("ffmpeg stderr: {}", msg);
+        log::info!("ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         let tmpfile = File::open(tmppath)
