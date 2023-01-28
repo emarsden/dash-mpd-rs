@@ -154,6 +154,7 @@ let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/helioc
 match DashDownloader::new(url)
        .worst_quality()
        .download()
+       .await
 {
    Ok(path) => println!("Downloaded to {path:?}"),
    Err(e) => eprintln!("Download failed: {e:?}"),

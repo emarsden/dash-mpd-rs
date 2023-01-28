@@ -16,14 +16,14 @@ use regex::Regex;
 use url::Url;
 use data_url::DataUrl;
 use reqwest::header::RANGE;
-use backoff::{retry_notify, ExponentialBackoff};
+use backoff::{future::retry_notify, ExponentialBackoff};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type, SubtitleType};
 
 
-/// A blocking `Client` from the `reqwest` crate, that we use to download content over HTTP.
-pub type HttpClient = reqwest::blocking::Client;
+/// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
+pub type HttpClient = reqwest::Client;
 
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
@@ -43,7 +43,7 @@ fn tmp_file_path(prefix: &str) -> Result<String, DashMpdError> {
 
 /// Receives updates concerning the progression of the download, and can display this information to
 /// the user, for example using a progress bar.
-pub trait ProgressObserver {
+pub trait ProgressObserver: Send + Sync {
     fn update(&self, percent: u32, message: &str);
 }
 
@@ -122,6 +122,7 @@ struct MediaFragment {
 /// match DashDownloader::new(url)
 ///        .worst_quality()
 ///        .download()
+///        .await
 /// {
 ///    Ok(path) => println!("Downloaded to {path:?}"),
 ///    Err(e) => eprintln!("Download failed: {e}"),
@@ -160,7 +161,7 @@ impl DashDownloader {
     /// ```rust
     /// use dash_mpd::fetch::DashDownloader;
     ///
-    /// let client = reqwest::blocking::Client::builder()
+    /// let client = reqwest::Client::builder()
     ///      .user_agent("Mozilla/5.0")
     ///      .timeout(Duration::new(30, 0))
     ///      .gzip(true)
@@ -171,6 +172,7 @@ impl DashDownloader {
     ///  DashDownloader::new(url)
     ///      .with_http_client(client)
     ///      .download_to(out)
+    //       .await
     /// ```
     pub fn with_http_client(mut self, client: HttpClient) -> DashDownloader {
         self.http_client = Some(client);
@@ -310,17 +312,17 @@ impl DashDownloader {
     /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise
     /// the heuristics implemented by ffmpeg will apply (e.g. an `.avi` extension will generate
     /// an AVI container).
-    pub fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
+    pub async fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
-            let client = reqwest::blocking::Client::builder()
+            let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
                 .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
         }
-        fetch_mpd(self)
+        fetch_mpd(self).await
     }
 
     /// Download DASH streaming media content to a file in the current working directory and return
@@ -329,21 +331,21 @@ impl DashDownloader {
     ///
     /// The downloaded media will be placed in an MPEG-4 container. To select another media container,
     /// see the `download_to` function.
-    pub fn download(mut self) -> Result<PathBuf, DashMpdError> {
+    pub async fn download(mut self) -> Result<PathBuf, DashMpdError> {
         let cwd = env::current_dir()
             .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
         let filename = generate_filename_from_url(&self.mpd_url);
         let outpath = cwd.join(filename);
         self.output_path = Some(outpath);
         if self.http_client.is_none() {
-            let client = reqwest::blocking::Client::builder()
+            let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
                 .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
         }
-        fetch_mpd(self)
+        fetch_mpd(self).await
     }
 }
 
@@ -390,7 +392,7 @@ fn fetchable_xlink_href(href: &str) -> bool {
 // allow "video/" MIME types because some servers return "video/mp4" content-type for audio segments
 // in an MP4 container, and we accept application/octet-stream headers because some servers are
 // poorly configured.
-fn content_type_audio_p(response: &reqwest::blocking::Response) -> bool {
+fn content_type_audio_p(response: &reqwest::Response) -> bool {
     match response.headers().get("content-type") {
         Some(ct) => {
             let ctb = ct.as_bytes();
@@ -403,7 +405,7 @@ fn content_type_audio_p(response: &reqwest::blocking::Response) -> bool {
 }
 
 // Return true if the response includes a content-type header corresponding to video.
-fn content_type_video_p(response: &reqwest::blocking::Response) -> bool {
+fn content_type_video_p(response: &reqwest::Response) -> bool {
     match response.headers().get("content-type") {
         Some(ct) => {
             let ctb = ct.as_bytes();
@@ -494,7 +496,6 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
     log::info!("Transient error after {dur:?}: {err:?}");
 }
 
-// fn network_error(why: &str, e: reqwest::Error) -> DashMpdError {
 fn network_error(why: &str, e: impl std::error::Error) -> DashMpdError {
     DashMpdError::Network(format!("{why}: {e}"))
 }
@@ -504,16 +505,17 @@ fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
 }
 
 
-fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
+async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     let client = &downloader.http_client.as_ref().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
-    let fetch = || {
+    let fetch = || async {
         client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-Language", "en-US,en")
             .header("Upgrade-Insecure-Requests", "1")
             .header("Sec-Fetch-Mode", "navigate")
             .send()
+            .await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
             .map_err(categorize_reqwest_error)
@@ -527,6 +529,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
     let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+        .await
         .map_err(|e| network_error("requesting DASH manifest", e))?;
     if !response.status().is_success() {
         let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
@@ -534,6 +537,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
     }
     let mut redirected_url = response.url().clone();
     let xml = response.text()
+        .await
         .map_err(|e| network_error("fetching DASH manifest", e))?;
     let mut mpd: MPD = parse(&xml)
         .map_err(|e| parse_error("parsing DASH XML", e))?;
@@ -544,17 +548,19 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         if downloader.verbosity > 0 {
             println!("Redirecting to new manifest <Location> {new_url}");
         }
-        let fetch = || {
+        let fetch = || async {
             client.get(&downloader.mpd_url)
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate")
                 .send()
+                .await
                 .map_err(categorize_reqwest_error)?
                 .error_for_status()
                 .map_err(categorize_reqwest_error)
         };
         let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+            .await
             .map_err(|e| network_error("requesting relocated DASH manifest", e))?;
         if !response.status().is_success() {
             let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
@@ -562,6 +568,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
         }
         redirected_url = response.url().clone();
         let xml = response.text()
+            .await
             .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
         mpd = parse(&xml)
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
@@ -611,10 +618,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     .header("Accept-Language", "en-US,en")
                     .header("Sec-Fetch-Mode", "navigate")
                     .send()
+                    .await
                     .map_err(|e| network_error("fetching XLink on Period element", e))?
                     .error_for_status()
                     .map_err(|e| network_error("fetching XLink on Period element", e))?
                     .text()
+                    .await
                     .map_err(|e| network_error("resolving XLink on Period element", e))?;
                 let linked_period: Period = quick_xml::de::from_str(&xml)
                     .map_err(|e| parse_error("parsing Period XLink XML", e))?;
@@ -677,10 +686,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
                             .send()
+                            .await
                             .map_err(|e| network_error("fetching XLink URL for AdaptationSet", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching XLink URL for AdaptationSet", e))?
                             .text()
+                            .await
                             .map_err(|e| network_error("resolving XLink on AdaptationSet element", e))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
@@ -718,10 +729,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 .header("Accept-Language", "en-US,en")
                                 .header("Sec-Fetch-Mode", "navigate")
                                 .send()
+                                .await
                                 .map_err(|e| network_error("fetching XLink URL for Representation", e))?
                                 .error_for_status()
                                 .map_err(|e| network_error("fetching XLink URL for Representation", e))?
                                 .text()
+                                .await
                                 .map_err(|e| network_error("resolving XLink URL for Representation", e))?;
                             let linked_representation: Representation = quick_xml::de::from_str(&xml)
                                 .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
@@ -1122,10 +1135,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
                             .send()
+                            .await
                             .map_err(|e| network_error("fetching XLink URL for video Adaptation", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching XLink URL for video Adaptation", e))?
                             .text()
+                            .await
                             .map_err(|e| network_error("resolving XLink URL for video Adaptation", e))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
@@ -1161,10 +1176,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                                 .header("Accept-Language", "en-US,en")
                                 .header("Sec-Fetch-Mode", "navigate")
                                 .send()
+                                .await
                                 .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
                                 .error_for_status()
                                 .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
                                 .text()
+                                .await
                                 .map_err(|e| network_error("resolving XLink URL for video Representation", e))?;
                             let linked_representation: Representation = quick_xml::de::from_str(&xml)
                                 .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
@@ -1541,10 +1558,12 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                     let subs = client.get(st_url.clone())
                         .header("Referer", redirected_url.to_string())
                         .send()
+                        .await
                         .map_err(|e| network_error("fetching subtitles", e))?
                         .error_for_status()
                         .map_err(|e| network_error("fetching subtitles", e))?
                         .bytes()
+                        .await
                         .map_err(|e| network_error("retrieving subtitles", e))?;
                     let mut subs_path = output_path.clone();
                     let subtype = subtitle_type(&sta);
@@ -1651,9 +1670,8 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 }
                 have_audio = true;
             } else {
-                // We could download these segments in parallel using reqwest in async mode,
-                // though that might upset some servers.
-                let fetch = || {
+                // We could download these segments in parallel, but that might upset some servers.
+                let fetch = || async {
                     // Don't use only "audio/*" in Accept header because some web servers
                     // (eg. media.axprod.net) are misconfigured and reject requests for
                     // valid audio content (eg .m4s)
@@ -1667,15 +1685,18 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         }
                     }
                     req.send()
+                        .await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
                 };
                 let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+                    .await
                     .map_err(|e| network_error("fetching DASH audio segment", e))?;
                 if response.status().is_success() {
                     if !downloader.content_type_checks || content_type_audio_p(&response) {
                         let dash_bytes = response.bytes()
+                            .await
                             .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
                         if downloader.verbosity > 2 {
                             if let Some(sb) = &frag.start_byte {
@@ -1752,7 +1773,7 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                 }
                 have_video = true;
             } else {
-                let fetch = || {
+                let fetch = || async {
                     let mut req = client.get(frag.url.clone())
                         .header("Accept", "video/*")
                         .header("Referer", redirected_url.to_string())
@@ -1763,15 +1784,18 @@ fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> {
                         }
                     }
                     req.send()
+                        .await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
                 };
                 let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+                    .await
                     .map_err(|e| network_error("fetching DASH video segment", e))?;
                 if response.status().is_success() {
                     if !downloader.content_type_checks || content_type_video_p(&response) {
                         let dash_bytes = response.bytes()
+                            .await
                             .map_err(|e| network_error("fetching DASH video segment", e))?;
                         if downloader.verbosity > 2 {
                             if let Some(sb) = &frag.start_byte {

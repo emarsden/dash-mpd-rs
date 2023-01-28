@@ -9,7 +9,8 @@ use std::process;
 use env_logger::Env;
 use dash_mpd::fetch::DashDownloader;
 
-fn main () {
+#[tokio::main]
+async fn main () {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let url = "http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-ctv-events.mpd";
     let ddl = DashDownloader::new(url)
@@ -17,10 +18,10 @@ fn main () {
         .verbosity(2);
     #[cfg(target_os = "windows")]
     let ddl = ddl.with_vlc("C:/Program Files/VideoLAN/VLC/vlc.exe");
-    match ddl.download() {
-        Ok(path) => println!("Downloaded to {:?}", path),
+    match ddl.download().await {
+        Ok(path) => println!("Downloaded to {path:?}"),
         Err(e) => {
-            eprintln!("Download failed: {:?}", e);
+            eprintln!("Download failed: {e:?}");
             process::exit(-1);
         },
     }

@@ -1,5 +1,18 @@
 # Changelog
 
+
+## [0.7.0] - 2023-01-28
+### Changed
+- Downloading: switched to an asynchronous API. This will require code changes for clients.
+  Functions `download` and `download_to` are now `async`, and you will need to call them from an
+  async context and use `.await` (see the example `download_bbc.rs` for some sample code). If you
+  are passing a reqwest client to `DashDownloader` (using `with_http_client`), you should now use a
+  standard `Client` built using `reqwest::Client::builder()`, instead of using
+  `reqwest::blocking::Client::builder()` as previously (see the example `download_proxy.rs` for some
+  sample code). Clients will need to add an explicit dependency on the tokio crate (which was
+  already pulled in via the reqwest crate, but implicitly).
+
+
 ## [0.6.4] - 2023-01-14
 ### New
 - Preliminary support for fetching subtitles (see function `fetch_subtitles` on `DashDownloader`).

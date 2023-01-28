@@ -40,7 +40,8 @@ impl ProgressObserver for DownloadProgressBar {
     }
 }
 
-fn main () {
+#[tokio::main]
+async fn main () {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let matches = clap::Command::new("downloader_progressbar")
         .about("Download content from a DASH streaming media manifest")
@@ -64,10 +65,10 @@ fn main () {
             dl = dl.best_quality();
         }
     }
-    match dl.download_to("media.mkv") {
-        Ok(path) => println!("Downloaded to {:?}", path),
+    match dl.download_to("media.mkv").await {
+        Ok(path) => println!("Downloaded to {path:?}"),
         Err(e) => {
-            eprintln!("{}: {:?}", "Download failed".red(), e);
+            eprintln!("{}: {e:?}", "Download failed".red());
             process::exit(-1);
         },
     }

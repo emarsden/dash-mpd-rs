@@ -11,8 +11,8 @@
 
 
 
-#[test]
-fn test_dl1() {
+#[tokio::test]
+async fn test_dl1() {
     use dash_mpd::fetch::DashDownloader;
 
     // Don't run download tests on CI infrastructure
@@ -23,7 +23,9 @@ fn test_dl1() {
     let out = std::env::temp_dir().join("itec-elephants-dream.mp4");
     assert!(DashDownloader::new(mpd_url)
             .worst_quality()
-            .download_to(out.clone()).is_ok());
+            .download_to(out.clone())
+            .await
+            .is_ok());
     println!("DASH content saved to file {}", out.to_string_lossy());
 }
 
@@ -32,9 +34,9 @@ fn test_dl1() {
 // identical to previous "known good" downloads. These checks are fragile because checksums and
 // exact octet counts might change due to version changes in libav, that we use for muxing.
 // Running this test downloads several hundred megabytes, so we disable it for CI.
-#[test]
+#[tokio::test]
 #[allow(dead_code)]
-fn test_downloader() {
+async fn test_downloader() {
     use std::io;
     use sha2::{Digest, Sha256};
     use hex_literal::hex;
@@ -46,9 +48,9 @@ fn test_downloader() {
     if std::env::var("CI").is_ok() {
         return;
     }
-    fn check_mpd(mpd_url: &str, octets: u64, digest: &[u8]) {
+    async fn check_mpd(mpd_url: &str, octets: u64, digest: &[u8]) {
         println!("Checking MPD URL {mpd_url}");
-        match DashDownloader::new(mpd_url).download() {
+        match DashDownloader::new(mpd_url).download().await {
             Ok(path) => {
                 // check that ffprobe identifies this as a media file
                 let probed_meta = ffprobe(path.clone());
@@ -89,18 +91,18 @@ fn test_downloader() {
 
     check_mpd("https://res.cloudinary.com/demo-robert/video/upload/sp_16x9_vp9/yourPublicId.mpd",
               445_758,
-              &hex!("7d6533d19a4a60c5c76cead7b2de1664f4ff856916037a574f641aad0324ee36"));
+              &hex!("7d6533d19a4a60c5c76cead7b2de1664f4ff856916037a574f641aad0324ee36")).await;
 
     check_mpd("https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
               1_786_875,
-              &hex!("fc70321b55339d37c6c1ce8303fe357f3b1c83e86bc38fac54eed553cf3a251b"));
+              &hex!("fc70321b55339d37c6c1ce8303fe357f3b1c83e86bc38fac54eed553cf3a251b")).await;
 
 }
 
 
 
-#[test]
-fn test_content_protection_parsing() {
+#[tokio::test]
+async fn test_content_protection_parsing() {
     use std::time::Duration;
     use dash_mpd::{parse, MPD};
 
@@ -119,9 +121,9 @@ fn test_content_protection_parsing() {
         known.contains(&scheme)
     }
 
-    fn check_cp(mpd_url: &str) {
+    async fn check_cp(mpd_url: &str) {
         println!("Checking MPD URL {mpd_url}");
-        let client = reqwest::blocking::Client::builder()
+        let client = reqwest::Client::builder()
             .timeout(Duration::new(30, 0))
             .gzip(true)
             .build()
@@ -129,8 +131,10 @@ fn test_content_protection_parsing() {
         let xml = client.get(mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .send()
+            .await
             .expect("requesting MPD content")
             .text()
+            .await
             .expect("fetching MPD content");
         let mpd: MPD = parse(&xml)
             .expect("parsing MPD");
@@ -153,17 +157,17 @@ fn test_content_protection_parsing() {
     if std::env::var("CI").is_ok() {
         return;
     }
-    check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd");
-    check_cp("https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd");
+    check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd").await;
+    check_cp("https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd").await;
 }
 
 
 
 
 // Check error reporting for missing DASH manifest
-#[test]
+#[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
-fn test_error_missing_mpd() {
+async fn test_error_missing_mpd() {
     use dash_mpd::fetch::DashDownloader;
 
     // Don't run download tests on CI infrastructure
@@ -173,14 +177,16 @@ fn test_error_missing_mpd() {
     let out = std::env::temp_dir().join("failure1.mkv");
     DashDownloader::new("http://httpbin.org/status/404")
         .worst_quality()
-        .download_to(out.clone()).unwrap();
+        .download_to(out.clone())
+        .await
+        .unwrap();
 }
 
 // Check error reporting when Period element contains a HTTP 404 XLink
 // (this URL from DASH test suite)
-#[test]
+#[tokio::test]
 #[should_panic(expected = "fetching XLink")]
-fn test_error_xlink_gone() {
+async fn test_error_xlink_gone() {
     use dash_mpd::fetch::DashDownloader;
 
     // Don't run download tests on CI infrastructure
@@ -190,5 +196,7 @@ fn test_error_xlink_gone() {
     let out = std::env::temp_dir().join("failure1.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
         .worst_quality()
-        .download_to(out.clone()).unwrap();
+        .download_to(out.clone())
+        .await
+        .unwrap();
 }

@@ -12,7 +12,8 @@ use clap::Arg;
 use env_logger::Env;
 
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let matches = clap::Command::new("dash_stream_info")
         .about("Show codec and bandwidth for audio and video streams specified in a DASH MPD")
@@ -24,8 +25,8 @@ fn main() {
              .required(true))
         .get_matches();
     let url = matches.get_one::<String>("url").unwrap();
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::new(10, 0))
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
         .expect("creating reqwest HTTP client");
@@ -33,8 +34,10 @@ fn main() {
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .header("Accept-language", "en-US,en")
         .send()
+        .await
         .expect("requesting DASH MPD")
         .text()
+        .await
         .expect("fetching MPD content");
     let mpd: MPD = parse(&xml).expect("parsing MPD content");
     let period = &mpd.periods[0];
