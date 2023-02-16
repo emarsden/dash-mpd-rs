@@ -17,7 +17,7 @@ serde_with = "2"
 quick-xml = { version = "0.27", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 num-traits = "0.2"
-iso8601 = "0.5"
+iso8601 = "0.6"
 regex = ">=1.5.5"
 thiserror = "1"
 fs-err = "2.9"

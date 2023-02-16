@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.1] - 2023-02
+### Changed
+- Update dependency iso8601 to v0.6.
+
 
 ## [0.7.0] - 2023-01-28
 ### Changed
