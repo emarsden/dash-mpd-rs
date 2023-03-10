@@ -896,6 +896,8 @@ pub struct Period {
     #[serde(rename = "AdaptationSet")]
     pub adaptations: Vec<AdaptationSet>,
     pub asset_identifier: Option<AssetIdentifier>,
+    #[serde(rename = "EventStream")]
+    pub event_streams: Vec<EventStream>,
 }
 
 #[skip_serializing_none]
