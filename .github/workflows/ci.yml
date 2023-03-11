@@ -9,7 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@cargo-hack
       - run: cargo check
+      - run: cargo hack check --feature-powerset --no-dev-deps
 
   test:
     name: dash-mpd-rs test/stable
