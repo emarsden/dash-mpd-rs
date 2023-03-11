@@ -186,6 +186,26 @@ dash-mpd = { version = "0.7", default-features = false }
 ```
 
 
+## Optional features
+
+The following Cargo features can be enabled or disabled:
+
+- `fetch`: enables support for downloading stream content
+
+- `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
+  mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate
+
+- `rustls-tls`: enable the `rustls-tls` feature on our `reqwest` dependency (use `rustls` instead of
+  system-native TLS). You may need to enable this for static linking with the musl-libc target on
+  Linux).
+
+- `compression`: enable the `gzip` feature on our `reqwest` dependency, to enable gzip compression
+  and decompression of HTTP requests.
+
+- `trust-dns`: enable the `trust-dns` feature on our `reqwest` dependency, to use the trust-dns DNS
+  resolver library instead of the system resolver.
+
+
 
 ## Platforms
 

@@ -164,7 +164,6 @@ impl DashDownloader {
     /// let client = reqwest::Client::builder()
     ///      .user_agent("Mozilla/5.0")
     ///      .timeout(Duration::new(30, 0))
-    ///      .gzip(true)
     ///      .build()
     ///      .expect("creating reqwest HTTP client");
     ///  let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
@@ -317,7 +316,6 @@ impl DashDownloader {
         if self.http_client.is_none() {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
-                .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
@@ -340,7 +338,6 @@ impl DashDownloader {
         if self.http_client.is_none() {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
-                .gzip(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
             self.http_client = Some(client);
