@@ -2,7 +2,9 @@
 
 ## [0.7.1] - 2023-03-12
 ### New
-- Add EventStream node to Period nodes (thanks to @noguxun).
+- Add `EventStream` node to Period nodes (thanks to @noguxun).
+- Add `@maxPlayoutRate`, `@profiles` and `@codingDependency` attributes on Representation and
+  AdaptationSet nodes.
 - New crate features `compression`, `rustls-tls` and `trust-dns` to enable (pass through) the
   corresponding features on the `reqwest` dependency. Otherwise, we use reqwest with its default
   feature set. Suggestion from @HoLLy.

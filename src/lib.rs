@@ -602,6 +602,8 @@ pub struct Representation {
     pub codecs: Option<String>,
     #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
+    #[serde(rename = "@profiles")]
+    pub profiles: Option<String>,
     /// If present, this attribute is expected to be set to "progressive".
     #[serde(rename = "@scanType")]
     pub scanType: Option<String>,
@@ -616,7 +618,9 @@ pub struct Representation {
     pub audioSamplingRate: Option<u64>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate")]
-    pub maxPlayoutRate: Option<u64>,
+    pub maxPlayoutRate: Option<f64>,
+    #[serde(rename = "@codingDependency")]
+    pub codingDependency: Option<bool>,
     #[serde(rename = "@width")]
     pub width: Option<u64>,
     #[serde(rename = "@height")]
@@ -813,6 +817,8 @@ pub struct AdaptationSet {
     // eg "audio", "video", "text"
     #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
+    #[serde(rename = "@profiles")]
+    pub profiles: Option<String>,
     /// Content language, in RFC 5646 format
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
@@ -820,6 +826,10 @@ pub struct AdaptationSet {
     pub par: Option<String>,
     #[serde(rename = "@segmentAlignment")]
     pub segmentAlignment: Option<bool>,
+    #[serde(rename = "@segmentProfiles")]
+    /// Specifies the profiles of Segments that are essential to process the Representation. The
+    /// semantics depend on the value of the @mimeType attribute.
+    pub segmentProfiles: Option<String>,
     #[serde(rename = "@subsegmentAlignment")]
     pub subsegmentAlignment: Option<bool>,
     #[serde(rename = "@subsegmentStartsWithSAP")]
@@ -850,7 +860,9 @@ pub struct AdaptationSet {
     pub frameRate: Option<String>, // it can be something like "15/2"
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate")]
-    pub maxPlayoutRate: Option<u64>,
+    pub maxPlayoutRate: Option<f64>,
+    #[serde(rename = "@codingDependency")]
+    pub codingDependency: Option<bool>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
@@ -881,6 +893,7 @@ pub struct AssetIdentifier {
 pub struct Period {
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    /// The start time of the Period relative to the MPD availability start time.
     #[serde(rename = "@start")]
     pub start: Option<String>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
