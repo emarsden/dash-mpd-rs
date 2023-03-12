@@ -41,7 +41,7 @@ async fn main () {
         .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
-        .expect("creating reqwest HTTP client");
+        .expect("creating HTTP client");
     let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cloudflarestream.mkv");
     match DashDownloader::new(url)

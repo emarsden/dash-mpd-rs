@@ -27,9 +27,8 @@ async fn main() {
     let url = matches.get_one::<String>("url").unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
-        .gzip(true)
         .build()
-        .expect("creating reqwest HTTP client");
+        .expect("creating HTTP client");
     let xml = client.get(url)
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .header("Accept-language", "en-US,en")
@@ -71,7 +70,7 @@ async fn main() {
                 Some(b) => b.to_string(),
                 None => "<unspecified>".to_string(),
             };
-            println!("Video stream with codec {}, bandwidth {}", codec, bw);
+            println!("Video stream with codec {codec}, bandwidth {bw}");
         }
     }
 }
