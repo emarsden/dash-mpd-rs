@@ -962,6 +962,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 let mut segment_duration;
                                 let mut number = start_number;
                                 for s in &stl.segments {
+                                    if let Some(t) = s.t {
+                                        segment_time = t;
+                                    }
+                                    segment_duration = s.d;
                                     // the URLTemplate may be based on $Time$, or on $Number$
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
@@ -970,10 +974,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
                                     audio_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
-                                    if let Some(t) = s.t {
-                                        segment_time = t;
-                                    }
-                                    segment_duration = s.d;
                                     if let Some(r) = s.r {
                                         let mut count = 0i64;
                                         // FIXME perhaps we also need to account for startTime?
@@ -1396,6 +1396,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 let mut segment_duration;
                                 let mut number = start_number;
                                 for s in &stl.segments {
+                                    if let Some(t) = s.t {
+                                        segment_time = t;
+                                    }
+                                    segment_duration = s.d;
                                     // the URLTemplate may be based on $Time$, or on $Number$
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
@@ -1404,10 +1408,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                         .map_err(|e| parse_error("joining media with BaseURL", e))?;
                                     video_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
                                     number += 1;
-                                    if let Some(t) = s.t {
-                                        segment_time = t;
-                                    }
-                                    segment_duration = s.d;
                                     if let Some(r) = s.r {
                                         let mut count = 0i64;
                                         // FIXME perhaps we also need to account for startTime?
