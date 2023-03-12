@@ -614,6 +614,9 @@ pub struct Representation {
     pub bandwidth: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
+    /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
+    #[serde(rename = "@maxPlayoutRate")]
+    pub maxPlayoutRate: Option<u64>,
     #[serde(rename = "@width")]
     pub width: Option<u64>,
     #[serde(rename = "@height")]
@@ -845,6 +848,9 @@ pub struct AdaptationSet {
     pub maxHeight: Option<u64>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // it can be something like "15/2"
+    /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
+    #[serde(rename = "@maxPlayoutRate")]
+    pub maxPlayoutRate: Option<u64>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
