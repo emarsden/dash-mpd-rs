@@ -1,8 +1,15 @@
 # Changelog
 
-## [0.7.1] - 2023-02
+## [0.7.1] - 2023-03-12
+### New
+- Add EventStream node to Period nodes (thanks to @noguxun).
+- New crate features `compression`, `rustls-tls` and `trust-dns` to enable (pass through) the
+  corresponding features on the `reqwest` dependency. Otherwise, we use reqwest with its default
+  feature set. Suggestion from @HoLLy.
+
 ### Changed
 - Update dependency iso8601 to v0.6.
+- The tokio crate is a dev-dependency rather than a full dependency (from @HoLLy).
 
 
 ## [0.7.0] - 2023-01-28
@@ -35,7 +42,7 @@
 ### Changed
 - Fix: xs:datetime fields such as `MPD@publishTime` and `MPD@availabilityStartTime` without a
   timezone are now parsed correctly instead of triggering an error. Issue seen with YouTube DASH
-  manifests, reported by erg43hergeg.
+  manifests, reported by @erg43hergeg.
 
 
 ## [0.6.2] - 2022-11-27

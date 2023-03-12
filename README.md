@@ -69,9 +69,9 @@ The choice of external muxer depends on the filename extension of the path suppl
 
 ## Limitations / unsupported features
 
-- Dynamic MPD manifests, that are used for live streaming/OTT TV
+- We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV
 - Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
-- XLink with actuate=onRequest
+- No support for XLink with actuate=onRequest semantics
 
 
 ## Usage
@@ -85,9 +85,8 @@ use dash_mpd::{MPD, parse};
 fn main() {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::new(30, 0))
-        .gzip(true)
         .build()
-        .expect("creating reqwest HTTP client");
+        .expect("creating HTTP client");
     let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
