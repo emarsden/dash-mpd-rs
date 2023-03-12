@@ -10,6 +10,7 @@
   feature set. Suggestion from @HoLLy.
 
 ### Changed
+- Fix download of media streams with `$Time`-based `SegmentTimeline` when initial `@t` is non-zero.
 - Update dependency iso8601 to v0.6.
 - The tokio crate is a dev-dependency rather than a full dependency (from @HoLLy).
 
