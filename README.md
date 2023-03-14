@@ -196,7 +196,7 @@ The following Cargo features can be enabled or disabled:
 
 - `rustls-tls`: enable the `rustls-tls` feature on our `reqwest` dependency (use `rustls` instead of
   system-native TLS). You may need to enable this for static linking with the musl-libc target on
-  Linux).
+  Linux.
 
 - `compression`: enable the `gzip` feature on our `reqwest` dependency, to enable gzip compression
   and decompression of HTTP requests.

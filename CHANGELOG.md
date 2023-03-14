@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2023-03
+### Changed
+- Update dependency quick-xml to v0.28.
+
+
 ## [0.7.1] - 2023-03-12
 ### New
 - Add `EventStream` node to Period nodes (thanks to @noguxun).
