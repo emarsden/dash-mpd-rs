@@ -3,6 +3,7 @@
 ## [0.7.2] - 2023-03
 ### Changed
 - Update dependency quick-xml to v0.28.
+- Update dependency xattr to v1.0.
 
 
 ## [0.7.1] - 2023-03-12

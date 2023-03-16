@@ -1896,7 +1896,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     // As per https://www.freedesktop.org/wiki/CommonExtendedAttributes/, set extended filesystem
     // attributes indicating metadata such as the origin URL, title, source and copyright, if
     // specified in the MPD manifest. This functionality is only active on platforms where the xattr
-    // crate supports extended attributes (currently Linux, MacOS, FreeBSD, and NetBSD); on
+    // crate supports extended attributes (currently Android, Linux, MacOS, FreeBSD, and NetBSD); on
     // unsupported Unix platforms it's a no-op. On other non-Unix platforms the crate doesn't build.
     //
     // TODO: on Windows, could use NTFS Alternate Data Streams
