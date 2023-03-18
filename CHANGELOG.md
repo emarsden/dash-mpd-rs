@@ -4,6 +4,7 @@
 ### New
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
 - Add `@dependencyId` attribute to Representation nodes.
+- Add `@qualityRanking` attribute to Representation nodes.
 - Add `@indexRange` and `@indexRangeExact` attributes to SegmentTemplate and SegmentList nodes.
 - Add definition for `Representation.FramePacking` nodes.
 - Add definition for `MPD.PatchLocation` nodes, that allow a DASH client to retrieve a patch from

@@ -642,6 +642,11 @@ pub struct Representation {
     /// The Sample Aspect Ratio, eg. "1:1"
     #[serde(rename = "@sar")]
     pub sar: Option<String>,
+    /// Specifies a quality ranking of this Representation relative to others in the same
+    /// AdaptationSet. Lower values represent higher quality content. If not present, then no
+    /// ranking is defined.
+    #[serde(rename = "@qualityRanking")]
+    pub qualityRanking: Option<u8>,
     /// The average bandwidth of the Representation.
     #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
