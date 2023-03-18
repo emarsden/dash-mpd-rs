@@ -4,6 +4,7 @@
 ### New
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
 - Add `@dependencyId` attribute to Representation nodes.
+- Add `@indexRange` and `@indexRangeExact` attributes to SegmentTemplate nodes.
 - Add definition for `MPD.PatchLocation` nodes, that allow a DASH client to retrieve a patch from
   the server that contains a set of instructions for replacing certain parts of the MPD manifest
   with updated information.

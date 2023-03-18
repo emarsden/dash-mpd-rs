@@ -435,6 +435,10 @@ pub struct SegmentTemplate {
     pub media: Option<String>,
     #[serde(rename = "@index")]
     pub index: Option<String>,
+    #[serde(rename = "@indexRange")]
+    pub indexRange: Option<String>,
+    #[serde(rename = "@indexRangeExact")]
+    pub indexRangeExact: Option<bool>,
     pub SegmentTimeline: Option<SegmentTimeline>,
     #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
