@@ -529,6 +529,10 @@ pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
     #[serde(rename = "@duration")]
     pub duration: Option<u64>,
+    #[serde(rename = "@indexRange")]
+    pub indexRange: Option<String>,
+    #[serde(rename = "@indexRangeExact")]
+    pub indexRangeExact: Option<bool>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     // actually xlink:href
     #[serde(rename = "@href")]
