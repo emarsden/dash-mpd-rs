@@ -12,6 +12,8 @@
   with updated information.
 
 ### Changed
+- Downloading: use `Representation.qualityRanking` attribute, if present, to select representations
+  according to user's quality preference.
 - Update dependency quick-xml to v0.28.
 - Update dependency xattr to v1.0.
 - `AudioChannelConfiguration` nodes in Representation and AdaptationSet changed from an Option to a

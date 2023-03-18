@@ -741,12 +741,29 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         representations.push(r.clone());
                     }
                 }
-                let maybe_audio_repr = if downloader.quality_preference == QualityPreference::Lowest {
-                    representations.iter()
-                        .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
+                // We rank according to the @qualityRanking attribute if it is present (quality
+                // ranking may be different from bandwidth ranking when different codecs are used).
+                let maybe_audio_repr = if representations.iter()
+                    .all(|x| x.qualityRanking.is_some())
+                {
+                    // rank according to the @qualityRanking attribute (lower values represent
+                    // higher quality content)
+                    if downloader.quality_preference == QualityPreference::Lowest {
+                        representations.iter()
+                            .max_by_key(|x| x.qualityRanking.unwrap())
+                    } else {
+                        representations.iter()
+                            .min_by_key(|x| x.qualityRanking.unwrap())
+                    }
                 } else {
-                    representations.iter()
-                        .max_by_key(|x| x.bandwidth.unwrap_or(0))
+                    // rank according to the bandwidth attribute
+                    if downloader.quality_preference == QualityPreference::Lowest {
+                        representations.iter()
+                            .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
+                    } else {
+                        representations.iter()
+                            .max_by_key(|x| x.bandwidth.unwrap_or(0))
+                    }
                 };
                 if let Some(audio_repr) = maybe_audio_repr {
                     if downloader.verbosity > 0 {
@@ -1188,12 +1205,29 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         representations.push(r.clone());
                     }
                 }
-                let maybe_video_repr = if downloader.quality_preference == QualityPreference::Lowest {
-                    representations.iter()
-                        .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
+                // We rank according to the @qualityRanking attribute if it is present (quality
+                // ranking may be different from bandwidth ranking when different codecs are used).
+                let maybe_video_repr = if representations.iter()
+                    .all(|x| x.qualityRanking.is_some())
+                {
+                    // rank according to the @qualityRanking attribute (lower values represent
+                    // higher quality content)
+                    if downloader.quality_preference == QualityPreference::Lowest {
+                        representations.iter()
+                            .max_by_key(|x| x.qualityRanking.unwrap())
+                    } else {
+                        representations.iter()
+                            .min_by_key(|x| x.qualityRanking.unwrap())
+                    }
                 } else {
-                    representations.iter()
-                        .max_by_key(|x| x.bandwidth.unwrap_or(0))
+                    // rank according to the bandwidth attribute
+                    if downloader.quality_preference == QualityPreference::Lowest {
+                        representations.iter()
+                            .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
+                    } else {
+                        representations.iter()
+                            .max_by_key(|x| x.bandwidth.unwrap_or(0))
+                    }
                 };
                 if let Some(video_repr) = maybe_video_repr {
                     if downloader.verbosity > 0 {
