@@ -1292,18 +1292,30 @@ pub enum SubtitleType {
     Unknown,
 }
 
+fn subtitle_type_for_mimetype(mt: &str) -> Option<SubtitleType> {
+    // WebVTT, almost the same as SRT
+    if mt.eq("text/vtt") {
+        return Some(SubtitleType::Vtt);
+    } else if mt.eq("application/ttml+xml") {
+        return Some(SubtitleType::Ttml);
+    } else if mt.eq("application/x-sami") {
+        return Some(SubtitleType::Sami);
+    }
+    None
+}
+
 pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
     if let Some(mimetype) = &a.mimeType {
-        // WebVTT, almost the same as SRT
-        if mimetype.eq("text/vtt") {
-            return SubtitleType::Vtt;
-        } else if mimetype.eq("application/ttml+xml") {
-            return SubtitleType::Ttml;
-        } else if mimetype.eq("application/x-sami") {
-            return SubtitleType::Sami;
+        if let Some(st) = subtitle_type_for_mimetype(mimetype) {
+            return st;
         }
     }
     for r in a.representations.iter() {
+        if let Some(mimetype) = &r.mimeType {
+            if let Some(st) = subtitle_type_for_mimetype(mimetype) {
+                return st;
+            }
+        }
         if let Some(codecs) = &r.codecs {
             if codecs == "wvtt" {
                 // can be extracted with https://github.com/xhlove/dash-subtitle-extractor
