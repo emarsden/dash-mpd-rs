@@ -2,6 +2,7 @@
 
 ## [0.7.2] - 2023-03
 ### New
+- Downloading: improve support for subtitles by making use of Representation.mimeType attributes
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
 - Add `@dependencyId` attribute to Representation nodes.
 - Add `@qualityRanking` attribute to Representation nodes.

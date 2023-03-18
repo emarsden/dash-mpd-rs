@@ -1211,6 +1211,13 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
     false
 }
 
+
+fn is_subtitle_mimetype(mt: &str) -> bool {
+    return mt.eq("text/vtt") ||
+        mt.eq("application/ttml+xml") ||
+        mt.eq("application/x-sami")
+}
+
 /// Returns `true` if this AdaptationSet contains subtitle content.
 ///
 /// For now, it contains subtitles if the `@mimeType` attribute is "text/vtt" (WebVTT) or
@@ -1224,10 +1231,7 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
 /// "urn:tva:metadata:cs:AudioPurposeCS:2007" and @value=2.
 pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
     if let Some(mimetype) = &a.mimeType {
-        if mimetype.eq("text/vtt") ||
-            mimetype.eq("application/ttml+xml") ||
-            mimetype.eq("application/x-sami")
-        {
+        if is_subtitle_mimetype(mimetype) {
             return true;
         }
     }
@@ -1238,6 +1242,11 @@ pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
         }
     }
     for r in a.representations.iter() {
+        if let Some(mimetype) = &r.mimeType {
+            if is_subtitle_mimetype(mimetype) {
+                return true;
+            }
+        }
         if let Some(ct) = &r.contentType {
             if ct == "text" {
                 text_ct = true;
