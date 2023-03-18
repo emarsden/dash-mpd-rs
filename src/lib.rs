@@ -578,6 +578,19 @@ pub struct AudioChannelConfiguration {
     pub value: Option<String>,
 }
 
+/// Specifies frame-packing arrangement information of the video media component type.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct FramePacking {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
+}
+
 /// Specifies the accessibility scheme used by the media content.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -646,7 +659,9 @@ pub struct Representation {
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
     pub BaseURL: Vec<BaseURL>,
-    pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub ContentProtection: Vec<ContentProtection>,
+    pub FramePacking: Vec<FramePacking>,
     #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
@@ -889,7 +904,7 @@ pub struct AdaptationSet {
     pub ContentComponent: Vec<ContentComponent>,
     pub ContentProtection: Vec<ContentProtection>,
     pub Accessibility: Option<Accessibility>,
-    pub AudioChannelConfiguration: Option<AudioChannelConfiguration>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     #[serde(rename = "Representation")]
     pub representations: Vec<Representation>,
 }

@@ -5,6 +5,7 @@
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
 - Add `@dependencyId` attribute to Representation nodes.
 - Add `@indexRange` and `@indexRangeExact` attributes to SegmentTemplate and SegmentList nodes.
+- Add definition for `Representation.FramePacking` nodes.
 - Add definition for `MPD.PatchLocation` nodes, that allow a DASH client to retrieve a patch from
   the server that contains a set of instructions for replacing certain parts of the MPD manifest
   with updated information.
@@ -12,6 +13,8 @@
 ### Changed
 - Update dependency quick-xml to v0.28.
 - Update dependency xattr to v1.0.
+- `AudioChannelConfiguration` nodes in Representation and AdaptationSet changed from an Option to a
+  Vec (they may be present multiple times).
 
 
 ## [0.7.1] - 2023-03-12
