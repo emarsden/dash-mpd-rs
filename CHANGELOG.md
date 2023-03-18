@@ -3,6 +3,9 @@
 ## [0.7.2] - 2023-03
 ### New
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
+- Add definition for `MPD.PatchLocation` nodes, that allow a DASH client to retrieve a patch from
+  the server that contains a set of instructions for replacing certain parts of the MPD manifest
+  with updated information.
 
 ### Changed
 - Update dependency quick-xml to v0.28.

@@ -613,6 +613,7 @@ pub struct Representation {
     pub scanType: Option<String>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // can be something like "15/2"
+    /// The Sample Aspect Ratio, eg. "1:1"
     #[serde(rename = "@sar")]
     pub sar: Option<String>,
     /// The average bandwidth of the Representation.
@@ -826,6 +827,7 @@ pub struct AdaptationSet {
     /// Content language, in RFC 5646 format
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    /// The Pixel Aspect Ratio, eg. "16:9"
     #[serde(rename = "@par")]
     pub par: Option<String>,
     #[serde(rename = "@segmentAlignment")]
@@ -862,6 +864,8 @@ pub struct AdaptationSet {
     pub maxHeight: Option<u64>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // it can be something like "15/2"
+    #[serde(rename = "@maxFrameRate")]
+    pub maxFrameRate: Option<String>, // it can be something like "15/2"
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate")]
     pub maxPlayoutRate: Option<f64>,
@@ -1017,6 +1021,19 @@ pub struct LeapSecondInformation {
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
 
+/// The Patch mechanism allows the DASH client to retrieve a patch from the server that contains a
+/// set of instructions for replacing certain parts of the MPD manifest with updated information. It
+/// is a bandwidth-friendly alternative to retrieving a new version of the full MPD manifest.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct PatchLocation {
+    #[serde(rename = "@ttl")]
+    pub ttl: Option<f64>,
+    #[serde(rename = "$value")]
+    pub content: String,
+}
+
 /// The root node of a parsed DASH MPD manifest.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -1075,6 +1092,7 @@ pub struct MPD {
     #[serde(rename = "BaseURL")]
     pub base_url: Vec<BaseURL>,
     pub locations: Vec<Location>,
+    pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
     pub Metrics: Vec<Metrics>,
