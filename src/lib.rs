@@ -604,6 +604,10 @@ pub struct Representation {
     pub contentType: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
+    #[serde(rename = "@segmentProfiles")]
+    /// Specifies the profiles of Segments that are essential to process the Representation. The
+    /// semantics depend on the value of the @mimeType attribute.
+    pub segmentProfiles: Option<String>,
     /// If present, this attribute is expected to be set to "progressive".
     #[serde(rename = "@scanType")]
     pub scanType: Option<String>,

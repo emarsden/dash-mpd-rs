@@ -1,6 +1,9 @@
 # Changelog
 
 ## [0.7.2] - 2023-03
+### New
+- Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
+
 ### Changed
 - Update dependency quick-xml to v0.28.
 - Update dependency xattr to v1.0.
