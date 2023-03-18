@@ -593,6 +593,11 @@ pub struct Representation {
     // no id for a linked Representation (with xlink:href)
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    /// Identifies the base layer representation of this enhancement layer representation.
+    /// Separation between a base layer and a number of enhancement layers is used by certain
+    /// content encoding mechanisms, such as HEVC Scalable and Dolby Vision.
+    #[serde(rename = "@dependencyId")]
+    pub dependencyId: Option<String>,
     // The specification says that @mimeType is mandatory, but it's not always present on
     // akamaized.net MPDs
     #[serde(rename = "@mimeType")]
