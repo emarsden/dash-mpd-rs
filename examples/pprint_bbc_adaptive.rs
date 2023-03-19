@@ -4,27 +4,30 @@
 
 
 use std::time::Duration;
-use dash_mpd::{MPD, parse};
+use anyhow::{Context, Result};
 use env_logger::Env;
+use dash_mpd::{MPD, parse};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
-        .expect("creating HTTP client");
-    let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
+        .context("creating HTTP client")?;
+    let xml = client.get("https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
         .await
-        .expect("requesting MPD content")
+        .context("requesting DASH MPD")?
+        .error_for_status()
+        .context("requesting DASH MPD")?
         .text()
         .await
-        .expect("fetching MPD content");
+        .context("fetching MPD content")?;
     let mpd: MPD = parse(&xml)
-        .expect("parsing MPD");
+        .context("parsing MPD")?;
     if let Some(pi) = mpd.ProgramInformation {
         if let Some(t) = pi.Title {
             println!("Title: {:?}", t.content);
@@ -38,4 +41,10 @@ async fn main() {
             println!("Contains Period of duration {d:?}");
         }
     }
+    mpd.Metrics.iter().for_each(
+        |m| m.Reporting.iter().for_each(
+            |r| println!("{} metrics reporting to {}",
+                         m.metrics,
+                         r.reportingUrl.as_ref().unwrap_or(&String::from("<unspecified>")))));
+    Ok(())
 }
