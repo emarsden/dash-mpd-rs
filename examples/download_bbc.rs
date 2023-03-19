@@ -12,7 +12,8 @@ use dash_mpd::fetch::DashDownloader;
 #[tokio::main]
 async fn main () {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-    let url = "http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-ctv-events.mpd";
+    // this is a 442MB file
+    let url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd";
     let ddl = DashDownloader::new(url)
         .worst_quality()
         .verbosity(2);
