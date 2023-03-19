@@ -1,10 +1,11 @@
 # Changelog
 
-## [0.7.2] - 2023-03
+## [0.7.2] - 2023-03-19
 ### New
 - Downloading: improve support for subtitles by making use of Representation.mimeType attributes
 - New crate feature `native-tls` (enabled by default) which is passed through to the `reqwest`
-  crate.
+  crate. This change allows users to select between TLS support using the platform-native stack
+  (`native-tls`) and using the `rustls-tls` stack.
 - New crate feature `socks` (enabled by default) which is passed through to the `reqwest` crate. It
   enables SOCKS5 proxy support for HTTP/HTTPS requests.
 - Add `@segmentProfiles` attributes to Representation and AdaptationSet nodes.
