@@ -24,7 +24,7 @@ fs-err = "2.9"
 log = "0.4"
 url = { version = "2", optional = true }
 data-url = { version = "0.2", optional = true }
-reqwest = { version = "0.11", optional = true }
+reqwest = { version = "0.11", default-features = false, optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 tempfile = { version = "3", optional = true }
 sanitise-file-name = { version = "1", optional = true }
@@ -41,10 +41,12 @@ clap = "4"
 tokio = { version = ">=1.24.2", features = ["rt-multi-thread", "macros"] }
 
 [features]
-default = ["fetch", "compression"]
+default = ["fetch", "native-tls", "compression", "socks"]
 fetch = ["url", "data-url", "reqwest", "backoff", "tempfile", "sanitise-file-name"]
 libav = ["ac-ffmpeg"]
 compression = ["reqwest/gzip"]
+socks = ["reqwest/socks"]
+native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 trust-dns = ["reqwest/trust-dns"]
 

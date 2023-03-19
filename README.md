@@ -187,19 +187,27 @@ dash-mpd = { version = "0.7", default-features = false }
 
 ## Optional features
 
-The following Cargo features can be enabled or disabled:
+The following additive [Cargo
+features](https://doc.rust-lang.org/stable/cargo/reference/features.html#the-features-section) can
+be enabled:
 
-- `fetch`: enables support for downloading stream content
+- `fetch` *(enabled by default)*: enables support for downloading stream content
+
+- `socks` *(enabled by default)*: enables the `socks` feature on our `reqwest` dependency, which
+  provides SOCKS5 proxy support for HTTP/HTTPS requests.
+
+- `compression` *(enabled by default)*: enables the `gzip` feature on our `reqwest` dependency, to
+  enable gzip compression and decompression of HTTP/HTTPS requests.
+
+- `native-tls` *(enabled by default)*: enables the native-tls feature on our `reqwest` dependency,
+  to enable HTTPS requests using the platform's default TLS implementation.
+
+- `rustls-tls`: enable the `rustls-tls` feature on our `reqwest` dependency (use `rustls` instead of
+  system-native TLS). You may need to enable this (and build without `native-tls`) for static linking
+  with the musl-libc target on Linux.
 
 - `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
   mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate
-
-- `rustls-tls`: enable the `rustls-tls` feature on our `reqwest` dependency (use `rustls` instead of
-  system-native TLS). You may need to enable this for static linking with the musl-libc target on
-  Linux.
-
-- `compression`: enable the `gzip` feature on our `reqwest` dependency, to enable gzip compression
-  and decompression of HTTP requests.
 
 - `trust-dns`: enable the `trust-dns` feature on our `reqwest` dependency, to use the trust-dns DNS
   resolver library instead of the system resolver.
@@ -212,10 +220,15 @@ This crate is tested on the following platforms:
 
 - Linux, with default features (mkvmerge or ffmpeg or vlc as a subprocess) and libav support, on
   AMD64 and Aarch64 architectures
-- MacOS/Aarch64, only with default features (problems building the ac-ffmpeg crate against current ffmpeg)
-- Microsoft Windows 10, only with default features
-- Android 11 on Aarch64 via [termux](https://termux.dev/) (you'll need to install the rust, binutils and ffmpeg packages)
-- OpenBSD/AMD64, only with default features (libav support not tested)
+
+- MacOS/Aarch64, without the libav feature (problems building the ac-ffmpeg crate against current ffmpeg)
+
+- Microsoft Windows 10, without the libav feature
+
+- Android 12 on Aarch64 via [termux](https://termux.dev/), without the libav feature (you'll need to
+  install the rust, binutils and ffmpeg packages)
+
+- OpenBSD/AMD64, without the libav feature
 
 
 ## License
