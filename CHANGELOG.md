@@ -15,6 +15,7 @@
 - Add definition for `MPD.PatchLocation` nodes, that allow a DASH client to retrieve a patch from
   the server that contains a set of instructions for replacing certain parts of the MPD manifest
   with updated information.
+- Add definition (with correct capitalization) for `Metrics.Reporting` nodes.
 
 ### Changed
 - Downloading: use `Representation.qualityRanking` attribute, if present, to select representations

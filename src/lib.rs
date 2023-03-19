@@ -991,7 +991,7 @@ pub struct Range {
 pub struct Metrics {
     #[serde(rename = "@metrics")]
     pub metrics: String,
-    pub reporting: Vec<Reporting>,
+    pub Reporting: Vec<Reporting>,
     pub range: Vec<Range>,
 }
 
