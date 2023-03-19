@@ -17,13 +17,14 @@
 use std::env;
 use std::process;
 use std::time::Duration;
+use anyhow::{Context, Result};
 use env_logger::Env;
 use reqwest::header;
 use dash_mpd::fetch::DashDownloader;
 
 
 #[tokio::main]
-async fn main () {
+async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let mut headers = header::HeaderMap::new();
     headers.insert("X-MY-HEADER",  header::HeaderValue::from_static("foo"));
@@ -33,7 +34,7 @@ async fn main () {
         .unwrap_or_else(|_| env::var("http_proxy")
                    .unwrap_or_else(|_| "socks5://127.0.0.1:9050".to_string()));
     let proxy = reqwest::Proxy::http(http_proxy)
-        .expect("connecting to HTTP proxy");
+        .context("connecting to HTTP proxy")?;
     let client = reqwest::Client::builder()
         .proxy(proxy)
         .user_agent("Mozilla/5.0")
@@ -41,7 +42,7 @@ async fn main () {
         .timeout(Duration::new(30, 0))
         .gzip(true)
         .build()
-        .expect("creating HTTP client");
+        .context("creating HTTP client")?;
     let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cloudflarestream.mkv");
     match DashDownloader::new(url)
@@ -56,4 +57,5 @@ async fn main () {
 	  println!("Stream downloaded to {}", path.display());
 	},
     }
+    Ok(())
 }
