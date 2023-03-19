@@ -5,15 +5,17 @@
 // Example URL: http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
 
 
+use std::process;
 use std::time::Duration;
 use dash_mpd::parse;
 use dash_mpd::{MPD, is_audio_adaptation, is_video_adaptation};
 use clap::Arg;
+use anyhow::{Context, Result};
 use env_logger::Env;
 
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let matches = clap::Command::new("dash_stream_info")
         .about("Show codec and bandwidth for audio and video streams specified in a DASH MPD")
@@ -28,17 +30,23 @@ async fn main() {
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
         .build()
-        .expect("creating HTTP client");
+        .context("creating HTTP client")?;
     let xml = client.get(url)
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .header("Accept-language", "en-US,en")
         .send()
         .await
-        .expect("requesting DASH MPD")
+        .context("requesting DASH MPD")?
+        .error_for_status()
+        .context("requesting DASH MPD")?
         .text()
         .await
-        .expect("fetching MPD content");
-    let mpd: MPD = parse(&xml).expect("parsing MPD content");
+        .context("fetching MPD content")?;
+    let mpd: MPD = parse(&xml).context("parsing MPD content")?;
+    if mpd.periods.is_empty() {
+        println!("MPD file contains zero Period elements");
+        process::exit(2);
+    }
     let period = &mpd.periods[0];
     let unspecified = "<unspecified>".to_string();
     // Show audio tracks with the codecs and available bitrates. Note that MPD manifests used by
@@ -73,4 +81,5 @@ async fn main() {
             println!("Video stream with codec {codec}, bandwidth {bw}");
         }
     }
+    Ok(())
 }
