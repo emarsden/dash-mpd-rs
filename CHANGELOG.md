@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.3] - 2023-03
+### New
+- Add definition for `SubRepresentation` nodes.
+
+
 ## [0.7.2] - 2023-03-19
 ### New
 - Downloading: improve support for subtitles by making use of Representation.mimeType attributes

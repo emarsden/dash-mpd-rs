@@ -604,6 +604,61 @@ pub struct Accessibility {
     pub value: Option<String>,
 }
 
+// A SubRepresentation contains information that only applies to one media stream in a Representation.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct SubRepresentation {
+    #[serde(rename = "@level")]
+    pub level: Option<u32>,
+    #[serde(rename = "@dependencyLevel")]
+    pub dependencyLevel: Option<String>,
+    #[serde(rename = "@contentComponent")]
+    pub contentComponent: Option<String>,
+    #[serde(rename = "@mimeType")]
+    pub mimeType: Option<String>,
+    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
+    #[serde(rename = "@codecs")]
+    pub codecs: Option<String>,
+    #[serde(rename = "@contentType")]
+    pub contentType: Option<String>,
+    #[serde(rename = "@profiles")]
+    pub profiles: Option<String>,
+    #[serde(rename = "@segmentProfiles")]
+    /// Specifies the profiles of Segments that are essential to process the Representation. The
+    /// semantics depend on the value of the @mimeType attribute.
+    pub segmentProfiles: Option<String>,
+    /// If present, this attribute is expected to be set to "progressive".
+    #[serde(rename = "@scanType")]
+    pub scanType: Option<String>,
+    #[serde(rename = "@frameRate")]
+    pub frameRate: Option<String>, // can be something like "15/2"
+    /// The Sample Aspect Ratio, eg. "1:1"
+    #[serde(rename = "@sar")]
+    pub sar: Option<String>,
+    /// The average bandwidth of the Representation.
+    #[serde(rename = "@bandwidth")]
+    pub bandwidth: Option<u64>,
+    #[serde(rename = "@audioSamplingRate")]
+    pub audioSamplingRate: Option<u64>,
+    /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
+    #[serde(rename = "@maxPlayoutRate")]
+    pub maxPlayoutRate: Option<f64>,
+    #[serde(rename = "@codingDependency")]
+    pub codingDependency: Option<bool>,
+    #[serde(rename = "@width")]
+    pub width: Option<u64>,
+    #[serde(rename = "@height")]
+    pub height: Option<u64>,
+    #[serde(rename = "@startWithSAP")]
+    pub startWithSAP: Option<u64>,
+    #[serde(rename = "@maximumSAPPeriod")]
+    pub maximumSAPPeriod: Option<f64>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub ContentProtection: Vec<ContentProtection>,
+    pub FramePacking: Vec<FramePacking>,
+}
+
 /// A representation describes a version of the content, using a specific encoding and bitrate.
 /// Streams often have multiple representations with different bitrates, to allow the client to
 /// select that most suitable to its network conditions (adaptive bitrate or ABR streaming).
@@ -669,6 +724,7 @@ pub struct Representation {
     pub FramePacking: Vec<FramePacking>,
     #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
+    pub SubRepresentation: Vec<SubRepresentation>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
@@ -1213,9 +1269,9 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
 
 
 fn is_subtitle_mimetype(mt: &str) -> bool {
-    return mt.eq("text/vtt") ||
-        mt.eq("application/ttml+xml") ||
-        mt.eq("application/x-sami")
+    mt.eq("text/vtt") ||
+    mt.eq("application/ttml+xml") ||
+    mt.eq("application/x-sami")
 }
 
 /// Returns `true` if this AdaptationSet contains subtitle content.
