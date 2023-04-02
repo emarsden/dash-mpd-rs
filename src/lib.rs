@@ -482,7 +482,9 @@ pub struct BaseURL {
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
     #[serde(rename = "@priority")]
-    pub priority: i64,  // actually dvb:priority
+    pub priority: Option<i64>,  // actually dvb:priority
+    #[serde(rename = "@weight")]
+    pub weight: Option<i64>,  // actually dvb:weight
 }
 
 /// Specifies some common information concerning media segments.
@@ -604,7 +606,7 @@ pub struct Accessibility {
     pub value: Option<String>,
 }
 
-// A SubRepresentation contains information that only applies to one media stream in a Representation.
+/// A SubRepresentation contains information that only applies to one media stream in a Representation.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -827,7 +829,11 @@ pub struct Signal {
     pub content: Vec<Binary>,
 }
 
-/// A DASH event.
+/// A DASH event, a mechanism allowing the server to send additional information to the DASH client
+/// which is synchronized with the media stream. Used for various purposes such as dynamic ad
+/// insertion, providing additional metainformation concerning the actors or location at a point in
+/// the media stream, providing parental guidance information, or sending custom data to the DASH
+/// player application.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -836,12 +842,24 @@ pub struct Event {
     pub id: Option<String>,
     #[serde(rename = "@presentationTime")]
     pub presentationTime: Option<u64>,
+    #[serde(rename = "@presentationTimeOffset")]
+    pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@duration")]
     pub duration: Option<u64>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    /// Possible encoding (eg. "base64") for the Event content or the value of the @messageData
+    /// attribute.
+    #[serde(rename = "@contentEncoding")]
+    pub contentEncoding: Option<String>,
+    /// The value for this event stream element. This attribute is present for backward
+    /// compatibility; message content should be included in the Event element instead.
+    #[serde(rename = "@messageData")]
+    pub messageData: Option<String>,
     #[serde(rename = "Signal")]
     pub signal: Vec<Signal>,
+    #[serde(rename = "$value")]
+    pub content: Vec<u8>,
 }
 
 #[skip_serializing_none]
@@ -992,7 +1010,7 @@ pub struct Period {
     pub id: Option<String>,
     /// The start time of the Period relative to the MPD availability start time.
     #[serde(rename = "@start")]
-    pub start: Option<String>,
+    pub start: Option<String>, // TODO, this should be changed to an xs:duration type
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]

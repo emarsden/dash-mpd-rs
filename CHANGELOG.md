@@ -3,6 +3,9 @@
 ## [0.7.3] - 2023-03
 ### New
 - Add definition for `SubRepresentation` nodes.
+- Add `@presentationTimeOffset`, `@contentEncoding` and `@messageData` attributes to Event nodes.
+  The node content is available via the `content` attribute.
+- Add `@weight` attribute to BaseURL nodes.
 
 
 ## [0.7.2] - 2023-03-19
