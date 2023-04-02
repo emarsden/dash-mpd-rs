@@ -5,6 +5,7 @@ name: macos
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable

@@ -6,6 +6,7 @@ jobs:
   check:
     name: dash-mpd-rs check/nightly
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Install ffmpeg
         run: |
@@ -20,6 +21,7 @@ jobs:
   test:
     name: dash-mpd-rs test/stable
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Install ffmpeg
         run: |
