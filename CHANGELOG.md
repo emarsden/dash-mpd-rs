@@ -1,11 +1,14 @@
 # Changelog
 
-## [0.7.3] - 2023-03
+## [0.7.3] - 2023-04
 ### New
 - Add definition for `SubRepresentation` nodes.
+- Add definition for `Rating` nodes.
 - Add `@presentationTimeOffset`, `@contentEncoding` and `@messageData` attributes to Event nodes.
   The node content is available via the `content` attribute.
 - Add `@weight` attribute to BaseURL nodes.
+- Add `Role`, `Rating` and `Viewpoint` content to ContentComponent and AdaptationSet nodes.
+- Add `Label` content to SubRepresentation and AdaptationSet nodes.
 
 
 ## [0.7.2] - 2023-03-19

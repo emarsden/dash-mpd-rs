@@ -481,8 +481,12 @@ pub struct BaseURL {
     /// services at a common network location, for example the same CDN.
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
+    /// Lowest value indicates the highest priority.
     #[serde(rename = "@priority")]
-    pub priority: Option<i64>,  // actually dvb:priority
+    pub priority: Option<u64>,  // actually dvb:priority
+    /// For load balancing between different base urls with the same @priority. The BaseURL to use
+    /// is chosen at random by the player, with the weight of any given BaseURL being its @weight
+    /// value divided by the sum of all @weight values.
     #[serde(rename = "@weight")]
     pub weight: Option<i64>,  // actually dvb:weight
 }
@@ -580,6 +584,20 @@ pub struct AudioChannelConfiguration {
     pub value: Option<String>,
 }
 
+/// Specifies that content is suitable for presentation to audiences for which that rating is known to be
+/// appropriate, or for unrestricted audiences.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Rating {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
+}
+
 /// Specifies frame-packing arrangement information of the video media component type.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -615,6 +633,7 @@ pub struct SubRepresentation {
     pub level: Option<u32>,
     #[serde(rename = "@dependencyLevel")]
     pub dependencyLevel: Option<String>,
+    /// If present, a whitespace-separated list of values of ContentComponent@id values.
     #[serde(rename = "@contentComponent")]
     pub contentComponent: Option<String>,
     #[serde(rename = "@mimeType")]
@@ -721,6 +740,7 @@ pub struct Representation {
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
     pub BaseURL: Vec<BaseURL>,
+    pub Label: Vec<Label>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
     pub FramePacking: Vec<FramePacking>,
@@ -754,6 +774,9 @@ pub struct ContentComponent {
     #[serde(rename = "@tag")]
     pub tag: Option<String>,
     pub Accessibility: Option<Accessibility>,
+    pub Role: Vec<Role>,
+    pub Rating: Vec<Rating>,
+    pub Viewpoint: Vec<Viewpoint>,
 }
 
 /// A Common Encryption "Protection System Specific Header" box. Content is typically base64 encoded.
@@ -791,8 +814,8 @@ pub struct ContentProtection {
     pub value: Option<String>,
 }
 
-/// The purpose of this media stream, such as captions, subtitle, main, alternate, supplementary,
-/// commentary, and dub.
+/// The purpose of this media stream, such as "caption", "subtitle", "main", "alternate", "supplementary",
+/// "commentary", and "dub" (this is the attribute scheme for @value when the schemeIdUri is "urn:mpeg:dash:role:2011").
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -859,7 +882,7 @@ pub struct Event {
     #[serde(rename = "Signal")]
     pub signal: Vec<Signal>,
     #[serde(rename = "$value")]
-    pub content: Vec<u8>,
+    pub content: Option<String>,
 }
 
 #[skip_serializing_none]
@@ -872,6 +895,8 @@ pub struct EventStream {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "Event")]
     pub event: Vec<Event>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
 }
 
 #[skip_serializing_none]
@@ -898,9 +923,16 @@ pub struct SupplementalProperty {
     pub value: Option<String>,
 }
 
+/// Provides a textual description of the content, which can be used by the client to allow
+/// selection of the desired media stream.
+#[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Label {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    #[serde(rename = "@lang")]
+    pub lang: Option<String>,
     #[serde(rename = "$value")]
     pub content: String,
 }
@@ -913,8 +945,6 @@ pub struct Label {
 pub struct AdaptationSet {
     #[serde(rename = "@id")]
     pub id: Option<i64>,
-    pub label: Option<Label>,
-    pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     // actually xlink:href
     #[serde(rename = "@href")]
@@ -978,6 +1008,11 @@ pub struct AdaptationSet {
     pub maxPlayoutRate: Option<f64>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
+    pub BaseURL: Vec<BaseURL>,
+    pub Role: Vec<Role>,
+    pub Rating: Vec<Rating>,
+    pub Viewpoint: Vec<Viewpoint>,
+    pub Label: Vec<Label>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
