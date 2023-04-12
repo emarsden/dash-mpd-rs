@@ -115,13 +115,13 @@ pub enum DashMpdError {
 // seconds. The number of seconds can include decimal digits to arbitrary precision.
 //
 // Examples: "PT0H0M30.030S", "PT1.2S", PT1004199059S, PT130S
-// P2Y6M5DT12H35M30S	=> 2 years, 6 months, 5 days, 12 hours, 35 minutes, 30 seconds
+// P2Y6M5DT12H35M30S  => 2 years, 6 months, 5 days, 12 hours, 35 minutes, 30 seconds
 // P1DT2H => 1 day, 2 hours
 // P0Y20M0D => 20 months (0 is permitted as a number, but is not required)
 // PT1M30.5S => 1 minute, 30.5 seconds
 //
 // Limitations: we can't represent negative durations (leading "-" character) due to the choice of a
-// std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H". 
+// std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H".
 fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
     let re = Regex::new(concat!(r"^(?P<sign>[+-])?P",
                                 r"(?:(?P<years>\d+)Y)?",
@@ -456,6 +456,10 @@ pub struct SegmentTemplate {
     pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
+    #[serde(rename = "@availabilityTimeOffset")]
+    pub availabilityTimeOffset: Option<f64>,
+    #[serde(rename = "@availabilityTimeComplete")]
+    pub availabilityTimeComplete: Option<bool>,
 }
 
 /// A URI string to which a new request for an updated manifest should be made. This feature is
@@ -1239,7 +1243,7 @@ pub struct MPD {
     pub ProgramInformation: Option<ProgramInformation>,
     pub Metrics: Vec<Metrics>,
     pub UTCTiming: Vec<UTCTiming>,
-    /// Correction for leap seconds, used by the DASH Low Latency specification. 
+    /// Correction for leap seconds, used by the DASH Low Latency specification.
     pub LeapSecondInformation: Option<LeapSecondInformation>,
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
