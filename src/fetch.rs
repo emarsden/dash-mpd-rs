@@ -76,6 +76,7 @@ pub struct DashDownloader {
     keep_video: bool,
     keep_audio: bool,
     content_type_checks: bool,
+    max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
     verbosity: u8,
@@ -143,6 +144,7 @@ impl DashDownloader {
             keep_video: false,
             keep_audio: false,
             content_type_checks: true,
+            max_error_count: 10,
             progress_observers: vec![],
             sleep_between_requests: 0,
             verbosity: 0,
@@ -245,6 +247,15 @@ impl DashDownloader {
     /// content (may be necessary with poorly configured HTTP servers).
     pub fn without_content_type_checks(mut self) -> DashDownloader {
         self.content_type_checks = false;
+        self
+    }
+
+    /// The upper limit on the number of non-transient network errors encountered for this download
+    /// before we abort the download. Transient network errors such as an HTTP 408 "request timeout"
+    /// are retried automatically with an exponential backoff mechanism, and do not count towards
+    /// this upper limit. The default is to fail after 10 non-transient network errors.
+    pub fn max_error_count(mut self, count: u32) -> DashDownloader {
+        self.max_error_count = count;
         self
     }
 
@@ -490,7 +501,7 @@ fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error>
 }
 
 fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
-    log::info!("Transient error after {dur:?}: {err:?}");
+    log::warn!("Transient error after {dur:?}: {err:?}");
 }
 
 fn network_error(why: &str, e: impl std::error::Error) -> DashMpdError {
@@ -1721,40 +1732,46 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
                 };
-                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                    .await
-                    .map_err(|e| network_error("fetching DASH audio segment", e))?;
-                if response.status().is_success() {
-                    if !downloader.content_type_checks || content_type_audio_p(&response) {
-                        let dash_bytes = response.bytes()
-                            .await
-                            .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
-                        if downloader.verbosity > 2 {
-                            if let Some(sb) = &frag.start_byte {
-                                if let Some(eb) = &frag.end_byte {
-                                    println!("Audio segment {} range {sb}-{eb} -> {} octets",
-                                             &frag.url, dash_bytes.len());
+                let mut failure = None;
+                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            if !downloader.content_type_checks || content_type_audio_p(&response) {
+                                let dash_bytes = response.bytes()
+                                    .await
+                                    .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("Audio segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, dash_bytes.len());
+                                        }
+                                    } else {
+                                        println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                                    }
                                 }
+                                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
+                                    log::error!("Unable to write DASH audio data: {e:?}");
+                                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                                }
+                                have_audio = true;
                             } else {
-                                println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                                log::warn!("Ignoring segment {url} with non-audio content-type");
                             }
+                        } else {
+                            failure = Some(format!("HTTP error {}", response.status().as_str()));
                         }
-                        if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                            log::error!("Unable to write DASH audio data: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                        }
-                        have_audio = true;
-                    } else {
-                        log::warn!("Ignoring segment {url} with non-audio content-type");
-                    }
-                } else {
+                    },
+                    Err(e) => failure = Some(format!("{e}")),
+                }
+                if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("HTTP error {} fetching audio segment {url}", response.status().as_str());
+                        eprintln!("{f} fetching audio segment {url}");
                     }
                     download_errors += 1;
-                    if download_errors > 10 {
+                    if download_errors > downloader.max_error_count {
                         return Err(DashMpdError::Network(
-                            String::from("more than 10 HTTP download errors")));
+                            String::from("more than max_error_count network errors")));
                     }
                 }
             }
@@ -1820,39 +1837,45 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
                 };
-                let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
-                    .await
-                    .map_err(|e| network_error("fetching DASH video segment", e))?;
-                if response.status().is_success() {
-                    if !downloader.content_type_checks || content_type_video_p(&response) {
-                        let dash_bytes = response.bytes()
-                            .await
-                            .map_err(|e| network_error("fetching DASH video segment", e))?;
-                        if downloader.verbosity > 2 {
-                            if let Some(sb) = &frag.start_byte {
-                                if let Some(eb) = &frag.end_byte {
-                                    println!("Video segment {} range {sb}-{eb} -> {} octets",
-                                             &frag.url, dash_bytes.len());
+                let mut failure = None;
+                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            if !downloader.content_type_checks || content_type_video_p(&response) {
+                                let dash_bytes = response.bytes()
+                                    .await
+                                    .map_err(|e| network_error("fetching DASH video segment", e))?;
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("Video segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, dash_bytes.len());
+                                        }
+                                    } else {
+                                        println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    }
                                 }
+                                if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                }
+                                have_video = true;
                             } else {
-                                println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
                             }
+                        } else {
+                            failure = Some(format!("HTTP error {}", response.status().as_str()));
                         }
-                        if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                            return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                        }
-                        have_video = true;
-                    } else {
-                        log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
-                    }
-                } else {
+                    },
+                    Err(e) => failure = Some(format!("{e}")),
+                }
+                if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("HTTP error {} fetching video segment {}", response.status().as_str(), &frag.url);
+                        eprintln!("{f} fetching video segment {}", &frag.url);
                     }
                     download_errors += 1;
-                    if download_errors > 10 {
+                    if download_errors > downloader.max_error_count {
                         return Err(DashMpdError::Network(
-                            String::from("more than 10 HTTP download errors")));
+                            String::from("more than max_error_count network errors")));
                     }
                 }
             }

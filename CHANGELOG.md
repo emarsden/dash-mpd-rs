@@ -12,6 +12,14 @@
 - Add `Role`, `Rating` and `Viewpoint` content to ContentComponent and AdaptationSet nodes.
 - Add `Label` content to SubRepresentation and AdaptationSet nodes.
 
+### Changed
+- Downloading: New option `max_error_count` on DashDownloader to specify the maximum number of
+  non-transient network errors that should be ignored before a download is aborted. This is useful
+  on some manifests using Time-based or Number-based SegmentLists for which the packager calculates
+  a number of segments which is different to our calculation (in which case the last segment can
+  generate an HTTP 404 error).
+
+
 ## [0.7.2] - 2023-03-19
 ### New
 - Downloading: improve support for subtitles by making use of Representation.mimeType attributes
