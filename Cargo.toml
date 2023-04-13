@@ -34,7 +34,7 @@ ac-ffmpeg = { version = "0.18", optional = true }
 env_logger = "0.10"
 ffprobe = "0.3"
 sha2 = "0.10"
-hex-literal = "0.3"
+hex-literal = "0.4"
 colored = "2"
 indicatif = "0.17"
 clap = "4"
