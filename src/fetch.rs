@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
-use std::thread;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -1776,7 +1775,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             if downloader.sleep_between_requests > 0 {
-                thread::sleep(Duration::new(downloader.sleep_between_requests.into(), 0));
+                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
             }
         }
         tmpfile_audio.flush().map_err(|e| {
@@ -1880,7 +1879,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             if downloader.sleep_between_requests > 0 {
-                thread::sleep(Duration::new(downloader.sleep_between_requests.into(), 0));
+                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
             }
         }
         tmpfile_video.flush().map_err(|e| {
