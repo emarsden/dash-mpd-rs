@@ -1047,10 +1047,12 @@ pub struct AssetIdentifier {
 pub struct Period {
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    // note: the spec says that next two are an xs:duration, not an unsigned int as for other "duration" fields
     /// The start time of the Period relative to the MPD availability start time.
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@start")]
-    pub start: Option<String>, // TODO, this should be changed to an xs:duration type
-    // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
+    pub start: Option<Duration>,
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@duration")]
@@ -1071,6 +1073,8 @@ pub struct Period {
     pub asset_identifier: Option<AssetIdentifier>,
     #[serde(rename = "EventStream")]
     pub event_streams: Vec<EventStream>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
 }
 
 #[skip_serializing_none]
@@ -1185,15 +1189,23 @@ pub struct PatchLocation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct MPD {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     /// The Presentation Type, either "static" or "dynamic" (a live stream for which segments become
     /// available over time).
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
     #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
-    // actually xsi:schemaLocation
-    #[serde(rename = "@schemaLocation")]
+    #[serde(rename = "@xmlns:xsi")]
+    pub xsi: Option<String>,
+    #[serde(rename(serialize = "@xsi:schemalocation"))]
+    #[serde(rename(deserialize = "@schemalocation"))]
     pub schemaLocation: Option<String>,
+    #[serde(rename = "@xmlns:ext")]
+    pub ext: Option<String>,
+    #[serde(rename = "@xmlns:scte214")]
+    pub scte214: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
     /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
