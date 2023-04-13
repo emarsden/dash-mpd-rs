@@ -24,10 +24,10 @@ with file segments using either MPEG-2 Transport Stream (M2TS) container format 
 
 This library provides a serde-based parser (deserializer) and serializer for the DASH MPD format, as
 formally defined in ISO/IEC standard 23009-1:2019. XML schema files are [available for no cost from
-ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). When MPD
-files in practical use diverge from the formal standard, this library prefers to interoperate with
-existing practice.
-
+ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). The library
+also provides non-exhaustive support for certain DASH extensions such as the DVB-DASH and HbbTV
+(Hybrid Broadcast Broadband TV) profiles. When MPD files in practical use diverge from the formal
+standard(s), this library prefers to interoperate with existing practice.
 
 If the library feature `fetch` is enabled (which it is by default), the library also provides
 support for downloading content (audio or video) described by an MPD manifest. This involves
@@ -223,7 +223,7 @@ This crate is tested on the following platforms:
 
 - MacOS/Aarch64, without the libav feature (problems building the ac-ffmpeg crate against current ffmpeg)
 
-- Microsoft Windows 10, without the libav feature
+- Microsoft Windows 10 and Windows 11, without the libav feature
 
 - Android 12 on Aarch64 via [termux](https://termux.dev/), without the libav feature (you'll need to
   install the rust, binutils and ffmpeg packages)
