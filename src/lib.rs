@@ -149,8 +149,7 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
                 if s.len() > 9 {
                     s = &s[..9];
                 }
-                let padded = format!("{s:0<9}");
-                nsecs = padded.parse::<u32>().unwrap();
+                nsecs = s.parse::<u32>().unwrap();
             }
             if let Some(s) = m.name("seconds") {
                 let seconds = s.as_str().parse::<u64>().unwrap();
@@ -263,7 +262,7 @@ where
     // this is a very simple-minded way of converting to an ISO 8601 duration
     if let Some(xs) = oxs {
         let secs = xs.as_secs();
-        let ms = xs.subsec_millis();
+        let ms = xs.subsec_nanos();
         serializer.serialize_str(&format!("PT{secs}.{ms:03}S"))
     } else {
         // in fact this won't be called because of the #[skip_serializing_none] annotation
@@ -1465,18 +1464,18 @@ mod tests {
         assert_eq!(parse_xs_duration("PT42M30S").ok(), Some(Duration::new(2550, 0)));
         assert_eq!(parse_xs_duration("PT30M38S").ok(), Some(Duration::new(1838, 0)));
         assert_eq!(parse_xs_duration("PT0H10M0.00S").ok(), Some(Duration::new(600, 0)));
-        assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000_000)));
+        assert_eq!(parse_xs_duration("PT1.500000000S").ok(), Some(Duration::new(1, 500_000_000)));
         assert_eq!(parse_xs_duration("PT0S").ok(), Some(Duration::new(0, 0)));
-        assert_eq!(parse_xs_duration("PT0.001S").ok(), Some(Duration::new(0, 1_000_000)));
+        assert_eq!(parse_xs_duration("PT0.1000000S").ok(), Some(Duration::new(0, 1_000_000)));
         assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
-        assert_eq!(parse_xs_duration("PT634.566S").ok(), Some(Duration::new(634, 566_000_000)));
+        assert_eq!(parse_xs_duration("PT634.566000000S").ok(), Some(Duration::new(634, 566_000_000)));
         assert_eq!(parse_xs_duration("PT72H").ok(), Some(Duration::new(72*60*60, 0)));
-        assert_eq!(parse_xs_duration("PT0H0M30.030S").ok(), Some(Duration::new(30, 30_000_000)));
+        assert_eq!(parse_xs_duration("PT0H0M30.30000000S").ok(), Some(Duration::new(30, 30_000_000)));
         assert_eq!(parse_xs_duration("PT1004199059S").ok(), Some(Duration::new(1004199059, 0)));
         assert_eq!(parse_xs_duration("P0Y20M0D").ok(), Some(Duration::new(51840000, 0)));
-        assert_eq!(parse_xs_duration("PT1M30.5S").ok(), Some(Duration::new(90, 500_000_000)));
+        assert_eq!(parse_xs_duration("PT1M30.500000000S").ok(), Some(Duration::new(90, 500_000_000)));
         assert_eq!(parse_xs_duration("PT10M10S").ok(), Some(Duration::new(610, 0)));
-        assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000_000)));
+        assert_eq!(parse_xs_duration("PT1H0.40000000S").ok(), Some(Duration::new(3600, 40_000_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
         assert!(parse_xs_duration("PW").is_err());
         assert_eq!(parse_xs_duration("P0W").ok(), Some(Duration::new(0, 0)));
@@ -1487,9 +1486,9 @@ mod tests {
         assert_eq!(parse_xs_duration("PT4H").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("+PT4H").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("P23DT23H").ok(), Some(Duration::new(2070000, 0)));
-        assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000_000)));
-        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6.7S").ok(), Some(Duration::new(36993906, 700_000_000)));
-        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6,7S").ok(), Some(Duration::new(36993906, 700_000_000)));
+        assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880000000S").ok(), Some(Duration::new(260, 880_000_000)));
+        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6.700000000S").ok(), Some(Duration::new(36993906, 700_000_000)));
+        assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6,700000000S").ok(), Some(Duration::new(36993906, 700_000_000)));
 
         // we are not currently handling fractional parts except in the seconds
         // assert_eq!(parse_xs_duration("PT0.5H1S").ok(), Some(Duration::new(30*60+1, 0)));
