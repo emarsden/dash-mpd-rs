@@ -1071,6 +1071,8 @@ pub struct Period {
     pub asset_identifier: Option<AssetIdentifier>,
     #[serde(rename = "EventStream")]
     pub event_streams: Vec<EventStream>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
 }
 
 #[skip_serializing_none]
@@ -1185,6 +1187,8 @@ pub struct PatchLocation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct MPD {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     /// The Presentation Type, either "static" or "dynamic" (a live stream for which segments become
     /// available over time).
     #[serde(rename = "@type")]

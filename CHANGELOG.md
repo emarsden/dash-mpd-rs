@@ -11,6 +11,8 @@
 - Add `@weight` attribute to BaseURL nodes.
 - Add `Role`, `Rating` and `Viewpoint` content to ContentComponent and AdaptationSet nodes.
 - Add `Label` content to SubRepresentation and AdaptationSet nodes.
+- Add `SupplementalProperty` to Period nodes.
+- Add `@id` attribute to MPD nodes.
 
 ### Changed
 - Downloading: New option `max_error_count` on DashDownloader to specify the maximum number of
