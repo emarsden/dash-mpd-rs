@@ -263,8 +263,12 @@ where
     // this is a very simple-minded way of converting to an ISO 8601 duration
     if let Some(xs) = oxs {
         let secs = xs.as_secs();
-        let ms = xs.subsec_millis();
-        serializer.serialize_str(&format!("PT{secs}.{ms:03}S"))
+        let ns = xs.subsec_nanos();
+        if ns == 0 {
+            serializer.serialize_str(&format!("PT{secs}S"))
+        } else {
+            serializer.serialize_str(&format!("PT{secs}.{ns:09}S"))
+        }
     } else {
         // in fact this won't be called because of the #[skip_serializing_none] annotation
         serializer.serialize_none()
@@ -1460,14 +1464,18 @@ mod tests {
         assert!(parse_xs_duration("").is_err());
         assert!(parse_xs_duration("foobles").is_err());
         assert!(parse_xs_duration("P").is_err());
+        assert!(parse_xs_duration("PW").is_err());
         assert!(parse_xs_duration("1Y2M3DT4H5M6S").is_err()); // missing initial P
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
         assert_eq!(parse_xs_duration("PT42M30S").ok(), Some(Duration::new(2550, 0)));
         assert_eq!(parse_xs_duration("PT30M38S").ok(), Some(Duration::new(1838, 0)));
         assert_eq!(parse_xs_duration("PT0H10M0.00S").ok(), Some(Duration::new(600, 0)));
         assert_eq!(parse_xs_duration("PT1.5S").ok(), Some(Duration::new(1, 500_000_000)));
+        assert_eq!(parse_xs_duration("PT1.500S").ok(), Some(Duration::new(1, 500_000_000)));
+        assert_eq!(parse_xs_duration("PT1.500000000S").ok(), Some(Duration::new(1, 500_000_000)));
         assert_eq!(parse_xs_duration("PT0S").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("PT0.001S").ok(), Some(Duration::new(0, 1_000_000)));
+        assert_eq!(parse_xs_duration("PT0.00100S").ok(), Some(Duration::new(0, 1_000_000)));
         assert_eq!(parse_xs_duration("PT344S").ok(), Some(Duration::new(344, 0)));
         assert_eq!(parse_xs_duration("PT634.566S").ok(), Some(Duration::new(634, 566_000_000)));
         assert_eq!(parse_xs_duration("PT72H").ok(), Some(Duration::new(72*60*60, 0)));
@@ -1478,12 +1486,12 @@ mod tests {
         assert_eq!(parse_xs_duration("PT10M10S").ok(), Some(Duration::new(610, 0)));
         assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
-        assert!(parse_xs_duration("PW").is_err());
         assert_eq!(parse_xs_duration("P0W").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("P26W").ok(), Some(Duration::new(15724800, 0)));
         assert_eq!(parse_xs_duration("P52W").ok(), Some(Duration::new(31449600, 0)));
         assert_eq!(parse_xs_duration("P0Y").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("P1Y").ok(), Some(Duration::new(31536000, 0)));
+        assert_eq!(parse_xs_duration("P1Y0W0S").ok(), Some(Duration::new(31536000, 0)));
         assert_eq!(parse_xs_duration("PT4H").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("+PT4H").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("P23DT23H").ok(), Some(Duration::new(2070000, 0)));
@@ -1494,5 +1502,27 @@ mod tests {
         // we are not currently handling fractional parts except in the seconds
         // assert_eq!(parse_xs_duration("PT0.5H1S").ok(), Some(Duration::new(30*60+1, 0)));
         // assert_eq!(parse_xs_duration("P0001-02-03T04:05:06").ok(), Some(Duration::new(36993906, 0)));
+    }
+
+    #[test]
+    fn test_serialize_xs_duration() {
+        use std::time::Duration;
+        use super::MPD;
+
+        fn serialized_xs_duration(d: Duration) -> String {
+            let mpd = MPD {
+                minBufferTime: Some(d),
+                ..Default::default()
+            };
+            let xml = quick_xml::se::to_string(&mpd).unwrap();
+            let doc = roxmltree::Document::parse(&xml).unwrap();
+            String::from(doc.root_element().attribute("minBufferTime").unwrap())
+        }
+
+        assert_eq!("PT0S", serialized_xs_duration(Duration::new(0, 0)));
+        assert_eq!("PT42S", serialized_xs_duration(Duration::new(42, 0)));
+        assert_eq!("PT1.500000000S", serialized_xs_duration(Duration::new(1, 500_000_000)));
+        assert_eq!("PT30.030000000S", serialized_xs_duration(Duration::new(30, 30_000_000)));
+        assert_eq!("PT344S", serialized_xs_duration(Duration::new(344, 0)));
     }
 }

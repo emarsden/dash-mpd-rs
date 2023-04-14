@@ -20,6 +20,8 @@
   on some manifests using Time-based or Number-based SegmentLists for which the packager calculates
   a number of segments which is different to our calculation (in which case the last segment can
   generate an HTTP 404 error).
+- Serializing: the formatting of xs:duration attributes in generated XML has been improved to use
+  nanosecond instead of millisecond precision.
 
 
 ## [0.7.2] - 2023-03-19
