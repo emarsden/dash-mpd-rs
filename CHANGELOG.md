@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.3] - 2023-04
+## [0.7.3] - 2023-04-15
 ### New
 - Add definition for `SubRepresentation` nodes.
 - Add definition for `Rating` nodes.
