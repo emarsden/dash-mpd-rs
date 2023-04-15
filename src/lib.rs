@@ -256,6 +256,13 @@ where
     }
 }
 
+// There are many possible correct ways of serializing a Duration in xs:duration (ISO 8601) format.
+// We choose to serialize to a perhaps-canonical xs:duration format including hours and minutes
+// (instead of representing them as a large number of seconds). Hour and minute count are not
+// included when the duration is less than a minute. Trailing zeros are omitted. Fractional seconds
+// are included to a nanosecond precision.
+//
+// Example: Duration::new(3600, 40_000_000) => "PT1H0M0.04S"
 fn serialize_xs_duration<S>(oxs: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -1506,6 +1513,9 @@ mod tests {
         assert_eq!(parse_xs_duration("P1Y0W0S").ok(), Some(Duration::new(31536000, 0)));
         assert_eq!(parse_xs_duration("PT4H").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("+PT4H").ok(), Some(Duration::new(14400, 0)));
+        assert_eq!(parse_xs_duration("PT0004H").ok(), Some(Duration::new(14400, 0)));
+        assert_eq!(parse_xs_duration("PT4H0M").ok(), Some(Duration::new(14400, 0)));
+        assert_eq!(parse_xs_duration("PT4H0S").ok(), Some(Duration::new(14400, 0)));
         assert_eq!(parse_xs_duration("P23DT23H").ok(), Some(Duration::new(2070000, 0)));
         assert_eq!(parse_xs_duration("P0Y0M0DT0H4M20.880S").ok(), Some(Duration::new(260, 880_000_000)));
         assert_eq!(parse_xs_duration("P1Y2M3DT4H5M6.7S").ok(), Some(Duration::new(36993906, 700_000_000)));
@@ -1532,9 +1542,17 @@ mod tests {
         }
 
         assert_eq!("PT0S", serialized_xs_duration(Duration::new(0, 0)));
+        assert_eq!("PT0.001S", serialized_xs_duration(Duration::new(0, 1_000_000)));
         assert_eq!("PT42S", serialized_xs_duration(Duration::new(42, 0)));
         assert_eq!("PT1.5S", serialized_xs_duration(Duration::new(1, 500_000_000)));
         assert_eq!("PT30.03S", serialized_xs_duration(Duration::new(30, 30_000_000)));
+        assert_eq!("PT1M30.5S", serialized_xs_duration(Duration::new(90, 500_000_000)));
         assert_eq!("PT5M44S", serialized_xs_duration(Duration::new(344, 0)));
+        assert_eq!("PT42M30S", serialized_xs_duration(Duration::new(2550, 0)));
+        assert_eq!("PT30M38S", serialized_xs_duration(Duration::new(1838, 0)));
+        assert_eq!("PT10M10S", serialized_xs_duration(Duration::new(610, 0)));
+        assert_eq!("PT1H0M0.04S", serialized_xs_duration(Duration::new(3600, 40_000_000)));
+        assert_eq!("PT3H11M53S", serialized_xs_duration(Duration::new(11513, 0)));
+        assert_eq!("PT4H0M0S", serialized_xs_duration(Duration::new(14400, 0)));
     }
 }

@@ -21,7 +21,7 @@
   a number of segments which is different to our calculation (in which case the last segment can
   generate an HTTP 404 error).
 - Serializing: the formatting of xs:duration attributes in generated XML has been improved to use
-  nanosecond instead of millisecond precision.
+  nanosecond instead of millisecond precision, and to use minute and hour markers if relevant.
 
 
 ## [0.7.2] - 2023-03-19
