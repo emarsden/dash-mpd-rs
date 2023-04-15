@@ -260,15 +260,27 @@ fn serialize_xs_duration<S>(oxs: &Option<Duration>, serializer: S) -> Result<S::
 where
     S: Serializer,
 {
-    // this is a very simple-minded way of converting to an ISO 8601 duration
     if let Some(xs) = oxs {
-        let secs = xs.as_secs();
-        let ns = xs.subsec_nanos();
-        if ns == 0 {
-            serializer.serialize_str(&format!("PT{secs}S"))
+        let seconds = xs.as_secs();
+        let nanos = xs.subsec_nanos();
+        let minutes = seconds / 60;
+        let hours = if minutes > 59 { minutes / 60 } else { 0 };
+        let fractional_maybe = if nanos > 0 {
+            format!(".{nanos:09}").trim_end_matches("0").to_string()
         } else {
-            serializer.serialize_str(&format!("PT{secs}.{ns:09}S"))
-        }
+            "".to_string()
+        };
+        let formatted_duration = if hours > 0 {
+            let mins = minutes % 60;
+            let secs = seconds % 60;
+            format!("PT{hours}H{mins}M{secs}{fractional_maybe}S")
+        } else if minutes > 0 {
+            let secs = seconds % 60;
+            format!("PT{minutes}M{secs}{fractional_maybe}S")
+        } else {
+            format!("PT{seconds}{fractional_maybe}S")
+        };
+        serializer.serialize_str(&formatted_duration)
     } else {
         // in fact this won't be called because of the #[skip_serializing_none] annotation
         serializer.serialize_none()
@@ -1521,8 +1533,8 @@ mod tests {
 
         assert_eq!("PT0S", serialized_xs_duration(Duration::new(0, 0)));
         assert_eq!("PT42S", serialized_xs_duration(Duration::new(42, 0)));
-        assert_eq!("PT1.500000000S", serialized_xs_duration(Duration::new(1, 500_000_000)));
-        assert_eq!("PT30.030000000S", serialized_xs_duration(Duration::new(30, 30_000_000)));
-        assert_eq!("PT344S", serialized_xs_duration(Duration::new(344, 0)));
+        assert_eq!("PT1.5S", serialized_xs_duration(Duration::new(1, 500_000_000)));
+        assert_eq!("PT30.03S", serialized_xs_duration(Duration::new(30, 30_000_000)));
+        assert_eq!("PT5M44S", serialized_xs_duration(Duration::new(344, 0)));
     }
 }
