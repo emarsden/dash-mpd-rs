@@ -67,6 +67,8 @@ fn mux_audio_video_ffmpeg(
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
             .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+	#[cfg(target_os = "windows")]
+	::std::fs::remove_file(tmppath).ok();
         Ok(())
     } else {
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
@@ -114,10 +116,61 @@ fn mux_audio_video_vlc(
         let mut sink = BufWriter::new(outfile);
         io::copy(&mut muxed, &mut sink)
             .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
+	#[cfg(target_os = "windows")]
+	::std::fs::remove_file(tmppath).ok();
         Ok(())
     } else {
         let msg = String::from_utf8_lossy(&vlc.stderr);
         Err(DashMpdError::Muxing(format!("running VLC: {msg}")))
+    }
+}
+
+
+// MP4Box from the GPAC suite for muxing audio and video streams
+// https://github.com/gpac/gpac/wiki/MP4Box
+fn mux_audio_video_mp4box(
+    downloader: &DashDownloader,
+    audio_path: &str,
+    video_path: &str) -> Result<(), DashMpdError> {
+    let output_path = downloader.output_path.as_ref()
+              .expect("muxer called without specifying output_path");
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{container}"))
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    let cmd = Command::new(&downloader.mp4box_location)
+        .args(["-add", video_path,
+               "-add", audio_path,
+               "-new", tmppath])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
+    if cmd.status.success() {
+        let tmpfile = File::open(tmppath)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening MP4Box output")))?;
+        let mut muxed = BufReader::new(tmpfile);
+        let outfile = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+        let mut sink = BufWriter::new(outfile);
+        io::copy(&mut muxed, &mut sink)
+            .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
+	#[cfg(target_os = "windows")]
+	::std::fs::remove_file(tmppath).ok();
+        Ok(())
+    } else {
+        let msg = String::from_utf8_lossy(&cmd.stderr);
+        Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
 
@@ -188,15 +241,19 @@ pub fn mux_audio_video(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
+    // TODO: should probably allow the user to specify this ordering preference
     let mut muxer_preference = vec![];
     if container.eq("mkv") {
         muxer_preference.push("mkvmerge");
         muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
     } else if container.eq("mp4") {
         muxer_preference.push("ffmpeg");
         muxer_preference.push("vlc");
+        muxer_preference.push("mp4box");
     } else {
         muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
     }
     log::info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
@@ -220,6 +277,13 @@ pub fn mux_audio_video(
                 log::warn!("Muxing with vlc subprocess failed: {e}");
             } else {
                 log::info!("Muxing with vlc subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("mp4box") {
+            if let Err(e) = mux_audio_video_mp4box(downloader, audio_path, video_path) {
+                log::warn!("Muxing with MP4Box subprocess failed: {e}");
+            } else {
+                log::info!("Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
         }

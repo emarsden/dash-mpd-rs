@@ -83,6 +83,7 @@ pub struct DashDownloader {
     pub ffmpeg_location: String,
     pub vlc_location: String,
     pub mkvmerge_location: String,
+    pub mp4box_location: String,
 }
 
 
@@ -151,6 +152,7 @@ impl DashDownloader {
             ffmpeg_location: if cfg!(windows) { String::from("ffmpeg.exe") } else { String::from("ffmpeg") },
 	    vlc_location: if cfg!(windows) { String::from("vlc.exe") } else { String::from("vlc") },
 	    mkvmerge_location: if cfg!(windows) { String::from("mkvmerge.exe") } else { String::from("mkvmerge") },
+	    mp4box_location: if cfg!(windows) { String::from("MP4Box.exe") } else { String::from("MP4Box") },
         }
     }
 
@@ -166,7 +168,7 @@ impl DashDownloader {
     ///      .user_agent("Mozilla/5.0")
     ///      .timeout(Duration::new(30, 0))
     ///      .build()
-    ///      .expect("creating reqwest HTTP client");
+    ///      .expect("creating HTTP client");
     ///  let url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     ///  let out = PathBuf::from(env::temp_dir()).join("cloudflarestream.mp4");
     ///  DashDownloader::new(url)
@@ -313,6 +315,11 @@ impl DashDownloader {
         self
     }
 
+    /// Specify the location of the MP4Box application, if not located in PATH.
+    pub fn with_mp4box(mut self, mp4box_path: &str) -> DashDownloader {
+        self.mp4box_location = mp4box_path.to_string();
+        self
+    }
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
     ///

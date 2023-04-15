@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.4] - 2023-04
+### New
+- Downloading: add support for `MP4Box` as an external muxing tool. When built without libav support
+  (the default configuration) and downloading to a path with ".mp4" extension, try to use the
+  `MP4Box` commandline application (from the GPAC suite) as a subprocess for muxing, if ffmpeg and
+  VLC fail. `MP4Box` is available for Linux and other Unixes, Microsoft Windows and MacOS.
+- New function `with_mp4box()` on `DashDownloader` to allow the location of the MP4Box commandline
+  application to be specified, if in a non-standard location.
+
+
 ## [0.7.3] - 2023-04-15
 ### New
 - Add definition for `SubRepresentation` nodes.
