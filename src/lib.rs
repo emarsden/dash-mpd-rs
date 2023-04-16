@@ -406,6 +406,21 @@ pub struct ProgramInformation {
     pub lang: Option<String>,
     #[serde(rename = "@moreInformationURL")]
     pub moreInformationURL: Option<String>,
+    #[serde(rename(serialize = "scte214:ContentIdentifier"))]
+    #[serde(rename(deserialize = "ContentIdentifier"))]
+    pub scte214ContentIdentifier: Option<Scte214ContentIdentifier>,
+}
+
+/// Dash specification MPEG extension (SCTE 214) program identification type
+/// (indicates how the program content is identified).
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Scte214ContentIdentifier {
+    #[serde(rename = "@type")]
+    pub idType: Option<String>,
+    #[serde(rename = "@value")]
+    pub idValue: Option<String>,
 }
 
 /// Describes a sequence of contiguous Segments with identical duration.
