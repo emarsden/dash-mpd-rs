@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.4] - 2023-04
+## [0.8.0] - 2023-04
 ### New
 - Downloading: add support for `MP4Box` as an external muxing tool. When built without libav support
   (the default configuration) and downloading to a path with ".mp4" extension, try to use the
@@ -18,6 +18,9 @@
   AdaptationSet nodes.
 - Add `@schemeIdUri` and `@value` (deprecated) to Event nodes.
 - Add `@maxSubsegmentDuration` attribute to MPD nodes.
+
+### Changed
+- `AdaptationSet.@id` changed from u64 to String type (breaking change).
 
 
 ## [0.7.3] - 2023-04-15

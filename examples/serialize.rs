@@ -36,7 +36,7 @@ fn main () {
         ..Default::default()
     };
     let adapt = AdaptationSet {
-        id: Some(1),
+        id: Some("1".to_string()),
         contentType: Some("video".to_string()),
         lang: Some("eng".to_string()),
         mimeType: Some("video/mp4".to_string()),
