@@ -562,6 +562,8 @@ pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
     #[serde(rename = "@duration")]
     pub duration: Option<u64>,
+    #[serde(rename = "@timescale")]
+    pub timescale: Option<u64>,
     #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
@@ -753,11 +755,15 @@ pub struct Representation {
     /// The average bandwidth of the Representation.
     #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
+    #[serde(rename = "@sampleRate")]
+    pub sampleRate: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate")]
     pub maxPlayoutRate: Option<f64>,
+    #[serde(rename = "@numChannels")]
+    pub numChannels: Option<u32>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
     #[serde(rename = "@width")]
@@ -778,6 +784,10 @@ pub struct Representation {
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
     pub Resync: Option<Resync>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     // actually xlink:href
     #[serde(rename = "@href")]
@@ -908,6 +918,10 @@ pub struct Event {
     pub messageData: Option<String>,
     #[serde(rename = "Signal")]
     pub signal: Vec<Signal>,
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
     #[serde(rename = "$value")]
     pub content: Option<String>,
 }
@@ -971,7 +985,7 @@ pub struct Label {
 #[serde(default)]
 pub struct AdaptationSet {
     #[serde(rename = "@id")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     // actually xlink:href
     #[serde(rename = "@href")]
@@ -991,6 +1005,9 @@ pub struct AdaptationSet {
     /// Content language, in RFC 5646 format
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
+    /// The Sample Aspect Ratio, eg. "1:1"
+    #[serde(rename = "@sar")]
+    pub sar: Option<String>,
     /// The Pixel Aspect Ratio, eg. "16:9"
     #[serde(rename = "@par")]
     pub par: Option<String>,
@@ -1008,6 +1025,10 @@ pub struct AdaptationSet {
     pub bitstreamSwitching: Option<bool>,
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
+    #[serde(rename = "@width")]
+    pub width: Option<u64>,
+    #[serde(rename = "@height")]
+    pub height: Option<u64>,
     // eg "video/mp4"
     #[serde(rename = "@mimeType")]
     pub mimeType: Option<String>,
@@ -1033,6 +1054,10 @@ pub struct AdaptationSet {
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate")]
     pub maxPlayoutRate: Option<f64>,
+    #[serde(rename = "@maximumSAPPeriod")]
+    pub maximumSAPPeriod: Option<f64>,
+    #[serde(rename = "@startWithSAP")]
+    pub startWithSAP: Option<u64>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
     pub BaseURL: Vec<BaseURL>,
@@ -1096,6 +1121,8 @@ pub struct Period {
     pub event_streams: Vec<EventStream>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
 }
 
 #[skip_serializing_none]
@@ -1216,6 +1243,9 @@ pub struct MPD {
     /// available over time).
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
+    // xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    #[serde(rename = "@xsi")]
+    pub xsi: Option<String>,
     #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
     // actually xsi:schemaLocation
@@ -1245,6 +1275,10 @@ pub struct MPD {
     #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@maxSegmentDuration")]
     pub maxSegmentDuration: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@maxSubsegmentDuration")]
+    pub maxSubsegmentDuration: Option<Duration>,
     /// A suggested delay of the presentation compared to the Live edge.
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]

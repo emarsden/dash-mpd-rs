@@ -8,6 +8,16 @@
   VLC fail. `MP4Box` is available for Linux and other Unixes, Microsoft Windows and MacOS.
 - New function `with_mp4box()` on `DashDownloader` to allow the location of the MP4Box commandline
   application to be specified, if in a non-standard location.
+- New example `round_trip.rs` which can be used to check round trip from XML to Rust structs to XML.
+- Add `@startWithSAP` and `@maximumSAPPeriod` attributes to AdaptationSet nodes.
+- Add `@timescale` attribute to SegmentList nodes.
+- Add `@numChannels` and `@sampleRate` attributes to Representation nodes.
+- Add `@sar`, `@width`, `@height`, `@maximumSAPPeriod` and `@startWithSAP`attributes to
+  AdaptationSet nodes.
+- Add `EssentialProperty` and `SupplementalProperty` node vectors to Representation and
+  AdaptationSet nodes.
+- Add `@schemeIdUri` and `@value` (deprecated) to Event nodes.
+- Add `@maxSubsegmentDuration` attribute to MPD nodes.
 
 
 ## [0.7.3] - 2023-04-15
