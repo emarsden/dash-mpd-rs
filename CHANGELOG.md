@@ -16,11 +16,15 @@
   AdaptationSet nodes.
 - Add `EssentialProperty` and `SupplementalProperty` node vectors to Representation and
   AdaptationSet nodes.
+- Add definition for `ProducerReferenceTime` nodes, used for low-latency streaming.
 - Add `@schemeIdUri` and `@value` (deprecated) to Event nodes.
+- Add `scte214:ContentIdentifier` element to ProgramInformation nodes.
 - Add `@maxSubsegmentDuration` attribute to MPD nodes.
 
 ### Changed
 - `AdaptationSet.@id` changed from u64 to String type (breaking change).
+- `Period.@start` changed from a String to an xs:duration type (breaking change).
+- `ContentProtect.@cenc_pssh` changed from an Option to a Vec (breaking change).
 
 
 ## [0.7.3] - 2023-04-15

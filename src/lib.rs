@@ -858,7 +858,7 @@ pub struct ContentProtection {
     // In fact will be cenc:pssh, where cenc is the urn:mpeg:cenc:2013 XML namespace, but the serde
     // crate doesn't support XML namespaces
     #[serde(rename = "pssh")]
-    pub cenc_pssh: Option<CencPssh>,
+    pub cenc_pssh: Vec<CencPssh>,
     // the DRM key identifier (actually cenc:default_KID)
     #[serde(rename = "@default_KID")]
     pub default_KID: Option<String>,
@@ -1112,7 +1112,9 @@ pub struct Period {
     pub id: Option<String>,
     /// The start time of the Period relative to the MPD availability start time.
     #[serde(rename = "@start")]
-    pub start: Option<String>, // TODO, this should be changed to an xs:duration type
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
+    pub start: Option<Duration>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
     #[serde(serialize_with = "serialize_xs_duration")]
@@ -1209,6 +1211,7 @@ pub struct ServiceDescription {
     pub PlaybackRate: Option<PlaybackRate>,
 }
 
+/// Used to synchronize the clocks of the DASH client and server, to allow low-latency streaming.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -1219,6 +1222,26 @@ pub struct UTCTiming {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+}
+
+/// Used by the low-latency streaming extensions to DASH
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct ProducerReferenceTime {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    #[serde(rename = "@inband")]
+    pub inband: Option<bool>,
+    #[serde(rename = "@presentationTime")]
+    pub presentationTime: Option<u64>,
+    #[serde(rename = "@type")]
+    pub prtType: Option<String>,
+    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[serde(rename = "@wallClockTime")]
+    pub wallClockTime: Option<XsDatetime>,
+    pub UTCTiming: Vec<UTCTiming>,
+
 }
 
 #[skip_serializing_none]
