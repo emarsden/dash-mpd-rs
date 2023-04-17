@@ -7,9 +7,15 @@
 // You should expect attributes of type xs:duration to be flagged as differences by this tool,
 // because there is no single canonical serialization format for them (for instance, we choose not
 // to serialize trailing zeros in the floating point component of seconds, but many manifests in the
-// wild include them).
+// wild include them). The order of elements in the reserialized XML may also differ from the
+// original, because we lose ordering information when deserializing. Though in theory this can
+// change the semantics of XML, it should AFAIK not affect DASH semantics. The order of attributes
+// in the reserialized XML may also change, but this has no semantic meaning (and will be ignored by
+// the xmldiff tool).
 //
-// Run with `cargo run --example round_trip URL`
+// To run this little tool:
+//
+//    cargo run --example round_trip URL
 //
 // Example URL: https://refapp.hbbtv.org/videos/00_llama_multiperiod_v1/manifest.mpd
 //
@@ -69,7 +75,8 @@ async fn main() -> Result<()> {
     // to interpret.
     let cmd = Command::new("xmldiff")
         .args([out1, out2])
-        .output()?;
+        .output()
+        .context("executing xmldiff as a subprocess")?;
     io::stdout().write_all(&cmd.stdout).unwrap();
     Ok(())
 }
