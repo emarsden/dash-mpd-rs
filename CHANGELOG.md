@@ -11,12 +11,15 @@
 - New example `round_trip.rs` which can be used to check round trip from XML to Rust structs to XML.
 - Add `@startWithSAP` and `@maximumSAPPeriod` attributes to AdaptationSet nodes.
 - Add `@timescale` attribute to SegmentList nodes.
-- Add `@numChannels` and `@sampleRate` attributes to Representation nodes.
+- Add `@numChannels`, `@sampleRate` and `@lang` attributes to Representation nodes.
 - Add `@sar`, `@width`, `@height`, `@maximumSAPPeriod` and `@startWithSAP`attributes to
   AdaptationSet nodes.
 - Add `EssentialProperty` and `SupplementalProperty` node vectors to Representation and
   AdaptationSet nodes.
 - Add definition for `ProducerReferenceTime` nodes, used for low-latency streaming.
+- Add definition for `Switching` nodes, used for Adaptation Set switching.
+- Add definition for `InbandEventStream` nodes, used to signal presence of DASH event boxes in a
+  media stream.
 - Add `@schemeIdUri` and `@value` (deprecated) to Event nodes.
 - Add `scte214:ContentIdentifier` element to ProgramInformation nodes.
 - Add `@maxSubsegmentDuration` attribute to MPD nodes.

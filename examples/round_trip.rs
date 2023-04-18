@@ -74,9 +74,17 @@ async fn main() -> Result<()> {
     // We tried using the natural_xml_diff crate for this purpose, but its output is less convenient
     // to interpret.
     let cmd = Command::new("xmldiff")
-        .args([out1, out2])
+        .args([out1.clone(), out2.clone()])
         .output()
         .context("executing xmldiff as a subprocess")?;
+    io::stdout().write_all(&cmd.stdout).unwrap();
+    println!("===");
+    // The xdiff tool from https://github.com/ajankovic/xdiff provides more detail on the
+    // differences between the two MPD files.
+    let cmd = Command::new("xdiff")
+        .args(["-left", &out1.to_string_lossy(), "-right", &out2.to_string_lossy()])
+        .output()
+        .context("executing xdiff as a subprocess")?;
     io::stdout().write_all(&cmd.stdout).unwrap();
     Ok(())
 }

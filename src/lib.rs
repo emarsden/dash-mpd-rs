@@ -655,6 +655,18 @@ pub struct FramePacking {
     pub value: Option<String>,
 }
 
+/// Information used to allow Adaptation Set Switching (for instance, allowing the player to switch
+/// between camera angles). This is different from "bitstream switching".
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Switching {
+    #[serde(rename = "@interval")]
+    pub interval: Option<u64>,
+    #[serde(rename = "@type")]
+    pub stype: Option<String>,
+}
+
 /// Specifies the accessibility scheme used by the media content.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -748,6 +760,9 @@ pub struct Representation {
     pub codecs: Option<String>,
     #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
+    /// Language in RFC 5646 format
+    #[serde(rename = "@lang")]
+    pub lang: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
     #[serde(rename = "@segmentProfiles")]
@@ -794,6 +809,7 @@ pub struct Representation {
     pub FramePacking: Vec<FramePacking>,
     #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
+    pub InbandEventStream: Option<InbandEventStream>,
     pub SubRepresentation: Vec<SubRepresentation>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
@@ -955,6 +971,30 @@ pub struct EventStream {
     pub value: Option<String>,
 }
 
+/// "Inband" events are materialized by the presence of DASHEventMessageBoxes (emsg) in the media
+/// segments. The client is informed of their presence by the inclusion of an InbandEventStream
+/// element in the AdaptationSet or Representation element.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct InbandEventStream {
+    #[serde(rename = "@timescale")]
+    pub timescale: Option<u64>,
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: Option<String>,
+    #[serde(rename = "Event")]
+    pub event: Vec<Event>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    // actually xlink:href
+    #[serde(rename = "@href")]
+    pub href: Option<String>,
+    // actually xlink:actuate
+    #[serde(rename = "@actuate")]
+    pub actuate: Option<String>,
+}
+
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -994,7 +1034,10 @@ pub struct Label {
 }
 
 /// Contains a set of Representations. For example, if multiple language streams are available for
-/// the audio content, each one can be in its own AdaptationSet.
+/// the audio content, each one can be in its own AdaptationSet. DASH implementation guidelines
+/// indicate that "representations in the same video adaptation set should be alternative encodings
+/// of the same source content, encoded such that switching between them does not produce visual
+/// glitches due to picture size or aspect ratio differences".
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -1084,8 +1127,14 @@ pub struct AdaptationSet {
     pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
     pub ContentProtection: Vec<ContentProtection>,
+    pub Switching: Vec<Switching>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub InbandEventStream: Option<InbandEventStream>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "Representation")]
     pub representations: Vec<Representation>,
 }
