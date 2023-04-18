@@ -20,6 +20,7 @@
 - Add definition for `Switching` nodes, used for Adaptation Set switching.
 - Add definition for `InbandEventStream` nodes, used to signal presence of DASH event boxes in a
   media stream.
+- Add definition for `RepresentationIndex` nodes.
 - Add `@schemeIdUri` and `@value` (deprecated) to Event nodes.
 - Add `scte214:ContentIdentifier` element to ProgramInformation nodes.
 - Add `@maxSubsegmentDuration` attribute to MPD nodes.

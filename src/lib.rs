@@ -461,6 +461,16 @@ pub struct Initialization {
     pub range: Option<String>,
 }
 
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct RepresentationIndex {
+    #[serde(rename = "@range")]
+    pub range: Option<String>,
+    #[serde(rename = "@sourceURL")]
+    pub sourceURL: Option<String>,
+}
+
 /// Allows template-based `SegmentURL` construction. Specifies various substitution rules using
 /// dynamic values such as `$Time$` and `$Number$` that map to a sequence of Segments.
 #[skip_serializing_none]
@@ -478,6 +488,7 @@ pub struct SegmentTemplate {
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
     pub SegmentTimeline: Option<SegmentTimeline>,
+    pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
     // note: the spec says this is an unsigned int, not an xs:duration. In practice, some manifests
@@ -540,6 +551,7 @@ pub struct BaseURL {
 pub struct SegmentBase {
     #[serde(rename = "Initialization")]
     pub initialization: Option<Initialization>,
+    pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
@@ -814,6 +826,7 @@ pub struct Representation {
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
+    pub RepresentationIndex: Option<RepresentationIndex>,
     pub Resync: Option<Resync>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
