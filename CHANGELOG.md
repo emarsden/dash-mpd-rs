@@ -30,6 +30,7 @@
 - `Period.@start` changed from a String to an xs:duration type (breaking change).
 - `ContentProtect.@cenc_pssh` changed from an Option to a Vec (breaking change).
 - Fixed a bug in the parsing of xs:datetime attributes with fractional seconds.
+- Fixed parsing of `@starttime` and `@duration` attributes on Range elements.
 
 
 ## [0.7.3] - 2023-04-15

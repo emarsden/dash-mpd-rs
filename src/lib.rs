@@ -1225,8 +1225,12 @@ pub struct Reporting {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Range {
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@starttime")]
     pub starttime: Option<Duration>,
+    #[serde(deserialize_with = "deserialize_xs_duration", default)]
+    #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@duration")]
     pub duration: Option<Duration>,
 }
@@ -1238,7 +1242,7 @@ pub struct Metrics {
     #[serde(rename = "@metrics")]
     pub metrics: String,
     pub Reporting: Vec<Reporting>,
-    pub range: Vec<Range>,
+    pub Range: Vec<Range>,
 }
 
 #[skip_serializing_none]
