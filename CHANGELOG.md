@@ -29,6 +29,7 @@
 - `AdaptationSet.@id` changed from u64 to String type (breaking change).
 - `Period.@start` changed from a String to an xs:duration type (breaking change).
 - `ContentProtect.@cenc_pssh` changed from an Option to a Vec (breaking change).
+- Fixed a bug in the parsing of xs:datetime attributes with fractional seconds.
 
 
 ## [0.7.3] - 2023-04-15

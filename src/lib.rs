@@ -320,7 +320,7 @@ fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
                     NaiveDate::from_yo_opt(year, ddd)
                     .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
             };
-            let nd = nd.and_hms_nano_opt(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond*1000)
+            let nd = nd.and_hms_nano_opt(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond*1000*1000)
                 .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
             let tz_secs = dt.time.tz_offset_hours * 3600 + dt.time.tz_offset_minutes * 60;
             match chrono::FixedOffset::east_opt(tz_secs)
@@ -828,6 +828,7 @@ pub struct Representation {
     pub SegmentList: Option<SegmentList>,
     pub RepresentationIndex: Option<RepresentationIndex>,
     pub Resync: Option<Resync>,
+    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
     #[serde(rename = "EssentialProperty")]
@@ -1141,6 +1142,7 @@ pub struct AdaptationSet {
     pub ContentComponent: Vec<ContentComponent>,
     pub ContentProtection: Vec<ContentProtection>,
     pub Switching: Vec<Switching>,
+    pub Resync: Option<Resync>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub InbandEventStream: Option<InbandEventStream>,
@@ -1688,5 +1690,25 @@ mod tests {
         assert_eq!("PT1H0M0.04S", serialized_xs_duration(Duration::new(3600, 40_000_000)));
         assert_eq!("PT3H11M53S", serialized_xs_duration(Duration::new(11513, 0)));
         assert_eq!("PT4H0M0S", serialized_xs_duration(Duration::new(14400, 0)));
+    }
+
+    #[test]
+    fn test_parse_xs_datetime() {
+        use chrono::{DateTime, NaiveDate};
+        use chrono::offset::Utc;
+        use super::parse_xs_datetime;
+
+        let date = NaiveDate::from_ymd_opt(2023, 4, 19)
+            .unwrap()
+            .and_hms_opt(1, 3, 2)
+            .unwrap();
+        assert_eq!(parse_xs_datetime("2023-04-19T01:03:02Z").ok(),
+                   Some(DateTime::<Utc>::from_utc(date, Utc)));
+        let date = NaiveDate::from_ymd_opt(2023, 4, 19)
+            .unwrap()
+            .and_hms_nano_opt(1, 3, 2, 958*1000*1000)
+            .unwrap();
+        assert_eq!(parse_xs_datetime("2023-04-19T01:03:02.958Z").ok(),
+                   Some(DateTime::<Utc>::from_utc(date, Utc)));
     }
 }
