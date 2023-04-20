@@ -87,6 +87,7 @@ pub type XsDatetime = DateTime<chrono::offset::Utc>;
 
 
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum DashMpdError {
     #[error("parse error {0}")]
     Parsing(String),
@@ -273,7 +274,7 @@ where
         let minutes = seconds / 60;
         let hours = if minutes > 59 { minutes / 60 } else { 0 };
         let fractional_maybe = if nanos > 0 {
-            format!(".{nanos:09}").trim_end_matches("0").to_string()
+            format!(".{nanos:09}").trim_end_matches('0').to_string()
         } else {
             "".to_string()
         };

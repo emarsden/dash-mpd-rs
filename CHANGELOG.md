@@ -29,6 +29,7 @@
 - `AdaptationSet.@id` changed from u64 to String type (breaking change).
 - `Period.@start` changed from a String to an xs:duration type (breaking change).
 - `ContentProtect.@cenc_pssh` changed from an Option to a Vec (breaking change).
+- `DashMpdError` enum made `#[non_exhaustive]` (breaking change).
 - Fixed a bug in the parsing of xs:datetime attributes with fractional seconds.
 - Fixed parsing of `@starttime` and `@duration` attributes on Range elements.
 
