@@ -695,6 +695,15 @@ pub struct Accessibility {
     pub value: Option<String>,
 }
 
+/// Scope of a namespace
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Scope {
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: Option<String>,
+}
+
 /// A SubRepresentation contains information that only applies to one media stream in a Representation.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -1156,6 +1165,7 @@ pub struct AdaptationSet {
     pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "Representation")]
     pub representations: Vec<Representation>,
+    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
 }
 
 /// Identifies the asset to which a given Period belongs. Can be used to implement
@@ -1282,6 +1292,8 @@ pub struct ServiceDescription {
     pub id: Option<String>,
     pub Latency: Option<Latency>,
     pub PlaybackRate: Option<PlaybackRate>,
+    #[serde(rename = "Scope")]
+    pub scopes: Vec<Scope>,
 }
 
 /// Used to synchronize the clocks of the DASH client and server, to allow low-latency streaming.
@@ -1311,7 +1323,7 @@ pub struct ProducerReferenceTime {
     #[serde(rename = "@type")]
     pub prtType: Option<String>,
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@wallClockTime")]
+    #[serde(rename = "@wallclockTime")]
     pub wallClockTime: Option<XsDatetime>,
     pub UTCTiming: Vec<UTCTiming>,
 
@@ -1357,6 +1369,8 @@ pub struct MPD {
     /// The XML namespace prefix used by convention for the XML Schema Instance namespace.
     #[serde(rename = "@xmlns:xsi")]
     pub xsi: Option<String>,
+    #[serde(alias = "@ext", rename = "@xmlns:ext")]
+    pub ext: Option<String>,
     /// The XML namespace prefix used by convention for the Common Encryption scheme.
     #[serde(rename = "@xmlns:cenc")]
     pub cenc: Option<String>,
@@ -1374,8 +1388,12 @@ pub struct MPD {
     #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
     #[serde(alias = "@schemaLocation")]
+    #[serde(alias = "@schemalocation")]
     #[serde(rename = "@xsi:schemaLocation")]
     pub schemaLocation: Option<String>,
+    // scte214 namespace
+    #[serde(alias = "@scte214", rename = "@xmlns:scte214")]
+    pub scte214: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
     /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
