@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.8.0] - 2023-04
+## [0.8.0] - 2023-04-22
 ### New
 - Downloading: add support for `MP4Box` as an external muxing tool. When built without libav support
   (the default configuration) and downloading to a path with ".mp4" extension, try to use the
@@ -32,8 +32,9 @@
 - `DashMpdError` enum made `#[non_exhaustive]` (breaking change).
 - Fixed a bug in the parsing of xs:datetime attributes with fractional seconds.
 - Fixed parsing of `@starttime` and `@duration` attributes on Range elements.
-- Fixed XML namespace issues for attributes declared in the XLink, XMLSchema-instance and Common
-  Encryption namespaces. These attributes should now be serialized correctly when generating an MPD.
+- Fixed XML namespace issues for attributes declared in the XLink, XMLSchema-instance, Common
+  Encryption, DVB and SCTE-35 namespaces. These attributes should now be serialized correctly when
+  generating an MPD.
 
 
 ## [0.7.3] - 2023-04-15
