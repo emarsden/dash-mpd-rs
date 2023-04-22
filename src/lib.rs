@@ -536,13 +536,15 @@ pub struct BaseURL {
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
     /// Lowest value indicates the highest priority.
-    #[serde(rename = "@priority")]
-    pub priority: Option<u64>,  // actually dvb:priority
+    #[serde(rename = "@dvb:priority")]
+    #[serde(alias = "@priority")]
+    pub priority: Option<u64>,
     /// For load balancing between different base urls with the same @priority. The BaseURL to use
     /// is chosen at random by the player, with the weight of any given BaseURL being its @weight
     /// value divided by the sum of all @weight values.
-    #[serde(rename = "@weight")]
-    pub weight: Option<i64>,  // actually dvb:weight
+    #[serde(rename = "@dvb:weight")]
+    #[serde(alias = "@weight")]
+    pub weight: Option<i64>,
 }
 
 /// Specifies some common information concerning media segments.
@@ -756,7 +758,7 @@ pub struct SubRepresentation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Representation {
-    // no id for a linked Representation (with xlink:href)
+    // no id for a linked Representation (with xlink:href), so this attribute is optional
     #[serde(rename = "@id")]
     pub id: Option<String>,
     /// Identifies the base layer representation of this enhancement layer representation.
@@ -773,7 +775,7 @@ pub struct Representation {
     pub codecs: Option<String>,
     #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
-    /// Language in RFC 5646 format
+    /// Language in RFC 5646 format.
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
     #[serde(rename = "@profiles")]
@@ -787,7 +789,7 @@ pub struct Representation {
     pub scanType: Option<String>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // can be something like "15/2"
-    /// The Sample Aspect Ratio, eg. "1:1"
+    /// The Sample Aspect Ratio, eg. "1:1".
     #[serde(rename = "@sar")]
     pub sar: Option<String>,
     /// Specifies a quality ranking of this Representation relative to others in the same
@@ -847,7 +849,7 @@ pub struct Representation {
 pub struct ContentComponent {
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    /// Language in RFC 5646 format (eg. "fr-FR", "en-AU")
+    /// Language in RFC 5646 format (eg. "fr-FR", "en-AU").
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
     #[serde(rename = "@contentType")]
@@ -886,8 +888,6 @@ pub struct ContentProtection {
     pub cpref: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
-    // In fact will be cenc:pssh, where cenc is the urn:mpeg:cenc:2013 XML namespace, but the serde
-    // crate doesn't support XML namespaces
     #[serde(rename(deserialize = "pssh"))]
     #[serde(rename(serialize = "cenc:pssh"))]
     pub cenc_pssh: Vec<CencPssh>,
@@ -899,8 +899,9 @@ pub struct ContentProtection {
     pub value: Option<String>,
 }
 
-/// The purpose of this media stream, such as "caption", "subtitle", "main", "alternate", "supplementary",
-/// "commentary", and "dub" (this is the attribute scheme for @value when the schemeIdUri is "urn:mpeg:dash:role:2011").
+/// The purpose of this media stream, such as "caption", "subtitle", "main", "alternate",
+/// "supplementary", "commentary", and "dub" (this is the attribute scheme for @value when the
+/// schemeIdUri is "urn:mpeg:dash:role:2011").
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -1077,13 +1078,13 @@ pub struct AdaptationSet {
     pub contentType: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
-    /// Content language, in RFC 5646 format
+    /// Content language, in RFC 5646 format.
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
-    /// The Sample Aspect Ratio, eg. "1:1"
+    /// The Sample Aspect Ratio, eg. "1:1".
     #[serde(rename = "@sar")]
     pub sar: Option<String>,
-    /// The Pixel Aspect Ratio, eg. "16:9"
+    /// The Pixel Aspect Ratio, eg. "16:9".
     #[serde(rename = "@par")]
     pub par: Option<String>,
     #[serde(rename = "@segmentAlignment")]
@@ -1107,7 +1108,7 @@ pub struct AdaptationSet {
     // eg "video/mp4"
     #[serde(rename = "@mimeType")]
     pub mimeType: Option<String>,
-    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381> (eg. "avc1.4D400C")
+    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381> (eg. "avc1.4D400C").
     #[serde(rename = "@codecs")]
     pub codecs: Option<String>,
     #[serde(rename = "@minBandwidth")]
@@ -1218,11 +1219,11 @@ pub struct Reporting {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
-    // actually dvb:reportingUrl
-    #[serde(rename = "@reportingUrl")]
+    #[serde(rename = "@dvb:reportingUrl")]
+    #[serde(alias = "@reportingUrl")]
     pub reportingUrl: Option<String>,
-    // actually dvb:probability
-    #[serde(rename = "@probability")]
+    #[serde(rename = "@dvb:probability")]
+    #[serde(alias = "@probability")]
     pub probability: Option<u64>,
 }
 
@@ -1296,7 +1297,7 @@ pub struct UTCTiming {
     pub value: Option<String>,
 }
 
-/// Used by the low-latency streaming extensions to DASH
+/// Used by the low-latency streaming extensions to DASH.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -1353,12 +1354,23 @@ pub struct MPD {
     /// available over time).
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
+    /// The XML namespace prefix used by convention for the XML Schema Instance namespace.
     #[serde(rename = "@xmlns:xsi")]
     pub xsi: Option<String>,
+    /// The XML namespace prefix used by convention for the Common Encryption scheme.
     #[serde(rename = "@xmlns:cenc")]
     pub cenc: Option<String>,
+    /// The XML namespace prefix used by convention for the XML Linking Language.
     #[serde(rename = "@xmlns:xlink")]
     pub xlink: Option<String>,
+    /// The XML namespace prefix used by convention for the “Digital Program Insertion Cueing
+    /// Message for Cable” (SCTE 35) signaling standard.
+    #[serde(rename = "@xmlns:scte35")]
+    pub scte35: Option<String>,
+    /// The XML namespace prefix used by convention for DASH extensions proposed by the Digital
+    /// Video Broadcasting Project, as per RFC 5328.
+    #[serde(rename = "@xmlns:dvb")]
+    pub dvb: Option<String>,
     #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
     #[serde(alias = "@schemaLocation")]
