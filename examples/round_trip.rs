@@ -1,8 +1,10 @@
-// round_trip.rs -- check round trip from XML to Rust structs to XML.
+/// round_trip.rs -- check round trip from XML to Rust structs to XML.
 //
 // This tool fetches a DASH manifest, deserializes the content to our Rust structs, then serializes
 // the result back to XML. It can be used to help identify attributes and nodes that are incorrectly
-// defined in our Rust structs. Requires the "xmldiff" tool to be installed.
+// defined in our Rust structs. If the "xmldiff" and/or "xdiff" (from
+// https://github.com/ajankovic/xdiff) tools are installed, they will be used to show a treewise XML
+// diff between the original and rewritten MPD manifests.
 //
 // You should expect attributes of type xs:duration to be flagged as differences by this tool,
 // because there is no single canonical serialization format for them (for instance, we choose not
@@ -19,8 +21,8 @@
 //
 // Example URL: https://refapp.hbbtv.org/videos/00_llama_multiperiod_v1/manifest.mpd
 //
-// The xmldiff shows the location of differences using XPath expressions. You can identify the
-// corresponding content using for example
+// The xmldiff and xdiff output shows the location of differences using XPath expressions. You can
+// identify the corresponding content using for example
 //
 //    xmllint --xpath "/*/*[11]/*[5]/*[6]/*[1]" /tmp/mpd-rewritten.xml
 
@@ -73,19 +75,28 @@ async fn main() -> Result<()> {
     fs::write(&out2, &rewritten)?;
     // We tried using the natural_xml_diff crate for this purpose, but its output is less convenient
     // to interpret.
+    println!("==== xmldiff output ====");
     let cmd = Command::new("xmldiff")
         .args([out1.clone(), out2.clone()])
         .output()
         .context("executing xmldiff as a subprocess")?;
     io::stdout().write_all(&cmd.stdout).unwrap();
-    println!("===");
+    println!("==== xdiff output ====");
     // The xdiff tool from https://github.com/ajankovic/xdiff provides more detail on the
-    // differences between the two MPD files.
-    let cmd = Command::new("xdiff")
-        .args(["-left", &out1.to_string_lossy(), "-right", &out2.to_string_lossy()])
-        .output()
-        .context("executing xdiff as a subprocess")?;
-    io::stdout().write_all(&cmd.stdout).unwrap();
+    // differences between the two MPD files. xdiff can consume > 30GB of RAM on certain manifests
+    // that contain many XML elements (for instance a large SegmentList), so we avoid calling it for
+    // large manifests.
+    if let Ok(meta) = fs::metadata(out1.clone()) {
+        if meta.len() < 100_000 {
+            let cmd = Command::new("xdiff")
+                .args(["-left", &out1.to_string_lossy(), "-right", &out2.to_string_lossy()])
+                .output()
+                .context("executing xdiff as a subprocess")?;
+            io::stdout().write_all(&cmd.stdout).unwrap();
+        } else {
+            println!("  skipping xdiff for this large MPD manifest");
+        }
+    }
     Ok(())
 }
 
