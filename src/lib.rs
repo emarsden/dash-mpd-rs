@@ -1198,6 +1198,7 @@ pub struct Period {
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
     pub adaptations: Vec<AdaptationSet>,
+    #[serde(rename = "AssetIdentifier")]
     pub asset_identifier: Option<AssetIdentifier>,
     #[serde(rename = "EventStream")]
     pub event_streams: Vec<EventStream>,
