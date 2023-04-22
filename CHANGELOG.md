@@ -32,6 +32,8 @@
 - `DashMpdError` enum made `#[non_exhaustive]` (breaking change).
 - Fixed a bug in the parsing of xs:datetime attributes with fractional seconds.
 - Fixed parsing of `@starttime` and `@duration` attributes on Range elements.
+- Fixed XML namespace issues for attributes declared in the XLink, XMLSchema-instance and Common
+  Encryption namespaces. These attributes should now be serialized correctly when generating an MPD.
 
 
 ## [0.7.3] - 2023-04-15

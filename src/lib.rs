@@ -597,17 +597,17 @@ pub struct SegmentList {
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    // actually xlink:href
-    #[serde(rename = "@href")]
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
     pub href: Option<String>,
-    // actually xlink:actuate
-    #[serde(rename = "@actuate")]
+    #[serde(rename = "@xlink:actuate")]
+    #[serde(alias = "@actuate")]
     pub actuate: Option<String>,
-    // actually xlink:type
-    #[serde(rename = "@type")]
+    #[serde(rename = "@xlink:type")]
+    #[serde(alias = "@type")]
     pub sltype: Option<String>,
-    // atually xlink:show
-    #[serde(rename = "@show")]
+    #[serde(rename = "@xlink:show")]
+    #[serde(alias = "@show")]
     pub show: Option<String>,
     pub Initialization: Option<Initialization>,
     #[serde(rename = "SegmentURL")]
@@ -835,8 +835,8 @@ pub struct Representation {
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    // actually xlink:href
-    #[serde(rename = "@href")]
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
     pub href: Option<String>,
 }
 
@@ -888,10 +888,12 @@ pub struct ContentProtection {
     pub schemeIdUri: Option<String>,
     // In fact will be cenc:pssh, where cenc is the urn:mpeg:cenc:2013 XML namespace, but the serde
     // crate doesn't support XML namespaces
-    #[serde(rename = "pssh")]
+    #[serde(rename(deserialize = "pssh"))]
+    #[serde(rename(serialize = "cenc:pssh"))]
     pub cenc_pssh: Vec<CencPssh>,
-    // the DRM key identifier (actually cenc:default_KID)
-    #[serde(rename = "@default_KID")]
+    /// The DRM key identifier.
+    #[serde(rename(deserialize = "@default_KID"))]
+    #[serde(rename(serialize = "@cenc:default_KID"))]
     pub default_KID: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
@@ -954,7 +956,7 @@ pub struct Event {
     pub duration: Option<u64>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
-    /// Possible encoding (eg. "base64") for the Event content or the value of the @messageData
+    /// Possible encoding (e.g. "base64") for the Event content or the value of the @messageData
     /// attribute.
     #[serde(rename = "@contentEncoding")]
     pub contentEncoding: Option<String>,
@@ -1002,11 +1004,11 @@ pub struct InbandEventStream {
     #[serde(rename = "@value")]
     pub value: Option<String>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    // actually xlink:href
-    #[serde(rename = "@href")]
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
     pub href: Option<String>,
-    // actually xlink:actuate
-    #[serde(rename = "@actuate")]
+    #[serde(rename = "@xlink:actuate")]
+    #[serde(alias = "@actuate")]
     pub actuate: Option<String>,
 }
 
@@ -1060,11 +1062,11 @@ pub struct AdaptationSet {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    // actually xlink:href
-    #[serde(rename = "@href")]
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
     pub href: Option<String>,
-    // actually xlink:actuate
-    #[serde(rename = "@actuate")]
+    #[serde(rename = "@xlink:actuate")]
+    #[serde(alias = "@actuate")]
     pub actuate: Option<String>,
     #[serde(rename = "@group")]
     pub group: Option<i64>,
@@ -1189,11 +1191,11 @@ pub struct Period {
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    // actually xlink:href
-    #[serde(rename = "@href")]
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
     pub href: Option<String>,
-    // actually xlink:actuate
-    #[serde(rename = "@actuate")]
+    #[serde(rename = "@xlink:actuate")]
+    #[serde(alias = "@actuate")]
     pub actuate: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
@@ -1351,13 +1353,16 @@ pub struct MPD {
     /// available over time).
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
-    // xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    #[serde(rename = "@xsi")]
+    #[serde(rename = "@xmlns:xsi")]
     pub xsi: Option<String>,
+    #[serde(rename = "@xmlns:cenc")]
+    pub cenc: Option<String>,
+    #[serde(rename = "@xmlns:xlink")]
+    pub xlink: Option<String>,
     #[serde(rename = "@xmlns")]
     pub xmlns: Option<String>,
-    // actually xsi:schemaLocation
-    #[serde(rename = "@schemaLocation")]
+    #[serde(alias = "@schemaLocation")]
+    #[serde(rename = "@xsi:schemaLocation")]
     pub schemaLocation: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
