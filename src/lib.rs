@@ -698,13 +698,15 @@ pub struct Accessibility {
     pub value: Option<String>,
 }
 
-/// Scope of a namespace
+/// Scope of a namespace.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Scope {
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
 }
 
 /// A SubRepresentation contains information that only applies to one media stream in a Representation.

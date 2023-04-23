@@ -76,7 +76,7 @@ The choice of external muxer depends on the filename extension of the path suppl
 
 ## Usage
 
-To **parse** the contents of an MPD manifest into Rust structs:
+To **parse** (deserialize) the contents of an MPD manifest into Rust structs:
 
 ```rust
 use std::time::Duration;
