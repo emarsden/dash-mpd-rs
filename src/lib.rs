@@ -443,6 +443,7 @@ pub struct S {
 
 /// Contains a sequence of `S` elements, each of which describes a sequence of contiguous segments of
 /// identical duration.
+#[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SegmentTimeline {
@@ -1087,6 +1088,9 @@ pub struct AdaptationSet {
     /// The Pixel Aspect Ratio, eg. "16:9".
     #[serde(rename = "@par")]
     pub par: Option<String>,
+    /// If present, this attribute is expected to be set to "progressive".
+    #[serde(rename = "@scanType")]
+    pub scanType: Option<String>,
     #[serde(rename = "@segmentAlignment")]
     pub segmentAlignment: Option<bool>,
     #[serde(rename = "@segmentProfiles")]
@@ -1227,6 +1231,7 @@ pub struct Reporting {
     pub probability: Option<u64>,
 }
 
+#[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Range {

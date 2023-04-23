@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.1] - 2023-04
+### New
+- Add `@scanType` attribute to AdaptationSet nodes.
+
+
 ## [0.8.0] - 2023-04-22
 ### New
 - Downloading: add support for `MP4Box` as an external muxing tool. When built without libav support
