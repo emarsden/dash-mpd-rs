@@ -27,6 +27,7 @@ data-url = { version = "0.2", optional = true }
 reqwest = { version = "0.11", default-features = false, optional = true }
 tokio = { version = ">=1.24.2", features = ["rt-multi-thread", "time"] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+governor = { version = "0.5", optional = true }
 tempfile = { version = "3", optional = true }
 sanitise-file-name = { version = "1", optional = true }
 ac-ffmpeg = { version = "0.18", optional = true }
@@ -45,7 +46,7 @@ roxmltree = "0.18"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks"]
-fetch = ["url", "data-url", "reqwest", "backoff", "tempfile", "sanitise-file-name"]
+fetch = ["url", "data-url", "reqwest", "backoff", "governor", "tempfile", "sanitise-file-name"]
 libav = ["ac-ffmpeg"]
 compression = ["reqwest/gzip"]
 socks = ["reqwest/socks"]

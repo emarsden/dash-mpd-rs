@@ -11,11 +11,14 @@ use std::process::Command;
 use std::time::Duration;
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::cmp::min;
+use std::num::NonZeroU32;
 use regex::Regex;
 use url::Url;
 use data_url::DataUrl;
 use reqwest::header::RANGE;
 use backoff::{future::retry_notify, ExponentialBackoff};
+use governor::{Quota, RateLimiter};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type, SubtitleType};
@@ -78,6 +81,7 @@ pub struct DashDownloader {
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
+    rate_limit: u64,
     verbosity: u8,
     record_metainformation: bool,
     pub ffmpeg_location: String,
@@ -147,6 +151,7 @@ impl DashDownloader {
             max_error_count: 10,
             progress_observers: vec![],
             sleep_between_requests: 0,
+            rate_limit: 0,
             verbosity: 0,
             record_metainformation: true,
             ffmpeg_location: if cfg!(windows) { String::from("ffmpeg.exe") } else { String::from("ffmpeg") },
@@ -264,6 +269,14 @@ impl DashDownloader {
     /// primitive mechanism for throttling bandwidth consumption.
     pub fn sleep_between_requests(mut self, seconds: u8) -> DashDownloader {
         self.sleep_between_requests = seconds;
+        self
+    }
+
+    pub fn with_rate_limit(mut self, bps: u64) -> DashDownloader {
+        if bps < 10 * 1024 {
+            log::warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
+        }
+        self.rate_limit = bps;
         self
     }
 
@@ -1676,7 +1689,19 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     // The additional +2 is for our initial .mpd fetch action and final muxing action
     let segment_count = audio_fragments.len() + video_fragments.len() + 2;
     let mut segment_counter = 0;
-
+    // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
+    // We express our cells in the RateLimiter in kB/s instead of bytes/second, to allow for numbing
+    // future bandwidth capacities. We need to be careful to allow a quota burst size which
+    // corresponds to the size (in kB) of the largest media segments we are going to be retrieving,
+    // because that's the number of bucket cells that will be consumed for each downloaded segment.
+    let kps = 1 + downloader.rate_limit / 1024;
+    if kps > u32::MAX.into() {
+        return Err(DashMpdError::Other("Bandwidth limit is too high".to_string()));
+    }
+    let bw_limit = NonZeroU32::new(kps as u32).unwrap();
+    let bw_quota = Quota::per_second(bw_limit)
+        .allow_burst(NonZeroU32::new(10 * 1024).unwrap());
+    let bw_limiter = RateLimiter::direct(bw_quota);
     // Concatenate the audio segments to a file.
     //
     // FIXME: in DASH, the first segment contains headers that are necessary to generate a valid MP4
@@ -1754,6 +1779,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                         }
                                     } else {
                                         println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                                    }
+                                }
+                                if downloader.rate_limit > 0 {
+                                    let size = min(dash_bytes.len()/1024 + 1, u32::MAX as usize);
+                                    if let Some(cells) = NonZeroU32::new(size as u32) {
+                                        if let Err(_) = bw_limiter.until_n_ready(cells).await {
+                                            return Err(DashMpdError::Other(
+                                                "Bandwidth limit is too low".to_string()));
+                                        }
                                     }
                                 }
                                 if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
@@ -1859,6 +1893,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                         }
                                     } else {
                                         println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    }
+                                }
+                                if downloader.rate_limit > 0 {
+                                    let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
+                                    if let Some(cells) = NonZeroU32::new(size as u32) {
+                                        if let Err(_) = bw_limiter.until_n_ready(cells).await {
+                                            return Err(DashMpdError::Other(
+                                                "Bandwidth limit is too low".to_string()));
+                                        }
                                     }
                                 }
                                 if let Err(e) = tmpfile_video.write_all(&dash_bytes) {

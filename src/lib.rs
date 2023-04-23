@@ -103,7 +103,7 @@ pub enum DashMpdError {
     Network(String),
     #[error("muxing error {0}")]
     Muxing(String),
-    #[error("unknown error {0}")]
+    #[error("{0}")]
     Other(String),
 }
 

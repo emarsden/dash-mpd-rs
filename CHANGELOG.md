@@ -2,6 +2,8 @@
 
 ## [0.8.1] - 2023-04
 ### New
+- Downloading: add preliminary support for throttling the network bandwidth, with method
+  `with_rate_limit` on DashDownloader.
 - Add `@scanType` attribute to AdaptationSet nodes.
 - Add `@presentationDuration` to SegmentBase nodes.
 
