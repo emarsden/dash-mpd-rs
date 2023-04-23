@@ -3,6 +3,7 @@
 ## [0.8.1] - 2023-04
 ### New
 - Add `@scanType` attribute to AdaptationSet nodes.
+- Add `@presentationDuration` to SegmentBase nodes.
 
 
 ## [0.8.0] - 2023-04-22

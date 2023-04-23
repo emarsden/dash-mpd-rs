@@ -558,6 +558,8 @@ pub struct SegmentBase {
     pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    #[serde(rename = "@presentationDuration")]
+    pub presentationDuration: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@indexRange")]
