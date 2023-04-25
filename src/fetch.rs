@@ -369,7 +369,7 @@ impl DashDownloader {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
                 .build()
-                .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
+                .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
         }
         fetch_mpd(self).await
@@ -377,7 +377,7 @@ impl DashDownloader {
 }
 
 fn generate_filename_from_url(url: &str) -> PathBuf {
-    use sanitise_file_name::sanitise;
+    use sanitise_file_name::{sanitise_with_options, Options};
 
     let mut path = url;
     if let Some(p) = path.strip_prefix("http://") {
@@ -396,16 +396,19 @@ fn generate_filename_from_url(url: &str) -> PathBuf {
     if let Some(p) = path.strip_suffix(".mpd") {
         path = p;
     }
-    // We currently default to an MP4 container (could default to Matroska which is more flexible, but
-    // perhaps less commonly supported).
-    PathBuf::from(sanitise(path) + ".mp4")
+    let mut sanitize_opts = Options::DEFAULT;
+    sanitize_opts.length_limit = 150;
+    // We currently default to an MP4 container (could default to Matroska which is more flexible,
+    // but perhaps less commonly supported).
+    PathBuf::from(sanitise_with_options(path, &sanitize_opts) + ".mp4")
 }
 
 
 fn is_absolute_url(s: &str) -> bool {
     s.starts_with("http://") ||
         s.starts_with("https://") ||
-        s.starts_with("file://")
+        s.starts_with("file://") ||
+        s.starts_with("ftp://")
 }
 
 // From the DASH-IF-IOP-v4.0 specification, "If the value of the @xlink:href attribute is
