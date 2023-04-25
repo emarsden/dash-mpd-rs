@@ -603,6 +603,8 @@ pub struct SegmentBase {
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
+    #[serde(rename = "FailoverContent")]
+    pub failover_content: Option<FailoverContent>,
 }
 
 /// The URL of a media segment.
