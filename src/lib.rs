@@ -611,6 +611,39 @@ pub struct BaseURL {
     pub weight: Option<i64>,
 }
 
+/// Failover Content Segment (FCS).  The time and optional duration for which a
+/// representation does not represent the main content but a failover version.  It
+/// can and is also used to represent gaps where no segments are present at all -
+/// used within the `FailoverContent` element.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct Fcs {
+    /// The time at which no/failover segments for this representation starts (if the valid
+    /// flag is set to `true` in `FailoverContent`).
+    #[serde(rename = "@t")]
+    pub t: u64,
+
+    /// The optional duration for which there is failover or no content.  If `None` then
+    /// the duration is for the remainder of the `Period` the parent `Representation` is in.
+    #[serde(rename = "@d")]
+    pub d: Option<u64>,
+}
+
+/// Period of time for which either failover content or no content/segments exist for the
+/// for the parent `Representation`.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct FailoverContent {
+    #[serde(rename = "FCS")]
+    pub fcs_list: Vec<Fcs>,
+    // If true, the FCS represents failover content; if false, it represents a gap
+    // where there are no segments at all.
+    #[serde(rename = "@valid")]
+    pub valid: Option<bool>,
+}
+
 /// Specifies some common information concerning media segments.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -633,6 +666,8 @@ pub struct SegmentBase {
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
+    #[serde(rename = "FailoverContent")]
+    pub failover_content: Option<FailoverContent>,
 }
 
 /// The URL of a media segment.
