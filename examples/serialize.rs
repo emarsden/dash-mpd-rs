@@ -7,6 +7,7 @@ use chrono::prelude::*;
 use dash_mpd::{MPD, BaseURL, Representation, AdaptationSet, Period, ProgramInformation, Copyright, Title};
 
 
+
 fn main () {
     let pi = ProgramInformation {
         Title: Some(Title { content: Some("My serialization example".into()) }),

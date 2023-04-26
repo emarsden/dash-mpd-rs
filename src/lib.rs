@@ -355,6 +355,69 @@ where
 }
 
 
+// These serialization functions are need to serialize correct default values for various optional
+// namespaces specified as attributes of the root MPD struct (e.g. xmlns:xsi, xmlns:xlink). If a
+// value is present in the struct field (specified in the parsed XML or provided explicitly when
+// building the MPD struct) then we use that, and otherwise default to the well-known URLs for these
+// namespaces.
+//
+// The quick-xml support for #[serde(default = "fn")] (which would allow a less heavyweight solution
+// to this) does not seem to work.
+
+fn serialize_xmlns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("urn:mpeg:dash:schema:mpd:2011")
+    }
+}
+
+fn serialize_xsi_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("http://www.w3.org/2001/XMLSchema-instance")
+    }
+}
+
+fn serialize_cenc_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("urn:mpeg:cenc:2013")
+    }
+}
+
+fn serialize_xlink_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("http://www.w3.org/1999/xlink")
+    }
+}
+
+fn serialize_scte35_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("http://www.scte.org/schemas/35/2016")
+    }
+}
+
+fn serialize_dvb_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where S: serde::Serializer {
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("urn:dvb:metadata:iptv:sdns:2008-1")
+    }
+}
+
 
 // The MPD format is documented by ISO using an XML Schema at
 // https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD-edition2.xsd
@@ -948,6 +1011,8 @@ pub struct Binary {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Signal {
+    #[serde(rename = "@xmlns")]
+    pub xmlns: Option<String>,
     #[serde(rename = "Binary")]
     pub content: Vec<Binary>,
 }
@@ -1376,29 +1441,32 @@ pub struct MPD {
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
     /// The XML namespace prefix used by convention for the XML Schema Instance namespace.
-    #[serde(rename = "@xmlns:xsi")]
+    #[serialize_always]
+    #[serde(rename="@xmlns:xsi", alias="@xsi", serialize_with="serialize_xsi_ns")]
     pub xsi: Option<String>,
     #[serde(alias = "@ext", rename = "@xmlns:ext")]
     pub ext: Option<String>,
     /// The XML namespace prefix used by convention for the Common Encryption scheme.
-    #[serde(rename = "@xmlns:cenc")]
+    #[serialize_always]
+    #[serde(rename="@xmlns:cenc", alias="@cenc", serialize_with="serialize_cenc_ns")]
     pub cenc: Option<String>,
     /// The XML namespace prefix used by convention for the XML Linking Language.
-    #[serde(rename = "@xmlns:xlink")]
+    #[serialize_always]
+    #[serde(rename="@xmlns:xlink", alias="@xlink", serialize_with="serialize_xlink_ns")]
     pub xlink: Option<String>,
     /// The XML namespace prefix used by convention for the “Digital Program Insertion Cueing
     /// Message for Cable” (SCTE 35) signaling standard.
-    #[serde(rename = "@xmlns:scte35")]
+    #[serialize_always]
+    #[serde(rename="@xmlns:scte35", alias="@scte35", serialize_with="serialize_scte35_ns")]
     pub scte35: Option<String>,
     /// The XML namespace prefix used by convention for DASH extensions proposed by the Digital
     /// Video Broadcasting Project, as per RFC 5328.
-    #[serde(rename = "@xmlns:dvb")]
+    #[serialize_always]
+    #[serde(rename="@xmlns:dvb", alias="@dvb", serialize_with="serialize_dvb_ns")]
     pub dvb: Option<String>,
-    #[serde(rename = "@xmlns")]
+    #[serde(rename = "@xmlns", serialize_with="serialize_xmlns")]
     pub xmlns: Option<String>,
-    #[serde(alias = "@schemaLocation")]
-    #[serde(alias = "@schemalocation")]
-    #[serde(rename = "@xsi:schemaLocation")]
+    #[serde(rename = "@xsi:schemaLocation", alias = "@schemaLocation")]
     pub schemaLocation: Option<String>,
     // scte214 namespace
     #[serde(alias = "@scte214", rename = "@xmlns:scte214")]

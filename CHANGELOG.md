@@ -7,6 +7,11 @@
 - Add `@scanType` attribute to AdaptationSet nodes.
 - Add `@presentationDuration` to SegmentBase nodes.
 
+### Changed
+- Serialization: default values for the namespaces for xlink, xsi, cenc, dvb and scte35 namespaces
+  will be provided if they are not supplied explicitly. This should make it easier to generate
+  compliant manifests.
+
 
 ## [0.8.0] - 2023-04-22
 ### New
