@@ -48,6 +48,7 @@ roxmltree = "0.18"
 default = ["fetch", "native-tls", "compression", "socks"]
 fetch = ["url", "data-url", "reqwest", "backoff", "governor", "tempfile", "sanitise-file-name"]
 libav = ["ac-ffmpeg"]
+rfc3339-parse = []
 compression = ["reqwest/gzip"]
 socks = ["reqwest/socks"]
 native-tls = ["reqwest/native-tls"]

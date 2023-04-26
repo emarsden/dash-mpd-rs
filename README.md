@@ -45,6 +45,14 @@ fix invalid input streams that tend to exist in the wild. Some of these workarou
 here when using libav as a library, but not all of them, so download support tends to be more robust
 with the default configuration (using an external application as a subprocess).
 
+If the library feature `rfc3339-parse` is enabled (which it is *not* by default), the library delegates
+deserializing/parsing date/times by the stricter RFC-3339 standard rather than the broader ISO 8602,
+which allows more formats and is by spec, and thus the default.  The current limitation of the ISO 8602
+parsing is that it is only accurate down to milliseconds (the `iso8602` crate used for this parsing
+does not provide for microseconds or nanoseconds). If the DASH MPDs you are processing have date/times
+that always conform to RFC-3339 (which requires a timezone), and you care about date/time precision
+more granual than milliseconds, you can enable this feature for the capability.
+
 The choice of external muxer depends on the filename extension of the path supplied to `download_to()`
 (will be `.mp4` if you call `download()`):
 

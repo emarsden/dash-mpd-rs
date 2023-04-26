@@ -1431,7 +1431,7 @@ pub struct ProducerReferenceTime {
     pub presentationTime: Option<u64>,
     #[serde(rename = "@type")]
     pub prtType: Option<String>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[cfg_attr(not(feature = "rfc3339-parse"), serde(deserialize_with = "deserialize_xs_datetime", default))]
     #[serde(rename = "@wallclockTime")]
     pub wallClockTime: Option<XsDatetime>,
     pub UTCTiming: Vec<UTCTiming>,
@@ -1446,7 +1446,7 @@ pub struct LeapSecondInformation {
     pub availabilityStartLeapOffset: Option<i64>,
     #[serde(rename = "@nextAvailabilityStartLeapOffset")]
     pub nextAvailabilityStartLeapOffset: Option<i64>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[cfg_attr(not(feature = "rfc3339-parse"), serde(deserialize_with = "deserialize_xs_datetime", default))]
     #[serde(rename = "@nextLeapChangeTime")]
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
@@ -1539,13 +1539,13 @@ pub struct MPD {
     #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@suggestedPresentationDelay")]
     pub suggestedPresentationDelay: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[cfg_attr(not(feature = "rfc3339-parse"), serde(deserialize_with = "deserialize_xs_datetime", default))]
     #[serde(rename = "@publishTime")]
     pub publishTime: Option<XsDatetime>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[cfg_attr(not(feature = "rfc3339-parse"), serde(deserialize_with = "deserialize_xs_datetime", default))]
     #[serde(rename = "@availabilityStartTime")]
     pub availabilityStartTime: Option<XsDatetime>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
+    #[cfg_attr(not(feature = "rfc3339-parse"), serde(deserialize_with = "deserialize_xs_datetime", default))]
     #[serde(rename = "@availabilityEndTime")]
     pub availabilityEndTime: Option<XsDatetime>,
     #[serde(rename = "Period", default)]
