@@ -414,7 +414,7 @@ where S: serde::Serializer {
     if let Some(s) = os {
         serializer.serialize_str(s)
     } else {
-        serializer.serialize_str("urn:dvb:metadata:iptv:sdns:2008-1")
+        serializer.serialize_str("urn:dvb:dash-extensions:2014-1")
     }
 }
 
