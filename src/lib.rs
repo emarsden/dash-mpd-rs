@@ -301,6 +301,7 @@ where
 // <https://www.w3.org/TR/xmlschema-2/#dateTime>) allows the timezone to be omitted. For more on the
 // complicated relationship between ISO 8601 and RFC 3339, see
 // <https://ijmacd.github.io/rfc3339-iso8601/>.
+#[allow(dead_code)]
 fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
     use iso8601::Date;
     use chrono::{LocalResult, NaiveDate, TimeZone};
@@ -337,6 +338,7 @@ fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
 }
 
 // Deserialize an optional XML datetime string (type xs:datetime) to an Option<XsDatetime>.
+#[allow(dead_code)]
 fn deserialize_xs_datetime<'de, D>(deserializer: D) -> Result<Option<XsDatetime>, D::Error>
 where
     D: de::Deserializer<'de>,
