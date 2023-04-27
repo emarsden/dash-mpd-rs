@@ -87,7 +87,7 @@ fn main() {
         .timeout(Duration::new(30, 0))
         .build()
         .expect("creating HTTP client");
-    let xml = client.get("http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd")
+    let xml = client.get("https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .send()
         .expect("requesting MPD content")
