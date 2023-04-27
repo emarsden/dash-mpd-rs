@@ -1,16 +1,19 @@
 # Changelog
 
-## [0.8.1] - 2023-04
+## [0.8.1] - 2023-04-27
 ### New
 - Downloading: add preliminary support for throttling the network bandwidth, with method
   `with_rate_limit` on DashDownloader.
 - Add `@scanType` attribute to AdaptationSet nodes.
 - Add `@presentationDuration` to SegmentBase nodes.
+- Add `FailoverContent` element to SegmentBase nodes (from @sbuzzard).
 
 ### Changed
-- Serialization: default values for the namespaces for xlink, xsi, cenc, dvb and scte35 namespaces
+- Serialization: default values for the XML namespaces for xlink, xsi, cenc, dvb and scte35
   will be provided if they are not supplied explicitly. This should make it easier to generate
-  compliant manifests.
+  standards-compliant manifests.
+- Downloading: limit length of default output pathname (when using method `download`) to avoid
+  exceeding filesystem limits.
 
 
 ## [0.8.0] - 2023-04-22
