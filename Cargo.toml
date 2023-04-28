@@ -13,7 +13,7 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_with = "2"
+serde_with = { version = "2", features = ["base64"] }
 quick-xml = { version = "0.28", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 num-traits = "0.2"

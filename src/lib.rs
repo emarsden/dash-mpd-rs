@@ -75,7 +75,7 @@ use crate::libav::mux_audio_video;
 use crate::ffmpeg::mux_audio_video;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
-use serde_with::skip_serializing_none;
+use serde_with::{serde_as, skip_serializing_none};
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
@@ -1037,7 +1037,9 @@ pub struct Viewpoint {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
+#[serde_as]
 pub struct Binary {
+    #[serde_as(as = "Base64")]
     #[serde(rename = "$value")]
     pub content: Vec<u8>,
 }
@@ -1060,6 +1062,7 @@ pub struct Signal {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
+#[serde_as]
 pub struct Event {
     #[serde(rename = "@id")]
     pub id: Option<String>,
@@ -1085,8 +1088,9 @@ pub struct Event {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde_as(as = "Base64")]
     #[serde(rename = "$value")]
-    pub content: Option<String>,
+    pub content: Vec<u8>,
 }
 
 #[skip_serializing_none]
