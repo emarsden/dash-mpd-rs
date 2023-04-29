@@ -16,17 +16,19 @@
 //
 // You won't often find public DASH streams with SCTE-35 events; they are more often used for
 // server-side ad insertion, which helps ensure that viewers benefit from the advertising content
-// instead of blocking or skipping it. For this reason, these definitions have not been well tested. 
+// instead of blocking or skipping it. For this reason, these definitions have not been well tested.
 //
 // An XML Schema for this embedding is available at
 // https://github.com/Comcast/scte35-go/blob/main/docs/scte_35_20220816.xsd
 
 
 #![allow(non_snake_case)]
+
+use base64_serde::base64_serde_type;
 use serde::{Serialize, Deserialize};
-use serde_with::{serde_as, skip_serializing_none};
+use serde_with::skip_serializing_none;
 
-
+base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 pub fn serialize_scte35_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
@@ -289,12 +291,10 @@ pub struct SpliceInfoSection {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
-#[serde_as]
 pub struct Binary {
     #[serde(rename = "@signalType")]
     pub signal_type: Option<String>,
-    #[serde_as(as = "Base64")]
-    #[serde(rename = "$value")]
+    #[serde(rename = "$value", with = "Base64Standard")]
     pub content: Vec<u8>,
 }
 
