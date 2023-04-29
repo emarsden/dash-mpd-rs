@@ -265,16 +265,22 @@ impl DashDownloader {
         self
     }
 
-    /// Specify a number of seconds to sleep between network requests (default 0). This provides a
-    /// primitive mechanism for throttling bandwidth consumption.
+    /// Specify a number of seconds to sleep between network requests (default 0).
     pub fn sleep_between_requests(mut self, seconds: u8) -> DashDownloader {
         self.sleep_between_requests = seconds;
         self
     }
 
+    /// A maximal limit on the network bandwidth consumed to download media segments, expressed in
+    /// octets (bytes) per second. No limit on bandwidth if set to zero (the default value).
+    /// Limiting bandwidth below 50kB/s is not recommended, as the downloader may fail to respect
+    /// this limit.
     pub fn with_rate_limit(mut self, bps: u64) -> DashDownloader {
         if bps < 10 * 1024 {
             log::warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
+        }
+        if self.verbosity > 1 {
+            log::info!("Limiting bandwidth to {}kB/s", bps/1024);
         }
         self.rate_limit = bps;
         self
