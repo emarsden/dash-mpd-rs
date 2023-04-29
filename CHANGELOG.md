@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0] - Unreleased
+### New
+- Support for the SCTE-35 standard allowing dynamic insertion of alternate content (mostly used for
+  advertising). This support is gated by the new `scte35` feature, which is enabled by default.
+
+
 ## [0.8.1] - 2023-04-27
 ### New
 - Downloading: add preliminary support for throttling the network bandwidth, with method

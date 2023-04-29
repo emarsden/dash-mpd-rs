@@ -68,6 +68,11 @@ mod libav;
 mod ffmpeg;
 #[cfg(feature = "fetch")]
 pub mod fetch;
+// Support for the SCTE-35 standard for insertion of alternate content
+#[cfg(feature = "scte35")]
+pub mod scte35;
+#[cfg(feature = "scte35")]
+use crate::scte35::Signal;
 
 #[cfg(all(feature = "fetch", feature = "libav"))]
 use crate::libav::mux_audio_video;
@@ -75,7 +80,7 @@ use crate::libav::mux_audio_video;
 use crate::ffmpeg::mux_audio_video;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
-use serde_with::skip_serializing_none;
+use serde_with::{serde_as, skip_serializing_none};
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
@@ -397,15 +402,6 @@ where S: serde::Serializer {
         serializer.serialize_str(s)
     } else {
         serializer.serialize_str("http://www.w3.org/1999/xlink")
-    }
-}
-
-fn serialize_scte35_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
-where S: serde::Serializer {
-    if let Some(s) = os {
-        serializer.serialize_str(s)
-    } else {
-        serializer.serialize_str("http://www.scte.org/schemas/35/2016")
     }
 }
 
@@ -1034,24 +1030,6 @@ pub struct Viewpoint {
     pub value: Option<String>,
 }
 
-#[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-#[serde(default)]
-pub struct Binary {
-    #[serde(rename = "$value")]
-    pub content: Vec<u8>,
-}
-
-#[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-#[serde(default)]
-pub struct Signal {
-    #[serde(rename = "@xmlns")]
-    pub xmlns: Option<String>,
-    #[serde(rename = "Binary")]
-    pub content: Vec<Binary>,
-}
-
 /// A DASH event, a mechanism allowing the server to send additional information to the DASH client
 /// which is synchronized with the media stream. Used for various purposes such as dynamic ad
 /// insertion, providing additional metainformation concerning the actors or location at a point in
@@ -1060,6 +1038,7 @@ pub struct Signal {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
+#[serde_as]
 pub struct Event {
     #[serde(rename = "@id")]
     pub id: Option<String>,
@@ -1079,7 +1058,9 @@ pub struct Event {
     /// compatibility; message content should be included in the Event element instead.
     #[serde(rename = "@messageData")]
     pub messageData: Option<String>,
-    #[serde(rename = "Signal")]
+    #[cfg(feature = "scte35")]
+    #[serde(rename = "scte35:Signal", alias="Signal")]
+    #[cfg(feature = "scte35")]
     pub signal: Vec<Signal>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
@@ -1491,8 +1472,9 @@ pub struct MPD {
     pub xlink: Option<String>,
     /// The XML namespace prefix used by convention for the “Digital Program Insertion Cueing
     /// Message for Cable” (SCTE 35) signaling standard.
+    #[cfg(feature = "scte35")]
     #[serialize_always]
-    #[serde(rename="@xmlns:scte35", alias="@scte35", serialize_with="serialize_scte35_ns")]
+    #[serde(rename="@xmlns:scte35", alias="@scte35", serialize_with="scte35::serialize_scte35_ns")]
     pub scte35: Option<String>,
     /// The XML namespace prefix used by convention for DASH extensions proposed by the Digital
     /// Video Broadcasting Project, as per RFC 5328.

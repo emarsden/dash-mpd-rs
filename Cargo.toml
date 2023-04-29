@@ -13,7 +13,7 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_with = "2"
+serde_with = { version = "2", features = ["base64"] }
 quick-xml = { version = "0.28", features = ["serialize"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 num-traits = "0.2"
@@ -45,9 +45,10 @@ anyhow = "1.0"
 roxmltree = "0.18"
 
 [features]
-default = ["fetch", "native-tls", "compression", "socks"]
+default = ["fetch", "native-tls", "compression", "socks", "scte35"]
 fetch = ["url", "data-url", "reqwest", "backoff", "governor", "tempfile", "sanitise-file-name"]
 libav = ["ac-ffmpeg"]
+scte35 = []
 compression = ["reqwest/gzip"]
 socks = ["reqwest/socks"]
 native-tls = ["reqwest/native-tls"]
