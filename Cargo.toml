@@ -12,6 +12,8 @@ publish = true
 edition = "2021"
 
 [dependencies]
+base64 = "0.21"
+base64-serde = "0.7"
 serde = { version = "1", features = ["derive"] }
 serde_with = { version = "2", features = ["base64"] }
 quick-xml = { version = "0.28", features = ["serialize"] }

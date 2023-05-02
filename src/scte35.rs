@@ -23,9 +23,12 @@
 
 
 #![allow(non_snake_case)]
+use base64_serde::base64_serde_type;
 use serde::{Serialize, Deserialize};
-use serde_with::{serde_as, skip_serializing_none};
+use serde_with::skip_serializing_none;
 
+
+base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 
 pub fn serialize_scte35_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
@@ -96,7 +99,7 @@ pub struct ScteEvent {
     pub avail_num: Option<u8>,
     #[serde(rename = "@availsExpected")]
     pub avails_expected: Option<u8>,
-    #[serde(rename = "BreakDuration")]
+    #[serde(rename = "scte35:BreakDuration", alias="BreakDuration")]
     pub break_duration: Option<BreakDuration>,
 }
 
@@ -120,7 +123,7 @@ pub struct SpliceNull {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SpliceSchedule {
-    #[serde(rename = "Event")]
+    #[serde(rename = "scte35:Event", alias="Event")]
     pub scte_events: Vec<ScteEvent>,
     // TODO: SpliceCount?
 }
@@ -153,7 +156,7 @@ pub struct PrivateBytes {
 pub struct PrivateCommand {
     #[serde(rename = "@identifier")]
     pub identifier: u32,
-    #[serde(rename = "PrivateBytes")]
+    #[serde(rename = "scte35:PrivateBytes", alias="PrivateBytes")]
     pub private_bytes: Vec<PrivateBytes>,
 }
 
@@ -211,7 +214,7 @@ pub struct SegmentationDescriptor {
     pub sub_segment_num: Option<u8>,
     #[serde(rename = "@subSegmentsExpected")]
     pub sub_segments_expected: Option<u8>,
-    #[serde(rename = "SegmentationUpid")]
+    #[serde(rename = "scte35:SegmentationUpid", alias="SegmentationUpid")]
     pub segmentation_upids: Vec<SegmentationUpid>,
 }
 
@@ -219,7 +222,7 @@ pub struct SegmentationDescriptor {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Program {
-    #[serde(rename = "SpliceTime")]
+    #[serde(rename = "scte35:SpliceTime", alias="SpliceTime")]
     pub splice_time: Vec<SpliceTime>,
 }
 
@@ -241,7 +244,7 @@ pub struct SpliceInsert {
     pub avail_num: Option<u8>,
     #[serde(rename = "@availsExpected")]
     pub avails_expected: Option<u8>,
-    #[serde(rename = "BreakDuration")]
+    #[serde(rename = "scte35:BreakDuration", alias="BreakDuration")]
     pub break_duration: Option<BreakDuration>,
 }
 
@@ -265,23 +268,23 @@ pub struct SpliceInfoSection {
     pub time_signal: Option<TimeSignal>,
     #[serde(rename = "scte35:SegmentationDescriptor", alias="SegmentationDescriptor")]
     pub segmentation_descriptor: Option<SegmentationDescriptor>,
-    #[serde(rename = "SpliceNull")]
+    #[serde(rename = "scte35:SpliceNull", alias="SpliceNull")]
     pub splice_null: Option<SpliceNull>,
-    #[serde(rename = "SpliceInsert")]
+    #[serde(rename = "scte35:SpliceInsert", alias="SpliceInsert")]
     pub splice_insert: Option<SpliceInsert>,
-    #[serde(rename = "SpliceSchedule")]
+    #[serde(rename = "scte35:SpliceSchedule", alias="SpliceSchedule")]
     pub splice_schedule: Option<SpliceSchedule>,
-    #[serde(rename = "BandwidthReservation")]
+    #[serde(rename = "scte35:BandwidthReservation", alias="BandwidthReservation")]
     pub bandwidth_reservation: Option<BandwidthReservation>,
-    #[serde(rename = "PrivateCommand")]
+    #[serde(rename = "scte35:PrivateCommand", alias="PrivateCommand")]
     pub private_command: Option<PrivateCommand>,
-    #[serde(rename = "EncryptedPacket")]
+    #[serde(rename = "scte35:EncryptedPacket", alias="EncryptedPacket")]
     pub encrypted_packet: Option<EncryptedPacket>,
-    #[serde(rename = "AvailDescriptor")]
+    #[serde(rename = "scte35:AvailDescriptor", alias="AvailDescriptor")]
     pub avail_descriptor: Option<AvailDescriptor>,
-    #[serde(rename = "DTMFDescriptor")]
+    #[serde(rename = "scte35:DTMFDescriptor", alias="DTMFDescriptor")]
     pub dtmf_descriptor: Option<DTMFDescriptor>,
-    #[serde(rename = "TimeDescriptor")]
+    #[serde(rename = "scte35:TimeDescriptor", alias="TimeDescriptor")]
     pub time_descriptor: Option<TimeDescriptor>,
 }
 
@@ -289,12 +292,10 @@ pub struct SpliceInfoSection {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
-#[serde_as]
 pub struct Binary {
     #[serde(rename = "@signalType")]
     pub signal_type: Option<String>,
-    #[serde_as(as = "Base64")]
-    #[serde(rename = "$value")]
+    #[serde(rename = "$value", with = "Base64Standard")]
     pub content: Vec<u8>,
 }
 

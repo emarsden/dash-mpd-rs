@@ -72,24 +72,25 @@ pub mod fetch;
 #[cfg(feature = "scte35")]
 pub mod scte35;
 #[cfg(feature = "scte35")]
-use crate::scte35::Signal;
+use crate::scte35::{Signal, SpliceInfoSection};
 
 #[cfg(all(feature = "fetch", feature = "libav"))]
 use crate::libav::mux_audio_video;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::mux_audio_video;
+use base64_serde::base64_serde_type;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
-use serde_with::{serde_as, skip_serializing_none};
+use serde_with::skip_serializing_none;
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
 
+base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 /// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
 // Something like 2021-06-03T13:00:00Z or 2022-12-06T22:27:53
 pub type XsDatetime = DateTime<chrono::offset::Utc>;
-
 
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
@@ -1038,7 +1039,6 @@ pub struct Viewpoint {
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
-#[serde_as]
 pub struct Event {
     #[serde(rename = "@id")]
     pub id: Option<String>,
@@ -1062,10 +1062,16 @@ pub struct Event {
     #[serde(rename = "scte35:Signal", alias="Signal")]
     #[cfg(feature = "scte35")]
     pub signal: Vec<Signal>,
+    #[cfg(feature = "scte35")]
+    #[serde(rename = "scte35:SpliceInfoSection", alias="SpliceInfoSection")]
+    #[cfg(feature = "scte35")]
+    pub splice_info_section: Vec<SpliceInfoSection>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    // The content may be base64 encoded, but may also be text. See for example
+    // https://refapp.hbbtv.org/videos/00_llama_multiperiod_v1/manifest.mpd
     #[serde(rename = "$value")]
     pub content: Option<String>,
 }

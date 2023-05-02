@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <MPD id="201" minBufferTime="PT30S" profiles="urn:mpeg:dash:profile:isoff-main:2011" type="static" xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:scte35="urn:scte:scte35:2013:xml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"><BaseURL>https://10380e91fda5e303.mediapackage.us-west-2.amazonaws.com/out/v1/5f6a2197815e444a967f0c12f8325a11/</BaseURL>
         <Period duration="PT14.976S" id="8778696_PT0S_0" start="PT0S"><BaseURL>https://12345.mediatailor.us-west-2.amazonaws.com/v1/dashsegment/0d598fad40f42c4644d1c5b7674438772ee23b12/dash-vod-insertion/a5a7cf24-ee56-40e9-a0a2-82b483cf8650/8778696_PT0S/8778696_PT0S_0/</BaseURL>
+          <EventStream timescale="10000000" schemeIdUri="urn:scte:scte35:2014:xml+bin">
+            <Event>
+                <scte35:Signal>
+                    <scte35:Binary>/DAnAAAAAAAAAP/wBQb+0cr/PQARAg9DVUVJAAA0Q3+/AAAjAAAG6c2q</scte35:Binary>
+                </scte35:Signal>
+            </Event>
+          </EventStream>
           <AdaptationSet bitstreamSwitching="false" frameRate="30/1" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1" subsegmentAlignment="true" subsegmentStartsWithSAP="1">
             <SegmentTemplate startNumber="1" timescale="90000"/>
             <Representation bandwidth="3296000" codecs="avc1.64001f" height="720" id="1" width="1280">

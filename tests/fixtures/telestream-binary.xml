@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:scte35="http://www.scte.org/schemas/35/2016">
+  <Period start="PT0S">
+    <EventStream timescale="90000" schemeIdUri="urn:scte:scte35:2014:xml+bin">
+      <Event presentationTime="900000">
+        <scte35:Signal>
+          <scte35:Binary>/DAhAAAAAAAAAP/wEAUAAALRf+9//gAaF7DAAAAAAAA+MhNj</scte35:Binary>
+        </scte35:Signal>
+      </Event>
+      <Event presentationTime="3600000">
+        <scte35:Signal>
+          <scte35:Binary>/DAhAAAAAAAAAP/wEAUAAALSf+9//gAaF7DAAAAAAABd4y1C</scte35:Binary>
+        </scte35:Signal>
+      </Event>
+    </EventStream>
+  </Period>
+</MPD>
