@@ -4,6 +4,10 @@
 ### New
 - Support for the SCTE-35 standard allowing dynamic insertion of alternate content (mostly used for
   advertising). This support is gated by the new `scte35` feature, which is enabled by default.
+- Parsing of xs:datetime fields attempts to use the rfc3339 crate before falling back to the iso8601
+  crate if the datetime is not in RFC 3339 format (for example, if it doesn't include a timezone).
+  The rfc3339 crate parses with nanosecond precision, whereas the iso8601 crate only has millisecond
+  resolution.
 
 
 ## [0.8.1] - 2023-04-27
