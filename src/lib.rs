@@ -311,34 +311,37 @@ fn parse_xs_datetime(s: &str) -> Result<XsDatetime, DashMpdError> {
     use iso8601::Date;
     use chrono::{LocalResult, NaiveDate, TimeZone};
     use num_traits::cast::FromPrimitive;
-    match iso8601::datetime(s) {
-        Ok(dt) => {
-            let nd = match dt.date {
-                Date::YMD { year, month, day } =>
-                    NaiveDate::from_ymd_opt(year, month, day)
-                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
-                Date::Week { year, ww, d } => {
-                    let d = chrono::Weekday::from_u32(d)
-                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
-                    NaiveDate::from_isoywd_opt(year, ww, d)
-                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
-                },
-                Date::Ordinal { year, ddd } =>
-                    NaiveDate::from_yo_opt(year, ddd)
-                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
-            };
-            let nd = nd.and_hms_nano_opt(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond*1000*1000)
-                .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
-            let tz_secs = dt.time.tz_offset_hours * 3600 + dt.time.tz_offset_minutes * 60;
-            match chrono::FixedOffset::east_opt(tz_secs)
-                .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
-                .from_local_datetime(&nd)
-            {
-                LocalResult::Single(local) => Ok(local.with_timezone(&chrono::Utc)),
-                _ => Err(DashMpdError::InvalidDateTime(s.to_string())),
-            }
-        },
-        Err(_) => Err(DashMpdError::InvalidDateTime(s.to_string())),
+    match DateTime::<chrono::offset::FixedOffset>::parse_from_rfc3339(s) {
+        Ok(dt) => Ok(dt.into()),
+        Err(_) => match iso8601::datetime(s) {
+            Ok(dt) => {
+                let nd = match dt.date {
+                    Date::YMD { year, month, day } =>
+                        NaiveDate::from_ymd_opt(year, month, day)
+                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
+                    Date::Week { year, ww, d } => {
+                        let d = chrono::Weekday::from_u32(d)
+                            .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
+                        NaiveDate::from_isoywd_opt(year, ww, d)
+                            .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
+                    },
+                    Date::Ordinal { year, ddd } =>
+                        NaiveDate::from_yo_opt(year, ddd)
+                        .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?,
+                };
+                let nd = nd.and_hms_nano_opt(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond*1000*1000)
+                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?;
+                let tz_secs = dt.time.tz_offset_hours * 3600 + dt.time.tz_offset_minutes * 60;
+                match chrono::FixedOffset::east_opt(tz_secs)
+                    .ok_or(DashMpdError::InvalidDateTime(s.to_string()))?
+                    .from_local_datetime(&nd)
+                {
+                    LocalResult::Single(local) => Ok(local.with_timezone(&chrono::Utc)),
+                    _ => Err(DashMpdError::InvalidDateTime(s.to_string())),
+                }
+            },
+            Err(_) => Err(DashMpdError::InvalidDateTime(s.to_string())),
+        }
     }
 }
 
