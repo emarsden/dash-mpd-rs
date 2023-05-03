@@ -216,6 +216,8 @@ be enabled:
 - `trust-dns`: enable the `trust-dns` feature on our `reqwest` dependency, to use the trust-dns DNS
   resolver library instead of the system resolver.
 
+- `scte35` *(enabled by default)*: enable support for XML elements corresponding to the SCTE-35
+  standard for insertion of alternate content (mostly used for dynamic insertion of advertising).
 
 
 ## Platforms
