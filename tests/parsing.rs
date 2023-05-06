@@ -193,6 +193,22 @@ fn test_scte35_binary() {
       </EventStream>
      </Period></MPD>"#;
     assert!(parse(bin5).is_ok());
+
+    // from https://developers.broadpeak.io/docs/input-streaming-formats
+    let bin6 = r#"<MPD><Period><EventStream
+      schemeIdUri="urn:scte:scte35:2014:xml+bin"
+      timescale="10000000">
+      <Event
+        presentationTime="15516962501159406"
+        id="3999785549">
+        <Signal xmlns="http://www.scte.org/schemas/35/2016"> 
+           <Binary>/DAnAAAAAAAAAP/wBQb/Y/SedwARAg9DVUVJAAAAPH+/AAAjAQEGLc/Q
+           </Binary>
+        </Signal>
+      </Event>
+      </EventStream></Period></MPD>"#;
+    assert!(parse(bin6).is_ok());
+
 }
 
 #[test]
@@ -241,6 +257,21 @@ fn test_scte35_elements() {
       </Event></EventStream>
      </Period></MPD>"#;
     assert!(parse(elem3).is_ok());
+
+    let elem4 = r#"<MPD>  <Period start="PT346530.250S" id="178443" duration="PT61.561S">
+    <EventStream timescale="90000" schemeIdUri="urn:scte:scte35:2013:xml">
+      <Event duration="5310000">
+        <scte35:SpliceInfoSection protocolVersion="0" ptsAdjustment="183003" tier="4095">
+          <scte35:TimeSignal>
+            <scte35:SpliceTime ptsTime="3442857000"/>
+          </scte35:TimeSignal>
+          <scte35:SegmentationDescriptor segmentationEventId="1414668" segmentationEventCancelIndicator="false" segmentationDuration="8100000">
+            <scte35:DeliveryRestrictions webDeliveryAllowedFlag="false" noRegionalBlackoutFlag="false" archiveAllowedFlag="false" deviceRestrictions="3"/>
+            <scte35:SegmentationUpid segmentationUpidType="12" segmentationUpidLength="2" segmentationTypeId="52" segmentNum="0" segmentsExpected="0">0100</scte35:SegmentationUpid>
+          </scte35:SegmentationDescriptor>
+        </scte35:SpliceInfoSection>
+      </Event></EventStream></Period></MPD>"#;
+    assert!(parse(elem4).is_ok());
 }
 
 
@@ -265,6 +296,15 @@ fn test_file_parsing() {
     let p1 = mp.unwrap();
     assert_eq!(p1.BaseURL.len(), 1);
     assert!(p1.BaseURL[0].base.contains("mediatailor.us-west-2"));
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("mediapackage");
+    path.set_extension("xml");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    assert!(res.is_ok());
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD>
+  <Period start="PT0.000S" id="0" duration="PT44.075S">
+    <AdaptationSet mimeType="video/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1" subsegmentStartsWithSAP="1" bitstreamSwitching="true">
+      <Representation id="1" width="960" height="540" frameRate="30000/1001" bandwidth="1000000" codecs="avc1.4D401F">
+        <SegmentTemplate timescale="30000" media="index_video_1_0_$Number$.mp4?m=1528413503" initialization="index_video_1_0_init.mp4?m=1528413503" startNumber="6" presentationTimeOffset="0">
+          <SegmentTimeline>
+            <S t="361301" d="60060" r="15"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet mimeType="audio/mp4" segmentAlignment="0" lang="eng">
+      <Representation id="2" bandwidth="96964" audioSamplingRate="48000" codecs="mp4a.40.2">
+        <SegmentTemplate timescale="48000" media="index_audio_2_0_$Number$.mp4?m=1528413503" initialization="index_audio_2_0_init.mp4?m=1528413503" startNumber="6" presentationTimeOffset="0">
+          <SegmentTimeline>
+            <S t="578305" d="96256" r="3"/>
+            <S t="963329" d="95232"/>
+            <S t="1058561" d="96256" r="5"/>
+            <S t="1636097" d="95232"/>
+            <S t="1731329" d="96256" r="3"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+  <Period start="PT44.075S" id="21">
+    <EventStream timescale="90000" schemeIdUri="urn:scte:scte35:2013:xml">
+      <Event>
+        <scte35:SpliceInfoSection protocolVersion="0" ptsAdjustment="183003" tier="4095">
+          <scte35:SpliceInsert spliceEventId="1000" spliceEventCancelIndicator="false" outOfNetworkIndicator="true" spliceImmediateFlag="false" uniqueProgramId="7" availNum="1" availsExpected="4">
+            <scte35:Program><scte35:SpliceTime ptsTime="3783780"/></scte35:Program>
+          </scte35:SpliceInsert>
+        </scte35:SpliceInfoSection>
+      </Event>
+    </EventStream>
+    <AdaptationSet mimeType="video/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1" subsegmentStartsWithSAP="1" bitstreamSwitching="true">
+      <Representation id="1" width="960" height="540" frameRate="30000/1001" bandwidth="1000000" codecs="avc1.4D401F">
+        <SegmentTemplate timescale="30000" media="index_video_1_0_$Number$.mp4?m=1528413503" initialization="index_video_1_0_init.mp4?m=1528413503" startNumber="22" presentationTimeOffset="1322261">
+          <SegmentTimeline>
+            <S t="1322261" d="60060" r="13"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet mimeType="audio/mp4" segmentAlignment="0" lang="eng">
+      <Representation id="2" bandwidth="96964" audioSamplingRate="48000" codecs="mp4a.40.2">
+        <SegmentTemplate timescale="48000" media="index_audio_2_0_$Number$.mp4?m=1528413503" initialization="index_audio_2_0_init.mp4?m=1528413503" startNumber="22" presentationTimeOffset="2115617">
+          <SegmentTimeline>
+            <S t="2116353" d="96256"/>
+            <S t="2212609" d="95232"/>
+            <S t="2307841" d="96256" r="5"/>
+            <S t="2885377" d="95232"/>
+            <S t="2980609" d="96256" r="4"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
