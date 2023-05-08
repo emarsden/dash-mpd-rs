@@ -212,5 +212,5 @@ async fn test_error_dynamic_mpd() {
         .worst_quality()
         .download()
         .await
-        .unwrap()
+        .unwrap();
 }
