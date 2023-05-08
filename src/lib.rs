@@ -1408,7 +1408,9 @@ pub struct UTCTiming {
     pub value: Option<String>,
 }
 
-/// Used by the low-latency streaming extensions to DASH.
+/// Specifies wall‐clock times at which media fragments were produced, to help clients consume the
+/// fragments at the same rate at which they were produced. Used by the low-latency streaming
+/// extensions to DASH.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -1421,11 +1423,12 @@ pub struct ProducerReferenceTime {
     pub presentationTime: Option<u64>,
     #[serde(rename = "@type")]
     pub prtType: Option<String>,
+    // There are two capitalizations for this attribute in the specification at
+    // https://dashif.org/docs/CR-Low-Latency-Live-r8.pdf
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@wallclockTime")]
+    #[serde(rename = "@wallclockTime", alias="@wallClockTime")]
     pub wallClockTime: Option<XsDatetime>,
     pub UTCTiming: Vec<UTCTiming>,
-
 }
 
 #[skip_serializing_none]
