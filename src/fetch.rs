@@ -77,6 +77,7 @@ pub struct DashDownloader {
     fetch_subtitles: bool,
     keep_video: bool,
     keep_audio: bool,
+    fragment_path: Option<PathBuf>,
     content_type_checks: bool,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
@@ -147,6 +148,7 @@ impl DashDownloader {
             fetch_subtitles: false,
             keep_video: false,
             keep_audio: false,
+            fragment_path: None,
             content_type_checks: true,
             max_error_count: 10,
             progress_observers: vec![],
@@ -238,6 +240,13 @@ impl DashDownloader {
     /// Don't delete the file containing audio once muxing is complete.
     pub fn keep_audio(mut self) -> DashDownloader {
         self.keep_audio = true;
+        self
+    }
+
+    /// Save media fragments to the directory `fragment_path`. The directory will be created if it
+    /// does not exist.
+    pub fn save_fragments_to<P: Into<PathBuf>>(mut self, fragment_path: P) -> DashDownloader {
+        self.fragment_path = Some(fragment_path.into());
         self
     }
 
@@ -339,6 +348,7 @@ impl DashDownloader {
         self.mp4box_location = mp4box_path.to_string();
         self
     }
+
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
     ///
@@ -353,7 +363,7 @@ impl DashDownloader {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
                 .build()
-                .map_err(|_| DashMpdError::Network(String::from("building reqwest HTTP client")))?;
+                .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
         }
         fetch_mpd(self).await
@@ -1072,7 +1082,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate addressing mode for audio representation");
                             }
+                            let mut total_number = 0i64;
                             if let Some(init) = opt_init {
+                                // The initialization segment counts as one of the $Number$
+                                total_number -= 1;
                                 let path = resolve_url_template(&init, &dict);
                                 let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
@@ -1093,7 +1106,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     return Err(DashMpdError::UnhandledMediaStream(
                                         "Audio representation is missing SegmentTemplate @duration attribute".to_string()));
                                 }
-                                let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
+                                total_number += (period_duration_secs / segment_duration).ceil() as i64;
                                 let mut number = start_number;
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
@@ -1521,7 +1534,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             if downloader.verbosity > 1 {
                                 println!("Using SegmentTemplate addressing mode for video representation");
                             }
+                            let mut total_number = 0i64;
                             if let Some(init) = opt_init {
+                                // The initialization segment counts as one of the $Number$
+                                total_number -= 1;
                                 let path = resolve_url_template(&init, &dict);
                                 let u = base_url.join(&path)
                                     .map_err(|e| parse_error("joining init with BaseURL", e))?;
@@ -1542,7 +1558,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     return Err(DashMpdError::UnhandledMediaStream(
                                         "Video representation is missing SegmentTemplate @duration attribute".to_string()));
                                 }
-                                let total_number: u64 = (period_duration_secs / segment_duration).ceil() as u64;
+                                total_number += (period_duration_secs / segment_duration).ceil() as i64;
                                 let mut number = start_number;
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
@@ -1720,6 +1736,12 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         let tmpfile_audio = File::create(tmppath_audio.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
+        // Optionally create the directory to which we will save the audio fragments.
+        if let Some(ref fragment_path) = downloader.fragment_path {
+            let audio_fragment_dir = fragment_path.join("audio");
+            fs::create_dir_all(audio_fragment_dir)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
+        }
         for frag in &audio_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
@@ -1803,6 +1825,18 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     log::error!("Unable to write DASH audio data: {e:?}");
                                     return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
                                 }
+                                if let Some(ref fragment_path) = downloader.fragment_path {
+                                    if let Some(path) = frag.url.path_segments()
+                                        .unwrap_or_else(|| "".split(' '))
+                                        .last()
+                                    {
+                                        let af_file = fragment_path.clone().join("audio").join(path);
+                                        let mut out = File::create(af_file)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
+                                        out.write_all(&dash_bytes)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
+                                    }
+                                }
                                 have_audio = true;
                             } else {
                                 log::warn!("Ignoring segment {url} with non-audio content-type");
@@ -1844,6 +1878,12 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         let tmpfile_video = File::create(tmppath_video.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
+        // Optionally create the directory to which we will save the video fragments.
+        if let Some(ref fragment_path) = downloader.fragment_path {
+            let video_fragment_dir = fragment_path.join("video");
+            fs::create_dir_all(video_fragment_dir)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
+        }
         for frag in &video_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
@@ -1915,6 +1955,18 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 }
                                 if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
                                     return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                }
+                                if let Some(ref fragment_path) = downloader.fragment_path {
+                                    if let Some(path) = frag.url.path_segments()
+                                        .unwrap_or_else(|| "".split(' '))
+                                        .last()
+                                    {
+                                        let vf_file = fragment_path.clone().join("video").join(path);
+                                        let mut out = File::create(vf_file)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
+                                        out.write_all(&dash_bytes)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
+                                    }
                                 }
                                 have_video = true;
                             } else {

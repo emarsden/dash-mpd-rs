@@ -2,12 +2,18 @@
 
 ## [0.9.0] - Unreleased
 ### New
-- Support for the SCTE-35 standard allowing dynamic insertion of alternate content (mostly used for
-  advertising). This support is gated by the new `scte35` feature, which is enabled by default.
+- Downloading: add support for saving media fragments to a user-specified directory, using new
+  function `save_fragments_to` on `DashDownloader`. This may be useful to help debug issues with
+  DASH streams or to extract additional information from fragmented MP4 segments.
+- Support for the DASH XML vocabulary associated with the SCTE-35 standard. This standard allows
+  dynamic insertion of alternate content (mostly used for advertising). Support is gated by the
+  new `scte35` feature, which is enabled by default.
 - Parsing of xs:datetime fields attempts to use the rfc3339 crate before falling back to the iso8601
   crate if the datetime is not in RFC 3339 format (for example, if it doesn't include a timezone).
   The rfc3339 crate parses with nanosecond precision, whereas the iso8601 crate only has millisecond
   resolution.
+- Downloading: fix an off-by-one error when calculating $Number$-based SegmentTemplate-based
+  addressing (the initialization segment is now counted towards the total number of segments).
 
 
 ## [0.8.1] - 2023-04-27
