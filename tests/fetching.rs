@@ -200,3 +200,17 @@ async fn test_error_xlink_gone() {
         .await
         .unwrap();
 }
+
+
+#[tokio::test]
+#[should_panic(expected = "download dynamic MPD")]
+async fn test_error_dynamic_mpd() {
+    use dash_mpd::fetch::DashDownloader;
+
+    let mpd = "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd";
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .download()
+        .await
+        .unwrap()
+}
