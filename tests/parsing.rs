@@ -64,6 +64,51 @@ fn test_mpd_parser () {
     assert_eq!(r1.bandwidth.unwrap(), 42);
 }
 
+// These tests check that we are able to parse DASH manifests that contain XML elements for which we
+// don't have definitions. We want to degrade gracefully and ignore these unknown elements, instead
+// of triggering a parse failure.
+#[test]
+fn test_unknown_elements () {
+    use dash_mpd::parse;
+
+    let case1 = r#"<MPD><UnknownElement/></MPD>"#;
+    let res = parse(case1);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().periods.len(), 0);
+
+    // The same test using an unknown XML namespace prefix.
+    let case2 = r#"<MPD><uprefix:UnknownElement></uprefix:UnknownElement></MPD>"#;
+    let res = parse(case2);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().periods.len(), 0);
+
+    // Here the same check for an XML element which is using the $text "special name" to allow
+    // access to the element content (the Title element).
+    let case3 = r#"<MPD><ProgramInformation>
+       <Title>Foobles<UnknownElement/></Title>
+     </ProgramInformation></MPD>"#;
+    let res = parse(case3);
+    assert!(res.is_ok());
+    let mpd = res.unwrap();
+    assert!(mpd.ProgramInformation.is_some());
+    let pi = mpd.ProgramInformation.unwrap();
+    assert!(pi.Title.is_some());
+    let title = pi.Title.unwrap();
+    assert_eq!(title.content.unwrap(), "Foobles");
+
+    let case4 = r#"<MPD><ProgramInformation>
+       <Title>Foobles<upfx:UnknownElement/></Title>
+     </ProgramInformation></MPD>"#;
+    let res = parse(case4);
+    assert!(res.is_ok());
+    let mpd = res.unwrap();
+    assert!(mpd.ProgramInformation.is_some());
+    let pi = mpd.ProgramInformation.unwrap();
+    assert!(pi.Title.is_some());
+    let title = pi.Title.unwrap();
+    assert_eq!(title.content.unwrap(), "Foobles");
+}
+
 #[test]
 fn test_datetime_parsing () {
     use dash_mpd::parse;

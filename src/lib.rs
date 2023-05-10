@@ -32,16 +32,16 @@
 //! - XLink elements (only with actuate=onLoad semantics, resolve-to-zero supported)
 //! - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
 //!   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
-//! - Media containers of types supported by mkvmerge, ffmpeg or VLC (this includes Matroska,
-//!   ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
+//! - Media containers of types supported by mkvmerge, ffmpeg, VLC and MP4Box (this includes
+//!   Matroska, ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
+//! - Subtitles: preliminary support for WebVTT and TTML streams
 //!
 //!
 //! ## Limitations / unsupported features
 //!
 //! - Dynamic MPD manifests, that are used for live streaming/OTT TV
 //! - Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
-//! - Subtitles (eg. WebVTT and TTML streams)
-//! - XLink with actuate=onRequest
+//! - XLink with actuate=onRequest semantics
 //
 //
 //
@@ -435,7 +435,7 @@ where S: serde::Serializer {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Title {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: Option<String>,
 }
 
@@ -444,7 +444,7 @@ pub struct Title {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Source {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: Option<String>,
 }
 
@@ -453,7 +453,7 @@ pub struct Source {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Copyright {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: Option<String>,
 }
 
@@ -581,7 +581,7 @@ pub struct SegmentTemplate {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Location {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub url: String,
 }
 
@@ -593,7 +593,7 @@ pub struct Location {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct BaseURL {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub base: String,
     /// Elements with the same `@serviceLocation` value are likely to have their URLs resolve to
     /// services at a common network location, for example the same CDN.
@@ -981,7 +981,7 @@ pub struct ContentComponent {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct CencPssh {
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: Option<String>,
 }
 
@@ -1075,7 +1075,7 @@ pub struct Event {
     pub value: Option<String>,
     // The content may be base64 encoded, but may also be text. See for example
     // https://refapp.hbbtv.org/videos/00_llama_multiperiod_v1/manifest.mpd
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: Option<String>,
 }
 
@@ -1151,7 +1151,7 @@ pub struct Label {
     pub id: Option<String>,
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: String,
 }
 
@@ -1453,7 +1453,7 @@ pub struct LeapSecondInformation {
 pub struct PatchLocation {
     #[serde(rename = "@ttl")]
     pub ttl: Option<f64>,
-    #[serde(rename = "$value")]
+    #[serde(rename = "$text")]
     pub content: String,
 }
 
