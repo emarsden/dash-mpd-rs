@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.9.0] - Unreleased
+## [0.9.0] - 2023-05-10
 ### New
 - Downloading: add support for saving media fragments to a user-specified directory, using new
   function `save_fragments_to` on `DashDownloader`. This may be useful to help debug issues with

@@ -59,9 +59,9 @@ The choice of external muxer depends on the filename extension of the path suppl
 - Multi-period content
 - XLink elements (only with actuate=onLoad semantics), including resolve-to-zero
 - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
-  SegmentTemplate@duration, SegmentTemplate@index, SegmentList
-- Media containers of types supported by mkvmerge, ffmpeg or VLC (this includes Matroska, ISO-BMFF /
-  CMAF / MP4, WebM, MPEG-2 TS)
+  SegmentTemplate@duration, SegmentTemplate@index, SegmentList.
+- Media containers of types supported by mkvmerge, ffmpeg, VLC or MP4Box (this includes Matroska,
+  ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS).
 - WebVTT, TTML and SMIL subtitles (preliminary support). There is some support for subtitles that
   are made available in wvtt format, that will be converted to SRT format using the MP4Box
   commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is installed.
@@ -70,7 +70,7 @@ The choice of external muxer depends on the filename extension of the path suppl
 ## Limitations / unsupported features
 
 - We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV
-- Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
+- Content encrypted with ContentProtection DRM mechanisms such as Clear Key, FairPlay, PlayReady, Widevine
 - No support for XLink with actuate=onRequest semantics
 
 
@@ -173,14 +173,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.8"
+dash-mpd = "0.9"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.8", default-features = false }
+dash-mpd = { version = "0.9", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
