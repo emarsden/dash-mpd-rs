@@ -1704,9 +1704,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         }
     }
 
-    let keep_audio = downloader.keep_audio.is_some();
-    let keep_video = downloader.keep_video.is_some();
-
     let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
         path.clone()
     } else {
@@ -2063,12 +2060,12 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
     }
-    if !keep_audio {
+    if downloader.keep_audio.is_none() {
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
         }
     }
-    if !keep_video {
+    if downloader.keep_video.is_none() {
         if fs::remove_file(tmppath_video).is_err() {
             log::info!("Failed to delete temporary file for video segments");
         }
