@@ -1622,81 +1622,83 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
         }
-        // now check for subtitles
-        let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
-            period.adaptations.iter().filter(is_subtitle_adaptation)
-                .min_by_key(|a| adaptation_lang_distance(a, lang))
-        } else {
-            // returns the first subtitle adaptation found
-            period.adaptations.iter().find(is_subtitle_adaptation)
-        };
-        if let Some(sta) = maybe_subtitle_adaptation {
-            for rep in sta.representations.iter() {
-                // TODO: handle a possible XLink reference (non-empty href attribute)
-                for st_bu in rep.BaseURL.iter() {
-                    let st_url = if is_absolute_url(&st_bu.base) {
-                        Url::parse(&st_bu.base)
-                            .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
-                    } else {
-                        base_url.join(&st_bu.base)
-                            .map_err(|e| parse_error("joining subtitle BaseURL", e))?
-                    };
-                    let subs = client.get(st_url.clone())
-                        .header("Referer", redirected_url.to_string())
-                        .send()
-                        .await
-                        .map_err(|e| network_error("fetching subtitles", e))?
-                        .error_for_status()
-                        .map_err(|e| network_error("fetching subtitles", e))?
-                        .bytes()
-                        .await
-                        .map_err(|e| network_error("retrieving subtitles", e))?;
-                    let mut subs_path = output_path.clone();
-                    let subtype = subtitle_type(&sta);
-                    match subtype {
-                        SubtitleType::Vtt => subs_path.set_extension("vtt"),
-                        SubtitleType::Srt => subs_path.set_extension("srt"),
-                        SubtitleType::Ttml => subs_path.set_extension("ttml"),
-                        SubtitleType::Sami => subs_path.set_extension("sami"),
-                        SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
-                        SubtitleType::Stpp => subs_path.set_extension("stpp"),
-                        _ => subs_path.set_extension("sub"),
-                    };
-                    let mut subs_file = File::create(subs_path.clone())
-                        .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
-                    if downloader.verbosity > 2 {
-                        println!("Subtitle {st_url} -> {} octets", subs.len());
-                    }
-                    match subs_file.write_all(&subs) {
-                        Ok(()) => {
-                            if downloader.verbosity > 0 {
-                                println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
-                            }
-                        },
-                        Err(e) => {
-                            log::error!("Unable to write subtitle file: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
-                        },
-                    }
-                    if subtype == SubtitleType::Wvtt {
-                        let mut out = subs_path.clone();
-                        out.set_extension("srt");
-                        let mp4box = Command::new("MP4Box")
-                            .args(["-srt", "1", "-out", &out.to_string_lossy(), &subs_path.to_string_lossy()])
-                            .output()
-                            .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
-                        let msg = String::from_utf8_lossy(&mp4box.stdout);
-                        if msg.len() > 0 {
-                            log::info!("MP4Box stdout: {msg}");
-                        }
-                        let msg = String::from_utf8_lossy(&mp4box.stderr);
-                        if msg.len() > 0 {
-                            log::info!("MP4Box stderr: {msg}");
-                        }
-                        if mp4box.status.success() {
-                            log::info!("Converted WVTT subtitles to SRT");
+        if downloader.fetch_subtitles {
+            // now check for subtitles
+            let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
+                period.adaptations.iter().filter(is_subtitle_adaptation)
+                    .min_by_key(|a| adaptation_lang_distance(a, lang))
+            } else {
+                // returns the first subtitle adaptation found
+                period.adaptations.iter().find(is_subtitle_adaptation)
+            };
+            if let Some(sta) = maybe_subtitle_adaptation {
+                for rep in sta.representations.iter() {
+                    // TODO: handle a possible XLink reference (non-empty href attribute)
+                    for st_bu in rep.BaseURL.iter() {
+                        let st_url = if is_absolute_url(&st_bu.base) {
+                            Url::parse(&st_bu.base)
+                                .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
                         } else {
-                            log::warn!("Error running MP4Box to convert WVTT subtitles");
+                            base_url.join(&st_bu.base)
+                                .map_err(|e| parse_error("joining subtitle BaseURL", e))?
+                        };
+                        let subs = client.get(st_url.clone())
+                            .header("Referer", redirected_url.to_string())
+                            .send()
+                            .await
+                            .map_err(|e| network_error("fetching subtitles", e))?
+                            .error_for_status()
+                            .map_err(|e| network_error("fetching subtitles", e))?
+                            .bytes()
+                            .await
+                            .map_err(|e| network_error("retrieving subtitles", e))?;
+                        let mut subs_path = output_path.clone();
+                        let subtype = subtitle_type(&sta);
+                        match subtype {
+                            SubtitleType::Vtt => subs_path.set_extension("vtt"),
+                            SubtitleType::Srt => subs_path.set_extension("srt"),
+                            SubtitleType::Ttml => subs_path.set_extension("ttml"),
+                            SubtitleType::Sami => subs_path.set_extension("sami"),
+                            SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
+                            SubtitleType::Stpp => subs_path.set_extension("stpp"),
+                            _ => subs_path.set_extension("sub"),
+                        };
+                        let mut subs_file = File::create(subs_path.clone())
+                            .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
+                        if downloader.verbosity > 2 {
+                            println!("Subtitle {st_url} -> {} octets", subs.len());
+                        }
+                        match subs_file.write_all(&subs) {
+                            Ok(()) => {
+                                if downloader.verbosity > 0 {
+                                    println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
+                                }
+                            },
+                            Err(e) => {
+                                log::error!("Unable to write subtitle file: {e:?}");
+                                return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
+                            },
+                        }
+                        if subtype == SubtitleType::Wvtt {
+                            let mut out = subs_path.clone();
+                            out.set_extension("srt");
+                            let mp4box = Command::new("MP4Box")
+                                .args(["-srt", "1", "-out", &out.to_string_lossy(), &subs_path.to_string_lossy()])
+                                .output()
+                                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
+                            let msg = String::from_utf8_lossy(&mp4box.stdout);
+                            if msg.len() > 0 {
+                                log::info!("MP4Box stdout: {msg}");
+                            }
+                            let msg = String::from_utf8_lossy(&mp4box.stderr);
+                            if msg.len() > 0 {
+                                log::info!("MP4Box stderr: {msg}");
+                            }
+                            if mp4box.status.success() {
+                                log::info!("Converted WVTT subtitles to SRT");
+                            } else {
+                                log::warn!("Error running MP4Box to convert WVTT subtitles");
+                            }
                         }
                     }
                 }
