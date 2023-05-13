@@ -949,8 +949,7 @@ pub struct Representation {
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href")]
-    #[serde(alias = "@href")]
+    #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
 }
 
@@ -1000,12 +999,14 @@ pub struct ContentProtection {
     pub cpref: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
-    #[serde(rename(deserialize = "pssh"))]
-    #[serde(rename(serialize = "cenc:pssh"))]
+    // #[serde(rename(deserialize = "pssh"))]
+    // #[serde(rename(serialize = "cenc:pssh"))]
+    #[serde(rename="cenc:pssh", alias="pssh")]
     pub cenc_pssh: Vec<CencPssh>,
     /// The DRM key identifier.
-    #[serde(rename(deserialize = "@default_KID"))]
-    #[serde(rename(serialize = "@cenc:default_KID"))]
+    // #[serde(rename(deserialize = "@default_KID"))]
+    // #[serde(rename(serialize = "@cenc:default_KID"))]
+    #[serde(rename = "@cenc:default_KID", alias = "@default_KID")]
     pub default_KID: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
@@ -1300,11 +1301,9 @@ pub struct Period {
     pub bitstreamSwitching: Option<bool>,
     pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href")]
-    #[serde(alias = "@href")]
+    #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate")]
-    #[serde(alias = "@actuate")]
+    #[serde(rename = "@xlink:actuate", alias = "@actuate")]
     pub actuate: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "AdaptationSet")]
@@ -1327,11 +1326,9 @@ pub struct Reporting {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
-    #[serde(rename = "@dvb:reportingUrl")]
-    #[serde(alias = "@reportingUrl")]
+    #[serde(rename = "@dvb:reportingUrl", alias = "@reportingUrl")]
     pub reportingUrl: Option<String>,
-    #[serde(rename = "@dvb:probability")]
-    #[serde(alias = "@probability")]
+    #[serde(rename = "@dvb:probability", alias = "@probability")]
     pub probability: Option<u64>,
 }
 

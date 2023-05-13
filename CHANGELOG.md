@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1] - Unreleased
+### New
+### Changed
+- Downloading: only download subtitles when `fetch_subtitles()` has been called on DashDownloader
+  (from @sleepycatcoding).
+
+
 ## [0.9.0] - 2023-05-10
 ### New
 - Downloading: add support for saving media fragments to a user-specified directory, using new
