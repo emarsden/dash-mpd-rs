@@ -16,7 +16,7 @@
 //
 // You won't often find public DASH streams with SCTE-35 events; they are more often used for
 // server-side ad insertion, which helps ensure that viewers benefit from the advertising content
-// instead of blocking or skipping it. For this reason, these definitions have not been well tested. 
+// instead of blocking or skipping it. For this reason, these definitions have not been well tested.
 //
 // An XML Schema for this embedding is available at
 // https://github.com/Comcast/scte35-go/blob/main/docs/scte_35_20220816.xsd
@@ -43,7 +43,7 @@ where S: serde::Serializer {
 
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct AvailDescriptor {
     #[serde(rename = "@providerAvailId")]
@@ -51,7 +51,7 @@ pub struct AvailDescriptor {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct DTMFDescriptor {
     #[serde(rename = "@preroll")]
@@ -61,7 +61,7 @@ pub struct DTMFDescriptor {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct TimeDescriptor {
     #[serde(rename = "@taiSeconds")]
@@ -73,7 +73,7 @@ pub struct TimeDescriptor {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct BreakDuration {
     // some buggy MPDs in the wild have this as a 0/1
@@ -84,7 +84,7 @@ pub struct BreakDuration {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct ScteEvent {
     #[serde(rename = "@spliceEventId")]
@@ -104,7 +104,7 @@ pub struct ScteEvent {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SpliceTime {
     #[serde(rename = "@xmlns")]
@@ -114,13 +114,13 @@ pub struct SpliceTime {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SpliceNull {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SpliceSchedule {
     #[serde(rename = "scte35:Event", alias="Event")]
@@ -129,13 +129,13 @@ pub struct SpliceSchedule {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct BandwidthReservation {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct EncryptedPacket {
     #[serde(rename = "$value")]
@@ -143,7 +143,7 @@ pub struct EncryptedPacket {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PrivateBytes {
     #[serde(rename = "$value")]
@@ -151,7 +151,7 @@ pub struct PrivateBytes {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PrivateCommand {
     #[serde(rename = "@identifier")]
@@ -161,7 +161,7 @@ pub struct PrivateCommand {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct TimeSignal {
     #[serde(rename = "scte35:SpliceTime", alias="SpliceTime")]
@@ -169,7 +169,7 @@ pub struct TimeSignal {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SegmentationUpid {
     #[serde(rename = "@xmlns")]
@@ -187,7 +187,7 @@ pub struct SegmentationUpid {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SegmentationDescriptor {
     #[serde(rename = "@xmlns")]
@@ -219,7 +219,7 @@ pub struct SegmentationDescriptor {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Program {
     #[serde(rename = "scte35:SpliceTime", alias="SpliceTime")]
@@ -227,7 +227,7 @@ pub struct Program {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SpliceInsert {
     #[serde(rename = "@spliceEventId")]
@@ -249,7 +249,7 @@ pub struct SpliceInsert {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SpliceInfoSection {
     #[serde(rename = "@xmlns")]
@@ -290,7 +290,7 @@ pub struct SpliceInfoSection {
 
 /// A base64 representation of a SCTE 35 message.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Binary {
     #[serde(rename = "@signalType")]
@@ -300,7 +300,7 @@ pub struct Binary {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Signal {
     #[serde(rename = "@xmlns")]
