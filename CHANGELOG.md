@@ -5,7 +5,7 @@
 ### Changed
 - Downloading: only download subtitles when `fetch_subtitles()` has been called on DashDownloader
   (from @sleepycatcoding).
-
+- Add derived PartialEq to data structures to allow for comparison.
 
 ## [0.9.0] - 2023-05-10
 ### New
