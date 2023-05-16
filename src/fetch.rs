@@ -231,13 +231,13 @@ impl DashDownloader {
         self
     }
 
-    /// Don't delete the file containing video once muxing is complete.
+    /// Keeps the file containing video at the specified path.
     pub fn keep_video_as<P: Into<PathBuf>>(mut self, video_path: P) -> DashDownloader {
         self.keep_video = Some(video_path.into());
         self
     }
 
-    /// Don't delete the file containing audio once muxing is complete.
+    /// Keeps the file containing audio at the specified path.
     pub fn keep_audio_as<P: Into<PathBuf>>(mut self, audio_path: P) -> DashDownloader {
         self.keep_audio = Some(audio_path.into());
         self
