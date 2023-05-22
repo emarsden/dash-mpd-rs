@@ -378,5 +378,53 @@ fn test_file_parsing() {
     let am = parse(&amxml);
     assert!(am.is_ok());
 
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("dolby-ac4");
+    path.set_extension("xml");
+    let xml = fs::read_to_string(path).unwrap();
+    let db = parse(&xml);
+    assert!(db.is_ok());
 }
+
+
+// Test some of the example DASH manifests provided by the MPEG Group
+// at https://github.com/MPEGGroup/DASHSchema
+#[tokio::test]
+async fn test_parsing_online() {
+    use dash_mpd::parse;
+
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
+
+    async fn check_mpd(client: reqwest::Client, url: &str) {
+        let xml = client.get(url)
+            .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+            .send()
+            .await
+            .expect("requesting MPD content")
+            .text()
+            .await
+            .expect("fetching MPD content");
+        let p = parse(&xml);
+        assert!(p.is_ok());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    check_mpd(client.clone(),
+              "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_H3.mpd").await;
+    check_mpd(client.clone(),
+              "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G4.mpd").await;
+    check_mpd(client.clone(),
+              "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G22.mpd").await;
+}
+
+
 

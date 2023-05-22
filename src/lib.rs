@@ -731,7 +731,7 @@ pub struct Resync {
     pub rtype: Option<String>,
 }
 
-/// Specifies information concerning the audio channel (eg. stereo, multichannel).
+/// Specifies information concerning the audio channel (e.g. stereo, multichannel).
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -742,6 +742,58 @@ pub struct AudioChannelConfiguration {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+}
+
+// This element is not specified in ISO/IEC 23009-1:2022; exact format is unclear.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct Language {
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
+/// Used for audio signaling in the context of the ATSC 3.0 standard for advanced IP-based
+/// television broadcasting. A Preselection is a personalization option to produce a “complete audio
+/// experience”. Details are specified by the “DASH-IF Interoperability Point for ATSC 3.0”
+/// document.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct Preselection {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    #[serde(rename = "@audioSamplingRate")]
+    pub audioSamplingRate: Option<u64>,
+    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
+    #[serde(rename = "@codecs")]
+    pub codecs: String,
+    #[serde(rename = "@selectionPriority")]
+    pub selectionPriority: Option<u64>,
+    /// Specifies the ids of the contained elements/content components of this Preselection list as
+    /// white space separated list in processing order. The first id defines the main element.
+    #[serde(rename = "@preselectionComponents")]
+    pub preselectionComponents: String,
+    #[serde(rename = "@tag")]
+    pub tag: String,
+    #[serde(rename = "Language")]
+    pub languages: Vec<Language>,
+    #[serde(rename = "Role")]
+    pub roles: Vec<Role>,
+    #[serde(rename = "Accessibility")]
+    pub accessibilities: Vec<Accessibility>,
+    #[serde(rename = "Viewpoint")]
+    pub viewpoints: Vec<Viewpoint>,
+    #[serde(rename = "Rating")]
+    pub ratings: Vec<Rating>,
+    #[serde(rename = "Label")]
+    pub labels: Vec<Label>,
+    #[serde(rename = "AudioChannelConfiguration")]
+    pub audio_channel_configurations: Vec<AudioChannelConfiguration>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_properties: Vec<EssentialProperty>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_properties: Vec<SupplementalProperty>,
 }
 
 /// Specifies that content is suitable for presentation to audiences for which that rating is known to be
@@ -878,6 +930,7 @@ pub struct Representation {
     /// content encoding mechanisms, such as HEVC Scalable and Dolby Vision.
     #[serde(rename = "@dependencyId")]
     pub dependencyId: Option<String>,
+    pub BaseURL: Vec<BaseURL>,
     // The specification says that @mimeType is mandatory, but it's not always present on
     // akamaized.net MPDs
     #[serde(rename = "@mimeType")]
@@ -929,7 +982,6 @@ pub struct Representation {
     pub height: Option<u64>,
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
-    pub BaseURL: Vec<BaseURL>,
     pub Label: Vec<Label>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
@@ -999,13 +1051,9 @@ pub struct ContentProtection {
     pub cpref: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
-    // #[serde(rename(deserialize = "pssh"))]
-    // #[serde(rename(serialize = "cenc:pssh"))]
     #[serde(rename="cenc:pssh", alias="pssh")]
     pub cenc_pssh: Vec<CencPssh>,
     /// The DRM key identifier.
-    // #[serde(rename(deserialize = "@default_KID"))]
-    // #[serde(rename(serialize = "@cenc:default_KID"))]
     #[serde(rename = "@cenc:default_KID", alias = "@default_KID")]
     pub default_KID: Option<String>,
     #[serde(rename = "@value")]
@@ -1174,11 +1222,12 @@ pub struct AdaptationSet {
     #[serde(rename = "@xlink:actuate")]
     #[serde(alias = "@actuate")]
     pub actuate: Option<String>,
+    pub BaseURL: Vec<BaseURL>,
     #[serde(rename = "@group")]
     pub group: Option<i64>,
     #[serde(rename = "@selectionPriority")]
     pub selectionPriority: Option<u64>,
-    // eg "audio", "video", "text"
+    // e.g. "audio", "video", "text"
     #[serde(rename = "@contentType")]
     pub contentType: Option<String>,
     #[serde(rename = "@profiles")]
@@ -1244,7 +1293,6 @@ pub struct AdaptationSet {
     pub startWithSAP: Option<u64>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
-    pub BaseURL: Vec<BaseURL>,
     pub Role: Vec<Role>,
     pub Rating: Vec<Rating>,
     pub Viewpoint: Vec<Viewpoint>,
@@ -1287,6 +1335,7 @@ pub struct AssetIdentifier {
 pub struct Period {
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    pub BaseURL: Vec<BaseURL>,
     /// The start time of the Period relative to the MPD availability start time.
     #[serde(rename = "@start")]
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
@@ -1299,13 +1348,13 @@ pub struct Period {
     pub duration: Option<Duration>,
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
-    pub BaseURL: Vec<BaseURL>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
     #[serde(rename = "@xlink:actuate", alias = "@actuate")]
     pub actuate: Option<String>,
     pub SegmentTemplate: Option<SegmentTemplate>,
+    pub ContentProtection: Vec<ContentProtection>,
     #[serde(rename = "AdaptationSet")]
     pub adaptations: Vec<AdaptationSet>,
     #[serde(rename = "AssetIdentifier")]
@@ -1539,11 +1588,11 @@ pub struct MPD {
     #[serde(deserialize_with = "deserialize_xs_datetime", default)]
     #[serde(rename = "@availabilityEndTime")]
     pub availabilityEndTime: Option<XsDatetime>,
-    #[serde(rename = "Period", default)]
-    pub periods: Vec<Period>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
     pub base_url: Vec<BaseURL>,
+    #[serde(rename = "Period", default)]
+    pub periods: Vec<Period>,
     pub locations: Vec<Location>,
     pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,

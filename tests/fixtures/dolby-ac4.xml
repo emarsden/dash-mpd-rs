@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xmlns:dolby="http://www.dolby.com/ns/online/DASH"
+xmlns="urn:mpeg:dash:schema:mpd:2011"
+xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 DASH-MPD.xsd"
+profiles="urn:mpeg:dash:profile:isoff-broadcast:2015"
+type="dynamic"
+availabilityStartTime="2018-12-07T09:32:10Z"
+publishTime="2018-12-07T09:32:10Z"
+minimumUpdatePeriod="PT1.00S"
+mediaPresentationDuration="PT0H2M39.080S"
+minBufferTime="PT4S">
+<Period>
+<AdaptationSet id="11" mimeType="audio/mp4" codecs="ac-4.02.01.03"
+audioSamplingRate="48000" segmentAlignment="true" startWithSAP="1">
+<SegmentTemplate timescale="48000" media="audio_all_in_one_stream/$Time$.m4s"
+initialization="audio_all_in_one_stream/init.mp4">
+<SegmentTimeline><S t="0" d="96000" r="36"/></SegmentTimeline>
+</SegmentTemplate>
+<Representation id="111" bandwidth="160000"/>
+</AdaptationSet>
+<!-- Default Preselection/Presentation - English -->
+<Preselection id="1" tag="1" preselectionComponents="11"
+codecs="ac-4.02.01.03" audioSamplingRate="48000" lang="en">
+<AudioChannelConfiguration
+schemeIdUri="tag:dolby.com,2015:dash:audio_channel_configuration:2015"
+value="0000C7"/>
+<SupplementalProperty schemeIdUri="tag:dolby.com,2017:dash:audio_frame_rate:2017"
+value="29.97"/>
+<Label lang="en">English Commentator</Label>
+<Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/></Preselection>
+<!-- Second Preselection/Presentation – Spanish -->
+<Preselection id="2" tag="2" preselectionComponents="11" codecs="ac-4.02.01.03"
+audioSamplingRate="48000" lang="es">
+<AudioChannelConfiguration
+schemeIdUri="tag:dolby.com,2015:dash:audio_channel_configuration:2015"
+value="0000C7"/>
+<SupplementalProperty schemeIdUri="tag:dolby.com,2017:dash:audio_frame_rate:2017"
+value="29.97"/>
+<Label lang="en">Spanish Commentator</Label>
+<Label lang="es">Comentarista en espa&#241;ol</Label>
+<Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+</Preselection>
+<!-- Third Preselection/Presentation - English + English VDS -->
+<Preselection id="3" tag="3" preselectionComponents="11" codecs="ac-4.02.01.03"
+audioSamplingRate="48000" lang="en">
+<AudioChannelConfiguration
+schemeIdUri="tag:dolby.com,2015:dash:audio_channel_configuration:2015"
+value="0000C7"/>
+<SupplementalProperty schemeIdUri="tag:dolby.com,2017:dash:audio_frame_rate:2017"
+value="29.97"/>
+<Label lang="en">English Commentator with English VDS</Label>
+<Accessibility schemeIdUri="urn:mpeg:dash:role:2011" value="description"/>
+<Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="1"/>
+<Role schemeIdUri="urn:mpeg:dash:role:2011" value="alternate"/>
+</Preselection>
+<!-- Fourth Preselection/Presentation – Spanish + Spanish VDS -->
+<Preselection id="4" tag="4" preselectionComponents="11" codecs="ac-4.02.01.03"
+audioSamplingRate="48000" lang="es">
+<AudioChannelConfiguration
+schemeIdUri="tag:dolby.com,2015:dash:audio_channel_configuration:2015"
+value="0000C7"/>
+<SupplementalProperty schemeIdUri="tag:dolby.com,2017:dash:audio_frame_rate:2017"
+value="29.97"/>
+<Label lang="en"> Spanish Commentator with Spanish VDS</Label>
+<Label lang="es"> Comentarista en espa&#241;ol con VDS en espa&#241;ol
+</Label>
+<Accessibility schemeIdUri="urn:mpeg:dash:role:2011" value="description"/>
+<Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="1"/>
+<Role schemeIdUri="urn:mpeg:dash:role:2011" value="alternate"/>
+</Preselection>
+</Period>
+</MPD>
