@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:cenc="urn:mpeg:cenc:2013" xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd" type="dynamic" availabilityStartTime="1970-01-01T00:00:00Z" publishTime="2023-05-24T12:48:37.731482Z" minimumUpdatePeriod="PT2S" timeShiftBufferDepth="PT30S" maxSegmentDuration="PT3S" minBufferTime="PT2S" profiles="urn:mpeg:dash:profile:isoff-live:2011,urn:com:dashif:dash264">
+  <Period id="1" start="PT0S">
+    <BaseURL>dash/</BaseURL>
+    <EventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185" timescale="10000000">
+      <!-- 2023-05-24T12:47:47.725143Z -->
+      <Event presentationTime="16849324677251439" duration="300000000" id="3106345436">
+        <Signal xmlns="http://www.scte.org/schemas/35/2016">
+          <Binary>/DBeAAAAAAAAAP/wBQb/FFKUFwBIAhRDVUVJAAX6C3//AAApMuAAADAKDwIfQ1VFSQAF+v9/vwwQQURGUgEzogE0sXwF+gWXQAIAAAIPQ1VFSQAF+gp/vwAAMQkP2DtRqg==</Binary>
+        </Signal>
+      </Event>
+      <!-- 2023-05-24T12:48:18.085143Z -->
+      <Event presentationTime="16849324980851439" duration="230000000" id="2860777356">
+        <Signal xmlns="http://www.scte.org/schemas/35/2016">
+          <Binary>/DBeAAAAAAAAAP/wBQb/FHxFhwBIAhRDVUVJAAX6DH//AAAflfAAADALDwIfQ1VFSQAF+v9/vwwQQURGUgEzogE0sXwF+gWXQAIAAAIPQ1VFSQAF+gt/vwAAMQoPPcUziA==</Binary>
+        </Signal>
+      </Event>
+    </EventStream>
+    <AdaptationSet id="1" group="1" contentType="audio" lang="fr" segmentAlignment="true" audioSamplingRate="48000" mimeType="audio/mp4" codecs="mp4a.40.5" startWithSAP="1">
+      <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+      <!-- Common Encryption -->
+      <ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc" cenc:default_KID="2A9B80A4-1653-1E1C-861E-EAFE6B2E2B3B">
+      </ContentProtection>
+      <!-- PlayReady -->
+      <ContentProtection schemeIdUri="urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95" value="MSPR 2.0">
+      </ContentProtection>
+      <!-- ViaccessOrca -->
+      <ContentProtection schemeIdUri="urn:uuid:B4413586-C58C-FFB0-94A5-D4896C1AF6C3">
+      </ContentProtection>
+      <!-- Widevine -->
+      <ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED">
+      </ContentProtection>
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+      <SegmentTemplate timescale="48000" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.187750Z / 1684932486 - 2023-05-24T12:48:34.987750Z -->
+        <SegmentTimeline>
+          <S t="80876759337012" d="92160" r="4"/>
+          <S d="110592"/>
+          <S d="73728"/>
+          <S d="92160" r="7"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio_81330_fra=81200" bandwidth="81200">
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="2" group="1" contentType="audio" lang="qaa" segmentAlignment="true" audioSamplingRate="48000" mimeType="audio/mp4" codecs="mp4a.40.5" startWithSAP="1">
+      <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+      <!-- Common Encryption -->
+      <ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc" cenc:default_KID="2A9B80A4-1653-1E1C-861E-EAFE6B2E2B3B">
+      </ContentProtection>
+      <!-- PlayReady -->
+      <ContentProtection schemeIdUri="urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95" value="MSPR 2.0">
+      </ContentProtection>
+      <!-- ViaccessOrca -->
+      <ContentProtection schemeIdUri="urn:uuid:B4413586-C58C-FFB0-94A5-D4896C1AF6C3">
+      </ContentProtection>
+      <!-- Widevine -->
+      <ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED">
+      </ContentProtection>
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+      <SegmentTemplate timescale="48000" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.187750Z / 1684932486 - 2023-05-24T12:48:34.987750Z -->
+        <SegmentTimeline>
+          <S t="80876759337012" d="92160" r="4"/>
+          <S d="110592"/>
+          <S d="73728"/>
+          <S d="92160" r="7"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio_81350_qaa=81200" bandwidth="81200">
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="3" group="1" contentType="audio" lang="fr" segmentAlignment="true" audioSamplingRate="48000" mimeType="audio/mp4" codecs="mp4a.40.5" startWithSAP="1">
+      <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+      <!-- Common Encryption -->
+      <ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc" cenc:default_KID="2A9B80A4-1653-1E1C-861E-EAFE6B2E2B3B">
+      </ContentProtection>
+      <!-- PlayReady -->
+      <ContentProtection schemeIdUri="urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95" value="MSPR 2.0">
+      </ContentProtection>
+      <!-- ViaccessOrca -->
+      <ContentProtection schemeIdUri="urn:uuid:B4413586-C58C-FFB0-94A5-D4896C1AF6C3">
+      </ContentProtection>
+      <!-- Widevine -->
+      <ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED">
+      </ContentProtection>
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="1"/>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="alternate"/>
+      <SegmentTemplate timescale="48000" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.187750Z / 1684932486 - 2023-05-24T12:48:34.987750Z -->
+        <SegmentTimeline>
+          <S t="80876759337012" d="92160" r="4"/>
+          <S d="110592"/>
+          <S d="73728"/>
+          <S d="92160" r="7"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio_81370_qad=81200" bandwidth="81200">
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="4" group="3" contentType="text" lang="fr" mimeType="application/mp4" codecs="stpp.ttml" startWithSAP="1">
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+      <Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="2"/>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="caption"/>
+      <SegmentTemplate timescale="1000" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.165000Z / 1684932486 - 2023-05-24T12:48:36.885000Z -->
+        <SegmentTimeline>
+          <S t="1684932486165" d="1920" r="4"/>
+          <S d="2320"/>
+          <S d="1520"/>
+          <S d="1920" r="8"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="textstream_11798664_fra=8000" bandwidth="8000">
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="5" group="3" contentType="text" lang="fr" mimeType="application/mp4" codecs="stpp.ttml" startWithSAP="1">
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="subtitle"/>
+      <SegmentTemplate timescale="1000" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.165000Z / 1684932486 - 2023-05-24T12:48:36.885000Z -->
+        <SegmentTimeline>
+          <S t="1684932486165" d="1920" r="4"/>
+          <S d="2320"/>
+          <S d="1520"/>
+          <S d="1920" r="8"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="textstream_11798665_fra=8000" bandwidth="8000">
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="6" group="2" contentType="video" par="16:9" minBandwidth="509200" maxBandwidth="3341600" maxWidth="1280" maxHeight="720" minFrameRate="25" maxFrameRate="50" segmentAlignment="true" mimeType="video/mp4" codecs="avc1.640029" startWithSAP="1">
+      <!-- Common Encryption -->
+      <ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc" cenc:default_KID="2A9B80A4-1653-1E1C-861E-EAFE6B2E2B3B">
+      </ContentProtection>
+      <!-- PlayReady -->
+      <ContentProtection schemeIdUri="urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95" value="MSPR 2.0">
+      </ContentProtection>
+      <!-- ViaccessOrca -->
+      <ContentProtection schemeIdUri="urn:uuid:B4413586-C58C-FFB0-94A5-D4896C1AF6C3">
+      </ContentProtection>
+      <!-- Widevine -->
+      <ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED">
+      </ContentProtection>
+      <InbandEventStream schemeIdUri="urn:scte:scte35:2014:xml+bin" value="185">
+      </InbandEventStream>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+      <SegmentTemplate timescale="600" initialization="livetv_tfx_ctv-$RepresentationID$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc" media="livetv_tfx_ctv-$RepresentationID$-$Time$.dash?horsrb=0&amp;bpk-service=Live&amp;device=pc">
+        <!-- 2023-05-24T12:48:06.165000Z / 1684932486 - 2023-05-24T12:48:36.885000Z -->
+        <SegmentTimeline>
+          <S t="1010959491699" d="1152" r="4"/>
+          <S d="1392"/>
+          <S d="912"/>
+          <S d="1152" r="8"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video=509200" bandwidth="509200" width="400" height="224" sar="224:225" frameRate="25" scanType="progressive">
+      </Representation>
+      <Representation id="video=779200" bandwidth="779200" width="480" height="270" sar="1:1" frameRate="25" scanType="progressive">
+      </Representation>
+      <Representation id="video=1385600" bandwidth="1385600" width="640" height="360" sar="1:1" frameRate="25" scanType="progressive">
+      </Representation>
+      <Representation id="video=2305200" bandwidth="2305200" width="1024" height="576" sar="1:1" frameRate="25" scanType="progressive">
+      </Representation>
+      <Representation id="video=3341600" bandwidth="3341600" width="1280" height="720" sar="1:1" frameRate="50" scanType="progressive">
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
