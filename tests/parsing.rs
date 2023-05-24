@@ -386,6 +386,16 @@ fn test_file_parsing() {
     let xml = fs::read_to_string(path).unwrap();
     let db = parse(&xml);
     assert!(db.is_ok());
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("orange");
+    path.set_extension("xml");
+    let xml = fs::read_to_string(path).unwrap();
+    let db = parse(&xml);
+    assert!(db.is_ok());
+
 }
 
 
