@@ -3,10 +3,13 @@
 ## [0.9.1] - Unreleased
 ### New
 - Add definition for the `Preselection` element.
+- Add attributes `@byteRange`, `@availabilityTimeOffset` and `@availabilityTimeComplete` to BaseURL
+  elements (pointed out by @ypo).
 ### Changed
 - Downloading: only download subtitles when `fetch_subtitles()` has been called on DashDownloader
   (from @sleepycatcoding).
 - Add derived PartialEq to data structures to allow for comparison.
+- Parsing: certain MPDs including "overlapping" elements can now be parsed.
 
 
 ## [0.9.0] - 2023-05-10

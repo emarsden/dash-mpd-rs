@@ -599,15 +599,19 @@ pub struct BaseURL {
     /// services at a common network location, for example the same CDN.
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
+    #[serde(rename = "@byteRange")]
+    pub byte_range: Option<String>,
+    #[serde(rename = "@availabilityTimeOffset")]
+    pub availability_time_offset: Option<f64>,
+    #[serde(rename = "@availabilityTimeComplete")]
+    pub availability_time_complete: Option<bool>,
     /// Lowest value indicates the highest priority.
-    #[serde(rename = "@dvb:priority")]
-    #[serde(alias = "@priority")]
+    #[serde(rename = "@dvb:priority", alias = "@priority")]
     pub priority: Option<u64>,
     /// For load balancing between different base urls with the same @priority. The BaseURL to use
     /// is chosen at random by the player, with the weight of any given BaseURL being its @weight
     /// value divided by the sum of all @weight values.
-    #[serde(rename = "@dvb:weight")]
-    #[serde(alias = "@weight")]
+    #[serde(rename = "@dvb:weight", alias = "@weight")]
     pub weight: Option<i64>,
 }
 
