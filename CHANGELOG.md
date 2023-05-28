@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.9.1] - Unreleased
+## [0.9.1] - 2023-05-28
 ### New
 - Add definition for the `Preselection` element.
 - Add attributes `@byteRange`, `@availabilityTimeOffset` and `@availabilityTimeComplete` to BaseURL
