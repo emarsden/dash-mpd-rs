@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.2] - Unreleased
+### Changed
+- Downloading: a connect error is handled as a permanent, rather than a transient, error. In
+  particular, TLS certificate verification errors will no longer be treated as transient errors.
+
+
 ## [0.9.1] - 2023-05-28
 ### New
 - Add definition for the `Preselection` element.

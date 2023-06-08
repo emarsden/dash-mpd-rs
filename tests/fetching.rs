@@ -214,3 +214,73 @@ async fn test_error_dynamic_mpd() {
         .await
         .unwrap();
 }
+
+
+#[tokio::test]
+async fn test_error_tls_expired() {
+    use dash_mpd::fetch::DashDownloader;
+
+    let mpd = "https://expired.badssl.com/ignored.mpd";
+    let res = DashDownloader::new(mpd)
+        .worst_quality()
+        .download()
+        .await;
+    assert!(res.is_err());
+    #[cfg(feature = "rustls-tls")]
+    assert!(res.unwrap_err().to_string().contains("invalid peer certificate"));
+    #[cfg(feature = "native-tls")]
+    assert!(res.unwrap_err().to_string().contains("certificate has expired"));
+}
+
+
+#[tokio::test]
+async fn test_error_tls_self_signed() {
+    use dash_mpd::fetch::DashDownloader;
+
+    let mpd = "https://self-signed.badssl.com/ignored.mpd";
+    let res = DashDownloader::new(mpd)
+        .worst_quality()
+        .download()
+        .await;
+    assert!(res.is_err());
+    #[cfg(feature = "rustls-tls")]
+    assert!(res.unwrap_err().to_string().contains("UnknownIssuer"));
+    #[cfg(feature = "native-tls")]
+    assert!(res.unwrap_err().to_string().contains("certificate verify failed"));
+}
+
+#[tokio::test]
+async fn test_error_tls_too_large() {
+    use dash_mpd::fetch::DashDownloader;
+
+    let mpd = "https://10000-sans.badssl.com/ignored.mpd";
+    let res = DashDownloader::new(mpd)
+        .worst_quality()
+        .download()
+        .await;
+    assert!(res.is_err());
+    #[cfg(feature = "rustls-tls")]
+    assert!(res.unwrap_err().to_string().contains("HandshakePayloadTooLarge"));
+    #[cfg(feature = "native-tls")]
+    assert!(res.unwrap_err().to_string().contains("excessive message size"));
+}
+
+
+#[tokio::test]
+async fn test_error_tls_wrong_name() {
+    use dash_mpd::fetch::DashDownloader;
+
+    let mpd = "https://wrong.host.badssl.com/ignored.mpd";
+    let res = DashDownloader::new(mpd)
+        .worst_quality()
+        .download()
+        .await;
+    assert!(res.is_err());
+    #[cfg(feature = "rustls-tls")]
+    assert!(res.unwrap_err().to_string().contains("NotValidForName"));
+    #[cfg(feature = "native-tls")]
+    assert!(res.unwrap_err().to_string().contains("hostname mismatch"));
+}
+
+
+

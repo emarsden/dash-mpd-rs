@@ -2,10 +2,9 @@
 
 use std::env;
 use fs_err as fs;
-use std::fs::File;
+use fs::File;
 use std::io;
-use std::io::Write;
-use std::io::{BufReader, BufWriter};
+use std::io::{Write, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -516,7 +515,7 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
 
 
 fn reqwest_error_transient_p(e: &reqwest::Error) -> bool {
-    if e.is_timeout() || e.is_connect() {
+    if e.is_timeout() {
         return true;
     }
     if let Some(s) = e.status() {
