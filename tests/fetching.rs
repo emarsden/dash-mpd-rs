@@ -216,70 +216,57 @@ async fn test_error_dynamic_mpd() {
 }
 
 
+// We could try to check that the error message contains "invalid peer certificate" (rustls) or
+// "certificate has expired" (native-tls with OpenSSL), but our tests would be platform-dependent
+// and fragile.
 #[tokio::test]
+#[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_expired() {
     use dash_mpd::fetch::DashDownloader;
 
+    // Check that the reqwest client refuses to download MPD from an expired TLS certificate
     let mpd = "https://expired.badssl.com/ignored.mpd";
-    let res = DashDownloader::new(mpd)
-        .worst_quality()
+    DashDownloader::new(mpd)
         .download()
-        .await;
-    assert!(res.is_err());
-    #[cfg(feature = "rustls-tls")]
-    assert!(res.unwrap_err().to_string().contains("invalid peer certificate"));
-    #[cfg(feature = "native-tls")]
-    assert!(res.unwrap_err().to_string().contains("certificate has expired"));
+        .await
+        .unwrap();
 }
 
 
 #[tokio::test]
+#[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_self_signed() {
     use dash_mpd::fetch::DashDownloader;
 
     let mpd = "https://self-signed.badssl.com/ignored.mpd";
-    let res = DashDownloader::new(mpd)
-        .worst_quality()
+    DashDownloader::new(mpd)
         .download()
-        .await;
-    assert!(res.is_err());
-    #[cfg(feature = "rustls-tls")]
-    assert!(res.unwrap_err().to_string().contains("UnknownIssuer"));
-    #[cfg(feature = "native-tls")]
-    assert!(res.unwrap_err().to_string().contains("certificate verify failed"));
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
+#[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_too_large() {
     use dash_mpd::fetch::DashDownloader;
 
-    let mpd = "https://10000-sans.badssl.com/ignored.mpd";
-    let res = DashDownloader::new(mpd)
-        .worst_quality()
+    // The TLS response message is too large
+    DashDownloader::new("https://10000-sans.badssl.com/ignored.mpd")
         .download()
-        .await;
-    assert!(res.is_err());
-    #[cfg(feature = "rustls-tls")]
-    assert!(res.unwrap_err().to_string().contains("HandshakePayloadTooLarge"));
-    #[cfg(feature = "native-tls")]
-    assert!(res.unwrap_err().to_string().contains("excessive message size"));
+        .await
+        .unwrap();
 }
 
 
 #[tokio::test]
+#[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_wrong_name() {
     use dash_mpd::fetch::DashDownloader;
 
-    let mpd = "https://wrong.host.badssl.com/ignored.mpd";
-    let res = DashDownloader::new(mpd)
-        .worst_quality()
+    DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
         .download()
-        .await;
-    assert!(res.is_err());
-    #[cfg(feature = "rustls-tls")]
-    assert!(res.unwrap_err().to_string().contains("NotValidForName"));
-    #[cfg(feature = "native-tls")]
-    assert!(res.unwrap_err().to_string().contains("hostname mismatch"));
+        .await
+        .unwrap();
 }
 
 
