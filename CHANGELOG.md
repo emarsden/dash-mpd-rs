@@ -1,9 +1,10 @@
 # Changelog
 
-## [0.9.2] - Unreleased
+## [0.9.2] - 2023-06-10
 ### Changed
 - Downloading: a connect error is handled as a permanent, rather than a transient, error. In
   particular, TLS certificate verification errors will no longer be treated as transient errors.
+- Downloading: fix a bug in the handling of the `Location` element.
 
 
 ## [0.9.1] - 2023-05-28
