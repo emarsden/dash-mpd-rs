@@ -594,7 +594,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             println!("Redirecting to new manifest <Location> {new_url}");
         }
         let fetch = || async {
-            client.get(&downloader.mpd_url)
+            client.get(new_url)
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate")
