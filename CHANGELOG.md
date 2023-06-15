@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0] - Unreleased
+### Changed
+- Incompatible change to the `keep_audio` and `keep_video` API, to allow the user to specify the
+  path for the audio and video files.
+- Update dependency quick-xml to v0.29 (thanks to @sdroege).
+
+
+
 ## [0.9.2] - 2023-06-10
 ### Changed
 - Downloading: a connect error is handled as a permanent, rather than a transient, error. In
