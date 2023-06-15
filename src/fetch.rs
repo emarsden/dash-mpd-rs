@@ -29,15 +29,15 @@ pub type HttpClient = reqwest::Client;
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str) -> Result<String, DashMpdError> {
+fn tmp_file_path(prefix: &str) -> Result<PathBuf, DashMpdError> {
     let file = tempfile::Builder::new()
         .prefix(prefix)
         .rand_bytes(5)
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
-    let s = file.path().to_str()
-        .unwrap_or("/tmp/dashmpdrs-tmp.mkv");
-    Ok(s.to_string())
+    let s = file.path().to_path_buf();
+
+    Ok(s)
 }
 
 
@@ -74,8 +74,8 @@ pub struct DashDownloader {
     fetch_video: bool,
     fetch_audio: bool,
     fetch_subtitles: bool,
-    keep_video: bool,
-    keep_audio: bool,
+    keep_video: Option<PathBuf>,
+    keep_audio: Option<PathBuf>,
     fragment_path: Option<PathBuf>,
     content_type_checks: bool,
     max_error_count: u32,
@@ -145,8 +145,8 @@ impl DashDownloader {
             fetch_video: true,
             fetch_audio: true,
             fetch_subtitles: false,
-            keep_video: false,
-            keep_audio: false,
+            keep_video: None,
+            keep_audio: None,
             fragment_path: None,
             content_type_checks: true,
             max_error_count: 10,
@@ -230,15 +230,15 @@ impl DashDownloader {
         self
     }
 
-    /// Don't delete the file containing video once muxing is complete.
-    pub fn keep_video(mut self) -> DashDownloader {
-        self.keep_video = true;
+    /// Keeps the file containing video at the specified path.
+    pub fn keep_video_as<P: Into<PathBuf>>(mut self, video_path: P) -> DashDownloader {
+        self.keep_video = Some(video_path.into());
         self
     }
 
-    /// Don't delete the file containing audio once muxing is complete.
-    pub fn keep_audio(mut self) -> DashDownloader {
-        self.keep_audio = true;
+    /// Keeps the file containing audio at the specified path.
+    pub fn keep_audio_as<P: Into<PathBuf>>(mut self, audio_path: P) -> DashDownloader {
+        self.keep_audio = Some(audio_path.into());
         self
     }
 
@@ -1704,8 +1704,19 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             }
         }
     }
-    let tmppath_audio = tmp_file_path("dashmpd-audio")?;
-    let tmppath_video = tmp_file_path("dashmpd-video")?;
+
+    let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
+        path.clone()
+    } else {
+        tmp_file_path("dashmpd-audio")?
+    };
+
+    let tmppath_video = if let Some(ref path) = downloader.keep_video {
+        path.clone()
+    } else {
+        tmp_file_path("dashmpd-video")?
+    };
+
     if downloader.verbosity > 0 {
         println!("Preparing to fetch {} audio and {} video segments",
                  audio_fragments.len(),
@@ -2013,7 +2024,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         if downloader.verbosity > 1 {
             println!("Muxing audio and video streams");
         }
-        mux_audio_video(&downloader, &tmppath_audio, &tmppath_video)?;
+        mux_audio_video(
+            &downloader,
+            tmppath_audio.to_str().ok_or(DashMpdError::Other(String::from("audio path to UTF-8")))?,
+            tmppath_video.to_str().ok_or(DashMpdError::Other(String::from("video path to UTF-8")))?
+        )?;
     } else if have_audio {
         // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
         // it might fail if temporary files and our output are on different filesystems.
@@ -2046,15 +2061,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
     }
-    if downloader.keep_audio {
-        println!("Audio stream kept in file {tmppath_audio}");
-    } else if fs::remove_file(tmppath_audio).is_err() {
-        log::info!("Failed to delete temporary file for audio segments");
+    if downloader.keep_audio.is_none() {
+        if fs::remove_file(tmppath_audio).is_err() {
+            log::info!("Failed to delete temporary file for audio segments");
+        }
     }
-    if downloader.keep_video {
-        println!("Video stream kept in file {tmppath_video}");
-    } else if fs::remove_file(tmppath_video).is_err() {
-        log::info!("Failed to delete temporary file for video segments");
+    if downloader.keep_video.is_none() {
+        if fs::remove_file(tmppath_video).is_err() {
+            log::info!("Failed to delete temporary file for video segments");
+        }
     }
     if downloader.verbosity > 1 {
         if let Ok(metadata) = fs::metadata(output_path) {
