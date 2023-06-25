@@ -51,12 +51,8 @@ pub trait ProgressObserver: Send + Sync {
 
 /// Preference for retrieving media representation with highest quality (and highest file size) or
 /// lowest quality (and lowest file size).
-#[derive(PartialEq, Eq)]
-pub enum QualityPreference { Lowest, Highest }
-
-impl Default for QualityPreference {
-    fn default() -> Self { QualityPreference::Lowest }
-}
+#[derive(PartialEq, Eq, Default)]
+pub enum QualityPreference { #[default] Lowest, Highest }
 
 
 /// The DashDownloader allows the download of streaming media content from a DASH MPD manifest. This
@@ -164,7 +160,7 @@ impl DashDownloader {
 
     /// Specify the reqwest Client to be used for HTTP requests that download the DASH streaming
     /// media content. Allows you to specify a proxy, the user agent, custom request headers,
-    /// request timeouts, etc.
+    /// request timeouts, additional root certificates to trust, client identity certificates, etc.
     ///
     /// Example
     /// ```rust
@@ -480,6 +476,90 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
 }
 
 
+// The AdaptationSet a is the parent of the Representation r.
+fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSet) {
+    let unspecified = "<unspecified>".to_string();
+    let empty = "".to_string();
+    let lang = r.lang.as_ref()
+        .unwrap_or_else(|| a.lang.as_ref()
+                        .unwrap_or(&unspecified));
+    let codecs = r.codecs.as_ref()
+        .unwrap_or_else(|| a.codecs.as_ref()
+                        .unwrap_or(&empty));
+    let typ = subtitle_type(&a);
+    let stype = if codecs.len() > 0 {
+        format!("{typ:?}/{codecs}")
+    } else {
+        format!("{typ:?}")
+    };
+    println!("  subs {stype:>17} | {lang:>10} |");
+}
+
+fn print_available_subtitles_adaptation(a: &AdaptationSet) {
+    a.representations.iter()
+        .for_each(|r| print_available_subtitles_representation(r, a));
+}
+
+// The AdaptationSet a is the parent of the Representation r.
+fn print_available_streams_representation(r: &Representation, a: &AdaptationSet, typ: &str) {
+    // for now, we ignore the Vec representation.SubRepresentation which could contain width, height, bw etc.
+    let unspecified = "<unspecified>".to_string();
+    let w = r.width.unwrap_or(a.width.unwrap_or(0));
+    let h = r.height.unwrap_or(a.height.unwrap_or(0));
+    let codec = r.codecs.as_ref()
+        .unwrap_or_else(|| a.codecs.as_ref()
+                        .unwrap_or(&unspecified));
+    let bw = r.bandwidth.unwrap_or(a.maxBandwidth.unwrap_or(0));
+    // Some MPDs do not specify width and height, such as
+    // https://dash.akamaized.net/fokus/adinsertion-samples/scte/dash.mpd
+    let fmt = if typ.eq("audio") || w == 0 || h == 0 {
+        String::from("")
+    } else {
+        format!("{w}x{h}")
+    };
+    println!("  {typ} {codec:>16} | {:5} Kbps | {fmt:>9}", bw / 1024);
+}
+
+fn print_available_streams_adaptation(a: &AdaptationSet, typ: &str) {
+    a.representations.iter()
+        .for_each(|r| print_available_streams_representation(r, a, typ));
+}
+
+fn print_available_streams_period(p: &Period) {
+    p.adaptations.iter()
+        .filter(is_audio_adaptation)
+        .for_each(|a| print_available_streams_adaptation(a, "audio"));
+    p.adaptations.iter()
+        .filter(is_video_adaptation)
+        .for_each(|a| print_available_streams_adaptation(a, "video"));
+    p.adaptations.iter()
+        .filter(is_subtitle_adaptation)
+        .for_each(print_available_subtitles_adaptation);
+}
+
+// FIXME this is not currently handling xlink:href on a Period
+fn print_available_streams(mpd: &MPD) {
+    let mut counter = 0;
+    for p in &mpd.periods {
+        let mut period_duration_secs: f64 = 0.0;
+        if let Some(d) = mpd.mediaPresentationDuration {
+            period_duration_secs = d.as_secs_f64();
+        }
+        if let Some(d) = &p.duration {
+            period_duration_secs = d.as_secs_f64();
+        }
+        counter += 1;
+        if let Some(id) = p.id.as_ref() {
+            println!("Streams in period {id} (#{counter}), duration {period_duration_secs:.3}s:");
+        } else {
+            println!("Streams in period #{counter}, duration {period_duration_secs:.3}s:");
+        }
+        print_available_streams_period(p);
+    }
+}
+
+
+
 // From https://dashif.org/docs/DASH-IF-IOP-v4.3.pdf:
 // "For the avoidance of doubt, only %0[width]d is permitted and no other identifiers. The reason
 // is that such a string replacement can be easily implemented without requiring a specific library."
@@ -618,7 +698,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         mpd = parse(&xml)
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }
-    if let Some(mpdtype) = mpd.mpdtype {
+    if let Some(mpdtype) = mpd.mpdtype.as_ref() {
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
@@ -641,10 +721,21 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     let mut have_audio = false;
     let mut have_video = false;
     if downloader.verbosity > 0 {
-        println!("DASH manifest has {} Periods", mpd.periods.len());
+        let pcount = mpd.periods.len();
+        println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
+        print_available_streams(&mpd);
     }
+    let mut period_counter = 0;
     for mpd_period in &mpd.periods {
         let mut period = mpd_period.clone();
+        period_counter += 1;
+        if downloader.verbosity > 0 {
+            if let Some(id) = period.id.as_ref() {
+                println!("Handling period {id} (#{period_counter})");
+            } else {
+                println!("Handling period #{period_counter}");
+            }
+        }
         // Resolve a possible xlink:href (though this seems in practice mostly to be used for ad
         // insertion, so perhaps we should implement an option to ignore these).
         if let Some(href) = &period.href {
@@ -683,9 +774,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         }
         if let Some(d) = &period.duration {
             period_duration_secs = d.as_secs_f64();
-        }
-        if downloader.verbosity > 1 {
-            println!("Period with duration {period_duration_secs:.3} seconds");
         }
         let mut base_url = toplevel_base_url.clone();
         // A BaseURL could be specified for each Period
@@ -2061,11 +2149,13 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
         }
     }
+    #[allow(clippy::collapsible_if)]
     if downloader.keep_audio.is_none() {
         if fs::remove_file(tmppath_audio).is_err() {
             log::info!("Failed to delete temporary file for audio segments");
         }
     }
+    #[allow(clippy::collapsible_if)]
     if downloader.keep_video.is_none() {
         if fs::remove_file(tmppath_video).is_err() {
             log::info!("Failed to delete temporary file for video segments");

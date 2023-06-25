@@ -1,11 +1,12 @@
 # Changelog
 
-## [0.10.0] - Unreleased
+## [0.10.0] - 2023-06-25
 ### Changed
-- Incompatible change to the `keep_audio` and `keep_video` API, to allow the user to specify the
-  path for the audio and video files.
+- Downloading: incompatible change to the `keep_audio` and `keep_video` attributes on
+  DashDownloader, to allow the user to specify the path for the audio and video files.
+- Print information on the different media streams available (resolution, bitrate, codec) in a
+  manifest when requested verbosity is non-zero.
 - Update dependency quick-xml to v0.29 (thanks to @sdroege).
-
 
 
 ## [0.9.2] - 2023-06-10
