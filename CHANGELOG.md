@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1] - Unreleased
+### Changed
+- Fix spurious error regarding deletion of temporary file for audio/video segments when using
+  keep_audio / keep_video in conjunction with fetch_audio / fetch_video.
+- Downloading: show download bitrate for audio and video streams in verbose mode.
+
+
 ## [0.10.0] - 2023-06-25
 ### Changed
 - Downloading: incompatible change to the `keep_audio` and `keep_video` attributes on

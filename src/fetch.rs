@@ -7,7 +7,7 @@ use std::io;
 use std::io::{Write, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::cmp::min;
@@ -226,13 +226,15 @@ impl DashDownloader {
         self
     }
 
-    /// Keeps the file containing video at the specified path.
+    /// Keep the file containing video at the specified path. If the path already exists, file
+    /// contents will be overwritten.
     pub fn keep_video_as<P: Into<PathBuf>>(mut self, video_path: P) -> DashDownloader {
         self.keep_video = Some(video_path.into());
         self
     }
 
-    /// Keeps the file containing audio at the specified path.
+    /// Keep the file containing audio at the specified path. If the path already exists, file
+    /// contents will be overwritten.
     pub fn keep_audio_as<P: Into<PathBuf>>(mut self, audio_path: P) -> DashDownloader {
         self.keep_audio = Some(audio_path.into());
         self
@@ -492,7 +494,7 @@ fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSe
     } else {
         format!("{typ:?}")
     };
-    println!("  subs {stype:>17} | {lang:>10} |");
+    println!("  subs {stype:>18} | {lang:>10} |");
 }
 
 fn print_available_subtitles_adaptation(a: &AdaptationSet) {
@@ -517,7 +519,7 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
     } else {
         format!("{w}x{h}")
     };
-    println!("  {typ} {codec:>16} | {:5} Kbps | {fmt:>9}", bw / 1024);
+    println!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}", bw / 1024);
 }
 
 fn print_available_streams_adaptation(a: &AdaptationSet, typ: &str) {
@@ -1710,7 +1712,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             }
         }
         if downloader.fetch_subtitles {
-            // now check for subtitles
             let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
                 period.adaptations.iter().filter(is_subtitle_adaptation)
                     .min_by_key(|a| adaptation_lang_distance(a, lang))
@@ -1842,6 +1843,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             fs::create_dir_all(audio_fragment_dir)
                 .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
         }
+        let start_audio_download = Instant::now();
         for frag in &audio_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
@@ -1968,7 +1970,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         })?;
         if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
             if downloader.verbosity > 1 {
-                println!("Wrote {:.1}MB to DASH audio stream", metadata.len() as f64 / (1024.0 * 1024.0));
+                let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+                let elapsed = start_audio_download.elapsed();
+                println!("Wrote {mbytes:.1}MB to DASH audio file ({:.1}MB/s)",
+                         mbytes / elapsed.as_secs_f64());
             }
         }
     } // if downloader.fetch_audio
@@ -1984,6 +1989,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             fs::create_dir_all(video_fragment_dir)
                 .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
         }
+        let start_video_download = Instant::now();
         for frag in &video_fragments {
             // Update any ProgressObservers
             segment_counter += 1;
@@ -2099,7 +2105,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         })?;
         if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
             if downloader.verbosity > 1 {
-                println!("Wrote {:.1}MB to DASH video file", metadata.len() as f64 / (1024.0 * 1024.0));
+                let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+                let elapsed = start_video_download.elapsed();
+                println!("Wrote {mbytes:.1}MB to DASH video file ({:.1}MB/s)",
+                         mbytes / elapsed.as_secs_f64());
             }
         }
     } // if downloader.fetch_video
@@ -2150,15 +2159,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         }
     }
     #[allow(clippy::collapsible_if)]
-    if downloader.keep_audio.is_none() {
+    if downloader.keep_audio.is_none() && downloader.fetch_audio {
         if fs::remove_file(tmppath_audio).is_err() {
-            log::info!("Failed to delete temporary file for audio segments");
+            log::info!("Failed to delete temporary file for audio stream");
         }
     }
     #[allow(clippy::collapsible_if)]
-    if downloader.keep_video.is_none() {
+    if downloader.keep_video.is_none() && downloader.fetch_video {
         if fs::remove_file(tmppath_video).is_err() {
-            log::info!("Failed to delete temporary file for video segments");
+            log::info!("Failed to delete temporary file for video stream");
         }
     }
     if downloader.verbosity > 1 {
