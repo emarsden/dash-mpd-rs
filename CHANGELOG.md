@@ -1,7 +1,9 @@
 # Changelog
 
-## [0.10.1] - Unreleased
+## [0.11.0] - Unreleased
 ### Changed
+- Change element `InbandEventStream` of `Representation` and `AdaptationSet` nodes to a `Vec` instead
+  of an `Option` (incompatible change).
 - Fix spurious error regarding deletion of temporary file for audio/video segments when using
   keep_audio / keep_video in conjunction with fetch_audio / fetch_video.
 - Downloading: show download bitrate for audio and video streams in verbose mode.

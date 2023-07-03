@@ -992,7 +992,7 @@ pub struct Representation {
     pub FramePacking: Vec<FramePacking>,
     #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
-    pub InbandEventStream: Option<InbandEventStream>,
+    pub InbandEventStream: Vec<InbandEventStream>,
     pub SubRepresentation: Vec<SubRepresentation>,
     pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
@@ -1309,7 +1309,7 @@ pub struct AdaptationSet {
     pub Resync: Option<Resync>,
     pub Accessibility: Option<Accessibility>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
-    pub InbandEventStream: Option<InbandEventStream>,
+    pub InbandEventStream: Vec<InbandEventStream>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
     #[serde(rename = "EssentialProperty")]
