@@ -413,11 +413,9 @@ async fn test_parsing_online() {
     async fn check_mpd(client: reqwest::Client, url: &str) {
         let xml = client.get(url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-            .send()
-            .await
+            .send().await
             .expect("requesting MPD content")
-            .text()
-            .await
+            .text().await
             .expect("fetching MPD content");
         let p = parse(&xml);
         assert!(p.is_ok());
@@ -437,4 +435,98 @@ async fn test_parsing_online() {
 }
 
 
+#[tokio::test]
+async fn test_parsing_subrepresentations() {
+    use dash_mpd::parse;
+
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G6.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    // Check that every Representation in this manifest contains three SubRepresentation nodes.
+    mpd.periods.iter().for_each(
+        |p| p.adaptations.iter().for_each(
+            |a| a.representations.iter().for_each(
+                |r| assert_eq!(3, r.SubRepresentation.len()))));
+}
+
+
+#[tokio::test]
+async fn test_parsing_eventstream() {
+    use dash_mpd::parse;
+
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G9.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    mpd.periods.iter().for_each(
+        |p| p.event_streams.iter().for_each(
+            |es| assert_eq!(4, es.event.len())));
+    assert!(mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |a| a.representations.iter().any(
+                |r| r.InbandEventStream.len() == 2))));
+}
+
+
+#[tokio::test]
+async fn test_parsing_supplementalproperty() {
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        return;
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_H2.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = dash_mpd::parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    assert!(mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |a| a.supplemental_property.iter().any(
+                |sp| sp.value.as_ref().is_some_and(|v| v.eq("0,1,1,1,1,2,2"))))));
+    assert!(mpd.periods.iter().all(
+        |p| p.adaptations.iter().all(
+            |a| a.supplemental_property.iter().all(
+                |sp| sp.value.as_ref().is_some_and(|v| !v.eq("42"))))));
+}
 
