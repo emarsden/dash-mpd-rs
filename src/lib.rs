@@ -1806,6 +1806,42 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
 }
 
 
+fn content_protection_type(cp: &ContentProtection) -> String {
+    if let Some(v) = &cp.value {
+        if v.eq("cenc") {
+            return String::from("cenc");
+        }
+        if v.eq("Widevine") {
+            return String::from("Widevine");
+        }
+        if v.eq("MSPR 2.0") {
+            return String::from("PlayReady");
+        }
+    }
+    if let Some(uri) = &cp.schemeIdUri {
+        if uri.eq("urn:mpeg:dash:mp4protection:2011") {
+            return String::from("cenc");
+        }
+        if uri.eq("urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed") {
+            return String::from("Widevine");
+        }
+        if uri.eq("urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95") {
+            return String::from("PlayReady");
+        }
+        if uri.eq("urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2") {
+            return String::from("FairPlay");
+        }
+        if uri.eq("urn:uuid:3ea8778f-7742-4bf9-b18b-e834b2acbd47") {
+            return String::from("Clear Key AES-128");
+        }
+        if uri.eq("urn:uuid:be58615b-19c4-4684-88b3-c8c57e99e957") {
+            return String::from("Clear Key SAMPLE-AES");
+        }
+    }
+    String::from("<unknown>")
+}
+
+
 #[cfg(test)]
 mod tests {
     #[test]

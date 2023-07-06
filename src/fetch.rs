@@ -20,7 +20,8 @@ use backoff::{future::retry_notify, ExponentialBackoff};
 use governor::{Quota, RateLimiter};
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video};
-use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, subtitle_type, SubtitleType};
+use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
+use crate::{subtitle_type, content_protection_type, SubtitleType};
 
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
@@ -73,6 +74,7 @@ pub struct DashDownloader {
     keep_video: Option<PathBuf>,
     keep_audio: Option<PathBuf>,
     fragment_path: Option<PathBuf>,
+    decryption_keys: HashMap<String, String>,
     content_type_checks: bool,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
@@ -84,6 +86,7 @@ pub struct DashDownloader {
     pub vlc_location: String,
     pub mkvmerge_location: String,
     pub mp4box_location: String,
+    pub mp4decrypt_location: String,
 }
 
 
@@ -144,6 +147,7 @@ impl DashDownloader {
             keep_video: None,
             keep_audio: None,
             fragment_path: None,
+            decryption_keys: HashMap::new(),
             content_type_checks: true,
             max_error_count: 10,
             progress_observers: vec![],
@@ -155,6 +159,7 @@ impl DashDownloader {
 	    vlc_location: if cfg!(windows) { String::from("vlc.exe") } else { String::from("vlc") },
 	    mkvmerge_location: if cfg!(windows) { String::from("mkvmerge.exe") } else { String::from("mkvmerge") },
 	    mp4box_location: if cfg!(windows) { String::from("MP4Box.exe") } else { String::from("MP4Box") },
+            mp4decrypt_location: if cfg!(windows) { String::from("mp4decrypt.exe") } else { String::from("mp4decrypt") },
         }
     }
 
@@ -205,7 +210,7 @@ impl DashDownloader {
     }
 
     /// Preferred language when multiple audio streams with different languages are available. Must
-    /// be in RFC 5646 format (eg. "fr" or "en-AU"). If a preference is not specified and multiple
+    /// be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not specified and multiple
     /// audio streams are present, the first one listed in the DASH manifest will be downloaded.
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
@@ -244,6 +249,21 @@ impl DashDownloader {
     /// does not exist.
     pub fn save_fragments_to<P: Into<PathBuf>>(mut self, fragment_path: P) -> DashDownloader {
         self.fragment_path = Some(fragment_path.into());
+        self
+    }
+
+    /// Add a key to be used to decrypt MPEG media streams that use Common Encryption (cenc). This
+    /// function may be called several times to specify multiple kid/key pairs. Decryption uses the
+    /// Bento4 commandline application mp4decrypt, run as a subprocess.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - a track ID in decimal or, a 128-bit KID in hexadecimal format (32 hex characters).
+    ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
+    ///
+    /// * `key` - a 128-bit key in hexademical format.
+    pub fn add_decryption_key(mut self, id: String, key: String) -> DashDownloader {
+        self.decryption_keys.insert(id, key);
         self
     }
 
@@ -292,7 +312,11 @@ impl DashDownloader {
         self
     }
 
-    /// Set the verbosity level of the download process. Possible values for level:
+    /// Set the verbosity level of the download process.
+    ///
+    /// # Arguments
+    ///
+    /// * Level - an integer specifying the verbosity level.
     /// - 0: no information is printed
     /// - 1: basic information on the number of Periods and bandwidth of selected representations
     /// - 2: information above + segment addressing mode
@@ -324,7 +348,7 @@ impl DashDownloader {
 
     /// Specify the location of the VLC application, if not located in PATH.
     ///
-    /// Example
+    /// # Example
     /// ```rust
     /// #[cfg(target_os = "windows")]
     /// let ddl = ddl.with_vlc("C:/Program Files/VideoLAN/VLC/vlc.exe");
@@ -335,14 +359,32 @@ impl DashDownloader {
     }
 
     /// Specify the location of the mkvmerge application, if not located in PATH.
-    pub fn with_mkvmerge(mut self, mkvmerge_path: &str) -> DashDownloader {
-        self.mkvmerge_location = mkvmerge_path.to_string();
+    ///
+    /// # Argument
+    ///
+    /// `path` - the full path to the mkvmerge application, including the application name.
+    pub fn with_mkvmerge(mut self, path: &str) -> DashDownloader {
+        self.mkvmerge_location = path.to_string();
         self
     }
 
     /// Specify the location of the MP4Box application, if not located in PATH.
-    pub fn with_mp4box(mut self, mp4box_path: &str) -> DashDownloader {
-        self.mp4box_location = mp4box_path.to_string();
+    ///
+    /// # Argument
+    ///
+    /// `path` - the full path to the MP4Box application, including the application name.
+    pub fn with_mp4box(mut self, path: &str) -> DashDownloader {
+        self.mp4box_location = path.to_string();
+        self
+    }
+
+    /// Specify the location of the Bento4 mp4decrypt application, if not located in PATH.
+    ///
+    /// # Argument
+    ///
+    /// `path` - the full path to the mp4decrypt application, including the application name.
+    pub fn with_mp4decrypt(mut self, path: &str) -> DashDownloader {
+        self.mp4decrypt_location = path.to_string();
         self
     }
 
@@ -489,7 +531,7 @@ fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSe
         .unwrap_or_else(|| a.codecs.as_ref()
                         .unwrap_or(&empty));
     let typ = subtitle_type(&a);
-    let stype = if codecs.len() > 0 {
+    let stype = if !codecs.is_empty() {
         format!("{typ:?}/{codecs}")
     } else {
         format!("{typ:?}")
@@ -641,8 +683,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             .header("Accept-Language", "en-US,en")
             .header("Upgrade-Insecure-Requests", "1")
             .header("Sec-Fetch-Mode", "navigate")
-            .send()
-            .await
+            .send().await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
             .map_err(categorize_reqwest_error)
@@ -680,8 +721,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate")
-                .send()
-                .await
+                .send().await
                 .map_err(categorize_reqwest_error)?
                 .error_for_status()
                 .map_err(categorize_reqwest_error)
@@ -694,8 +734,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             return Err(DashMpdError::Network(msg));
         }
         redirected_url = response.url().clone();
-        let xml = response.text()
-            .await
+        let xml = response.text().await
             .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
         mpd = parse(&xml)
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
@@ -755,13 +794,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                     .header("Accept-Language", "en-US,en")
                     .header("Sec-Fetch-Mode", "navigate")
-                    .send()
-                    .await
+                    .send().await
                     .map_err(|e| network_error("fetching XLink on Period element", e))?
                     .error_for_status()
                     .map_err(|e| network_error("fetching XLink on Period element", e))?
-                    .text()
-                    .await
+                    .text().await
                     .map_err(|e| network_error("resolving XLink on Period element", e))?;
                 let linked_period: Period = quick_xml::de::from_str(&xml)
                     .map_err(|e| parse_error("parsing Period XLink XML", e))?;
@@ -820,13 +857,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
-                            .send()
-                            .await
+                            .send().await
                             .map_err(|e| network_error("fetching XLink URL for AdaptationSet", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching XLink URL for AdaptationSet", e))?
-                            .text()
-                            .await
+                            .text().await
                             .map_err(|e| network_error("resolving XLink on AdaptationSet element", e))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
@@ -863,13 +898,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                 .header("Accept-Language", "en-US,en")
                                 .header("Sec-Fetch-Mode", "navigate")
-                                .send()
-                                .await
+                                .send().await
                                 .map_err(|e| network_error("fetching XLink URL for Representation", e))?
                                 .error_for_status()
                                 .map_err(|e| network_error("fetching XLink URL for Representation", e))?
-                                .text()
-                                .await
+                                .text().await
                                 .map_err(|e| network_error("resolving XLink URL for Representation", e))?;
                             let linked_representation: Representation = quick_xml::de::from_str(&xml)
                                 .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
@@ -1289,13 +1322,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
-                            .send()
-                            .await
+                            .send().await
                             .map_err(|e| network_error("fetching XLink URL for video Adaptation", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching XLink URL for video Adaptation", e))?
-                            .text()
-                            .await
+                            .text().await
                             .map_err(|e| network_error("resolving XLink URL for video Adaptation", e))?;
                         let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
@@ -1330,13 +1361,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                                 .header("Accept-Language", "en-US,en")
                                 .header("Sec-Fetch-Mode", "navigate")
-                                .send()
-                                .await
+                                .send().await
                                 .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
                                 .error_for_status()
                                 .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
-                                .text()
-                                .await
+                                .text().await
                                 .map_err(|e| network_error("resolving XLink URL for video Representation", e))?;
                             let linked_representation: Representation = quick_xml::de::from_str(&xml)
                                 .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
@@ -1374,6 +1403,20 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     if downloader.verbosity > 0 {
                         if let Some(bw) = video_repr.bandwidth {
                             println!("Selected video representation with bandwidth {bw}");
+                        }
+                        // Check for DRM on the selected Representation/Adaptation
+                        for cp in video_repr.ContentProtection.iter()
+                            .chain(video.ContentProtection.iter())
+                        {
+                            println!("ContentProtection: {}", content_protection_type(cp));
+                            if let Some(kid) = &cp.default_KID {
+                                println!("KID: {kid}");
+                            }
+                            for pssh in cp.cenc_pssh.iter() {
+                                if let Some(pc) = &pssh.content {
+                                    println!("PSSH: {pc}");
+                                }
+                            }
                         }
                     }
                     if !video_repr.BaseURL.is_empty() {
@@ -1732,13 +1775,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         };
                         let subs = client.get(st_url.clone())
                             .header("Referer", redirected_url.to_string())
-                            .send()
-                            .await
+                            .send().await
                             .map_err(|e| network_error("fetching subtitles", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching subtitles", e))?
-                            .bytes()
-                            .await
+                            .bytes().await
                             .map_err(|e| network_error("retrieving subtitles", e))?;
                         let mut subs_path = output_path.clone();
                         let subtype = subtitle_type(&sta);
@@ -1890,8 +1931,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
-                    req.send()
-                        .await
+                    req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
@@ -1901,8 +1941,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     Ok(response) => {
                         if response.status().is_success() {
                             if !downloader.content_type_checks || content_type_audio_p(&response) {
-                                let dash_bytes = response.bytes()
-                                    .await
+                                let dash_bytes = response.bytes().await
                                     .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
                                 if downloader.verbosity > 2 {
                                     if let Some(sb) = &frag.start_byte {
@@ -1968,6 +2007,29 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             log::error!("Couldn't flush DASH audio file to disk: {e}");
             DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
         })?;
+        if !downloader.decryption_keys.is_empty() {
+            if downloader.verbosity > 0 {
+                println!("Attempting to decrypt audio stream");
+            }
+            let mut args = Vec::new();
+            for (k, v) in downloader.decryption_keys.iter() {
+                args.push("--key".to_string());
+                args.push(format!("{k}:{v}"));
+            }
+            args.push(String::from(tmppath_audio.to_string_lossy()));
+            let decrypted = tmp_file_path("dashmpd-decrypted-audio")?;
+            args.push(String::from(decrypted.to_string_lossy()));
+            let out = Command::new(downloader.mp4decrypt_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+            if !out.status.success() {
+                let msg = String::from_utf8_lossy(&out.stderr);
+                log::warn!("mp4decrypt subprocess failed: {msg}");
+            }
+            fs::rename(decrypted, tmppath_audio.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
+        }
         if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
@@ -2026,8 +2088,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
-                    req.send()
-                        .await
+                    req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
@@ -2037,8 +2098,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     Ok(response) => {
                         if response.status().is_success() {
                             if !downloader.content_type_checks || content_type_video_p(&response) {
-                                let dash_bytes = response.bytes()
-                                    .await
+                                let dash_bytes = response.bytes().await
                                     .map_err(|e| network_error("fetching DASH video segment", e))?;
                                 if downloader.verbosity > 2 {
                                     if let Some(sb) = &frag.start_byte {
@@ -2103,6 +2163,29 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             log::error!("Couldn't flush video file to disk: {e}");
             DashMpdError::Io(e, String::from("flushing video file to disk"))
         })?;
+        if !downloader.decryption_keys.is_empty() {
+            if downloader.verbosity > 0 {
+                println!("Attempting to decrypt video stream");
+            }
+            let mut args = Vec::new();
+            for (k, v) in downloader.decryption_keys.iter() {
+                args.push("--key".to_string());
+                args.push(format!("{k}:{v}"));
+            }
+            args.push(String::from(tmppath_video.to_string_lossy()));
+            let decrypted = tmp_file_path("dashmpd-decrypted-video")?;
+            args.push(String::from(decrypted.to_string_lossy()));
+            let out = Command::new(downloader.mp4decrypt_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+            if ! out.status.success() {
+                let msg = String::from_utf8_lossy(&out.stderr);
+                log::warn!("mp4decrypt subprocess failed: {msg}");
+            }
+            fs::rename(decrypted, tmppath_video.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
+        }
         if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);

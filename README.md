@@ -65,12 +65,18 @@ The choice of external muxer depends on the filename extension of the path suppl
 - WebVTT, TTML and SMIL subtitles (preliminary support). There is some support for subtitles that
   are made available in wvtt format, that will be converted to SRT format using the MP4Box
   commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is installed.
+- Support for decrypting media streams that use MPEG Common Encryption (cenc) ContentProtection.
+  This requires the `mp4decrypt` commandline application from the [Bento4
+  suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
+  available](https://www.bento4.com/downloads/) for common platforms). See the
+  `add_decryption_key` function on `DashDownloader`, and the
+  [decrypt.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/decrypt.rs) example.
+
 
 
 ## Limitations / unsupported features
 
 - We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV
-- Content encrypted with ContentProtection DRM mechanisms such as Clear Key, FairPlay, PlayReady, Widevine
 - No support for XLink with actuate=onRequest semantics
 
 
