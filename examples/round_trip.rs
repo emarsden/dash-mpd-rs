@@ -58,13 +58,11 @@ async fn main() -> Result<()> {
     let xml = client.get(url)
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
         .header("Accept-language", "en-US,en")
-        .send()
-        .await
+        .send().await
         .context("requesting DASH MPD")?
         .error_for_status()
         .context("requesting DASH MPD")?
-        .text()
-        .await
+        .text().await
         .context("fetching MPD content")?;
     let out1 = env::temp_dir().join("mpd-orig.xml");
     fs::write(&out1, &xml)?;

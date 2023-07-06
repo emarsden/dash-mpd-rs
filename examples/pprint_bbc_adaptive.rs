@@ -18,13 +18,11 @@ async fn main() -> Result<()> {
         .context("creating HTTP client")?;
     let xml = client.get("https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd")
         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-        .send()
-        .await
+        .send().await
         .context("requesting DASH MPD")?
         .error_for_status()
         .context("requesting DASH MPD")?
-        .text()
-        .await
+        .text().await
         .context("fetching MPD content")?;
     let mpd: MPD = parse(&xml)
         .context("parsing MPD")?;

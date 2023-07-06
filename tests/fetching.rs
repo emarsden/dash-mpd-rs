@@ -130,11 +130,9 @@ async fn test_content_protection_parsing() {
             .expect("creating reqwest HTTP client");
         let xml = client.get(mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-            .send()
-            .await
+            .send().await
             .expect("requesting MPD content")
-            .text()
-            .await
+            .text().await
             .expect("fetching MPD content");
         let mpd: MPD = parse(&xml)
             .expect("parsing MPD");
