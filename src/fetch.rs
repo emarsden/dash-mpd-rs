@@ -261,7 +261,7 @@ impl DashDownloader {
     /// * `id` - a track ID in decimal or, a 128-bit KID in hexadecimal format (32 hex characters).
     ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
     ///
-    /// * `key` - a 128-bit key in hexademical format.
+    /// * `key` - a 128-bit key in hexadecimal format.
     pub fn add_decryption_key(mut self, id: String, key: String) -> DashDownloader {
         self.decryption_keys.insert(id, key);
         self
@@ -1875,138 +1875,142 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     // file, so we should always abort if the first segment cannot be fetched. However, we could
     // tolerate loss of subsequent segments.
     if downloader.fetch_audio {
-        let tmpfile_audio = File::create(tmppath_audio.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
-        let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
-        // Optionally create the directory to which we will save the audio fragments.
-        if let Some(ref fragment_path) = downloader.fragment_path {
-            let audio_fragment_dir = fragment_path.join("audio");
-            fs::create_dir_all(audio_fragment_dir)
-                .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
-        }
         let start_audio_download = Instant::now();
-        for frag in &audio_fragments {
-            // Update any ProgressObservers
-            segment_counter += 1;
-            let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
-            for observer in &downloader.progress_observers {
-                observer.update(progress_percent, "Fetching audio segments");
+        {
+            // We need a local scope for our tmpfile_video File, so that the file is closed when
+            // we later optionally call mp4decrypt (which requires exclusive access to its input file on Windows).
+            let tmpfile_audio = File::create(tmppath_audio.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
+            let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
+            // Optionally create the directory to which we will save the audio fragments.
+            if let Some(ref fragment_path) = downloader.fragment_path {
+                let audio_fragment_dir = fragment_path.join("audio");
+                fs::create_dir_all(audio_fragment_dir)
+                    .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
             }
-            let url = &frag.url;
-            /*
-            A manifest may use a data URL (RFC 2397) to embed media content such as the
-            initialization segment directly in the manifest (recommended by YouTube for live
-            streaming, but uncommon in practice).
-             */
-            if url.scheme() == "data" {
-                let us = &url.to_string();
-                let du = DataUrl::process(us)
-                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                if du.mime_type().type_ != "audio" {
-                    return Err(DashMpdError::UnhandledMediaStream(
-                        String::from("expecting audio content in data URL")));
+            for frag in &audio_fragments {
+                // Update any ProgressObservers
+                segment_counter += 1;
+                let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
+                for observer in &downloader.progress_observers {
+                    observer.update(progress_percent, "Fetching audio segments");
                 }
-                let (body, _fragment) = du.decode_to_vec()
-                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                if downloader.verbosity > 2 {
-                    println!("Audio segment data URL -> {} octets", body.len());
-                }
-                if let Err(e) = tmpfile_audio.write_all(&body) {
-                    log::error!("Unable to write DASH audio data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                }
-                have_audio = true;
-            } else {
-                // We could download these segments in parallel, but that might upset some servers.
-                let fetch = || async {
-                    // Don't use only "audio/*" in Accept header because some web servers
-                    // (eg. media.axprod.net) are misconfigured and reject requests for
-                    // valid audio content (eg .m4s)
-                    let mut req = client.get(url.clone())
-                        .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
-                        .header("Referer", redirected_url.to_string())
-                        .header("Sec-Fetch-Mode", "navigate");
-                    if let Some(sb) = &frag.start_byte {
-                        if let Some(eb) = &frag.end_byte {
-                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                        }
+                let url = &frag.url;
+                /*
+                A manifest may use a data URL (RFC 2397) to embed media content such as the
+                initialization segment directly in the manifest (recommended by YouTube for live
+                streaming, but uncommon in practice).
+                 */
+                if url.scheme() == "data" {
+                    let us = &url.to_string();
+                    let du = DataUrl::process(us)
+                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                    if du.mime_type().type_ != "audio" {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            String::from("expecting audio content in data URL")));
                     }
-                    req.send().await
-                        .map_err(categorize_reqwest_error)?
-                        .error_for_status()
-                        .map_err(categorize_reqwest_error)
-                };
-                let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(response) => {
-                        if response.status().is_success() {
-                            if !downloader.content_type_checks || content_type_audio_p(&response) {
-                                let dash_bytes = response.bytes().await
-                                    .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            println!("Audio segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, dash_bytes.len());
-                                        }
-                                    } else {
-                                        println!("Audio segment {url} -> {} octets", dash_bytes.len());
-                                    }
-                                }
-                                if downloader.rate_limit > 0 {
-                                    let size = min(dash_bytes.len()/1024 + 1, u32::MAX as usize);
-                                    if let Some(cells) = NonZeroU32::new(size as u32) {
-                                        if let Err(_) = bw_limiter.until_n_ready(cells).await {
-                                            return Err(DashMpdError::Other(
-                                                "Bandwidth limit is too low".to_string()));
-                                        }
-                                    }
-                                }
-                                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                                    log::error!("Unable to write DASH audio data: {e:?}");
-                                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                                }
-                                if let Some(ref fragment_path) = downloader.fragment_path {
-                                    if let Some(path) = frag.url.path_segments()
-                                        .unwrap_or_else(|| "".split(' '))
-                                        .last()
-                                    {
-                                        let af_file = fragment_path.clone().join("audio").join(path);
-                                        let mut out = File::create(af_file)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
-                                        out.write_all(&dash_bytes)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
-                                    }
-                                }
-                                have_audio = true;
-                            } else {
-                                log::warn!("Ignoring segment {url} with non-audio content-type");
+                    let (body, _fragment) = du.decode_to_vec()
+                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Audio segment data URL -> {} octets", body.len());
+                    }
+                    if let Err(e) = tmpfile_audio.write_all(&body) {
+                        log::error!("Unable to write DASH audio data: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                    }
+                    have_audio = true;
+                } else {
+                    // We could download these segments in parallel, but that might upset some servers.
+                    let fetch = || async {
+                        // Don't use only "audio/*" in Accept header because some web servers
+                        // (eg. media.axprod.net) are misconfigured and reject requests for
+                        // valid audio content (eg .m4s)
+                        let mut req = client.get(url.clone())
+                            .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
+                            .header("Referer", redirected_url.to_string())
+                            .header("Sec-Fetch-Mode", "navigate");
+                        if let Some(sb) = &frag.start_byte {
+                            if let Some(eb) = &frag.end_byte {
+                                req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                             }
-                        } else {
-                            failure = Some(format!("HTTP error {}", response.status().as_str()));
                         }
-                    },
-                    Err(e) => failure = Some(format!("{e}")),
+                        req.send().await
+                            .map_err(categorize_reqwest_error)?
+                            .error_for_status()
+                            .map_err(categorize_reqwest_error)
+                    };
+                    let mut failure = None;
+                    match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                        Ok(response) => {
+                            if response.status().is_success() {
+                                if !downloader.content_type_checks || content_type_audio_p(&response) {
+                                    let dash_bytes = response.bytes().await
+                                        .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
+                                    if downloader.verbosity > 2 {
+                                        if let Some(sb) = &frag.start_byte {
+                                            if let Some(eb) = &frag.end_byte {
+                                                println!("Audio segment {} range {sb}-{eb} -> {} octets",
+                                                         &frag.url, dash_bytes.len());
+                                            }
+                                        } else {
+                                            println!("Audio segment {url} -> {} octets", dash_bytes.len());
+                                        }
+                                    }
+                                    if downloader.rate_limit > 0 {
+                                        let size = min(dash_bytes.len()/1024 + 1, u32::MAX as usize);
+                                        if let Some(cells) = NonZeroU32::new(size as u32) {
+                                            if let Err(_) = bw_limiter.until_n_ready(cells).await {
+                                                return Err(DashMpdError::Other(
+                                                    "Bandwidth limit is too low".to_string()));
+                                            }
+                                        }
+                                    }
+                                    if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
+                                        log::error!("Unable to write DASH audio data: {e:?}");
+                                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                                    }
+                                    if let Some(ref fragment_path) = downloader.fragment_path {
+                                        if let Some(path) = frag.url.path_segments()
+                                            .unwrap_or_else(|| "".split(' '))
+                                            .last()
+                                        {
+                                            let af_file = fragment_path.clone().join("audio").join(path);
+                                            let mut out = File::create(af_file)
+                                                .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
+                                            out.write_all(&dash_bytes)
+                                                .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
+                                        }
+                                    }
+                                    have_audio = true;
+                                } else {
+                                    log::warn!("Ignoring segment {url} with non-audio content-type");
+                                }
+                            } else {
+                                failure = Some(format!("HTTP error {}", response.status().as_str()));
+                            }
+                        },
+                        Err(e) => failure = Some(format!("{e}")),
+                    }
+                    if let Some(f) = failure {
+                        if downloader.verbosity > 0 {
+                            eprintln!("{f} fetching audio segment {url}");
+                        }
+                        download_errors += 1;
+                        if download_errors > downloader.max_error_count {
+                            return Err(DashMpdError::Network(
+                                String::from("more than max_error_count network errors")));
+                        }
+                    }
                 }
-                if let Some(f) = failure {
-                    if downloader.verbosity > 0 {
-                        eprintln!("{f} fetching audio segment {url}");
-                    }
-                    download_errors += 1;
-                    if download_errors > downloader.max_error_count {
-                        return Err(DashMpdError::Network(
-                            String::from("more than max_error_count network errors")));
-                    }
+                if downloader.sleep_between_requests > 0 {
+                    tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
                 }
             }
-            if downloader.sleep_between_requests > 0 {
-                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
-            }
-        }
-        tmpfile_audio.flush().map_err(|e| {
-            log::error!("Couldn't flush DASH audio file to disk: {e}");
-            DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
-        })?;
+            tmpfile_audio.flush().map_err(|e| {
+                log::error!("Couldn't flush DASH audio file to disk: {e}");
+                DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
+            })?;
+        } // end local scope for the FileHandle
         if !downloader.decryption_keys.is_empty() {
             if downloader.verbosity > 0 {
                 println!("Attempting to decrypt audio stream");
@@ -2024,8 +2028,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             if !out.status.success() {
+                log::warn!("mp4decrypt subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    log::warn!("mp4decrypt stdout: {msg}");
+                }
                 let msg = String::from_utf8_lossy(&out.stderr);
-                log::warn!("mp4decrypt subprocess failed: {msg}");
+                if msg.len() > 0 {
+                    log::warn!("mp4decrypt stderr: {msg}");
+                }
             }
             fs::rename(decrypted, tmppath_audio.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
@@ -2042,127 +2053,131 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
 
     // Now fetch the video segments and concatenate them to the video file
     if downloader.fetch_video {
-        let tmpfile_video = File::create(tmppath_video.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
-        let mut tmpfile_video = BufWriter::new(tmpfile_video);
-        // Optionally create the directory to which we will save the video fragments.
-        if let Some(ref fragment_path) = downloader.fragment_path {
-            let video_fragment_dir = fragment_path.join("video");
-            fs::create_dir_all(video_fragment_dir)
-                .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
-        }
         let start_video_download = Instant::now();
-        for frag in &video_fragments {
-            // Update any ProgressObservers
-            segment_counter += 1;
-            let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
-            for observer in &downloader.progress_observers {
-                observer.update(progress_percent, "Fetching video segments");
+        {
+            // We need a local scope for our tmpfile_video File, so that the file is closed when
+            // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
+            let tmpfile_video = File::create(tmppath_video.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
+            let mut tmpfile_video = BufWriter::new(tmpfile_video);
+            // Optionally create the directory to which we will save the video fragments.
+            if let Some(ref fragment_path) = downloader.fragment_path {
+                let video_fragment_dir = fragment_path.join("video");
+                fs::create_dir_all(video_fragment_dir)
+                    .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
             }
-            if frag.url.scheme() == "data" {
-                let us = &frag.url.to_string();
-                let du = DataUrl::process(us)
-                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                if du.mime_type().type_ != "video" {
-                    return Err(DashMpdError::UnhandledMediaStream(
-                        String::from("expecting video content in data URL")));
+            for frag in &video_fragments {
+                // Update any ProgressObservers
+                segment_counter += 1;
+                let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
+                for observer in &downloader.progress_observers {
+                    observer.update(progress_percent, "Fetching video segments");
                 }
-                let (body, _fragment) = du.decode_to_vec()
-                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                if downloader.verbosity > 2 {
-                    println!("Video segment data URL -> {} octets", body.len());
-                }
-                if let Err(e) = tmpfile_video.write_all(&body) {
-                    log::error!("Unable to write DASH video data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                }
-                have_video = true;
-            } else {
-                let fetch = || async {
-                    let mut req = client.get(frag.url.clone())
-                        .header("Accept", "video/*")
-                        .header("Referer", redirected_url.to_string())
-                        .header("Sec-Fetch-Mode", "navigate");
-                    if let Some(sb) = &frag.start_byte {
-                        if let Some(eb) = &frag.end_byte {
-                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                        }
+                if frag.url.scheme() == "data" {
+                    let us = &frag.url.to_string();
+                    let du = DataUrl::process(us)
+                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                    if du.mime_type().type_ != "video" {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            String::from("expecting video content in data URL")));
                     }
-                    req.send().await
-                        .map_err(categorize_reqwest_error)?
-                        .error_for_status()
-                        .map_err(categorize_reqwest_error)
-                };
-                let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(response) => {
-                        if response.status().is_success() {
-                            if !downloader.content_type_checks || content_type_video_p(&response) {
-                                let dash_bytes = response.bytes().await
-                                    .map_err(|e| network_error("fetching DASH video segment", e))?;
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            println!("Video segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, dash_bytes.len());
-                                        }
-                                    } else {
-                                        println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
-                                    }
-                                }
-                                if downloader.rate_limit > 0 {
-                                    let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
-                                    if let Some(cells) = NonZeroU32::new(size as u32) {
-                                        if let Err(_) = bw_limiter.until_n_ready(cells).await {
-                                            return Err(DashMpdError::Other(
-                                                "Bandwidth limit is too low".to_string()));
-                                        }
-                                    }
-                                }
-                                if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                                }
-                                if let Some(ref fragment_path) = downloader.fragment_path {
-                                    if let Some(path) = frag.url.path_segments()
-                                        .unwrap_or_else(|| "".split(' '))
-                                        .last()
-                                    {
-                                        let vf_file = fragment_path.clone().join("video").join(path);
-                                        let mut out = File::create(vf_file)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
-                                        out.write_all(&dash_bytes)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
-                                    }
-                                }
-                                have_video = true;
-                            } else {
-                                log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                    let (body, _fragment) = du.decode_to_vec()
+                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Video segment data URL -> {} octets", body.len());
+                    }
+                    if let Err(e) = tmpfile_video.write_all(&body) {
+                        log::error!("Unable to write DASH video data: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                    }
+                    have_video = true;
+                } else {
+                    let fetch = || async {
+                        let mut req = client.get(frag.url.clone())
+                            .header("Accept", "video/*")
+                            .header("Referer", redirected_url.to_string())
+                            .header("Sec-Fetch-Mode", "navigate");
+                        if let Some(sb) = &frag.start_byte {
+                            if let Some(eb) = &frag.end_byte {
+                                req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                             }
-                        } else {
-                            failure = Some(format!("HTTP error {}", response.status().as_str()));
                         }
-                    },
-                    Err(e) => failure = Some(format!("{e}")),
+                        req.send().await
+                            .map_err(categorize_reqwest_error)?
+                            .error_for_status()
+                            .map_err(categorize_reqwest_error)
+                    };
+                    let mut failure = None;
+                    match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                        Ok(response) => {
+                            if response.status().is_success() {
+                                if !downloader.content_type_checks || content_type_video_p(&response) {
+                                    let dash_bytes = response.bytes().await
+                                        .map_err(|e| network_error("fetching DASH video segment", e))?;
+                                    if downloader.verbosity > 2 {
+                                        if let Some(sb) = &frag.start_byte {
+                                            if let Some(eb) = &frag.end_byte {
+                                                println!("Video segment {} range {sb}-{eb} -> {} octets",
+                                                         &frag.url, dash_bytes.len());
+                                            }
+                                        } else {
+                                            println!("Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                        }
+                                    }
+                                    if downloader.rate_limit > 0 {
+                                        let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
+                                        if let Some(cells) = NonZeroU32::new(size as u32) {
+                                            if let Err(_) = bw_limiter.until_n_ready(cells).await {
+                                                return Err(DashMpdError::Other(
+                                                    "Bandwidth limit is too low".to_string()));
+                                            }
+                                        }
+                                    }
+                                    if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                    }
+                                    if let Some(ref fragment_path) = downloader.fragment_path {
+                                        if let Some(path) = frag.url.path_segments()
+                                            .unwrap_or_else(|| "".split(' '))
+                                            .last()
+                                        {
+                                            let vf_file = fragment_path.clone().join("video").join(path);
+                                            let mut out = File::create(vf_file)
+                                                .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
+                                            out.write_all(&dash_bytes)
+                                                .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
+                                        }
+                                    }
+                                    have_video = true;
+                                } else {
+                                    log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                                }
+                            } else {
+                                failure = Some(format!("HTTP error {}", response.status().as_str()));
+                            }
+                        },
+                        Err(e) => failure = Some(format!("{e}")),
+                    }
+                    if let Some(f) = failure {
+                        if downloader.verbosity > 0 {
+                            eprintln!("{f} fetching video segment {}", &frag.url);
+                        }
+                        download_errors += 1;
+                        if download_errors > downloader.max_error_count {
+                            return Err(DashMpdError::Network(
+                                String::from("more than max_error_count network errors")));
+                        }
+                    }
                 }
-                if let Some(f) = failure {
-                    if downloader.verbosity > 0 {
-                        eprintln!("{f} fetching video segment {}", &frag.url);
-                    }
-                    download_errors += 1;
-                    if download_errors > downloader.max_error_count {
-                        return Err(DashMpdError::Network(
-                            String::from("more than max_error_count network errors")));
-                    }
+                if downloader.sleep_between_requests > 0 {
+                    tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
                 }
             }
-            if downloader.sleep_between_requests > 0 {
-                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
-            }
-        }
-        tmpfile_video.flush().map_err(|e| {
-            log::error!("Couldn't flush video file to disk: {e}");
-            DashMpdError::Io(e, String::from("flushing video file to disk"))
-        })?;
+            tmpfile_video.flush().map_err(|e| {
+                log::error!("Couldn't flush video file to disk: {e}");
+                DashMpdError::Io(e, String::from("flushing video file to disk"))
+            })?;
+        } // end local scope for tmpfile_video File
         if !downloader.decryption_keys.is_empty() {
             if downloader.verbosity > 0 {
                 println!("Attempting to decrypt video stream");
@@ -2180,8 +2195,15 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             if ! out.status.success() {
+                log::warn!("mp4decrypt subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    log::warn!("mp4decrypt stdout: {msg}");
+                }
                 let msg = String::from_utf8_lossy(&out.stderr);
-                log::warn!("mp4decrypt subprocess failed: {msg}");
+                if msg.len() > 0 {
+                    log::warn!("mp4decrypt stderr: {msg}");
+                }
             }
             fs::rename(decrypted, tmppath_video.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
