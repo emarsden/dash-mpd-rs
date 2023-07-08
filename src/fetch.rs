@@ -939,7 +939,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 if let Some(audio_repr) = maybe_audio_repr {
                     if downloader.verbosity > 0 {
                         if let Some(bw) = audio_repr.bandwidth {
-                            println!("Selected audio representation with bandwidth {bw}");
+                            println!("Selected audio representation with bandwidth {} Kbps", bw / 1024);
                         }
                     }
                     // the Representation may have a BaseURL
@@ -1402,7 +1402,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 if let Some(video_repr) = maybe_video_repr {
                     if downloader.verbosity > 0 {
                         if let Some(bw) = video_repr.bandwidth {
-                            println!("Selected video representation with bandwidth {bw}");
+                            println!("Selected video representation with bandwidth {} Kbps", bw / 1024);
                         }
                         // Check for DRM on the selected Representation/Adaptation
                         for cp in video_repr.ContentProtection.iter()
@@ -1410,11 +1410,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         {
                             println!("ContentProtection: {}", content_protection_type(cp));
                             if let Some(kid) = &cp.default_KID {
-                                println!("KID: {kid}");
+                                println!("  KID: {}", kid.replace("-", ""));
                             }
                             for pssh in cp.cenc_pssh.iter() {
                                 if let Some(pc) = &pssh.content {
-                                    println!("PSSH: {pc}");
+                                    println!("  PSSH: {pc}");
                                 }
                             }
                         }
