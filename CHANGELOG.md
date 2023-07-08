@@ -1,16 +1,17 @@
 # Changelog
 
-## [0.11.0] - Unreleased
+## [0.11.0] - 2023-07-08
 ### New
-- Downloading: add support for decrypting encrypted media content, using the Bento4 mp4decrypt commandline
-  application. Decryption keys can be specified using the `add_decryption_key` function on
-  `DashDownloader`. The location of the mp4decrypt binary can be specified using the
+- Downloading: add support for decrypting encrypted media content, using the Bento4 mp4decrypt
+  commandline application. Decryption keys can be specified using the `add_decryption_key` function
+  on `DashDownloader`. The location of the mp4decrypt binary can be specified using the
   `with_mp4decrypt_location` function on `DashDownloader`, if it is not located in the PATH.
+
 ### Changed
 - Change element `InbandEventStream` of `Representation` and `AdaptationSet` nodes to a `Vec`
   instead of an `Option` (incompatible change).
 - Fix spurious error regarding deletion of temporary file for audio/video segments when using
-  keep_audio / keep_video in conjunction with fetch_audio / fetch_video.
+  `keep_audio` / `keep_video` in conjunction with `fetch_audio` / `fetch_video`.
 - Downloading: show download bitrate for audio and video streams in verbose mode.
 
 
