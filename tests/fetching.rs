@@ -10,11 +10,12 @@
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 
 
+use std::time::Duration;
+use dash_mpd::fetch::DashDownloader;
+
 
 #[tokio::test]
 async fn test_dl1() {
-    use dash_mpd::fetch::DashDownloader;
-
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
         return;
@@ -41,7 +42,6 @@ async fn test_downloader() {
     use sha2::{Digest, Sha256};
     use hex_literal::hex;
     use ffprobe::ffprobe;
-    use dash_mpd::fetch::DashDownloader;
     use colored::*;
 
     // Don't run download tests on CI infrastructure
@@ -100,10 +100,56 @@ async fn test_downloader() {
 }
 
 
+// Check that timeouts on network requests are correctly signalled. This manifest specifies a single
+// large video segment (427MB) which should lead to a network timeout with our 0.1s setting, even
+// if the test is running with a very large network bandwidth.
+#[tokio::test]
+#[should_panic(expected = "operation timed out")]
+async fn test_error_timeout() {
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        panic!("operation timed out");
+    }
+    let out = std::env::temp_dir().join("timeout.mkv");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(100))
+        .build()
+        .unwrap();
+    DashDownloader::new("https://test-speke.s3.eu-west-3.amazonaws.com/tos/clear/manifest.mpd")
+        .best_quality()
+        .with_http_client(client)
+        .download_to(out.clone())
+        .await
+        .unwrap();
+}
+
+
+// Check that we generate a timeout for network request when setting a low limit on network
+// bandwidth (100 Kbps) and retrieving a large file.
+#[tokio::test]
+#[should_panic(expected = "operation timed out")]
+async fn test_error_ratelimit() {
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        panic!("operation timed out");
+    }
+    let out = std::env::temp_dir().join("timeout.mkv");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(10, 0))
+        .build()
+        .unwrap();
+    DashDownloader::new("https://test-speke.s3.eu-west-3.amazonaws.com/tos/clear/manifest.mpd")
+        .best_quality()
+        .with_http_client(client)
+        .with_rate_limit(100 * 1024)
+        .download_to(out.clone())
+        .await
+        .unwrap();
+}
+
 
 #[tokio::test]
 async fn test_content_protection_parsing() {
-    use std::time::Duration;
     use dash_mpd::{parse, MPD};
 
     fn known_cp_name(name: &str) -> bool {
@@ -166,8 +212,6 @@ async fn test_content_protection_parsing() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_missing_mpd() {
-    use dash_mpd::fetch::DashDownloader;
-
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
         panic!("requesting DASH manifest");
@@ -185,8 +229,6 @@ async fn test_error_missing_mpd() {
 #[tokio::test]
 #[should_panic(expected = "fetching XLink")]
 async fn test_error_xlink_gone() {
-    use dash_mpd::fetch::DashDownloader;
-
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
         panic!("fetching XLink");
@@ -203,8 +245,6 @@ async fn test_error_xlink_gone() {
 #[tokio::test]
 #[should_panic(expected = "download dynamic MPD")]
 async fn test_error_dynamic_mpd() {
-    use dash_mpd::fetch::DashDownloader;
-
     let mpd = "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd";
     DashDownloader::new(mpd)
         .worst_quality()
@@ -220,8 +260,6 @@ async fn test_error_dynamic_mpd() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_expired() {
-    use dash_mpd::fetch::DashDownloader;
-
     // Check that the reqwest client refuses to download MPD from an expired TLS certificate
     let mpd = "https://expired.badssl.com/ignored.mpd";
     DashDownloader::new(mpd)
@@ -234,8 +272,6 @@ async fn test_error_tls_expired() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_self_signed() {
-    use dash_mpd::fetch::DashDownloader;
-
     let mpd = "https://self-signed.badssl.com/ignored.mpd";
     DashDownloader::new(mpd)
         .download()
@@ -246,8 +282,6 @@ async fn test_error_tls_self_signed() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_too_large() {
-    use dash_mpd::fetch::DashDownloader;
-
     // The TLS response message is too large
     DashDownloader::new("https://10000-sans.badssl.com/ignored.mpd")
         .download()
@@ -259,8 +293,6 @@ async fn test_error_tls_too_large() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_wrong_name() {
-    use dash_mpd::fetch::DashDownloader;
-
     DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
         .download()
         .await

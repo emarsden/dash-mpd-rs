@@ -1410,7 +1410,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         {
                             println!("ContentProtection: {}", content_protection_type(cp));
                             if let Some(kid) = &cp.default_KID {
-                                println!("  KID: {}", kid.replace("-", ""));
+                                println!("  KID: {}", kid.replace('-', ""));
                             }
                             for pssh in cp.cenc_pssh.iter() {
                                 if let Some(pc) = &pssh.content {
