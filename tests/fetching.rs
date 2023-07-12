@@ -215,7 +215,7 @@ async fn test_decryption() {
     
     // Don't run download tests on CI infrastructure
     if std::env::var("CI").is_ok() {
-        panic!("requesting DASH manifest");
+        return;
     }
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out_undecrypted = std::env::temp_dir().join("angel-undecrypted.mp4");
