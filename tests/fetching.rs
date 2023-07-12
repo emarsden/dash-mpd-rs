@@ -101,7 +101,7 @@ async fn test_downloader() {
 
 
 // Check that timeouts on network requests are correctly signalled. This manifest specifies a single
-// large video segment (427MB) which should lead to a network timeout with our 0.1s setting, even
+// large video segment (427MB) which should lead to a network timeout with our 0.5s setting, even
 // if the test is running with a very large network bandwidth.
 #[tokio::test]
 #[should_panic(expected = "operation timed out")]
@@ -112,7 +112,7 @@ async fn test_error_timeout() {
     }
     let out = std::env::temp_dir().join("timeout.mkv");
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(100))
+        .timeout(Duration::from_millis(500))
         .build()
         .unwrap();
     DashDownloader::new("https://test-speke.s3.eu-west-3.amazonaws.com/tos/clear/manifest.mpd")
@@ -206,6 +206,57 @@ async fn test_content_protection_parsing() {
 }
 
 
+// Download a stream with ContentProtection and check that it generates many decoding errors when
+// "played" (to a null output device) with ffmpeg. Also check that when the same stream is
+// downloaded and decryption keys are provided, there are no playback errors.
+#[tokio::test]
+async fn test_decryption() {
+    use std::process::Command;
+    
+    // Don't run download tests on CI infrastructure
+    if std::env::var("CI").is_ok() {
+        panic!("requesting DASH manifest");
+    }
+    let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
+    let out_undecrypted = std::env::temp_dir().join("angel-undecrypted.mp4");
+    let out_decrypted = std::env::temp_dir().join("angel-decrypted.mp4");
+    DashDownloader::new(url)
+        .worst_quality()
+        .download_to(out_undecrypted.clone())
+        .await
+        .unwrap();
+    DashDownloader::new(url)
+        .worst_quality()
+        .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
+                            String::from("429ec76475e7a952d224d8ef867f12b6"))
+        .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
+                            String::from("150a6c7d7dee6a91b74dccfce5b31928"))
+        .add_decryption_key(String::from("6f1729072b4a5cd288c916e11846b89e"),
+                            String::from("a84b4bd66901874556093454c075e2c6"))
+        .add_decryption_key(String::from("800aacaa522958ae888062b5695db6bf"),
+                            String::from("775dbf7289c4cc5847becd571f536ff2"))
+        .add_decryption_key(String::from("67b30c86756f57c5a0a38a23ac8c9178"),
+                            String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
+        .download_to(out_decrypted.clone())
+        .await
+        .unwrap();
+    let ffmpeg = Command::new("ffmpeg")
+        .args(["-v", "error",
+               "-i", &out_decrypted.to_string_lossy(),
+               "-f", "null", "-"])
+        .output()
+        .expect("spawning ffmpeg");
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    assert!(msg.len() == 0);
+    let ffmpeg = Command::new("ffmpeg")
+        .args(["-v", "error",
+               "-i", &out_undecrypted.to_string_lossy(),
+               "-f", "null", "-"])
+        .output()
+        .expect("spawning ffmpeg");
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    assert!(msg.len() > 10_000);
+}
 
 
 // Check error reporting for missing DASH manifest
@@ -233,7 +284,7 @@ async fn test_error_xlink_gone() {
     if std::env::var("CI").is_ok() {
         panic!("fetching XLink");
     }
-    let out = std::env::temp_dir().join("failure1.mkv");
+    let out = std::env::temp_dir().join("failure_xlink.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
         .worst_quality()
         .download_to(out.clone())
