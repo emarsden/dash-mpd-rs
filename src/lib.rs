@@ -1818,7 +1818,9 @@ fn content_protection_type(cp: &ContentProtection) -> String {
             return String::from("PlayReady");
         }
     }
+    // See list at https://dashif.org/identifiers/content_protection/
     if let Some(uri) = &cp.schemeIdUri {
+        let uri = uri.to_lowercase();
         if uri.eq("urn:mpeg:dash:mp4protection:2011") {
             return String::from("cenc");
         }
@@ -1836,6 +1838,15 @@ fn content_protection_type(cp: &ContentProtection) -> String {
         }
         if uri.eq("urn:uuid:be58615b-19c4-4684-88b3-c8c57e99e957") {
             return String::from("Clear Key SAMPLE-AES");
+        }
+        if uri.eq("urn:uuid:adb41c24-2dbf-4a6d-958b-4457c0d27b95") {
+            return String::from("Nagra");
+        }
+        if uri.eq("urn:uuid:5e629af5-38da-4063-8977-97ffbd9902d4") {
+            return String::from("Marlin");
+        }
+        if uri.eq("urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb") {
+            return String::from("Adobe PrimeTime");
         }
     }
     String::from("<unknown>")
