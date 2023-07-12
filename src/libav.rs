@@ -20,6 +20,7 @@
 
 use std::cmp::{min, max};
 use std::fs::File;
+use log::info;
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;
@@ -75,7 +76,7 @@ pub fn mux_audio_video(
     downloader: &DashDownloader,
     audio_path: &str,
     video_path: &str) -> Result<(), DashMpdError> {
-    ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {}", msg));
+    ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {msg}"));
     let mut video_demuxer = libav_open_input(video_path)
         .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
     let (video_pos, video_codec) = video_demuxer
