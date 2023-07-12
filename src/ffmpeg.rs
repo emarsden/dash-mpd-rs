@@ -4,10 +4,12 @@
 /// in file "libav.rs".
 
 
-use std::fs::File;
 use std::io;
 use std::io::{BufReader, BufWriter};
 use std::process::Command;
+use fs_err as fs;
+use fs::File;
+use log::{trace, info, warn};
 use crate::DashMpdError;
 use crate::fetch::DashDownloader;
 
@@ -52,11 +54,11 @@ fn mux_audio_video_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = String::from_utf8_lossy(&ffmpeg.stdout);
     if msg.len() > 0 {
-        log::info!("ffmpeg stdout: {msg}");
+        info!("ffmpeg stdout: {msg}");
     }
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
     if msg.len() > 0 {
-        log::info!("ffmpeg stderr: {msg}");
+        info!("ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         let tmpfile = File::open(tmppath)
@@ -234,7 +236,7 @@ pub fn mux_audio_video(
     downloader: &DashDownloader,
     audio_path: &str,
     video_path: &str) -> Result<(), DashMpdError> {
-    log::trace!("Muxing audio {audio_path}, video {video_path}");
+    trace!("Muxing audio {audio_path}, video {video_path}");
     let output_path = downloader.output_path.as_ref()
               .expect("muxer called without specifying output_path");
     let container = match output_path.extension() {
@@ -255,40 +257,40 @@ pub fn mux_audio_video(
         muxer_preference.push("ffmpeg");
         muxer_preference.push("mp4box");
     }
-    log::info!("Muxer preference for {container} is {muxer_preference:?}");
+    info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
-        log::info!("Trying muxer {}", muxer);
+        info!("Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
             if let Err(e) =  mux_audio_video_mkvmerge(downloader, audio_path, video_path) {
-                log::warn!("Muxing with mkvmerge subprocess failed: {e}");
+                warn!("Muxing with mkvmerge subprocess failed: {e}");
             } else {
-                log::info!("Muxing with mkvmerge subprocess succeeded");
+                info!("Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
             if let Err(e) = mux_audio_video_ffmpeg(downloader, audio_path, video_path) {
-                log::warn!("Muxing with ffmpeg subprocess failed: {e}");
+                warn!("Muxing with ffmpeg subprocess failed: {e}");
             } else {
-                log::info!("Muxing with ffmpeg subprocess succeeded");
+                info!("Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("vlc") {
             if let Err(e) = mux_audio_video_vlc(downloader, audio_path, video_path) {
-                log::warn!("Muxing with vlc subprocess failed: {e}");
+                warn!("Muxing with vlc subprocess failed: {e}");
             } else {
-                log::info!("Muxing with vlc subprocess succeeded");
+                info!("Muxing with vlc subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("mp4box") {
             if let Err(e) = mux_audio_video_mp4box(downloader, audio_path, video_path) {
-                log::warn!("Muxing with MP4Box subprocess failed: {e}");
+                warn!("Muxing with MP4Box subprocess failed: {e}");
             } else {
-                log::info!("Muxing with MP4Box subprocess succeeded");
+                info!("Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
         }
     }
-    log::warn!("All available muxers failed");
+    warn!("All available muxers failed");
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 

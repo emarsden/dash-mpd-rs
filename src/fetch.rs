@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::cmp::min;
 use std::num::NonZeroU32;
+use log::{info, warn, error};
 use regex::Regex;
 use url::Url;
 use data_url::DataUrl;
@@ -303,10 +304,10 @@ impl DashDownloader {
     /// this limit.
     pub fn with_rate_limit(mut self, bps: u64) -> DashDownloader {
         if bps < 10 * 1024 {
-            log::warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
+            warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
         }
         if self.verbosity > 1 {
-            log::info!("Limiting bandwidth to {}kB/s", bps/1024);
+            info!("Limiting bandwidth to {}kB/s", bps/1024);
         }
         self.rate_limit = bps;
         self
@@ -662,7 +663,7 @@ fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error>
 }
 
 fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
-    log::warn!("Transient error after {dur:?}: {err:?}");
+    warn!("Transient error after {dur:?}: {err:?}");
 }
 
 fn network_error(why: &str, e: impl std::error::Error) -> DashMpdError {
@@ -1804,7 +1805,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 }
                             },
                             Err(e) => {
-                                log::error!("Unable to write subtitle file: {e:?}");
+                                error!("Unable to write subtitle file: {e:?}");
                                 return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
                             },
                         }
@@ -1817,16 +1818,16 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
                             let msg = String::from_utf8_lossy(&mp4box.stdout);
                             if msg.len() > 0 {
-                                log::info!("MP4Box stdout: {msg}");
+                                info!("MP4Box stdout: {msg}");
                             }
                             let msg = String::from_utf8_lossy(&mp4box.stderr);
                             if msg.len() > 0 {
-                                log::info!("MP4Box stderr: {msg}");
+                                info!("MP4Box stderr: {msg}");
                             }
                             if mp4box.status.success() {
-                                log::info!("Converted WVTT subtitles to SRT");
+                                info!("Converted WVTT subtitles to SRT");
                             } else {
-                                log::warn!("Error running MP4Box to convert WVTT subtitles");
+                                warn!("Error running MP4Box to convert WVTT subtitles");
                             }
                         }
                     }
@@ -1915,7 +1916,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         println!("Audio segment data URL -> {} octets", body.len());
                     }
                     if let Err(e) = tmpfile_audio.write_all(&body) {
-                        log::error!("Unable to write DASH audio data: {e:?}");
+                        error!("Unable to write DASH audio data: {e:?}");
                         return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
                     }
                     have_audio = true;
@@ -1966,7 +1967,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                         }
                                     }
                                     if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                                        log::error!("Unable to write DASH audio data: {e:?}");
+                                        error!("Unable to write DASH audio data: {e:?}");
                                         return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
                                     }
                                     if let Some(ref fragment_path) = downloader.fragment_path {
@@ -1983,7 +1984,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     }
                                     have_audio = true;
                                 } else {
-                                    log::warn!("Ignoring segment {url} with non-audio content-type");
+                                    warn!("Ignoring segment {url} with non-audio content-type");
                                 }
                             } else {
                                 failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -2007,7 +2008,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             tmpfile_audio.flush().map_err(|e| {
-                log::error!("Couldn't flush DASH audio file to disk: {e}");
+                error!("Couldn't flush DASH audio file to disk: {e}");
                 DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
             })?;
         } // end local scope for the FileHandle
@@ -2028,14 +2029,14 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             if !out.status.success() {
-                log::warn!("mp4decrypt subprocess failed");
+                warn!("mp4decrypt subprocess failed");
                 let msg = String::from_utf8_lossy(&out.stdout);
                 if msg.len() > 0 {
-                    log::warn!("mp4decrypt stdout: {msg}");
+                    warn!("mp4decrypt stdout: {msg}");
                 }
                 let msg = String::from_utf8_lossy(&out.stderr);
                 if msg.len() > 0 {
-                    log::warn!("mp4decrypt stderr: {msg}");
+                    warn!("mp4decrypt stderr: {msg}");
                 }
             }
             fs::rename(decrypted, tmppath_audio.clone())
@@ -2087,7 +2088,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         println!("Video segment data URL -> {} octets", body.len());
                     }
                     if let Err(e) = tmpfile_video.write_all(&body) {
-                        log::error!("Unable to write DASH video data: {e:?}");
+                        error!("Unable to write DASH video data: {e:?}");
                         return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
                     }
                     have_video = true;
@@ -2150,7 +2151,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     }
                                     have_video = true;
                                 } else {
-                                    log::warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                                    warn!("Ignoring segment {} with non-video content-type", &frag.url);
                                 }
                             } else {
                                 failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -2174,7 +2175,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             tmpfile_video.flush().map_err(|e| {
-                log::error!("Couldn't flush video file to disk: {e}");
+                error!("Couldn't flush video file to disk: {e}");
                 DashMpdError::Io(e, String::from("flushing video file to disk"))
             })?;
         } // end local scope for tmpfile_video File
@@ -2195,14 +2196,14 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             if ! out.status.success() {
-                log::warn!("mp4decrypt subprocess failed");
+                warn!("mp4decrypt subprocess failed");
                 let msg = String::from_utf8_lossy(&out.stdout);
                 if msg.len() > 0 {
-                    log::warn!("mp4decrypt stdout: {msg}");
+                    warn!("mp4decrypt stdout: {msg}");
                 }
                 let msg = String::from_utf8_lossy(&out.stderr);
                 if msg.len() > 0 {
-                    log::warn!("mp4decrypt stderr: {msg}");
+                    warn!("mp4decrypt stderr: {msg}");
                 }
             }
             fs::rename(decrypted, tmppath_video.clone())
@@ -2266,13 +2267,13 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     #[allow(clippy::collapsible_if)]
     if downloader.keep_audio.is_none() && downloader.fetch_audio {
         if fs::remove_file(tmppath_audio).is_err() {
-            log::info!("Failed to delete temporary file for audio stream");
+            info!("Failed to delete temporary file for audio stream");
         }
     }
     #[allow(clippy::collapsible_if)]
     if downloader.keep_video.is_none() && downloader.fetch_video {
         if fs::remove_file(tmppath_video).is_err() {
-            log::info!("Failed to delete temporary file for video stream");
+            info!("Failed to delete temporary file for video stream");
         }
     }
     if downloader.verbosity > 1 {
@@ -2297,28 +2298,28 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         if origin_url.username().is_empty() && origin_url.password().is_none() {
             #[cfg(target_family = "unix")]
             if xattr::set(output_path, "user.xdg.origin.url", downloader.mpd_url.as_bytes()).is_err() {
-                log::info!("Failed to set user.xdg.origin.url xattr on output file");
+                info!("Failed to set user.xdg.origin.url xattr on output file");
             }
         }
         if let Some(pi) = mpd.ProgramInformation {
             if let Some(t) = pi.Title {
                 if let Some(tc) = t.content {
                     if xattr::set(output_path, "user.dublincore.title", tc.as_bytes()).is_err() {
-                        log::info!("Failed to set user.dublincore.title xattr on output file");
+                        info!("Failed to set user.dublincore.title xattr on output file");
                     }
                 }
             }
             if let Some(source) = pi.Source {
                 if let Some(sc) = source.content {
                     if xattr::set(output_path, "user.dublincore.source", sc.as_bytes()).is_err() {
-                        log::info!("Failed to set user.dublincore.source xattr on output file");
+                        info!("Failed to set user.dublincore.source xattr on output file");
                     }
                 }
             }
             if let Some(copyright) = pi.Copyright {
                 if let Some(cc) = copyright.content {
                     if xattr::set(output_path, "user.dublincore.rights", cc.as_bytes()).is_err() {
-                        log::info!("Failed to set user.dublincore.rights xattr on output file");
+                        info!("Failed to set user.dublincore.rights xattr on output file");
                     }
                 }
             }

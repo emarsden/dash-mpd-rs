@@ -75,7 +75,7 @@ pub fn mux_audio_video(
     downloader: &DashDownloader,
     audio_path: &str,
     video_path: &str) -> Result<(), DashMpdError> {
-    ac_ffmpeg::set_log_callback(|_count, msg: &str| log::info!("ffmpeg: {}", msg));
+    ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {}", msg));
     let mut video_demuxer = libav_open_input(video_path)
         .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
     let (video_pos, video_codec) = video_demuxer
@@ -139,7 +139,7 @@ pub fn mux_audio_video(
             // Reproducing workaround from this patch to ffmpeg.c
             // http://git.videolan.org/?p=ffmpeg.git;a=commitdiff;h=22844132069ebd2c0b2ac4e7b41c93c33890bfb9
             if !pkt.pts().is_null() && !pkt.dts().is_null() && pkt.dts() > pkt.pts() {
-                log::info!("Fixing invalid DTS (dts > pts) in DASH video stream");
+                info!("Fixing invalid DTS (dts > pts) in DASH video stream");
                 let pts_ts = pkt.pts().timestamp();
                 let dts_ts = pkt.dts().timestamp();
                 let next_ts = last_dts.timestamp() + 1;
@@ -177,7 +177,7 @@ pub fn mux_audio_video(
                 pkt = pkt.with_dts(next_dts);
             }
             if !pkt.pts().is_null() && !pkt.dts().is_null() && pkt.dts() > pkt.pts() {
-                log::info!("Fixing invalid DTS (dts > pts) in DASH audio stream");
+                info!("Fixing invalid DTS (dts > pts) in DASH audio stream");
                 let pts_ts = pkt.pts().timestamp();
                 let dts_ts = pkt.dts().timestamp();
                 let next_ts = last_dts.timestamp() + 1;
