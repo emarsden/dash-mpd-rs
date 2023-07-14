@@ -268,11 +268,23 @@ impl DashDownloader {
         self
     }
 
+    /// Parameter `value` determines whether audio content is downloaded.
+    pub fn fetch_audio(mut self, value: bool) -> DashDownloader {
+        self.fetch_audio = value;
+        self
+    }
+
+    /// Parameter `value` determines whether video content is downloaded.
+    pub fn fetch_video(mut self, value: bool) -> DashDownloader {
+        self.fetch_video = value;
+        self
+    }
+
     /// Fetch subtitles if they are available. If subtitles are available, download them to a file
     /// named with the same name as the media output and an appropriate extension (".vtt", ".ttml",
     /// ".srt", etc.).
-    pub fn fetch_subtitles(mut self) -> DashDownloader {
-        self.fetch_subtitles = true;
+    pub fn fetch_subtitles(mut self, value: bool) -> DashDownloader {
+        self.fetch_subtitles = value;
         self
     }
 
@@ -525,12 +537,8 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
 fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSet) {
     let unspecified = "<unspecified>".to_string();
     let empty = "".to_string();
-    let lang = r.lang.as_ref()
-        .unwrap_or_else(|| a.lang.as_ref()
-                        .unwrap_or(&unspecified));
-    let codecs = r.codecs.as_ref()
-        .unwrap_or_else(|| a.codecs.as_ref()
-                        .unwrap_or(&empty));
+    let lang = r.lang.as_ref().unwrap_or(a.lang.as_ref().unwrap_or(&unspecified));
+    let codecs = r.codecs.as_ref().unwrap_or(a.codecs.as_ref().unwrap_or(&empty));
     let typ = subtitle_type(&a);
     let stype = if !codecs.is_empty() {
         format!("{typ:?}/{codecs}")
@@ -551,13 +559,14 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
     let unspecified = "<unspecified>".to_string();
     let w = r.width.unwrap_or(a.width.unwrap_or(0));
     let h = r.height.unwrap_or(a.height.unwrap_or(0));
-    let codec = r.codecs.as_ref()
-        .unwrap_or_else(|| a.codecs.as_ref()
-                        .unwrap_or(&unspecified));
+    let codec = r.codecs.as_ref().unwrap_or(a.codecs.as_ref().unwrap_or(&unspecified));
     let bw = r.bandwidth.unwrap_or(a.maxBandwidth.unwrap_or(0));
-    // Some MPDs do not specify width and height, such as
-    // https://dash.akamaized.net/fokus/adinsertion-samples/scte/dash.mpd
-    let fmt = if typ.eq("audio") || w == 0 || h == 0 {
+    let fmt = if typ.eq("audio") {
+        let unknown = String::from("?");
+        format!("lang={}", r.lang.as_ref().unwrap_or(a.lang.as_ref().unwrap_or(&unknown)))
+    } else if w == 0 || h == 0 {
+        // Some MPDs do not specify width and height, such as
+        // https://dash.akamaized.net/fokus/adinsertion-samples/scte/dash.mpd
         String::from("")
     } else {
         format!("{w}x{h}")
@@ -939,8 +948,32 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 };
                 if let Some(audio_repr) = maybe_audio_repr {
                     if downloader.verbosity > 0 {
-                        if let Some(bw) = audio_repr.bandwidth {
-                            println!("Selected audio representation with bandwidth {} Kbps", bw / 1024);
+                        let bw = if let Some(bw) = audio_repr.bandwidth {
+                            format!("bw={} Kbps ", bw / 1024)
+                        } else {
+                            String::from("")
+                        };
+                        let unknown = String::from("?");
+                        let lang = audio_repr.lang.as_ref()
+                            .unwrap_or(audio.lang.as_ref()
+                                       .unwrap_or(&unknown));
+                        let codec = audio_repr.codecs.as_ref()
+                            .unwrap_or(audio.codecs.as_ref()
+                                       .unwrap_or(&unknown));
+                        println!("Audio stream selected: {bw}lang={lang} codec={codec}");
+                        // Check for ContentProtection on the selected Representation/Adaptation
+                        for cp in audio_repr.ContentProtection.iter()
+                            .chain(audio.ContentProtection.iter())
+                        {
+                            println!("  ContentProtection: {}", content_protection_type(cp));
+                            if let Some(kid) = &cp.default_KID {
+                                println!("    KID: {}", kid.replace('-', ""));
+                            }
+                            for pssh in cp.cenc_pssh.iter() {
+                                if let Some(pc) = &pssh.content {
+                                    println!("    PSSH: {pc}");
+                                }
+                            }
                         }
                     }
                     // the Representation may have a BaseURL
@@ -1402,20 +1435,33 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 };
                 if let Some(video_repr) = maybe_video_repr {
                     if downloader.verbosity > 0 {
-                        if let Some(bw) = video_repr.bandwidth {
-                            println!("Selected video representation with bandwidth {} Kbps", bw / 1024);
-                        }
-                        // Check for DRM on the selected Representation/Adaptation
+                        let bw = if let Some(bw) = video_repr.bandwidth.or(video.maxBandwidth) {
+                            format!("bw={} Kbps ", bw / 1024)
+                        } else {
+                            String::from("")
+                        };
+                        let unknown = String::from("?");
+                        let w = video_repr.width.unwrap_or(video.width.unwrap_or(0));
+                        let h = video_repr.height.unwrap_or(video.height.unwrap_or(0));
+                        let fmt = if w == 0 || h == 0 {
+                            String::from("")
+                        } else {
+                            format!("resolution={w}x{h} ")
+                        };
+                        let codec = video_repr.codecs.as_ref()
+                            .unwrap_or(video.codecs.as_ref().unwrap_or(&unknown));
+                        println!("Video stream selected: {bw}{fmt}codec={codec}");
+                        // Check for ContentProtection on the selected Representation/Adaptation
                         for cp in video_repr.ContentProtection.iter()
                             .chain(video.ContentProtection.iter())
                         {
-                            println!("ContentProtection: {}", content_protection_type(cp));
+                            println!("  ContentProtection: {}", content_protection_type(cp));
                             if let Some(kid) = &cp.default_KID {
-                                println!("  KID: {}", kid.replace('-', ""));
+                                println!("    KID: {}", kid.replace('-', ""));
                             }
                             for pssh in cp.cenc_pssh.iter() {
                                 if let Some(pc) = &pssh.content {
-                                    println!("  PSSH: {pc}");
+                                    println!("    PSSH: {pc}");
                                 }
                             }
                         }
@@ -1849,9 +1895,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     };
 
     if downloader.verbosity > 0 {
-        println!("Preparing to fetch {} audio and {} video segments",
-                 audio_fragments.len(),
-                 video_fragments.len());
+        if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
+            println!("Preparing to fetch {} audio and {} video segments",
+                     audio_fragments.len(),
+                     video_fragments.len());
+        }
     }
     let mut download_errors = 0;
     // The additional +2 is for our initial .mpd fetch action and final muxing action
@@ -2218,12 +2266,12 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             }
         }
     } // if downloader.fetch_video
-    for observer in &downloader.progress_observers {
-        observer.update(99, "Muxing audio and video");
-    }
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream.
     if have_audio && have_video {
+        for observer in &downloader.progress_observers {
+            observer.update(99, "Muxing audio and video");
+        }
         if downloader.verbosity > 1 {
             println!("Muxing audio and video streams");
         }
@@ -2252,17 +2300,12 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         let mut sink = BufWriter::new(output_file);
         io::copy(&mut video, &mut sink)
             .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
-    } else {
-        #[allow(clippy::collapsible_else_if)]
-        if downloader.fetch_video {
-            if downloader.fetch_audio {
-                return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
-            } else {
-                return Err(DashMpdError::UnhandledMediaStream("no video streams found".to_string()));
-            }
-        } else {
-            return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
-        }
+    } else if downloader.fetch_video && downloader.fetch_audio {
+        return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
+    } else if downloader.fetch_video {
+        return Err(DashMpdError::UnhandledMediaStream("no video streams found".to_string()));
+    } else if downloader.fetch_audio {
+        return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
     }
     #[allow(clippy::collapsible_if)]
     if downloader.keep_audio.is_none() && downloader.fetch_audio {
@@ -2276,7 +2319,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             info!("Failed to delete temporary file for video stream");
         }
     }
-    if downloader.verbosity > 1 {
+    if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video) {
         if let Ok(metadata) = fs::metadata(output_path) {
             println!("Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
         }
@@ -2290,7 +2333,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     // TODO: on Windows, could use NTFS Alternate Data Streams
     // https://en.wikipedia.org/wiki/NTFS#Alternate_data_stream_(ADS)
     #[cfg(target_family = "unix")]
-    if downloader.record_metainformation {
+    if downloader.record_metainformation && (downloader.fetch_audio || downloader.fetch_video) {
         let origin_url = Url::parse(&downloader.mpd_url)
             .map_err(|e| parse_error("parsing MPD URL", e))?;
         // Don't record the origin URL if it contains sensitive information such as passwords

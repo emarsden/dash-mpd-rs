@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.0] - Unreleased
+### Changed
+- Downloading: function `fetch_subtitles` on `DashDownloader` takes a boolean parameter, instead of
+  unconditionally requesting retrieval of subtitle content (incompatible change).
+
+### New
+- Downloading: New functions `fetch_audio` and `fetch_video` on `DashDownloader`.
+- Downloading: more diagnostics information printed concerning the selected audio/video streams.
+
+
 ## [0.11.0] - 2023-07-08
 ### New
 - Downloading: add support for decrypting encrypted media content, using the Bento4 mp4decrypt
