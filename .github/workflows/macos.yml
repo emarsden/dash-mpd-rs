@@ -15,7 +15,6 @@ jobs:
       run: |
            brew update
            brew install gpac
-           brew upgrade
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build --verbose
