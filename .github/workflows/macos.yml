@@ -19,4 +19,4 @@ jobs:
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build --verbose
     - run: cargo test --verbose --no-run
-    - run: cargo test --verbose
+    - run: cargo test --verbose -- --show-output
