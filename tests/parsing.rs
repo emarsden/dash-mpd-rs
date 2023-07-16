@@ -14,7 +14,7 @@ fn test_mpd_parser () {
     use dash_mpd::parse;
 
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></Period></MPD>"#;
-    let res = parse(&case1);
+    let res = parse(case1);
     assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.periods.len(), 1);
