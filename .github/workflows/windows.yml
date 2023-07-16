@@ -11,10 +11,15 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: taiki-e/install-action@cargo-hack
 
+    # The executables installed by choco are not available on the PATH in the current shell.
+    # In normal use you would restart your shell, but a GitHub action is all run in the same shell,
+    # so we need to add to the path explicitly.
     - name: install GPAC/MP4Box
-      run: choco install gpac
+      run: |
+         choco install gpac
+         echo "C:\Program Files\GPAC" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build --verbose
     - run: cargo test --verbose --no-run
-    - run: cargo test --verbose
+    - run: cargo test --verbose -- --show-output
