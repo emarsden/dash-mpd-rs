@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     let rewritten = quick_xml::se::to_string(&mpd)
         .context("serializing MPD struct")?;
     let out2 = env::temp_dir().join("mpd-rewritten.xml");
-    fs::write(&out2, &rewritten)?;
+    fs::write(&out2, rewritten)?;
     // We tried using the natural_xml_diff crate for this purpose, but its output is less convenient
     // to interpret.
     println!("==== xmldiff output ====");
