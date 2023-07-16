@@ -6,7 +6,9 @@
   unconditionally requesting retrieval of subtitle content (incompatible change).
 
 ### New
-- Downloading: New functions `fetch_audio` and `fetch_video` on `DashDownloader`.
+- Downloading: new functions `fetch_audio` and `fetch_video` on `DashDownloader`.
+- Downloading: improve support for retrieving subtitles that are distributed in fragmented MP4 streams
+  (in particular WebVTT/STPP).
 - Downloading: more diagnostics information printed concerning the selected audio/video streams.
 
 

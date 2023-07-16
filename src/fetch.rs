@@ -105,6 +105,7 @@ fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
     Ok((start, end))
 }
 
+#[derive(Debug)]
 struct MediaFragment {
     url: Url,
     start_byte: Option<u64>,
@@ -769,8 +770,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     }
     let mut audio_fragments = Vec::new();
     let mut video_fragments = Vec::new();
+    let mut subtitle_fragments = Vec::new();
     let mut have_audio = false;
     let mut have_video = false;
+    let mut have_subtitles = false;
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
         println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
@@ -1367,7 +1370,9 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         video.clone_from(&linked_adaptation);
                     }
                 }
-                // the AdaptationSet may have a BaseURL (eg the test BBC streams)
+                // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
+                // don't "corrupt" the base_url for the subtitle segments.
+                let mut base_url = base_url.clone();
                 if !video.BaseURL.is_empty() {
                     let bu = &video.BaseURL[0];
                     if is_absolute_url(&bu.base) {
@@ -1810,70 +1815,164 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 period.adaptations.iter().find(is_subtitle_adaptation)
             };
             if let Some(sta) = maybe_subtitle_adaptation {
+                // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
+                // don't "corrupt" the base_url for the subtitle segments.
+                let mut base_url = base_url.clone();
+                if !sta.BaseURL.is_empty() {
+                    let bu = &sta.BaseURL[0];
+                    if is_absolute_url(&bu.base) {
+                        base_url = Url::parse(&bu.base)
+                            .map_err(|e| parse_error("parsing BaseURL", e))?;
+                    } else {
+                        base_url = base_url.join(&bu.base)
+                            .map_err(|e| parse_error("joining base with BaseURL", e))?;
+                    }
+                }
                 for rep in sta.representations.iter() {
                     // TODO: handle a possible XLink reference (non-empty href attribute)
-                    for st_bu in rep.BaseURL.iter() {
-                        let st_url = if is_absolute_url(&st_bu.base) {
-                            Url::parse(&st_bu.base)
-                                .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
-                        } else {
-                            base_url.join(&st_bu.base)
-                                .map_err(|e| parse_error("joining subtitle BaseURL", e))?
-                        };
-                        let subs = client.get(st_url.clone())
-                            .header("Referer", redirected_url.to_string())
-                            .send().await
-                            .map_err(|e| network_error("fetching subtitles", e))?
-                            .error_for_status()
-                            .map_err(|e| network_error("fetching subtitles", e))?
-                            .bytes().await
-                            .map_err(|e| network_error("retrieving subtitles", e))?;
-                        let mut subs_path = output_path.clone();
-                        let subtype = subtitle_type(&sta);
-                        match subtype {
-                            SubtitleType::Vtt => subs_path.set_extension("vtt"),
-                            SubtitleType::Srt => subs_path.set_extension("srt"),
-                            SubtitleType::Ttml => subs_path.set_extension("ttml"),
-                            SubtitleType::Sami => subs_path.set_extension("sami"),
-                            SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
-                            SubtitleType::Stpp => subs_path.set_extension("stpp"),
-                            _ => subs_path.set_extension("sub"),
-                        };
-                        let mut subs_file = File::create(subs_path.clone())
-                            .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
-                        if downloader.verbosity > 2 {
-                            println!("Subtitle {st_url} -> {} octets", subs.len());
-                        }
-                        match subs_file.write_all(&subs) {
-                            Ok(()) => {
-                                if downloader.verbosity > 0 {
-                                    println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
-                                }
-                            },
-                            Err(e) => {
-                                error!("Unable to write subtitle file: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
-                            },
-                        }
-                        if subtype == SubtitleType::Wvtt {
-                            let mut out = subs_path.clone();
-                            out.set_extension("srt");
-                            let mp4box = Command::new("MP4Box")
-                                .args(["-srt", "1", "-out", &out.to_string_lossy(), &subs_path.to_string_lossy()])
-                                .output()
-                                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
-                            let msg = String::from_utf8_lossy(&mp4box.stdout);
-                            if msg.len() > 0 {
-                                info!("MP4Box stdout: {msg}");
-                            }
-                            let msg = String::from_utf8_lossy(&mp4box.stderr);
-                            if msg.len() > 0 {
-                                info!("MP4Box stderr: {msg}");
-                            }
-                            if mp4box.status.success() {
-                                info!("Converted WVTT subtitles to SRT");
+                    if !rep.BaseURL.is_empty() {
+                        for st_bu in rep.BaseURL.iter() {
+                            let st_url = if is_absolute_url(&st_bu.base) {
+                                Url::parse(&st_bu.base)
+                                    .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
                             } else {
-                                warn!("Error running MP4Box to convert WVTT subtitles");
+                                base_url.join(&st_bu.base)
+                                    .map_err(|e| parse_error("joining subtitle BaseURL", e))?
+                            };
+                            let subs = client.get(st_url.clone())
+                                .header("Referer", redirected_url.to_string())
+                                .send().await
+                                .map_err(|e| network_error("fetching subtitles", e))?
+                                .error_for_status()
+                                .map_err(|e| network_error("fetching subtitles", e))?
+                                .bytes().await
+                                .map_err(|e| network_error("retrieving subtitles", e))?;
+                            let mut subs_path = output_path.clone();
+                            let subtype = subtitle_type(&sta);
+                            match subtype {
+                                SubtitleType::Vtt => subs_path.set_extension("vtt"),
+                                SubtitleType::Srt => subs_path.set_extension("srt"),
+                                SubtitleType::Ttml => subs_path.set_extension("ttml"),
+                                SubtitleType::Sami => subs_path.set_extension("sami"),
+                                SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
+                                SubtitleType::Stpp => subs_path.set_extension("stpp"),
+                                _ => subs_path.set_extension("sub"),
+                            };
+                            let mut subs_file = File::create(subs_path.clone())
+                                .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
+                            if downloader.verbosity > 2 {
+                                println!("Subtitle {st_url} -> {} octets", subs.len());
+                            }
+                            match subs_file.write_all(&subs) {
+                                Ok(()) => {
+                                    if downloader.verbosity > 0 {
+                                        println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
+                                    }
+                                },
+                                Err(e) => {
+                                    error!("Unable to write subtitle file: {e:?}");
+                                    return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
+                                },
+                            }
+                            if subtype == SubtitleType::Wvtt {
+                                let mut out = subs_path.clone();
+                                out.set_extension("srt");
+                                let mp4box = Command::new(downloader.mp4box_location.clone())
+                                    .args(["-srt", "1", "-out", &out.to_string_lossy(),
+                                           &subs_path.to_string_lossy()])
+                                    .output()
+                                    .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+                                let msg = String::from_utf8_lossy(&mp4box.stdout);
+                                if msg.len() > 0 {
+                                    info!("MP4Box stdout: {msg}");
+                                }
+                                let msg = String::from_utf8_lossy(&mp4box.stderr);
+                                if msg.len() > 0 {
+                                    info!("MP4Box stderr: {msg}");
+                                }
+                                if mp4box.status.success() {
+                                    info!("Converted WVTT subtitles to SRT");
+                                } else {
+                                    warn!("Error running MP4Box to convert WVTT subtitles");
+                                }
+                            }
+                        }
+                    } else if rep.SegmentTemplate.is_some() || sta.SegmentTemplate.is_some() {
+                        let mut opt_init: Option<String> = None;
+                        let mut opt_media: Option<String> = None;
+                        let mut opt_duration: Option<f64> = None;
+                        let mut timescale = 1;
+                        let mut start_number = 1;
+                        // Here we are either looking at a Representation.SegmentTemplate, or a
+                        // higher-level AdaptationSet.SegmentTemplate
+                        let st;
+                        if let Some(it) = &rep.SegmentTemplate {
+                            st = it;
+                        } else if let Some(it) = &sta.SegmentTemplate {
+                            st = it;
+                        } else {
+                            panic!("unreachable");
+                        }
+                        if downloader.verbosity > 0 {
+                            println!("Using SegmentTemplate addressing mode for stpp subtitles");
+                        }
+                        if let Some(i) = &st.initialization {
+                            opt_init = Some(i.to_string());
+                        }
+                        if let Some(m) = &st.media {
+                            opt_media = Some(m.to_string());
+                        }
+                        if let Some(d) = st.duration {
+                            opt_duration = Some(d);
+                        }
+                        if let Some(ts) = st.timescale {
+                            timescale = ts;
+                        }
+                        if let Some(s) = st.startNumber {
+                            start_number = s;
+                        }
+                        let rid = match &rep.id {
+                            Some(id) => id,
+                            None => return Err(
+                                DashMpdError::UnhandledMediaStream(
+                                    "Missing @id on Representation node".to_string())),
+                        };
+                        let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                        if let Some(b) = &rep.bandwidth {
+                            dict.insert("Bandwidth", b.to_string());
+                        }
+                        let mut total_number = 0i64;
+                        if let Some(init) = opt_init {
+                            // The initialization segment counts as one of the $Number$
+                            total_number -= 1;
+                            let path = resolve_url_template(&init, &dict);
+                            let u = base_url.join(&path)
+                                .map_err(|e| parse_error("joining init with BaseURL", e))?;
+                            subtitle_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None})
+                        }
+                        if let Some(media) = opt_media {
+                            let sub_path = resolve_url_template(&media, &dict);
+                            let mut segment_duration: f64 = -1.0;
+                            if let Some(d) = opt_duration {
+                                // it was set on the Period.SegmentTemplate node
+                                segment_duration = d;
+                            }
+                            if let Some(std) = st.duration {
+                                segment_duration = std / timescale as f64;
+                            }
+                            if segment_duration < 0.0 {
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "Subtitle representation is missing SegmentTemplate@duration".to_string()));
+                            }
+                            total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                            let mut number = start_number;
+                            for _ in 1..=total_number {
+                                let dict = HashMap::from([("Number", number.to_string())]);
+                                let path = resolve_url_template(&sub_path, &dict);
+                                let u = base_url.join(&path)
+                                    .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                subtitle_fragments.push(MediaFragment{url: u, start_byte: None, end_byte: None});
+                                number += 1;
                             }
                         }
                     }
@@ -1894,16 +1993,18 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         tmp_file_path("dashmpd-video")?
     };
 
+    #[allow(clippy::collapsible_if)]
     if downloader.verbosity > 0 {
         if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
-            println!("Preparing to fetch {} audio and {} video segments",
+            println!("Preparing to fetch {} audio, {} video and {} subtitle segments",
                      audio_fragments.len(),
-                     video_fragments.len());
+                     video_fragments.len(),
+                     subtitle_fragments.len());
         }
     }
     let mut download_errors = 0;
     // The additional +2 is for our initial .mpd fetch action and final muxing action
-    let segment_count = audio_fragments.len() + video_fragments.len() + 2;
+    let segment_count = audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2;
     let mut segment_counter = 0;
     // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
     // We express our cells in the RateLimiter in kB/s instead of bytes/second, to allow for numbing
@@ -2266,6 +2367,143 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             }
         }
     } // if downloader.fetch_video
+
+    if downloader.fetch_subtitles {
+        let start_subs_download = Instant::now();
+        let tmppath_subs = tmp_file_path("dashmpd-subs")?;
+        {
+            let tmpfile_subs = File::create(tmppath_subs.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
+            let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
+            for frag in &subtitle_fragments {
+                // Update any ProgressObservers
+                segment_counter += 1;
+                let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
+                for observer in &downloader.progress_observers {
+                    observer.update(progress_percent, "Fetching subtitle segments");
+                }
+                if frag.url.scheme() == "data" {
+                    let us = &frag.url.to_string();
+                    let du = DataUrl::process(us)
+                        .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                    if du.mime_type().type_ != "video" {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            String::from("expecting video content in data URL")));
+                    }
+                    let (body, _fragment) = du.decode_to_vec()
+                        .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                    if downloader.verbosity > 2 {
+                        println!("Subtitle segment data URL -> {} octets", body.len());
+                    }
+                    if let Err(e) = tmpfile_subs.write_all(&body) {
+                        error!("Unable to write DASH subtitle data: {e:?}");
+                        return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                    }
+                    have_subtitles = true;
+                } else {
+                    let fetch = || async {
+                        let mut req = client.get(frag.url.clone())
+                            .header("Accept", "video/*")
+                            .header("Referer", redirected_url.to_string())
+                            .header("Sec-Fetch-Mode", "navigate");
+                        if let Some(sb) = &frag.start_byte {
+                            if let Some(eb) = &frag.end_byte {
+                                req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                            }
+                        }
+                        req.send().await
+                            .map_err(categorize_reqwest_error)?
+                            .error_for_status()
+                            .map_err(categorize_reqwest_error)
+                    };
+                    let mut failure = None;
+                    match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                        Ok(response) => {
+                            if response.status().is_success() {
+                                let dash_bytes = response.bytes().await
+                                    .map_err(|e| network_error("fetching DASH subtitle segment", e))?;
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("Subtitle segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, dash_bytes.len());
+                                        }
+                                    } else {
+                                        println!("Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    }
+                                }
+                                if downloader.rate_limit > 0 {
+                                    let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
+                                    if let Some(cells) = NonZeroU32::new(size as u32) {
+                                        if let Err(_) = bw_limiter.until_n_ready(cells).await {
+                                            return Err(DashMpdError::Other(
+                                                "Bandwidth limit is too low".to_string()));
+                                        }
+                                    }
+                                }
+                                if let Err(e) = tmpfile_subs.write_all(&dash_bytes) {
+                                    return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                                }
+                                have_subtitles = true;
+                            } else {
+                                failure = Some(format!("HTTP error {}", response.status().as_str()));
+                            }
+                        },
+                        Err(e) => failure = Some(format!("{e}")),
+                    }
+                    if let Some(f) = failure {
+                        if downloader.verbosity > 0 {
+                            eprintln!("{f} fetching subtitle segment {}", &frag.url);
+                        }
+                        download_errors += 1;
+                        if download_errors > downloader.max_error_count {
+                            return Err(DashMpdError::Network(
+                                String::from("more than max_error_count network errors")));
+                        }
+                    }
+                }
+                if downloader.sleep_between_requests > 0 {
+                    tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+                }
+            }
+            tmpfile_subs.flush().map_err(|e| {
+                error!("Couldn't flush subs file to disk: {e}");
+                DashMpdError::Io(e, String::from("flushing subtitle file to disk"))
+            })?;
+        } // end local scope for tmpfile_subs File
+        if have_subtitles {
+            if let Ok(metadata) = fs::metadata(tmppath_subs.clone()) {
+                if downloader.verbosity > 1 {
+                    let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+                    let elapsed = start_subs_download.elapsed();
+                    println!("Wrote {mbytes:.1}MB to DASH subtitle file ({:.1}MB/s)",
+                             mbytes / elapsed.as_secs_f64());
+                }
+            }
+            // Now extract the subtitles from the MP4 container
+            // mp4box.exe -raw 1 foo.mp4
+            let mut out = output_path.clone();
+            out.set_extension("srt");
+            let mp4box = Command::new(downloader.mp4box_location.clone())
+                .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath_subs.to_string_lossy()])
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+            let msg = String::from_utf8_lossy(&mp4box.stdout);
+            if msg.len() > 0 {
+                info!("MP4Box stdout: {msg}");
+            }
+            let msg = String::from_utf8_lossy(&mp4box.stderr);
+            if msg.len() > 0 {
+                info!("MP4Box stderr: {msg}");
+            }
+            if mp4box.status.success() {
+                info!("Extracted WVTT subtitles as SRT");
+            } else {
+                warn!("Error running MP4Box to extract WVTT subtitles");
+            }
+        }
+    } // if downloader.fetch_subtitles
+
     // Our final output file is either a mux of the audio and video streams, if both are present, or just
     // the audio stream, or just the video stream.
     if have_audio && have_video {

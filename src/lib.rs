@@ -1656,8 +1656,8 @@ pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
 /// Returns `true` if this AdaptationSet contains video content.
 ///
 /// It contains video if the `contentType` attribute` is `video`, or the `mimeType` attribute is
-/// `video/*`, or if one of its child `Representation` nodes has an audio `contentType` or
-/// `mimeType` attribute.
+/// `video/*` (but without a codec specifying a subtitle format), or if one of its child
+/// `Representation` nodes has an audio `contentType` or `mimeType` attribute.
 pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
     if let Some(ct) = &a.contentType {
         if ct == "video" {
@@ -1675,6 +1675,11 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
                 return true;
             }
         }
+        // We can have a Representation with mimeType="video/mp4" and codecs="wvtt", which means
+        // WebVTT in a (possibly fragmented) MP4 container.
+        if r.codecs.as_deref().is_some_and(is_subtitle_codec) {
+            return false;
+        }
         if let Some(mimetype) = &r.mimeType {
             if mimetype.starts_with("video/") {
                 return true;
@@ -1691,6 +1696,12 @@ fn is_subtitle_mimetype(mt: &str) -> bool {
     mt.eq("application/x-sami")
 }
 
+fn is_subtitle_codec(c: &str) -> bool {
+    c == "wvtt" ||
+    c == "stpp" ||
+    c.starts_with("stpp.")
+}
+
 /// Returns `true` if this AdaptationSet contains subtitle content.
 ///
 /// For now, it contains subtitles if the `@mimeType` attribute is "text/vtt" (WebVTT) or
@@ -1703,41 +1714,27 @@ fn is_subtitle_mimetype(mt: &str) -> bool {
 /// AdaptationSet with Accessibility node having @SchemeIdUri =
 /// "urn:tva:metadata:cs:AudioPurposeCS:2007" and @value=2.
 pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
-    if let Some(mimetype) = &a.mimeType {
-        if is_subtitle_mimetype(mimetype) {
-            return true;
-        }
+    if a.mimeType.as_deref().is_some_and(is_subtitle_mimetype) {
+        return true;
     }
-    let mut text_ct = false;
-    if let Some(contentType) = &a.contentType {
-        if contentType.eq("text") {
-            text_ct = true;
-        }
+    if a.contentType.as_deref().is_some_and(|ct| ct.eq("text")) {
+        return true;
+    }
+    if a.codecs.as_deref().is_some_and(is_subtitle_codec) {
+        return true;
     }
     for r in a.representations.iter() {
-        if let Some(mimetype) = &r.mimeType {
-            if is_subtitle_mimetype(mimetype) {
-                return true;
-            }
+        if r.mimeType.as_deref().is_some_and(is_subtitle_mimetype) {
+            return true;
         }
-        if let Some(ct) = &r.contentType {
-            if ct == "text" {
-                text_ct = true;
-            }
-        }
-        if text_ct {
-            if let Some(codecs) = &r.codecs {
-                if codecs == "wvtt" ||
-                    codecs == "stpp" ||
-                    codecs.starts_with("stpp.")
-                {
-                    return true;
-                }
-            }
+        // Often, but now always, the subtitle codec is also accompanied by a contentType of "text".
+        if r.codecs.as_deref().is_some_and(is_subtitle_codec) {
+            return true;
         }
     }
     false
 }
+
 
 // Incomplete, see https://en.wikipedia.org/wiki/Subtitles#Subtitle_formats
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
