@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.0] - Unreleased
+## [0.12.0] - 2023-07-16
 ### Changed
 - Downloading: function `fetch_subtitles` on `DashDownloader` takes a boolean parameter, instead of
   unconditionally requesting retrieval of subtitle content (incompatible change).
