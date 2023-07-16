@@ -10,6 +10,7 @@
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 
 
+use std::env;
 use std::time::Duration;
 use dash_mpd::fetch::DashDownloader;
 
@@ -17,11 +18,11 @@ use dash_mpd::fetch::DashDownloader;
 #[tokio::test]
 async fn test_dl1() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = std::env::temp_dir().join("itec-elephants-dream.mp4");
+    let out = env::temp_dir().join("itec-elephants-dream.mp4");
     assert!(DashDownloader::new(mpd_url)
             .worst_quality()
             .download_to(out.clone())
@@ -45,7 +46,7 @@ async fn test_downloader() {
     use colored::*;
 
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     async fn check_mpd(mpd_url: &str, octets: u64, digest: &[u8]) {
@@ -107,10 +108,10 @@ async fn test_downloader() {
 #[should_panic(expected = "operation timed out")]
 async fn test_error_timeout() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         panic!("operation timed out");
     }
-    let out = std::env::temp_dir().join("timeout.mkv");
+    let out = env::temp_dir().join("timeout.mkv");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(500))
         .build()
@@ -130,10 +131,10 @@ async fn test_error_timeout() {
 #[should_panic(expected = "operation timed out")]
 async fn test_error_ratelimit() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         panic!("operation timed out");
     }
-    let out = std::env::temp_dir().join("timeout.mkv");
+    let out = env::temp_dir().join("timeout.mkv");
     let client = reqwest::Client::builder()
         .timeout(Duration::new(10, 0))
         .build()
@@ -198,7 +199,7 @@ async fn test_content_protection_parsing() {
     }
 
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd").await;
@@ -214,32 +215,32 @@ async fn test_decryption() {
     use std::process::Command;
     
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
-    let out_undecrypted = std::env::temp_dir().join("angel-undecrypted.mp4");
-    let out_decrypted = std::env::temp_dir().join("angel-decrypted.mp4");
-    DashDownloader::new(url)
-        .worst_quality()
-        .download_to(out_undecrypted.clone())
-        .await
-        .unwrap();
-    DashDownloader::new(url)
-        .worst_quality()
-        .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
-                            String::from("429ec76475e7a952d224d8ef867f12b6"))
-        .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
-                            String::from("150a6c7d7dee6a91b74dccfce5b31928"))
-        .add_decryption_key(String::from("6f1729072b4a5cd288c916e11846b89e"),
-                            String::from("a84b4bd66901874556093454c075e2c6"))
-        .add_decryption_key(String::from("800aacaa522958ae888062b5695db6bf"),
-                            String::from("775dbf7289c4cc5847becd571f536ff2"))
-        .add_decryption_key(String::from("67b30c86756f57c5a0a38a23ac8c9178"),
-                            String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
-        .download_to(out_decrypted.clone())
-        .await
-        .unwrap();
+    let out_undecrypted = env::temp_dir().join("angel-undecrypted.mp4");
+    let out_decrypted = env::temp_dir().join("angel-decrypted.mp4");
+    assert!(DashDownloader::new(url)
+            .worst_quality()
+            .download_to(out_undecrypted.clone())
+            .await
+            .is_ok());
+    assert!(DashDownloader::new(url)
+            .worst_quality()
+            .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
+                                String::from("429ec76475e7a952d224d8ef867f12b6"))
+            .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
+                                String::from("150a6c7d7dee6a91b74dccfce5b31928"))
+            .add_decryption_key(String::from("6f1729072b4a5cd288c916e11846b89e"),
+                                String::from("a84b4bd66901874556093454c075e2c6"))
+            .add_decryption_key(String::from("800aacaa522958ae888062b5695db6bf"),
+                                String::from("775dbf7289c4cc5847becd571f536ff2"))
+            .add_decryption_key(String::from("67b30c86756f57c5a0a38a23ac8c9178"),
+                                String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
+            .download_to(out_decrypted.clone())
+            .await
+            .is_ok());
     let ffmpeg = Command::new("ffmpeg")
         .args(["-v", "error",
                "-i", &out_decrypted.to_string_lossy(),
@@ -264,10 +265,10 @@ async fn test_decryption() {
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_missing_mpd() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         panic!("requesting DASH manifest");
     }
-    let out = std::env::temp_dir().join("failure1.mkv");
+    let out = env::temp_dir().join("failure1.mkv");
     DashDownloader::new("http://httpbin.org/status/404")
         .worst_quality()
         .download_to(out.clone())
@@ -281,10 +282,10 @@ async fn test_error_missing_mpd() {
 #[should_panic(expected = "fetching XLink")]
 async fn test_error_xlink_gone() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         panic!("fetching XLink");
     }
-    let out = std::env::temp_dir().join("failure_xlink.mkv");
+    let out = env::temp_dir().join("failure_xlink.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
         .worst_quality()
         .download_to(out.clone())
@@ -349,6 +350,4 @@ async fn test_error_tls_wrong_name() {
         .await
         .unwrap();
 }
-
-
 
