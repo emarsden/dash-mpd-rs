@@ -10,6 +10,13 @@ jobs:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: taiki-e/install-action@cargo-hack
+
+    - name: install GPAC/MP4Box
+      run: |
+           brew update
+           brew install gpac
+           brew upgrade
+
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build --verbose
     - run: cargo test --verbose --no-run
