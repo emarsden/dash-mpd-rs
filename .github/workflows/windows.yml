@@ -14,9 +14,6 @@ jobs:
     - name: install GPAC/MP4Box
       run: choco install gpac
 
-    - name: check MP4Box availability
-      run: MP4Box -version
-
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build --verbose
     - run: cargo test --verbose --no-run
