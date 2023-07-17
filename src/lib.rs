@@ -1780,6 +1780,18 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
             return st;
         }
     }
+    if let Some(codecs) = &a.codecs {
+        if codecs == "wvtt" {
+            // can be extracted with https://github.com/xhlove/dash-subtitle-extractor
+            return SubtitleType::Wvtt;
+        }
+        if codecs == "stpp" {
+            return SubtitleType::Stpp;
+        }
+        if codecs.starts_with("stpp.") {
+            return SubtitleType::Stpp;
+        }
+    }
     for r in a.representations.iter() {
         if let Some(mimetype) = &r.mimeType {
             if let Some(st) = subtitle_type_for_mimetype(mimetype) {
