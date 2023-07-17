@@ -774,6 +774,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     let mut have_audio = false;
     let mut have_video = false;
     let mut have_subtitles = false;
+    let mut subtitle_format = SubtitleType::Unknown;
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
         println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
@@ -1815,6 +1816,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 period.adaptations.iter().find(is_subtitle_adaptation)
             };
             if let Some(sta) = maybe_subtitle_adaptation {
+                subtitle_format = subtitle_type(&sta);
+                if downloader.verbosity > 1 {
+                    println!("Retrieving subtitles in format {subtitle_format:?}");
+                }
                 // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
                 // don't "corrupt" the base_url for the subtitle segments.
                 let mut base_url = base_url.clone();
@@ -1848,8 +1853,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 .bytes().await
                                 .map_err(|e| network_error("retrieving subtitles", e))?;
                             let mut subs_path = output_path.clone();
-                            let subtype = subtitle_type(&sta);
-                            match subtype {
+                            subtitle_format = subtitle_type(&sta);
+                            match subtitle_format {
                                 SubtitleType::Vtt => subs_path.set_extension("vtt"),
                                 SubtitleType::Srt => subs_path.set_extension("srt"),
                                 SubtitleType::Ttml => subs_path.set_extension("ttml"),
@@ -1866,7 +1871,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             match subs_file.write_all(&subs) {
                                 Ok(()) => {
                                     if downloader.verbosity > 0 {
-                                        println!("Downloaded subtitles ({subtype:?}) to {}", subs_path.display());
+                                        println!("Downloaded subtitles ({subtitle_format:?}) to {}",
+                                                 subs_path.display());
                                     }
                                 },
                                 Err(e) => {
@@ -1874,26 +1880,30 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
                                 },
                             }
-                            if subtype == SubtitleType::Wvtt {
+                            if subtitle_format == SubtitleType::Wvtt {
                                 let mut out = subs_path.clone();
                                 out.set_extension("srt");
-                                let mp4box = Command::new(downloader.mp4box_location.clone())
+                                // We can convert this to SRT format, which is more widely support,
+                                // using MP4Box. However, it's not a fatal error if MP4Box is not
+                                // installed.
+                                if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                                     .args(["-srt", "1", "-out", &out.to_string_lossy(),
                                            &subs_path.to_string_lossy()])
                                     .output()
-                                    .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
-                                let msg = String::from_utf8_lossy(&mp4box.stdout);
-                                if msg.len() > 0 {
-                                    info!("MP4Box stdout: {msg}");
-                                }
-                                let msg = String::from_utf8_lossy(&mp4box.stderr);
-                                if msg.len() > 0 {
-                                    info!("MP4Box stderr: {msg}");
-                                }
-                                if mp4box.status.success() {
-                                    info!("Converted WVTT subtitles to SRT");
-                                } else {
-                                    warn!("Error running MP4Box to convert WVTT subtitles");
+                                {
+                                    let msg = String::from_utf8_lossy(&mp4box.stdout);
+                                    if msg.len() > 0 {
+                                        info!("MP4Box stdout: {msg}");
+                                    }
+                                    let msg = String::from_utf8_lossy(&mp4box.stderr);
+                                    if msg.len() > 0 {
+                                        info!("MP4Box stderr: {msg}");
+                                    }
+                                    if mp4box.status.success() {
+                                        info!("Converted WVTT subtitles to SRT");
+                                    } else {
+                                        warn!("Error running MP4Box to convert WVTT subtitles");
+                                    }
                                 }
                             }
                         }
@@ -1992,6 +2002,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     } else {
         tmp_file_path("dashmpd-video")?
     };
+    let tmppath_subs = tmp_file_path("dashmpd-subs")?;
 
     #[allow(clippy::collapsible_if)]
     if downloader.verbosity > 0 {
@@ -2157,8 +2168,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             tmpfile_audio.flush().map_err(|e| {
-                error!("Couldn't flush DASH audio file to disk: {e}");
-                DashMpdError::Io(e, String::from("flushing DASH audio file to disk"))
+                error!("Couldn't flush DASH audio file: {e}");
+                DashMpdError::Io(e, String::from("flushing DASH audio file"))
             })?;
         } // end local scope for the FileHandle
         if !downloader.decryption_keys.is_empty() {
@@ -2324,8 +2335,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             tmpfile_video.flush().map_err(|e| {
-                error!("Couldn't flush video file to disk: {e}");
-                DashMpdError::Io(e, String::from("flushing video file to disk"))
+                error!("Couldn't flush video file: {e}");
+                DashMpdError::Io(e, String::from("flushing video file"))
             })?;
         } // end local scope for tmpfile_video File
         if !downloader.decryption_keys.is_empty() {
@@ -2368,9 +2379,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         }
     } // if downloader.fetch_video
 
+    // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
+    // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP formats.
     if downloader.fetch_subtitles {
         let start_subs_download = Instant::now();
-        let tmppath_subs = tmp_file_path("dashmpd-subs")?;
         {
             let tmpfile_subs = File::create(tmppath_subs.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
@@ -2403,7 +2415,6 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 } else {
                     let fetch = || async {
                         let mut req = client.get(frag.url.clone())
-                            .header("Accept", "video/*")
                             .header("Referer", redirected_url.to_string())
                             .header("Sec-Fetch-Mode", "navigate");
                         if let Some(sb) = &frag.start_byte {
@@ -2467,8 +2478,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                 }
             }
             tmpfile_subs.flush().map_err(|e| {
-                error!("Couldn't flush subs file to disk: {e}");
-                DashMpdError::Io(e, String::from("flushing subtitle file to disk"))
+                error!("Couldn't flush subs file disk: {e}");
+                DashMpdError::Io(e, String::from("flushing subtitle file"))
             })?;
         } // end local scope for tmpfile_subs File
         if have_subtitles {
@@ -2480,26 +2491,33 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                              mbytes / elapsed.as_secs_f64());
                 }
             }
-            // Now extract the subtitles from the MP4 container
-            // mp4box.exe -raw 1 foo.mp4
-            let mut out = output_path.clone();
-            out.set_extension("srt");
-            let mp4box = Command::new(downloader.mp4box_location.clone())
-                .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath_subs.to_string_lossy()])
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
-            let msg = String::from_utf8_lossy(&mp4box.stdout);
-            if msg.len() > 0 {
-                info!("MP4Box stdout: {msg}");
-            }
-            let msg = String::from_utf8_lossy(&mp4box.stderr);
-            if msg.len() > 0 {
-                info!("MP4Box stderr: {msg}");
-            }
-            if mp4box.status.success() {
-                info!("Extracted WVTT subtitles as SRT");
-            } else {
-                warn!("Error running MP4Box to extract WVTT subtitles");
+            if subtitle_format == SubtitleType::Wvtt {
+                // We can extract these from the MP4 container in .srt format, using MP4Box.
+                if downloader.verbosity > 1 {
+                    println!("Running MP4Box to extract WVTT subtitles in SRT format");
+                }
+                let mut out = output_path.clone();
+                out.set_extension("srt");
+                if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
+                    .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath_subs.to_string_lossy()])
+                    .output()
+                {
+                    let msg = String::from_utf8_lossy(&mp4box.stdout);
+                    if msg.len() > 0 {
+                        info!("MP4Box stdout: {msg}");
+                    }
+                    let msg = String::from_utf8_lossy(&mp4box.stderr);
+                    if msg.len() > 0 {
+                        info!("MP4Box stderr: {msg}");
+                    }
+                    if mp4box.status.success() {
+                        info!("Extracted WVTT subtitles as SRT");
+                    } else {
+                        warn!("Error running MP4Box to extract WVTT subtitles");
+                    }
+                } else {
+                    warn!("Failed to spawn MP4Box to extract WVTT subtitles");
+                }
             }
         }
     } // if downloader.fetch_subtitles
@@ -2518,6 +2536,32 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             tmppath_audio.to_str().ok_or(DashMpdError::Other(String::from("audio path to UTF-8")))?,
             tmppath_video.to_str().ok_or(DashMpdError::Other(String::from("video path to UTF-8")))?
         )?;
+        if subtitle_format == SubtitleType::Stpp {
+            if downloader.verbosity > 1 {
+                println!("Running MP4Box to merge STPP subtitles with output file");
+            }
+            // We can try to merge these with the MP4 container, using MP4Box.
+            if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
+                .args(["-add", &tmppath_subs.to_string_lossy(), &output_path.clone().to_string_lossy()])
+                .output()
+            {
+                let msg = String::from_utf8_lossy(&mp4box.stdout);
+                if msg.len() > 0 {
+                    info!("MP4Box stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&mp4box.stderr);
+                if msg.len() > 0 {
+                    info!("MP4Box stderr: {msg}");
+                }
+                if mp4box.status.success() {
+                    info!("Merged STPP subtitles with MP4 container");
+                } else {
+                    warn!("Error running MP4Box to merge STPP subtitles");
+                }
+            } else {
+                warn!("Failed to spawn MP4Box to merge STPP subtitles");
+            }
+        }
     } else if have_audio {
         // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
         // it might fail if temporary files and our output are on different filesystems.

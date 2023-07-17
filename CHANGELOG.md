@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1] - Unreleased
+### Changed
+- Downloading: handling of STPP subtitles distributed as fragmented MP4 segments has been improved.
+  They will be merged with the final output container if MP4Box is installed.
+
+
 ## [0.12.0] - 2023-07-16
 ### Changed
 - Downloading: function `fetch_subtitles` on `DashDownloader` takes a boolean parameter, instead of
