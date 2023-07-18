@@ -104,4 +104,29 @@ async fn test_subtitles_vtt () {
 }
 
 
-// TODO: add a test for STPP
+// STPP subtitles are muxed into the output media stream, so we need to download audio and video for
+// this type. So we don't run this test on CI infrastructure.
+#[tokio::test]
+async fn test_subtitles_stpp() {
+    use ffprobe::ffprobe;
+
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://rdmedia.bbc.co.uk/elephants_dream/1/client_manifest-all.mpd";
+    let outpath = env::temp_dir().join("elephants-dream-bbc.mp4");
+    assert!(DashDownloader::new(mpd)
+            .fetch_audio(true)
+            .fetch_video(true)
+            .fetch_subtitles(true)
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    let meta = ffprobe(outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let stpp = &meta.streams[2];
+    assert_eq!(stpp.codec_tag_string, "stpp");
+    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!((620.0 < duration) && (duration < 640.0));
+}
+

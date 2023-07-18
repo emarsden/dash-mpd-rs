@@ -2380,7 +2380,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
     } // if downloader.fetch_video
 
     // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
-    // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP formats.
+    // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
+    // formatted as EBU-TT for DASH media) formats.
     if downloader.fetch_subtitles {
         let start_subs_download = Instant::now();
         {
