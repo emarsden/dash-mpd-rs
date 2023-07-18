@@ -56,15 +56,28 @@ The choice of external muxer depends on the filename extension of the path suppl
 ## DASH features supported
 
 - VOD (static) stream manifests
+
 - Multi-period content
+
 - XLink elements (only with actuate=onLoad semantics), including resolve-to-zero
+
 - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
   SegmentTemplate@duration, SegmentTemplate@index, SegmentList.
+
 - Media containers of types supported by mkvmerge, ffmpeg, VLC or MP4Box (this includes Matroska,
   ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS).
-- WebVTT, TTML and SMIL subtitles (preliminary support). There is some support for subtitles that
-  are made available in wvtt format, that will be converted to SRT format using the MP4Box
-  commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is installed.
+
+- WebVTT/wvtt, TTML, STPP and SMIL subtitles, either provided as a single media stream or as a
+  fragmented MP4 stream. Subtitles that are distributed as a single media stream will be saved to a
+  file with the same base name as the requested output file, but with an extension corresponding to
+  the subtitle type (e.g. ".srt", ".vtt"). Subtitles distributed in WebVTT/wvtt format (either as a
+  single media stream or a fragmented MP4 stream) will be converted to the more standard SRT format
+  using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is
+  installed. STPP subtitles (which according to the DASH specifications should be formatted as
+  EBU-TT) will be muxed into the output media container as a "subt:stpp" stream using MP4Box. Note
+  that common media players such as mplayer and VLC don't currently support this subtitle type; you
+  can try using the GPAC media player (available with "gpac -gui").
+
 - Support for decrypting media streams that use MPEG Common Encryption (cenc) ContentProtection.
   This requires the `mp4decrypt` commandline application from the [Bento4
   suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
