@@ -1986,6 +1986,8 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             }
                         }
                     }
+                    // TODO also implement SegmentBase addressing mode for subtitles
+                    // (sample MPD: https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd)
                 }
             }
         }
