@@ -100,6 +100,19 @@ async fn test_downloader() {
 
 }
 
+#[tokio::test]
+#[should_panic(expected = "invalid digit found in string")]
+async fn test_error_parsing() {
+    // This DASH manifest is invalid because it contains a presentationDuration="25.7726666667" on a
+    // SegmentBase node. The DASH XSD specification states that @presentationDuration is an
+    // xs:unsignedLong.
+    let url = "https://dash.akamaized.net/dash264/TestCasesHD/MultiPeriod_OnDemand/ThreePeriods/ThreePeriod_OnDemand_presentationDur_AudioTrim.mpd";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
 
 // Check that timeouts on network requests are correctly signalled. This manifest specifies a single
 // large video segment (427MB) which should lead to a network timeout with our 0.5s setting, even
