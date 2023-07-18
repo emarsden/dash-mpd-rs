@@ -1698,6 +1698,7 @@ fn is_subtitle_mimetype(mt: &str) -> bool {
 
 fn is_subtitle_codec(c: &str) -> bool {
     c == "wvtt" ||
+    c == "c608" ||
     c == "stpp" ||
     c.starts_with("stpp.")
 }
@@ -1759,19 +1760,18 @@ pub enum SubtitleType {
     Wvtt,
     /// XML content (generally TTML) in an stpp box in fragmented MP4 container
     Stpp,
+    /// EIA-608 aka CEA-608, a legacy standard for closed captioning for NTSC TV
+    Eia608,
     Unknown,
 }
 
 fn subtitle_type_for_mimetype(mt: &str) -> Option<SubtitleType> {
-    // WebVTT, almost the same as SRT
-    if mt.eq("text/vtt") {
-        return Some(SubtitleType::Vtt);
-    } else if mt.eq("application/ttml+xml") {
-        return Some(SubtitleType::Ttml);
-    } else if mt.eq("application/x-sami") {
-        return Some(SubtitleType::Sami);
+    match mt {
+        "text/vtt" => Some(SubtitleType::Vtt),
+        "application/ttml+xml" => Some(SubtitleType::Ttml),
+        "application/x-sami" => Some(SubtitleType::Sami),
+        _ => None
     }
-    None
 }
 
 pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
@@ -1784,6 +1784,9 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
         if codecs == "wvtt" {
             // can be extracted with https://github.com/xhlove/dash-subtitle-extractor
             return SubtitleType::Wvtt;
+        }
+        if codecs == "c608" {
+            return SubtitleType::Eia608;
         }
         if codecs == "stpp" {
             return SubtitleType::Stpp;
@@ -1800,8 +1803,10 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
         }
         if let Some(codecs) = &r.codecs {
             if codecs == "wvtt" {
-                // can be extracted with https://github.com/xhlove/dash-subtitle-extractor
                 return SubtitleType::Wvtt;
+            }
+            if codecs == "c608" {
+                return SubtitleType::Eia608;
             }
             if codecs == "stpp" {
                 return SubtitleType::Stpp;
