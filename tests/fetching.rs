@@ -104,6 +104,27 @@ async fn test_downloader() {
 }
 
 #[tokio::test]
+async fn test_follow_redirect() {
+    // Don't run download tests on CI infrastructure
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let redirector = format!("http://httpbin.org/redirect-to?url={mpd_url}");
+    let out = env::temp_dir().join("itec-redirected.mp4");
+    assert!(DashDownloader::new(&redirector)
+            .worst_quality()
+            .download_to(out.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&out)) {
+        let ratio = meta.len() as f64 / 60_939.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+}
+
+
+#[tokio::test]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_error_parsing() {
     // This DASH manifest is invalid because it contains a presentationDuration="25.7726666667" on a
