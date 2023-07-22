@@ -10,8 +10,11 @@
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 
 
+use fs_err as fs;
 use std::env;
 use std::time::Duration;
+use std::process::Command;
+use std::path::{Path, PathBuf};
 use dash_mpd::fetch::DashDownloader;
 
 
@@ -270,6 +273,115 @@ async fn test_decryption() {
         .expect("spawning ffmpeg");
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
     assert!(msg.len() > 10_000);
+}
+
+
+// These test cases are from https://refapp.hbbtv.org/videos/.
+#[tokio::test]
+async fn test_decryption_variants () {
+    if env::var("CI").is_ok() {
+        return;
+    }
+
+    fn ffmpeg_approval(name: &PathBuf) -> bool {
+        let ffmpeg = Command::new("ffmpeg")
+            .args(["-v", "error",
+                   "-i", &name.to_string_lossy(),
+                   "-f", "null", "-"])
+        .output()
+        .expect("spawning ffmpeg");
+        let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+        println!("FFMPEG stderr> {msg}");
+        msg.len() == 0
+    }
+
+    // WideVine ContentProtection with CENC encryption
+    let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
+    let outpath = env::temp_dir().join("spring.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341237"),
+                                String::from("12341234123412341234123412341237"))
+            .add_decryption_key(String::from("43215678123412341234123412341236"),
+                                String::from("12341234123412341234123412341236"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 33_746_341.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    assert!(ffmpeg_approval(&outpath));
+
+    // WideVine ContentProtection with CBCS encryption
+    let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
+    let outpath = env::temp_dir().join("tears-steel.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341237"),
+                                String::from("12341234123412341234123412341237"))
+            .add_decryption_key(String::from("43215678123412341234123412341236"),
+                                String::from("12341234123412341234123412341236"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 79_731_116.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
+    // various anomalies in the AAC audio stream, though it seems to play the content OK.
+    // assert!(ffmpeg_approval(&outpath));
+
+    // PlayReady / CENC
+    let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
+    let outpath = env::temp_dir().join("llama.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341236"),
+                                String::from("12341234123412341234123412341236"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 26_420_624.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    assert!(ffmpeg_approval(&outpath));
+
+    // Marlin / CENC
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341234"),
+                                String::from("12341234123412341234123412341234"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 14_357_917.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    assert!(ffmpeg_approval(&outpath));
+
+    // Marlin / CBCS
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341234"),
+                                String::from("12341234123412341234123412341234"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 14_357_925.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
+    // (complaints concerning the AAC audio stream).
+    // assert!(ffmpeg_approval(&outpath));
 }
 
 
