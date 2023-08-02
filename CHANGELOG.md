@@ -1,7 +1,9 @@
 # Changelog
 
-## [0.12.1] - Unreleased
+## [0.13.0] - Unreleased
 ### Changed
+- Change element `Accessibility` of `ContentComponent` and `AdaptationSet` nodes to a `Vec` instead of
+  an `Option` (incompatible change).
 - Downloading: handling of STPP subtitles distributed as fragmented MP4 segments has been improved.
   They will be merged with the final output container if MP4Box is installed.
 

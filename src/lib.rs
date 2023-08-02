@@ -1025,7 +1025,7 @@ pub struct ContentComponent {
     pub par: Option<String>,
     #[serde(rename = "@tag")]
     pub tag: Option<String>,
-    pub Accessibility: Option<Accessibility>,
+    pub Accessibility: Vec<Accessibility>,
     pub Role: Vec<Role>,
     pub Rating: Vec<Rating>,
     pub Viewpoint: Vec<Viewpoint>,
@@ -1307,7 +1307,7 @@ pub struct AdaptationSet {
     pub ContentProtection: Vec<ContentProtection>,
     pub Switching: Vec<Switching>,
     pub Resync: Option<Resync>,
-    pub Accessibility: Option<Accessibility>,
+    pub Accessibility: Vec<Accessibility>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub InbandEventStream: Vec<InbandEventStream>,
     #[serde(rename = "SupplementalProperty")]
