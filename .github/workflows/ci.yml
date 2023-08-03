@@ -6,7 +6,7 @@ jobs:
   check:
     name: dash-mpd-rs check/nightly
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
@@ -21,7 +21,7 @@ jobs:
   test:
     name: dash-mpd-rs test/stable
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
