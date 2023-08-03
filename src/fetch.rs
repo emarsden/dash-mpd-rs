@@ -160,7 +160,13 @@ impl DashDownloader {
             ffmpeg_location: if cfg!(windows) { String::from("ffmpeg.exe") } else { String::from("ffmpeg") },
 	    vlc_location: if cfg!(windows) { String::from("vlc.exe") } else { String::from("vlc") },
 	    mkvmerge_location: if cfg!(windows) { String::from("mkvmerge.exe") } else { String::from("mkvmerge") },
-	    mp4box_location: if cfg!(windows) { String::from("MP4Box.exe") } else { String::from("MP4Box") },
+	    mp4box_location: if cfg!(windows) {
+                String::from("MP4Box.exe")
+            } else if cfg!(linux) || cfg!(macos) {
+                String::from("MP4Box")
+            } else {
+                String::from("mp4box")
+            },
             mp4decrypt_location: if cfg!(windows) { String::from("mp4decrypt.exe") } else { String::from("mp4decrypt") },
         }
     }

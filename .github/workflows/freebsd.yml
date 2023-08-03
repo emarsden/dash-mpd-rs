@@ -30,6 +30,7 @@ jobs:
           mp4decrypt || true
           pkg install -y ffmpeg
           pkg install -y multimedia/gpac-mp4box
+          mp4box -version
 
         run: |
           export PATH="${HOME}/.cargo/bin:$PATH"
