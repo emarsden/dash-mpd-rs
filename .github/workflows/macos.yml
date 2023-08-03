@@ -5,7 +5,7 @@ name: macos
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 100
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
@@ -13,12 +13,11 @@ jobs:
 
     - name: install GPAC/MP4Box
       run: |
-           brew update
-           brew install gpac
+        brew update
+        brew install gpac
 
     - name: install ffmpeg
-      run: |
-           brew install ffmpeg
+      run: brew install ffmpeg
 
     - name: install Bento4 mp4decrypt
       run: |
