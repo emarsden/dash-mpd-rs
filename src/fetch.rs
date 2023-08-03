@@ -157,17 +157,33 @@ impl DashDownloader {
             rate_limit: 0,
             verbosity: 0,
             record_metainformation: true,
-            ffmpeg_location: if cfg!(windows) { String::from("ffmpeg.exe") } else { String::from("ffmpeg") },
-	    vlc_location: if cfg!(windows) { String::from("vlc.exe") } else { String::from("vlc") },
-	    mkvmerge_location: if cfg!(windows) { String::from("mkvmerge.exe") } else { String::from("mkvmerge") },
-	    mp4box_location: if cfg!(windows) {
+            ffmpeg_location: if cfg!(target_os = "windows") {
+                String::from("ffmpeg.exe")
+            } else {
+                String::from("ffmpeg")
+            },
+	    vlc_location: if cfg!(target_os = "windows") {
+                String::from("vlc.exe")
+            } else {
+                String::from("vlc")
+            },
+	    mkvmerge_location: if cfg!(target_os = "windows") {
+                String::from("mkvmerge.exe")
+            } else {
+                String::from("mkvmerge")
+            },
+	    mp4box_location: if cfg!(target_os = "windows") {
                 String::from("MP4Box.exe")
-            } else if cfg!(linux) || cfg!(macos) {
+            } else if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
                 String::from("MP4Box")
             } else {
                 String::from("mp4box")
             },
-            mp4decrypt_location: if cfg!(windows) { String::from("mp4decrypt.exe") } else { String::from("mp4decrypt") },
+            mp4decrypt_location: if cfg!(target_os = "windows") {
+                String::from("mp4decrypt.exe")
+            } else {
+                String::from("mp4decrypt")
+            },
         }
     }
 
