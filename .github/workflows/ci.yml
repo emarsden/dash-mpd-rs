@@ -8,13 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@cargo-hack
       - name: Install ffmpeg
         run: |
           sudo apt-get update
           sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: taiki-e/install-action@cargo-hack
       - run: cargo check
       - run: cargo hack check --feature-powerset --no-dev-deps
 
@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install ffmpeg
         run: |
           sudo apt-get update
@@ -33,8 +35,6 @@ jobs:
           unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
           sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
       - run: cargo test
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --all-features
       - run: cargo run --example serialize
       - run: cargo run --example pprint_bbc_adaptive
