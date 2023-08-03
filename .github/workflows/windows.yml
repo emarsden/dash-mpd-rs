@@ -16,14 +16,14 @@ jobs:
     # so we need to add to the path explicitly.
     - name: install GPAC/MP4Box
       run: |
-         choco install gpac
+         choco install --yes --limit-output gpac
          echo "C:\Program Files\GPAC" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     # The ffmpeg executable is installed at C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe
     # A shim is created at C:\ProgramData\chocolatey\bin\ffmpeg.exe.
     - name: install ffmpeg
       run: |
-         choco install ffmpeg
+         choco install --yes --limit-output ffmpeg
          echo "C:\ProgramData\chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: install Bento4/mp4decrypt
@@ -32,6 +32,7 @@ jobs:
           unzip bento4.zip "Bento4-SDK-*/bin/mp4decrypt.exe"
           # cp Bento4-SDK*/bin/mp4decrypt.exe "C:\Program Files\mp4decrypt.exe"
           cp Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe "C:\Program Files\mp4decrypt.exe"
+          mp4decrypt.exe
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
