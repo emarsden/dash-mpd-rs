@@ -244,6 +244,19 @@ async fn test_content_protection_parsing() {
 }
 
 
+fn ffmpeg_approval(name: &PathBuf) -> bool {
+    let ffmpeg = Command::new("ffmpeg")
+        .args(["-v", "error",
+               "-i", &name.to_string_lossy(),
+               "-f", "null", "-"])
+        .output()
+        .expect("spawning ffmpeg");
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    println!("FFMPEG stderr> {msg}");
+    msg.len() == 0
+}
+
+
 // Download a stream with ContentProtection and check that it generates many decoding errors when
 // "played" (to a null output device) with ffmpeg. Also check that when the same stream is
 // downloaded and decryption keys are provided, there are no playback errors.
@@ -302,18 +315,6 @@ async fn test_decryption() {
 async fn test_decryption_variants () {
     if env::var("CI").is_ok() {
         return;
-    }
-
-    fn ffmpeg_approval(name: &PathBuf) -> bool {
-        let ffmpeg = Command::new("ffmpeg")
-            .args(["-v", "error",
-                   "-i", &name.to_string_lossy(),
-                   "-f", "null", "-"])
-        .output()
-        .expect("spawning ffmpeg");
-        let msg = String::from_utf8_lossy(&ffmpeg.stderr);
-        println!("FFMPEG stderr> {msg}");
-        msg.len() == 0
     }
 
     // WideVine ContentProtection with CENC encryption
@@ -404,6 +405,28 @@ async fn test_decryption_variants () {
     // (complaints concerning the AAC audio stream).
     // assert!(ffmpeg_approval(&outpath));
 }
+
+
+
+// A small decryption test case that we can run on the CI infrastructure.
+#[tokio::test]
+async fn test_decryption_small () {
+    let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
+    let outpath = env::temp_dir().join("caminandes.mp4");
+    assert!(DashDownloader::new(mpd)
+            .worst_quality()
+            .add_decryption_key(String::from("43215678123412341234123412341234"),
+                                String::from("12341234123412341234123412341234"))
+            .download_to(outpath.clone())
+            .await
+            .is_ok());
+    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
+        let ratio = meta.len() as f64 / 6_975_147.0;
+        assert!(0.95 < ratio && ratio < 1.05);
+    }
+    assert!(ffmpeg_approval(&outpath));
+}
+
 
 
 // Check error reporting for missing DASH manifest
