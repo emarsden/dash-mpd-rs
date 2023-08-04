@@ -29,10 +29,11 @@ jobs:
     - name: install Bento4/mp4decrypt
       run: |
           C:\msys64\usr\bin\wget.exe -q -O bento4.zip https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-640.x86_64-microsoft-win32.zip
-          unzip bento4.zip "Bento4-SDK-*/bin/mp4decrypt.exe"
+          unzip bento4.zip "Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe"
           # cp Bento4-SDK*/bin/mp4decrypt.exe "C:\Program Files\mp4decrypt.exe"
           cp Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe .
-          mp4decrypt.exe
+          dir
+          mp4decrypt
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
