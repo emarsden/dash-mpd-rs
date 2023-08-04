@@ -1359,11 +1359,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     .map_err(|e| parse_error("joining with sourceURL", e))?
                             };
                             audio_fragments.push(MediaFragment{url: u, start_byte, end_byte, is_init: true});
-                        } else {
-                            let frag = MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None, is_init: true};
-                            audio_fragments.push(frag);
                         }
                     }
+                    let frag = MediaFragment{url: base_url.clone(), start_byte: None, end_byte: None, is_init: true};
+                    audio_fragments.push(frag);
                 } else if audio_fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
                     // (6) plain BaseURL addressing mode
                     if downloader.verbosity > 1 {
@@ -1588,10 +1587,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     .map_err(|e| parse_error("joining sourceURL with BaseURL", e))?
                             };
                             video_fragments.push(MediaFragment{url: u, start_byte, end_byte, is_init: true});
-                        } else {
-                            let frag = MediaFragment{url: base_url.clone(), start_byte, end_byte, is_init: true};
-                            video_fragments.push(frag);
                         }
+                    } else {
+                        let frag = MediaFragment{url: base_url.clone(), start_byte, end_byte, is_init: true};
+                        video_fragments.push(frag);
                     }
                     for su in sl.segment_urls.iter() {
                         start_byte = None;
