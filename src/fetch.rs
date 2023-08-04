@@ -1014,7 +1014,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         }
                         for pssh in cp.cenc_pssh.iter() {
                             if let Some(pc) = &pssh.content {
-                                diag_audio += &format!("    PSSH: {pc}\n");
+                                diag_audio += &format!("    PSSH (from manifest): {pc}\n");
                             }
                         }
                     }
@@ -2050,16 +2050,18 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
 
         // Print some diagnostics information on the selected streams
         if downloader.verbosity > 0 {
-            println!("{}", diag_audio);
+            use base64::prelude::{Engine as _, BASE64_STANDARD};
+
+            print!("{}", diag_audio);
             for f in audio_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(client, f.url.clone()).await {
-                    print!("    PSSH (from init segment): {}\n", base64_lib::encode(&pssh));
+                    println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
-            println!("{}", diag_video);
+            print!("{}", diag_video);
             for f in video_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(client, f.url.clone()).await {
-                    print!("    PSSH (from init segment): {}\n", base64_lib::encode(&pssh));
+                    println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
         }
