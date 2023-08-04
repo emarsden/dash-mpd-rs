@@ -30,9 +30,11 @@ jobs:
       run: |
           C:\msys64\usr\bin\wget.exe -q -O bento4.zip https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-640.x86_64-microsoft-win32.zip
           unzip bento4.zip "Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe"
+          del bento4.zip
           # cp Bento4-SDK*/bin/mp4decrypt.exe "C:\Program Files\mp4decrypt.exe"
-          cp Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe .
-          dir
+          New-Item -ItemType Directory -Path "C:\tools"
+          cp Bento4-SDK-1-6-0-640.x86_64-microsoft-win32/bin/mp4decrypt.exe "C:\tools\mp4decrypt.exe"
+          echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           mp4decrypt
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
