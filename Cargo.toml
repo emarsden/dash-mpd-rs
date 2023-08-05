@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -14,23 +14,23 @@ edition = "2021"
 [dependencies]
 base64 = "0.21"
 base64-serde = "0.7"
-serde = { version = "1", features = ["derive"] }
-serde_with = { version = "3", features = ["base64"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_with = { version = "3.2", features = ["base64"] }
 quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
 chrono = { version = ">=0.4.20", features = ["serde"] }
 num-traits = "0.2"
 iso8601 = "0.6"
-regex = ">=1.5.5"
-thiserror = "1"
+regex = "1.9"
+thiserror = "1.0"
 fs-err = "2.9"
 log = "0.4"
-url = { version = "2", optional = true }
+url = { version = "2.4", optional = true }
 data-url = { version = "0.3", optional = true }
 reqwest = { version = "0.11", default-features = false, optional = true }
-tokio = { version = ">=1.24.2", features = ["rt-multi-thread", "time"] }
+tokio = { version = "1.29", features = ["rt-multi-thread", "time"] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 governor = { version = "0.6", optional = true }
-tempfile = { version = "3", optional = true }
+tempfile = { version = "3.7", optional = true }
 sanitise-file-name = { version = "1", optional = true }
 ac-ffmpeg = { version = "0.18", optional = true }
 
@@ -39,10 +39,10 @@ env_logger = "0.10"
 ffprobe = "0.3"
 sha2 = "0.10"
 hex-literal = "0.4"
-colored = "2"
+colored = "2.0"
 indicatif = "0.17"
-clap = "4"
-tokio = { version = ">=1.24.2", features = ["rt-multi-thread", "time", "macros"] }
+clap = "4.3"
+tokio = { version = "1.29", features = ["rt-multi-thread", "time", "macros"] }
 anyhow = "1.0"
 roxmltree = "0.18"
 

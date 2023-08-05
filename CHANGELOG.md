@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.13.0] - Unreleased
+## [0.13.0] - 2023-08-05
 ### Changed
 - Change element `Accessibility` of `ContentComponent` and `AdaptationSet` nodes to a `Vec` instead of
   an `Option` (incompatible change).

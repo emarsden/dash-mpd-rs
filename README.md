@@ -90,6 +90,7 @@ The choice of external muxer depends on the filename extension of the path suppl
 ## Limitations / unsupported features
 
 - We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV
+
 - No support for XLink with actuate=onRequest semantics
 
 
@@ -192,14 +193,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.12"
+dash-mpd = "0.13"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.12", default-features = false }
+dash-mpd = { version = "0.13", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -253,7 +254,7 @@ This crate is tested on the following platforms:
 - Android 12 on Aarch64 via [termux](https://termux.dev/), without the libav feature (you'll need to
   install the rust, binutils and ffmpeg packages)
 
-- OpenBSD/AMD64, without the libav feature
+- FreeBSD/AMD64 and OpenBSD/AMD64, without the libav feature
 
 
 ## License
