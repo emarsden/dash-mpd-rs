@@ -2144,6 +2144,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     if downloader.rate_limit > 0 {
                                         let size = min(dash_bytes.len()/1024 + 1, u32::MAX as usize);
                                         if let Some(cells) = NonZeroU32::new(size as u32) {
+                                            #[allow(clippy::redundant_pattern_matching)]
                                             if let Err(_) = bw_limiter.until_n_ready(cells).await {
                                                 return Err(DashMpdError::Other(
                                                     "Bandwidth limit is too low".to_string()));
@@ -2312,6 +2313,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                     if downloader.rate_limit > 0 {
                                         let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
                                         if let Some(cells) = NonZeroU32::new(size as u32) {
+                                            #[allow(clippy::redundant_pattern_matching)]
                                             if let Err(_) = bw_limiter.until_n_ready(cells).await {
                                                 return Err(DashMpdError::Other(
                                                     "Bandwidth limit is too low".to_string()));
@@ -2471,6 +2473,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                                 if downloader.rate_limit > 0 {
                                     let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
                                     if let Some(cells) = NonZeroU32::new(size as u32) {
+                                        #[allow(clippy::redundant_pattern_matching)]
                                         if let Err(_) = bw_limiter.until_n_ready(cells).await {
                                             return Err(DashMpdError::Other(
                                                 "Bandwidth limit is too low".to_string()));
