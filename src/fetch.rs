@@ -844,7 +844,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     redirected_url.join(href)
                         .map_err(|e| parse_error("joining with XLink URL", e))?
                 };
-                let xml = client.get(xlink_url)
+                let xml = client.get(xlink_url.clone())
                     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                     .header("Accept-Language", "en-US,en")
                     .header("Sec-Fetch-Mode", "navigate")
@@ -854,6 +854,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     .map_err(|e| network_error("fetching XLink on Period element", e))?
                     .text().await
                     .map_err(|e| network_error("resolving XLink on Period element", e))?;
+                if downloader.verbosity > 2 {
+                    println!("Resolved onLoad XLink {xlink_url} on Period element -> {} octets",
+                             xml.len());
+                }
                 let linked_period: Period = quick_xml::de::from_str(&xml)
                     .map_err(|e| parse_error("parsing Period XLink XML", e))?;
                 period.clone_from(&linked_period);
@@ -906,7 +910,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         redirected_url.join(href)
                             .map_err(|e| parse_error("parsing XLink URL on AdaptationSet", e))?
                     };
-                    let xml = client.get(xlink_url)
+                    let xml = client.get(xlink_url.clone())
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                         .header("Accept-Language", "en-US,en")
                         .header("Sec-Fetch-Mode", "navigate")
@@ -916,6 +920,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         .map_err(|e| network_error("fetching XLink URL for AdaptationSet", e))?
                         .text().await
                         .map_err(|e| network_error("resolving XLink on AdaptationSet element", e))?;
+                    if downloader.verbosity > 2 {
+                        println!("Resolved onLoad XLink {xlink_url} on audio AdaptationSet -> {} octets",
+                                 xml.len());
+                    }
                     let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                         .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
                     audio.clone_from(&linked_adaptation);
@@ -947,7 +955,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             redirected_url.join(href)
                                 .map_err(|e| parse_error("joining with XLink URL for Representation", e))?
                         };
-                        let xml = client.get(xlink_url)
+                        let xml = client.get(xlink_url.clone())
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
@@ -957,6 +965,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             .map_err(|e| network_error("fetching XLink URL for Representation", e))?
                             .text().await
                             .map_err(|e| network_error("resolving XLink URL for Representation", e))?;
+                        if downloader.verbosity > 2 {
+                            println!("Resolved onLoad XLink {xlink_url} on audio Representation -> {} octets",
+                                     xml.len());
+                        }
                         let linked_representation: Representation = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
                         representations.push(linked_representation);
@@ -1400,7 +1412,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         redirected_url.join(href)
                             .map_err(|e| parse_error("joining XLink URL with BaseURL", e))?
                     };
-                    let xml = client.get(xlink_url)
+                    let xml = client.get(xlink_url.clone())
                         .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                         .header("Accept-Language", "en-US,en")
                         .header("Sec-Fetch-Mode", "navigate")
@@ -1410,6 +1422,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         .map_err(|e| network_error("fetching XLink URL for video Adaptation", e))?
                         .text().await
                         .map_err(|e| network_error("resolving XLink URL for video Adaptation", e))?;
+                    if downloader.verbosity > 2 {
+                        println!("Resolved onLoad XLink {xlink_url} on video AdaptationSet -> {} octets",
+                                 xml.len());
+                    }
                     let linked_adaptation: AdaptationSet = quick_xml::de::from_str(&xml)
                         .map_err(|e| parse_error("parsing XML for XLink AdaptationSet", e))?;
                     video.clone_from(&linked_adaptation);
@@ -1441,7 +1457,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             redirected_url.join(href)
                                 .map_err(|e| parse_error("joining XLink on Representation element", e))?
                         };
-                        let xml = client.get(xlink_url)
+                        let xml = client.get(xlink_url.clone())
                             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                             .header("Accept-Language", "en-US,en")
                             .header("Sec-Fetch-Mode", "navigate")
@@ -1451,6 +1467,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                             .map_err(|e| network_error("fetching XLink URL for video Representation", e))?
                             .text().await
                             .map_err(|e| network_error("resolving XLink URL for video Representation", e))?;
+                        if downloader.verbosity > 2 {
+                            println!("Resolved onLoad XLink {xlink_url} on video Representation -> {} octets",
+                                     xml.len());
+                        }
                         let linked_representation: Representation = quick_xml::de::from_str(&xml)
                             .map_err(|e| parse_error("parsing XLink XML for Representation", e))?;
                         representations.push(linked_representation);
@@ -1511,7 +1531,7 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                         }
                         for pssh in cp.cenc_pssh.iter() {
                             if let Some(pc) = &pssh.content {
-                                diag_video += &format!("    PSSH: {pc}\n");
+                                diag_video += &format!("    PSSH (from manifest): {pc}\n");
                             }
                         }
                     }
@@ -2065,6 +2085,11 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
             }
         }
     } // loop over each Period
+
+    // FIXME We don't currently handle multi-codec multi-Period streams correctly, because we assume
+    // that all video segments (likewise all audio segments) can be concatenated together. We should
+    // be doing the concatenation once per Period, then joining each Period's content with
+    // reencoding.
 
     let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
         path.clone()
