@@ -6,6 +6,10 @@
   an `Option` (incompatible change).
 - Downloading: handling of STPP subtitles distributed as fragmented MP4 segments has been improved.
   They will be merged with the final output container if MP4Box is installed.
+- Downloading: more diagnostics information is printed concerning the selected audio/video streams,
+  when requested verbosity is higher than 1. In particular, pssh information will be printed for
+  streams with ContentProtection whose pssh is embedded in the initialization segments rather than
+  in the DASH manifest.
 
 
 ## [0.12.0] - 2023-07-16
