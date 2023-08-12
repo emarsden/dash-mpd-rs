@@ -2,6 +2,10 @@
 
 
 ## [0.13.1] - Unreleased
+### New
+- Support for certain nodes used with PlayReady ContentProtection: `clearkey:Laurl`, `mspr:pro`,
+  `mspr:IsEncrypted`, `mspr:IV_Size`, `mspd:kid`.
+
 ### Changed
 - Downloading: improve support for multiperiod manifests. When the contents of the different periods
   can be joined into a single output container (because they share the same resolution, frame rate
