@@ -77,7 +77,7 @@ use crate::scte35::{Signal, SpliceInfoSection};
 #[cfg(all(feature = "fetch", feature = "libav"))]
 use crate::libav::mux_audio_video;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
-use crate::ffmpeg::mux_audio_video;
+use crate::ffmpeg::{mux_audio_video};
 use base64_serde::base64_serde_type;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
@@ -1040,9 +1040,53 @@ pub struct CencPssh {
     pub content: Option<String>,
 }
 
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct Laurl {
+    #[serde(rename = "@Lic_type")]
+    pub lic_type: Option<String>,
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct MsprPro {
+    #[serde(rename = "@xmlns", serialize_with="serialize_xmlns")]
+    pub xmlns: Option<String>,
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct MsprIsEncrypted {
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct MsprIVSize {
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct MsprKid {
+    #[serde(rename = "$text")]
+    pub content: Option<String>,
+}
+
 /// Contains information on DRM (rights management / encryption) mechanisms used in the stream, such
-/// as Widevine and Playready. Note that this library is not able to download content with DRM. If
-/// this node is not present, no content protection is applied by the source.
+/// as Widevine and Playready. If this node is not present, no content protection is applied by the
+/// source.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1060,6 +1104,16 @@ pub struct ContentProtection {
     /// The DRM key identifier.
     #[serde(rename = "@cenc:default_KID", alias = "@default_KID")]
     pub default_KID: Option<String>,
+    #[serde(rename = "clearkey:Laurl", alias = "Laurl")]
+    pub laurl: Option<Laurl>,
+    #[serde(rename = "mspr:pro", alias = "pro")]
+    pub msprpro: Option<MsprPro>,
+    #[serde(rename = "mspr:IsEncrypted", alias = "IsEncrypted")]
+    pub mspr_is_encrypted: Option<MsprIsEncrypted>,
+    #[serde(rename = "mspr:IV_Size", alias = "IV_Size")]
+    pub mspr_iv_size: Option<MsprIVSize>,
+    #[serde(rename = "mspr:kid", alias = "kid")]
+    pub mspr_kid: Option<MsprKid>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
