@@ -14,8 +14,18 @@ use fs_err as fs;
 use std::env;
 use std::time::Duration;
 use std::process::Command;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use dash_mpd::fetch::DashDownloader;
+
+
+// We tolerate significant differences in final output file size, because as encoder performance
+// changes in newer versions of ffmpeg, the resulting file size when reencoding may change
+// significantly.
+fn check_file_size_approx(p: &PathBuf, expected: u64) {
+    let meta = fs::metadata(p).unwrap();
+    let ratio = meta.len() as f64 / expected as f64;
+    assert!(0.9 < ratio && ratio < 1.1);
+}
 
 
 #[tokio::test]
@@ -103,6 +113,24 @@ async fn test_downloader() {
 
 }
 
+
+// Content that uses the HVC1 H265 codec in a CMAF container.
+#[tokio::test]
+async fn test_h265() {
+    // Don't run download tests on CI infrastructure
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd";
+    let out = env::temp_dir().join("h265.mp4");
+    assert!(DashDownloader::new(&mpd_url)
+            .worst_quality()
+            .download_to(out.clone())
+            .await
+            .is_ok());
+    check_file_size_approx(&out, 48_352_569);
+}
+
 #[tokio::test]
 async fn test_follow_redirect() {
     // Don't run download tests on CI infrastructure
@@ -117,11 +145,9 @@ async fn test_follow_redirect() {
             .download_to(out.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&out)) {
-        let ratio = meta.len() as f64 / 60_939.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&out, 60_939);
 }
+
 
 
 #[tokio::test]
@@ -329,10 +355,7 @@ async fn test_decryption_variants () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 33_746_341.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 33_746_341);
     assert!(ffmpeg_approval(&outpath));
 
     // WideVine ContentProtection with CBCS encryption
@@ -347,10 +370,7 @@ async fn test_decryption_variants () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 79_731_116.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 79_731_116);
     // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
     // various anomalies in the AAC audio stream, though it seems to play the content OK.
     // assert!(ffmpeg_approval(&outpath));
@@ -365,10 +385,7 @@ async fn test_decryption_variants () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 26_420_624.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 26_420_624);
     assert!(ffmpeg_approval(&outpath));
 
     // Marlin / CENC
@@ -381,10 +398,7 @@ async fn test_decryption_variants () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 14_357_917.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 14_357_917);
     assert!(ffmpeg_approval(&outpath));
 
     // Marlin / CBCS
@@ -397,10 +411,7 @@ async fn test_decryption_variants () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 14_357_925.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 14_357_925);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
     // assert!(ffmpeg_approval(&outpath));
@@ -420,10 +431,7 @@ async fn test_decryption_small () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    if let Ok(meta) = fs::metadata(Path::new(&outpath)) {
-        let ratio = meta.len() as f64 / 6_975_147.0;
-        assert!(0.95 < ratio && ratio < 1.05);
-    }
+    check_file_size_approx(&outpath, 6_975_147);
     assert!(ffmpeg_approval(&outpath));
 }
 
