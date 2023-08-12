@@ -1,5 +1,22 @@
 # Changelog
 
+
+## [0.13.1] - Unreleased
+### Changed
+- Downloading: improve support for multiperiod manifests. When the contents of the different periods
+  can be joined into a single output container (because they share the same resolution, frame rate
+  and aspect ratio), we concatenate them using ffmpeg (with reencoding in case the codecs in the
+  various periods are different). If they cannot be joined, we save the content in output files
+  named according to the requested output file (whose name is used for the first period). Names
+  ressemble "output-p2.mp4" for the second period, and so on.
+- Downloading: new function `concatenate_periods` on `DashDownloader` to specify whether the
+  concatenation (which is very CPU-intensive due to the reencoding) of multi-period manifests should
+  be attempted. The default behaviour is to concatenate when the media contents allow it.
+- Downloading: improved support for certain addressing types on subtitles
+  (AdaptationSet>SegmentList, Representation>SegmentList, SegmentTemplate+SegmentTimeline addressing
+  modes).
+
+
 ## [0.13.0] - 2023-08-05
 ### Changed
 - Change element `Accessibility` of `ContentComponent` and `AdaptationSet` nodes to a `Vec` instead of
