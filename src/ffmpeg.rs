@@ -384,12 +384,12 @@ fn video_container_metainfo(path: &PathBuf) -> Result<VideoMetainfo, DashMpdErro
             }
             if let Some(s) = &meta.streams.iter().find(|s| s.width.is_some() && s.height.is_some()) {
                 if let Some(fr) = parse_frame_rate(&s.avg_frame_rate) {
-                    if let Some(sar) = s.sample_aspect_ratio.as_ref().and_then(|sr| parse_aspect_ratio(&sr)) {
+                    if let Some(sar) = s.sample_aspect_ratio.as_ref().and_then(|sr| parse_aspect_ratio(sr)) {
                         return Ok(VideoMetainfo {
                             width: s.width.unwrap(),
                             height: s.height.unwrap(),
                             frame_rate: fr,
-                            sar: sar,
+                            sar,
                         });
                     }
                 }
@@ -435,7 +435,7 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
     if let Ok(p0m) = video_container_metainfo(&paths[0]) {
         return paths.iter().all(|p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
     }
-    paths.iter().all(|p| container_only_audio(p))
+    paths.iter().all(container_only_audio)
 }
 
 // Generate an appropriate "complex" filter for the ffmpeg concat filter.
@@ -522,7 +522,7 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     let mut args = vec!["-hide_banner", "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
                         "-y",
-                        "-i", &tmppath];
+                        "-i", tmppath];
     for p in &paths[1..] {
         args.push("-i");
         args.push(p.to_str().unwrap());

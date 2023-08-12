@@ -23,6 +23,7 @@ use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
+#[cfg(not(feature = "libav"))]
 use crate::ffmpeg::{video_containers_concatable, concat_output_files};
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
@@ -3220,6 +3221,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
         // If the streams for the different periods are all of the same resolution, we can
         // concatenate them (with reencoding) into a single media file. Otherwise, we can't
         // concatenate without rescaling and loss of quality, so we leave them in separate files.
+        // This feature isn't implemented using libav instead of ffmpeg as a subprocess.
+        #[allow(unused_mut)]
+        let mut concatenated = false;
+        #[cfg(not(feature = "libav"))]
         if downloader.concatenate_periods && video_containers_concatable(&downloader, &period_output_paths) {
             info!("Preparing to concatenate multiple Periods into one output file");
             concat_output_files(&downloader, &period_output_paths)?;
@@ -3228,8 +3233,10 @@ async fn fetch_mpd(downloader: DashDownloader) -> Result<PathBuf, DashMpdError> 
                     info!("Failed to delete temporary file");
                 }
             }
+            concatenated = true;
             maybe_record_metainformation(&period_output_paths[0], &downloader, &mpd);
-        } else {
+        }
+        if !concatenated {
             println!("Media content has been saved in a separate file for each period:");
             period_counter = 0;
             for p in period_output_paths {

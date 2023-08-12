@@ -18,8 +18,11 @@
 ///    https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/muxing.c
 
 
+use std::io;
 use std::cmp::{min, max};
-use std::fs::File;
+use fs_err as fs;
+use fs::File;
+use std::path::Path;
 use log::info;
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
@@ -73,11 +76,22 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 
 
 pub fn mux_audio_video(
-    downloader: &DashDownloader,
-    audio_path: &str,
-    video_path: &str) -> Result<(), DashMpdError> {
+    _downloader: &DashDownloader,
+    output_path: &Path,
+    audio_path: &Path,
+    video_path: &Path) -> Result<(), DashMpdError> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {msg}"));
-    let mut video_demuxer = libav_open_input(video_path)
+    let audio_str = audio_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            String::from("")))?;
+    let video_str = video_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            String::from("")))?;
+    let mut video_demuxer = libav_open_input(video_str)
         .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
     let (video_pos, video_codec) = video_demuxer
         .streams()
@@ -91,7 +105,7 @@ pub fn mux_audio_video(
             None
         })
         .ok_or_else(|| DashMpdError::Muxing(String::from("finding libav video codec")))?;
-    let mut audio_demuxer = libav_open_input(audio_path)?;
+    let mut audio_demuxer = libav_open_input(audio_str)?;
     let (audio_pos, audio_codec) = audio_demuxer
         .streams()
         .iter()
@@ -105,7 +119,7 @@ pub fn mux_audio_video(
         })
         .ok_or_else(|| DashMpdError::Muxing(String::from("finding libav audio codec")))?;
 
-    let out = &downloader.output_path.as_ref().unwrap().to_str()
+    let out = output_path.to_str()
         .ok_or_else(|| DashMpdError::Muxing(String::from("converting output path")))?;
     let mut muxer = libav_open_output(out, &[video_codec, audio_codec])?;
     let mut last_dts: Timestamp = Timestamp::null();
