@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
                 Some(b) => b.to_string(),
                 None => "<unspecified>".to_string(),
             };
-            println!("Audio stream with codec {}, bandwidth {}", codec, bw);
+            println!("Audio stream with codec {codec}, bandwidth {bw}");
         }
     }
 
