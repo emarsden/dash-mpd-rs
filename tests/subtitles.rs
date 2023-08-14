@@ -8,18 +8,30 @@
 // root crate directory).
 
 
-use std::fs;
+use fs_err as fs;
 use std::env;
 use std::path::Path;
 use dash_mpd::fetch::DashDownloader;
 
+// This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to
+// the output path with a ".wvtt" extension. Also check that the subtitles are successfully
+// converted to SRT format, which is more widely supported, in a file named like the output with a
+// ".srt" extension.
+//
+// Note that these tests will fail if MP4Box (from GPAC) is not installed. MP4Box is used for the
+// conversion to SRT format.
 #[tokio::test]
 async fn test_subtitles_wvtt () {
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
     let outpath = env::temp_dir().join("sintel.mp4");
-    let mut subpath = outpath.clone();
-    subpath.set_extension("srt");
-    let subpath = Path::new(&subpath);
+    let mut subpath_wvtt = outpath.clone();
+    subpath_wvtt.set_extension("wvtt");
+    let subpath_wvtt = Path::new(&subpath_wvtt);
+    let mut subpath_srt = outpath.clone();
+    subpath_srt.set_extension("srt");
+    let subpath_srt = Path::new(&subpath_srt);
+    // First download the subtitles without specifying a preferred language, which means the first
+    // one present in the manifest is downloaded (in this case it is in Dutch).
     assert!(DashDownloader::new(mpd)
             .fetch_audio(false)
             .fetch_video(false)
@@ -27,12 +39,14 @@ async fn test_subtitles_wvtt () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    assert!(fs::metadata(subpath).is_ok());
-    let srt = fs::read_to_string(subpath).unwrap();
-    // We didn't specify a preferred language, so the first available one in the manifest (here
-    // Dutch) is downloaded.
+    assert!(fs::metadata(subpath_wvtt).is_ok());
+    assert!(fs::metadata(subpath_srt).is_ok());
+    let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land van de poortwachters"));
+    fs::remove_file(subpath_wvtt).is_ok();
+    fs::remove_file(subpath_srt).is_ok();
 
+    // Now download the english subtitles and check that we got the expected content.
     assert!(DashDownloader::new(mpd)
             .fetch_audio(false)
             .fetch_video(false)
@@ -41,7 +55,7 @@ async fn test_subtitles_wvtt () {
             .download_to(outpath.clone())
             .await
             .is_ok());
-    let srt = fs::read_to_string(subpath).unwrap();
+    let srt = fs::read_to_string(subpath_srt).unwrap();
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
 }
