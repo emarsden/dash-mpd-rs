@@ -36,7 +36,9 @@ use std::time::Duration;
 use anyhow::{Result, Context};
 use env_logger::Env;
 use clap::Arg;
+use url::Url;
 use dash_mpd::{MPD, parse};
+use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 
 
 #[tokio::main]
@@ -66,7 +68,11 @@ async fn main() -> Result<()> {
         .context("fetching MPD content")?;
     let out1 = env::temp_dir().join("mpd-orig.xml");
     fs::write(&out1, &xml)?;
-    let mpd: MPD = parse(&xml).context("parsing MPD content")?;
+    // let mpd: MPD = parse(&xml).context("parsing MPD content")?;
+    let dl = DashDownloader::new(url)
+        .with_http_client(client.clone());
+    let mpd: MPD = parse_resolving_xlinks(&dl, &Url::parse(url)?, &xml.into_bytes()).await
+        .context("parsing DASH XML")?;
     let rewritten = quick_xml::se::to_string(&mpd)
         .context("serializing MPD struct")?;
     let out2 = env::temp_dir().join("mpd-rewritten.xml");
