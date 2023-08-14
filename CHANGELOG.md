@@ -19,6 +19,11 @@
 - Downloading: improved support for certain addressing types on subtitles
   (AdaptationSet>SegmentList, Representation>SegmentList, SegmentTemplate+SegmentTimeline addressing
   modes).
+- Significantly improved support for XLink semantics on elements (remote elements). In particular,
+  resolve-to-zero semantics are implemented, a remote XLinked element may resolve to multiple
+  elements (e.g. a Period with href pointing to a remote MPD fragment may resolve to three final
+  Period elements), and a remote XLinked element may contain a remote XLinked element (the number of
+  repeated resolutions is limited, to avoid DoS attacks).
 
 
 ## [0.13.0] - 2023-08-05
@@ -341,7 +346,7 @@
   available separately).
 - Downloading: function `prefer_language` on DashDownloader allows the user to specify the preferred
   language when multiple audio streams with different languages are available. The argument must be
-  in RFC 5646 format (eg. "fr" or "en-AU"). If a preference is not specified and multiple audio
+  in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not specified and multiple audio
   streams are present, the first one listed in the DASH manifest will be downloaded.
 
 
@@ -352,7 +357,7 @@
 
 ### Fixed
 - Fixes to allow download of DASH streams with SegmentList addressing where the `SegmentURL` nodes
-  use `BaseURL` instead of `@media` paths (eg.
+  use `BaseURL` instead of `@media` paths (e.g.
   http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-single/mp4-main-single-mpd-AV-BS.mpd) 
 - Downloading: muxing using VLC should now work correctly.
 - Downloading: improve handling of transient and permanent HTTP errors.
@@ -365,7 +370,7 @@
   download support for several video publishers (content previously handled as if it had zero
   length, due to this parsing bug).
 - Optional `SegmentTemplate@duration` field changed from u64 to f64 type. It is specified to
-  be an unsigned int, but some manifests in the wild use a floating point value (eg.
+  be an unsigned int, but some manifests in the wild use a floating point value (e.g.
   https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd). 
 
 ## [0.4.2] - 2022-03-19

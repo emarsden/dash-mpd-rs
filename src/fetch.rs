@@ -561,13 +561,6 @@ fn is_absolute_url(s: &str) -> bool {
         s.starts_with("ftp://")
 }
 
-// From the DASH-IF-IOP-v4.0 specification, "If the value of the @xlink:href attribute is
-// urn:mpeg:dash:resolve-to-zero:2013, HTTP GET request is not issued, and the in-MPD element shall
-// be removed from the MPD."
-fn fetchable_xlink_href(href: &str) -> bool {
-    (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
-}
-
 // Return true if the response includes a content-type header corresponding to audio. We need to
 // allow "video/" MIME types because some servers return "video/mp4" content-type for audio segments
 // in an MP4 container, and we accept application/octet-stream headers because some servers are
@@ -826,15 +819,53 @@ fn maybe_record_metainformation(path: &Path, downloader: &DashDownloader, mpd: &
     }
 }
 
+// From the DASH-IF-IOP-v4.0 specification, "If the value of the @xlink:href attribute is
+// urn:mpeg:dash:resolve-to-zero:2013, HTTP GET request is not issued, and the in-MPD element shall
+// be removed from the MPD."
+fn fetchable_xlink_href(href: &str) -> bool {
+    (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
+}
+
+fn element_resolves_to_zero(element: &xmltree::Element) -> bool {
+    element.attributes.get("href")
+        .is_some_and(|hr| hr.eq("urn:mpeg:dash:resolve-to-zero:2013"))
+}
+
+#[derive(Debug)]
+struct PendingInsertion {
+    target: xmltree::XMLNode,
+    insertion: xmltree::XMLNode,
+}
+
+
+fn do_pending_insertions_recurse(
+    element: &mut xmltree::Element,
+    pending: &Vec<PendingInsertion>)
+{
+    // check whether each child needs an insertion after it
+    for pi in pending {
+        if let Some(idx) = element.children.iter().position(|c| *c == pi.target) {
+            element.children.insert(idx, pi.insertion.clone());
+        }
+    }
+    for child in element.children.iter_mut() {
+        if let Some(ce) = child.as_mut_element() {
+            do_pending_insertions_recurse(ce, pending);
+        }
+    }
+}
 
 // Walk the XML tree recursively to resolve any XLink references in any nodes.
+//
+// Maintenance note: the xot crate might be a good alternative to the xmltree crate.
 #[async_recursion]
-async fn resolve_xlink_references_element(
+async fn resolve_xlink_references_recurse(
     downloader: &DashDownloader,
     redirected_url: &Url,
-    element: &mut xmltree::Element) -> Result<(), DashMpdError>
+    element: &mut xmltree::Element) -> Result<Vec<PendingInsertion>, DashMpdError>
 {
-    if let Some(href) = element.attributes.get_mut("href") {
+    let mut pending_insertions = Vec::new();
+    if let Some(href) = element.attributes.get("href") {
         if fetchable_xlink_href(href) {
             let xlink_url = if is_absolute_url(href) {
                 Url::parse(href)
@@ -860,28 +891,52 @@ async fn resolve_xlink_references_element(
                 println!("  Resolved onLoad XLink {xlink_url} on {} -> {} octets",
                          element.name, xml.len());
             }
-            let ndoc = xmltree::Element::parse(xml.as_bytes())
+            // The difficulty here is that the XML fragment received may contain multiple elements,
+            // for example a Period with xlink resolves to two Period elements. For a single
+            // resolved element we can simply replace the original element by its resolved
+            // counterpart. When the xlink resolves to multiple elements, we can't insert them back
+            // into the parent node directly, but need to return them to the caller for later insertion.
+            let nodes = xmltree::Element::parse_all(xml.as_bytes())
                 .map_err(|e| parse_error("xmltree parsing", e))?;
-            // now replace
-            *element = ndoc;
+            if let Some(n) = nodes[0].as_element() {
+                *element = n.clone();
+            }
+            for n in &nodes[1..] {
+                let pending = PendingInsertion {
+                    target: xmltree::XMLNode::Element(element.clone()),
+                    insertion: n.clone(),
+                };
+                pending_insertions.push(pending);
+            }
         }
     }
+    // Delete any child Elements that have XLink resolve-to-zero semantics.
+    element.children.retain(
+        |n| n.as_element().is_none() ||
+            n.as_element().is_some_and(|e| !element_resolves_to_zero(e)));
     for child in element.children.iter_mut() {
         if let Some(ce) = child.as_mut_element() {
-            resolve_xlink_references_element(downloader, redirected_url, ce).await?;
+            let pending = resolve_xlink_references_recurse(downloader, redirected_url, ce).await?;
+            for p in pending {
+                pending_insertions.push(p);
+            }
         }
     }
-    Ok(())
+    Ok(pending_insertions)
 }
 
-async fn resolve_xlink_references(
+pub async fn parse_resolving_xlinks(
     downloader: &DashDownloader,
     redirected_url: &Url,
     xml: &[u8]) -> Result<MPD, DashMpdError>
 {
     let mut doc = xmltree::Element::parse(xml)
         .map_err(|e| parse_error("xmltree parsing", e))?;
-    resolve_xlink_references_element(downloader, redirected_url, &mut doc).await?;
+    // The remote XLink fragments may contain further XLink references.
+    for _ in 1..5 {
+        let pending = resolve_xlink_references_recurse(downloader, redirected_url, &mut doc).await?;
+        do_pending_insertions_recurse(&mut doc, &pending);
+    }
     let mut buf = Vec::new();
     doc.write(&mut buf)
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
@@ -1027,13 +1082,10 @@ async fn do_period_audio(
                     start_number = s;
                 }
             }
-            let rid = match &audio_repr.id {
-                Some(id) => id,
-                None => return Err(
-                    DashMpdError::UnhandledMediaStream(
-                        "Missing @id on Representation node".to_string())),
-            };
-            let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+            let mut dict = HashMap::new();
+            if let Some(rid) = &audio_repr.id {
+                dict.insert("RepresentationID", rid.to_string());
+            }
             if let Some(b) = &audio_repr.bandwidth {
                 dict.insert("Bandwidth", b.to_string());
             }
@@ -1504,12 +1556,10 @@ async fn do_period_video(
                         .map_err(|e| parse_error("joining base with BaseURL", e))?;
                 }
             }
-            let rid = match &video_repr.id {
-                Some(id) => id,
-                None => return Err(DashMpdError::UnhandledMediaStream(
-                    "Missing @id on Representation node".to_string())),
-            };
-            let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+            let mut dict = HashMap::new();
+            if let Some(rid) = &video_repr.id {
+                dict.insert("RepresentationID", rid.to_string());
+            }
             if let Some(b) = &video_repr.bandwidth {
                 dict.insert("Bandwidth", b.to_string());
             }
@@ -2402,7 +2452,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let xml = response.bytes()
         .await
         .map_err(|e| network_error("fetching DASH manifest", e))?;
-    let mut mpd: MPD = resolve_xlink_references(downloader, &redirected_url, &xml).await
+    let mut mpd: MPD = parse_resolving_xlinks(downloader, &redirected_url, &xml).await
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
