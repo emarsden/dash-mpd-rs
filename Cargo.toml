@@ -27,7 +27,7 @@ log = "0.4.19"
 url = { version = "2.4.0", optional = true }
 data-url = { version = "0.3.0", optional = true }
 reqwest = { version = "0.11.18", default-features = false, optional = true }
-tokio = { version = "1.30.0", features = ["rt-multi-thread", "time"] }
+tokio = { version = "1.31.0", features = ["rt-multi-thread", "time"] }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.6.0", optional = true }
 xmltree = { version = "0.10", optional = true }
@@ -45,8 +45,11 @@ colored = "2.0.4"
 indicatif = "0.17.6"
 clap = "4.3.21"
 tokio = { version = "1.30.0", features = ["rt-multi-thread", "time", "macros"] }
+axum = "0.6.20"
+axum-server = { version = "0.5.1" }
 anyhow = "1.0.72"
 roxmltree = "0.18.0"
+xmlem = "0.2.3"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]
