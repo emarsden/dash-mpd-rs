@@ -2521,7 +2521,6 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     for mpd_period in &mpd.periods {
         let period = mpd_period.clone();
         period_counter += 1;
-        // let period_output_path = output_path_for_period(output_path, period_counter);
         // Accumulate some diagnostics information on the selected media stream
         if downloader.verbosity > 0 {
             if let Some(id) = period.id.as_ref() {
@@ -2551,12 +2550,16 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         for f in video_outputs.fragments {
             video_fragments.push(f);
         }
-        let subtitle_outputs = do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
-        for f in subtitle_outputs.fragments {
-            subtitle_fragments.push(f);
-        }
-        for f in subtitle_outputs.subtitle_formats {
-            subtitle_formats.push(f);
+        match do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await {
+            Ok(subtitle_outputs) => {
+                for f in subtitle_outputs.fragments {
+                    subtitle_fragments.push(f);
+                }
+                for f in subtitle_outputs.subtitle_formats {
+                    subtitle_formats.push(f);
+                }
+            },
+            Err(e) => warn!("Ignoring error triggered while processing subtitles: {e}"),
         }
 
         // Print some diagnostics information on the selected streams
@@ -2633,7 +2636,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             let start_audio_download = Instant::now();
             {
                 // We need a local scope for our tmpfile_video File, so that the file is closed when
-                // we later optionally call mp4decrypt (which requires exclusive access to its input file on Windows).
+                // we later optionally call mp4decrypt (which requires exclusive access to its input
+                // file on Windows).
                 let tmpfile_audio = File::create(tmppath_audio.clone())
                     .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
                 let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
@@ -2653,11 +2657,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                         observer.update(progress_percent, "Fetching audio segments");
                     }
                     let url = &frag.url;
-                    /*
-                    A manifest may use a data URL (RFC 2397) to embed media content such as the
-                    initialization segment directly in the manifest (recommended by YouTube for live
-                    streaming, but uncommon in practice).
-                     */
+                    // A manifest may use a data URL (RFC 2397) to embed media content such as the
+                    // initialization segment directly in the manifest (recommended by YouTube for live
+                    // streaming, but uncommon in practice).
                     if url.scheme() == "data" {
                         let us = &url.to_string();
                         let du = DataUrl::process(us)
