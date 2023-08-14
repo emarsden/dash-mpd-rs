@@ -1007,6 +1007,8 @@ pub struct Representation {
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
+    #[serde(rename = "@xlink:actuate", alias = "@actuate")]
+    pub actuate: Option<String>,
 }
 
 /// Describes a media content component.
@@ -1219,8 +1221,7 @@ pub struct InbandEventStream {
     #[serde(rename = "@xlink:href")]
     #[serde(alias = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate")]
-    #[serde(alias = "@actuate")]
+    #[serde(rename = "@xlink:actuate", alias = "@actuate")]
     pub actuate: Option<String>,
 }
 
