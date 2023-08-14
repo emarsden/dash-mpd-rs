@@ -450,12 +450,12 @@ fn make_ffmpeg_concat_filter_args(paths: &Vec<PathBuf>) -> Vec<String> {
     let mut filter = String::new();
     let mut have_audio = false;
     let mut have_video = false;
-    for i in 0..n {
-        if container_has_video(&paths[i]) {
+    for (i, path) in paths.iter().enumerate().take(n) {
+        if container_has_video(path) {
             filter += &format!("[{i}:v:0]");
             have_video = true;
         }
-        if container_has_audio(&paths[i]) {
+        if container_has_audio(path) {
             filter += &format!("[{i}:a:0]");
             have_audio = true;
         }
