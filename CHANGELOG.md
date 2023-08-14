@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.13.1] - Unreleased
+## [0.13.1] - 2023-08-14
 ### New
 - Support for certain nodes used with PlayReady ContentProtection: `clearkey:Laurl`, `mspr:pro`,
   `mspr:IsEncrypted`, `mspr:IV_Size`, `mspd:kid`.
