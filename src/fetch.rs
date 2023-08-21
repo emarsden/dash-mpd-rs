@@ -780,6 +780,7 @@ fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
 //
 // TODO: on Windows, could use NTFS Alternate Data Streams
 // https://en.wikipedia.org/wiki/NTFS#Alternate_data_stream_(ADS)
+#[allow(unused_variables)]
 fn maybe_record_metainformation(path: &Path, downloader: &DashDownloader, mpd: &MPD) {
     #[cfg(target_family = "unix")]
     if downloader.record_metainformation && (downloader.fetch_audio || downloader.fetch_video) {
