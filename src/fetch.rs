@@ -71,6 +71,7 @@ pub struct DashDownloader {
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
     language_preference: Option<String>,
+    video_width_preference: Option<u64>,
     fetch_video: bool,
     fetch_audio: bool,
     fetch_subtitles: bool,
@@ -162,6 +163,7 @@ impl DashDownloader {
             http_client: None,
             quality_preference: QualityPreference::Lowest,
             language_preference: None,
+            video_width_preference: None,
             fetch_video: true,
             fetch_audio: true,
             fetch_subtitles: false,
@@ -258,6 +260,12 @@ impl DashDownloader {
     /// audio streams are present, the first one listed in the DASH manifest will be downloaded.
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
+        self
+    }
+
+    /// Prefer video stream with width close to the specified width.
+    pub fn prefer_video_width(mut self, width: u64) -> DashDownloader {
+        self.video_width_preference = Some(width);
         self
     }
 
@@ -1490,9 +1498,14 @@ async fn do_period_video(
                     .map_err(|e| parse_error("joining base with BaseURL", e))?;
             }
         }
-        // We rank according to the @qualityRanking attribute if it is present (quality
-        // ranking may be different from bandwidth ranking when different codecs are used).
-        let maybe_video_repr = if video.representations.iter()
+        // We rank according to the preferred width width, if it is specified, and otherwise by the
+        // @qualityRanking attribute if it is present, and finally by the bandwidth specified. Note
+        // that quality ranking may be different from bandwidth ranking when different codecs are
+        // used.
+        let maybe_video_repr =  if let Some(want) = downloader.video_width_preference {
+            video.representations.iter()
+                .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+        }  else if video.representations.iter()
             .all(|x| x.qualityRanking.is_some())
         {
             // rank according to the @qualityRanking attribute (lower values represent
