@@ -11,6 +11,7 @@
 use fs_err as fs;
 use std::env;
 use std::path::Path;
+use log::info;
 use dash_mpd::fetch::DashDownloader;
 
 // This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to
@@ -32,29 +33,31 @@ async fn test_subtitles_wvtt () {
     let subpath_srt = Path::new(&subpath_srt);
     // First download the subtitles without specifying a preferred language, which means the first
     // one present in the manifest is downloaded (in this case it is in Dutch).
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(false)
-            .fetch_video(false)
-            .fetch_subtitles(true)
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .download_to(outpath.clone()).await
+        .unwrap();
     assert!(fs::metadata(subpath_wvtt).is_ok());
     assert!(fs::metadata(subpath_srt).is_ok());
     let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land van de poortwachters"));
-    fs::remove_file(subpath_wvtt).is_ok();
-    fs::remove_file(subpath_srt).is_ok();
+    if let Err(e) = fs::remove_file(subpath_wvtt) {
+        info!("Failed to delete temporary file for wvtt subs: {e}");
+    }
+    if let Err(e) = fs::remove_file(subpath_srt) {
+        info!("Failed to delete temporary file for srt usbs: {e}");
+    }
 
     // Now download the english subtitles and check that we got the expected content.
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(false)
-            .fetch_video(false)
-            .fetch_subtitles(true)
-            .prefer_language(String::from("eng"))
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_language(String::from("eng"))
+        .download_to(outpath.clone()).await
+        .unwrap();
     let srt = fs::read_to_string(subpath_srt).unwrap();
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
@@ -68,26 +71,24 @@ async fn test_subtitles_ttml () {
     let mut subpath = outpath.clone();
     subpath.set_extension("ttml");
     let subpath = Path::new(&subpath);
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(false)
-            .fetch_video(false)
-            .fetch_subtitles(true)
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .download_to(outpath.clone()).await
+        .unwrap();
     let ttml = fs::read_to_string(subpath).unwrap();
     // We didn't specify a preferred language, so the first available one in the manifest (here
     // English) is downloaded.
     assert!(ttml.contains("You're a jerk"));
 
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(false)
-            .fetch_video(false)
-            .fetch_subtitles(true)
-            .prefer_language(String::from("de"))
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_language(String::from("de"))
+        .download_to(outpath.clone()).await
+        .unwrap();
     let ttml = fs::read_to_string(subpath).unwrap();
     // This time we requested German subtitles.
     assert!(ttml.contains("Du bist ein Vollidiot"));
@@ -103,14 +104,13 @@ async fn test_subtitles_vtt () {
     let mut subpath = outpath.clone();
     subpath.set_extension("vtt");
     let subpath = Path::new(&subpath);
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(false)
-            .fetch_video(false)
-            .fetch_subtitles(true)
-            .prefer_language(String::from("de"))
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_language(String::from("de"))
+        .download_to(outpath.clone()).await
+        .unwrap();
     assert!(fs::metadata(subpath).is_ok());
     // This manifest contains a single subtitle track, available in VTT format via BaseURL addressing.
     let vtt = fs::read_to_string(subpath).unwrap();
@@ -129,13 +129,12 @@ async fn test_subtitles_stpp() {
     }
     let mpd = "https://rdmedia.bbc.co.uk/elephants_dream/1/client_manifest-all.mpd";
     let outpath = env::temp_dir().join("elephants-dream-bbc.mp4");
-    assert!(DashDownloader::new(mpd)
-            .fetch_audio(true)
-            .fetch_video(true)
-            .fetch_subtitles(true)
-            .download_to(outpath.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .download_to(outpath.clone()).await
+        .unwrap();
     let meta = ffprobe(outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];

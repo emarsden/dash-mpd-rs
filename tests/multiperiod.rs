@@ -38,11 +38,10 @@ async fn test_multiperiod_helio() {
     let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("heliocentrism-multiperiod.webm");
-    assert!(DashDownloader::new(&mpd_url)
-            .worst_quality()
-            .download_to(out.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
     check_file_size_approx(&out, 39_719);
     // The three periods should have been merged into a single output file, and the other temporary
     // media files should be been explicitly deleted.
@@ -60,11 +59,10 @@ async fn test_multiperiod_nomor5a() {
     let mpd_url = "https://dash.akamaized.net/dash264/TestCases/5a/nomor/1.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-5a.mp4");
-    assert!(DashDownloader::new(&mpd_url)
-            .worst_quality()
-            .download_to(out.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
     check_file_size_approx(&out, 95_623_359);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     assert_eq!(entries.count(), 1);
@@ -83,11 +81,10 @@ async fn test_multiperiod_nomor5b() {
     let out = tmpd.path().join("multiperiod-5b.mp4");
     let p2 = tmpd.path().join("multiperiod-5b-p2.mp4");
     let p3 = tmpd.path().join("multiperiod-5b-p3.mp4");
-    assert!(DashDownloader::new(&mpd_url)
-            .worst_quality()
-            .download_to(out.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
     check_file_size_approx(&out, 28_755_275);
     check_file_size_approx(&p2, 4_383_256);
     check_file_size_approx(&p3, 31_215_605);
@@ -105,11 +102,10 @@ async fn test_multiperiod_withsubs() {
     let mpd_url = "http://media.axprod.net/TestVectors/v6-Clear/MultiPeriod_Manifest_1080p.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-withsubs.mp4");
-    assert!(DashDownloader::new(&mpd_url)
-            .worst_quality()
-            .download_to(out.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
     check_file_size_approx(&out, 98_716_475);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     assert_eq!(entries.count(), 1);
@@ -124,11 +120,10 @@ async fn test_multiperiod_audio() {
     let mpd_url = "https://media.axprod.net/TestVectors/v7-Clear/Manifest_MultiPeriod_AudioOnly.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-audio.mp3");
-    assert!(DashDownloader::new(&mpd_url)
-            .worst_quality()
-            .download_to(out.clone())
-            .await
-            .is_ok());
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
     check_file_size_approx(&out, 23_868_589);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     assert_eq!(entries.count(), 1);

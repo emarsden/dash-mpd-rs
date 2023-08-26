@@ -121,7 +121,7 @@ async fn test_h265() {
     }
     let mpd_url = "https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd";
     let out = env::temp_dir().join("h265.mp4");
-    DashDownloader::new(&mpd_url)
+    DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
