@@ -72,6 +72,7 @@ pub struct DashDownloader {
     quality_preference: QualityPreference,
     language_preference: Option<String>,
     video_width_preference: Option<u64>,
+    video_height_preference: Option<u64>,
     fetch_video: bool,
     fetch_audio: bool,
     fetch_subtitles: bool,
@@ -164,6 +165,7 @@ impl DashDownloader {
             quality_preference: QualityPreference::Lowest,
             language_preference: None,
             video_width_preference: None,
+            video_height_preference: None,
             fetch_video: true,
             fetch_audio: true,
             fetch_subtitles: false,
@@ -263,9 +265,17 @@ impl DashDownloader {
         self
     }
 
-    /// Prefer video stream with width close to the specified width.
+    /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
+    /// the Adaptation whose width is closest to the specified width.
     pub fn prefer_video_width(mut self, width: u64) -> DashDownloader {
         self.video_width_preference = Some(width);
+        self
+    }
+
+    /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
+    /// the Adaptation whose height is closest to the specified width.
+    pub fn prefer_video_height(mut self, height: u64) -> DashDownloader {
+        self.video_height_preference = Some(height);
         self
     }
 
@@ -1498,33 +1508,32 @@ async fn do_period_video(
                     .map_err(|e| parse_error("joining base with BaseURL", e))?;
             }
         }
-        // We rank according to the preferred width width, if it is specified, and otherwise by the
-        // @qualityRanking attribute if it is present, and finally by the bandwidth specified. Note
-        // that quality ranking may be different from bandwidth ranking when different codecs are
-        // used.
-        let maybe_video_repr =  if let Some(want) = downloader.video_width_preference {
-            video.representations.iter()
-                .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
-        }  else if video.representations.iter()
-            .all(|x| x.qualityRanking.is_some())
-        {
+        // A manifest often contains multiple video Representations with different bandwidths and
+        // video resolutions. We select the Representation to download by ranking the available
+        // streams according to the preferred width specified by the user, or by the preferred
+        // height specified by the user, or by the user's specified quality preference. When ranking
+        // by quality, we first rank following the @qualityRanking attribute if it is present, and
+        // otherwise by the bandwidth specified. Note that quality ranking may be different from
+        // bandwidth ranking when different codecs are used.
+        let reps = video.representations.iter();
+        let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
+            reps.min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+        }  else if let Some(want) = downloader.video_height_preference {
+            reps.min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
+        } else if video.representations.iter().all(|x| x.qualityRanking.is_some()) {
             // rank according to the @qualityRanking attribute (lower values represent
             // higher quality content)
             if downloader.quality_preference == QualityPreference::Lowest {
-                video.representations.iter()
-                    .max_by_key(|x| x.qualityRanking.unwrap())
+                reps.max_by_key(|x| x.qualityRanking.unwrap())
             } else {
-                video.representations.iter()
-                    .min_by_key(|x| x.qualityRanking.unwrap())
+                reps.min_by_key(|x| x.qualityRanking.unwrap())
             }
         } else {
             // rank according to the bandwidth attribute
             if downloader.quality_preference == QualityPreference::Lowest {
-                video.representations.iter()
-                    .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
+                reps.min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
             } else {
-                video.representations.iter()
-                    .max_by_key(|x| x.bandwidth.unwrap_or(0))
+                reps.max_by_key(|x| x.bandwidth.unwrap_or(0))
             }
         };
         if let Some(video_repr) = maybe_video_repr {

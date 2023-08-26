@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.13.2] - Unreleased
+### New
+- Downloading: add support for selecting the desired video stream based on its resolution. See
+  functions `prefer_video_width` and `prefer_video_height` on `DasnDownloader`.
+
 
 ## [0.13.1] - 2023-08-14
 ### New
