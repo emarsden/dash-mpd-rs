@@ -55,8 +55,8 @@ pub trait ProgressObserver: Send + Sync {
 
 /// Preference for retrieving media representation with highest quality (and highest file size) or
 /// lowest quality (and lowest file size).
-#[derive(PartialEq, Eq, Default)]
-pub enum QualityPreference { #[default] Lowest, Highest }
+#[derive(PartialEq, Eq, Clone, Copy, Default)]
+pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 
 
 /// The DashDownloader allows the download of streaming media content from a DASH MPD manifest. This
@@ -247,6 +247,13 @@ impl DashDownloader {
     /// quality), prefer the Adaptation with the highest bitrate (largest output file).
     pub fn best_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Highest;
+        self
+    }
+
+    /// If the DASH manifest specifies several Adaptations with different bitrates (levels of
+    /// quality), prefer the Adaptation with an intermediate bitrate (closest to the median value).
+    pub fn intermediate_quality(mut self) -> DashDownloader {
+        self.quality_preference = QualityPreference::Intermediate;
         self
     }
 
@@ -622,6 +629,67 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
         100
     } else {
         100
+    }
+}
+
+// A manifest often contains multiple video Representations with different bandwidths and video
+// resolutions. We select the Representation to download by ranking following the user's specified
+// quality preference. We first rank following the @qualityRanking attribute if it is present, and
+// otherwise by the bandwidth specified. Note that quality ranking may be different from bandwidth
+// ranking when different codecs are used.
+fn select_stream_quality_preference(
+    representations: &[Representation],
+    pref: QualityPreference) -> Option<&Representation>
+{
+    if representations.iter().all(|x| x.qualityRanking.is_some()) {
+        // rank according to the @qualityRanking attribute (lower values represent
+        // higher quality content)
+        match pref {
+            QualityPreference::Lowest =>
+                representations.iter().max_by_key(|r| r.qualityRanking.unwrap_or(u8::MAX)),
+            QualityPreference::Highest =>
+                representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0)),
+            QualityPreference::Intermediate => {
+                let count = representations.len();
+                match count {
+                    0 => None,
+                    1 => Some(&representations[0]),
+                    _ => {
+                        let mut ranking: Vec<u8> = representations.iter()
+                            .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
+                            .collect();
+                        ranking.sort_unstable();
+                        let want_ranking = ranking.get(count / 2).unwrap();
+                        representations.iter()
+                            .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                    },
+                }
+            },
+        }
+    } else {
+        // rank according to the bandwidth attribute (lower values imply lower quality)
+        match pref {
+            QualityPreference::Lowest => representations.iter()
+                .min_by_key(|r| r.bandwidth.unwrap_or(1_000_000_000)),
+            QualityPreference::Highest => representations.iter()
+                .max_by_key(|r| r.bandwidth.unwrap_or(0)),
+            QualityPreference::Intermediate => {
+                let count = representations.len();
+                match count {
+                    0 => None,
+                    1 => Some(&representations[0]),
+                    _ => {
+                        let mut ranking: Vec<u64> = representations.iter()
+                            .map(|r| r.bandwidth.unwrap_or(100_000_000))
+                            .collect();
+                        ranking.sort_unstable();
+                        let want_ranking = ranking.get(count / 2).unwrap();
+                        representations.iter()
+                            .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                    },
+                }
+            },
+        }
     }
 }
 
@@ -1009,31 +1077,7 @@ async fn do_period_audio(
                     .map_err(|e| parse_error("joining with AdaptationSet BaseURL", e))?;
             }
         }
-        // We rank according to the @qualityRanking attribute if it is present (quality
-        // ranking may be different from bandwidth ranking when different codecs are used).
-        let maybe_audio_repr = if audio.representations.iter()
-            .all(|x| x.qualityRanking.is_some())
-        {
-            // rank according to the @qualityRanking attribute (lower values represent
-            // higher quality content)
-            if downloader.quality_preference == QualityPreference::Lowest {
-                audio.representations.iter()
-                    .max_by_key(|x| x.qualityRanking.unwrap())
-            } else {
-                audio.representations.iter()
-                    .min_by_key(|x| x.qualityRanking.unwrap())
-            }
-        } else {
-            // rank according to the bandwidth attribute
-            if downloader.quality_preference == QualityPreference::Lowest {
-                audio.representations.iter()
-                    .min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-            } else {
-                audio.representations.iter()
-                    .max_by_key(|x| x.bandwidth.unwrap_or(0))
-            }
-        };
-        if let Some(audio_repr) = maybe_audio_repr {
+        if let Some(audio_repr) = select_stream_quality_preference(&audio.representations, downloader.quality_preference) {
             if downloader.verbosity > 0 {
                 let bw = if let Some(bw) = audio_repr.bandwidth {
                     format!("bw={} Kbps ", bw / 1024)
@@ -1480,7 +1524,7 @@ async fn do_period_video(
     period: &Period,
     period_counter: u8,
     base_url: Url
-    ) -> Result<PeriodOutputs, DashMpdError> 
+    ) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
     let mut diagnostics = String::new();
@@ -1511,30 +1555,15 @@ async fn do_period_video(
         // A manifest often contains multiple video Representations with different bandwidths and
         // video resolutions. We select the Representation to download by ranking the available
         // streams according to the preferred width specified by the user, or by the preferred
-        // height specified by the user, or by the user's specified quality preference. When ranking
-        // by quality, we first rank following the @qualityRanking attribute if it is present, and
-        // otherwise by the bandwidth specified. Note that quality ranking may be different from
-        // bandwidth ranking when different codecs are used.
-        let reps = video.representations.iter();
+        // height specified by the user, or by the user's specified quality preference.
         let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
-            reps.min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+            video.representations.iter()
+                .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
         }  else if let Some(want) = downloader.video_height_preference {
-            reps.min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
-        } else if video.representations.iter().all(|x| x.qualityRanking.is_some()) {
-            // rank according to the @qualityRanking attribute (lower values represent
-            // higher quality content)
-            if downloader.quality_preference == QualityPreference::Lowest {
-                reps.max_by_key(|x| x.qualityRanking.unwrap())
-            } else {
-                reps.min_by_key(|x| x.qualityRanking.unwrap())
-            }
+            video.representations.iter()
+                .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
         } else {
-            // rank according to the bandwidth attribute
-            if downloader.quality_preference == QualityPreference::Lowest {
-                reps.min_by_key(|x| x.bandwidth.unwrap_or(1_000_000_000))
-            } else {
-                reps.max_by_key(|x| x.bandwidth.unwrap_or(0))
-            }
+            select_stream_quality_preference(&video.representations, downloader.quality_preference)
         };
         if let Some(video_repr) = maybe_video_repr {
             if downloader.verbosity > 0 {

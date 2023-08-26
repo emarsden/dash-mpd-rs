@@ -5,6 +5,12 @@
 - Downloading: add support for selecting the desired video stream based on its resolution. See
   functions `prefer_video_width` and `prefer_video_height` on `DasnDownloader`.
 
+- Downloading: new function `intermediate_quality` on `DashDownloader` which controls the choice of
+  media stream when multiple Adaptations are specified. This requests the download of the Adaptation
+  with an intermediate bitrate (closest to the median value). Similar to `best_quality` and
+  `worst_quality` functions.
+
+
 
 ## [0.13.1] - 2023-08-14
 ### New
