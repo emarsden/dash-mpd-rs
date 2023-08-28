@@ -71,16 +71,20 @@ fn mux_audio_video_ffmpeg(
         info!("ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
-        let tmpfile = File::open(tmppath)
-            .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
-        let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path)
-            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
-        let mut sink = BufWriter::new(outfile);
-        io::copy(&mut muxed, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
-	#[cfg(target_os = "windows")]
-	::std::fs::remove_file(tmppath).ok();
+        // local scope so that tmppath is not busy on Windows and can be deleted
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+        }
+	if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary ffmpeg output: {e}");
+        }
         Ok(())
     } else {
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
@@ -129,16 +133,19 @@ fn mux_audio_video_vlc(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
     if vlc.status.success() {
-        let tmpfile = File::open(tmppath)
-            .map_err(|e| DashMpdError::Io(e, String::from("opening VLC output")))?;
-        let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path)
-            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
-        let mut sink = BufWriter::new(outfile);
-        io::copy(&mut muxed, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
-	#[cfg(target_os = "windows")]
-	::std::fs::remove_file(tmppath).ok();
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening VLC output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
+        }
+        if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary VLC output: {e}");
+        }
         Ok(())
     } else {
         let msg = String::from_utf8_lossy(&vlc.stderr);
@@ -187,16 +194,19 @@ fn mux_audio_video_mp4box(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     if cmd.status.success() {
-        let tmpfile = File::open(tmppath)
-            .map_err(|e| DashMpdError::Io(e, String::from("opening MP4Box output")))?;
-        let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path)
-            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
-        let mut sink = BufWriter::new(outfile);
-        io::copy(&mut muxed, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
-	#[cfg(target_os = "windows")]
-	::std::fs::remove_file(tmppath).ok();
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening MP4Box output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
+        }
+	if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary MP4Box output: {e}");
+        }
         Ok(())
     } else {
         let msg = String::from_utf8_lossy(&cmd.stderr);
@@ -209,7 +219,7 @@ fn mux_audio_video_mp4box(
 // create the temporary file in the current directory.
 #[cfg(target_os = "windows")]
 fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
-    Ok(format!("dashmpdrs-tmp{}", suffix))
+    Ok(format!("dashmpdrs-tmp{suffix}"))
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -249,16 +259,19 @@ fn mux_audio_video_mkvmerge(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     if mkv.status.success() {
-        let tmpfile = File::open(&tmppath)
-            .map_err(|e| DashMpdError::Io(e, String::from("opening mkvmerge output")))?;
-        let mut muxed = BufReader::new(tmpfile);
-        let outfile = File::create(output_path)
-            .map_err(|e| DashMpdError::Io(e, String::from("opening output file")))?;
-        let mut sink = BufWriter::new(outfile);
-        io::copy(&mut muxed, &mut sink)
-            .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
-	#[cfg(target_os = "windows")]
-	::std::fs::remove_file(tmppath).ok();
+        {
+            let tmpfile = File::open(&tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening mkvmerge output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
+        }
+        if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary mkvmerge output: {e}");
+        }
         Ok(())
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
