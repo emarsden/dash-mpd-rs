@@ -11,11 +11,13 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: taiki-e/install-action@cargo-hack
 
+    # The "|| true" on upgrade is to work around homebrew conflicts between GitHub-installed Python versions
+    # and those required by our packages.
     - name: install GPAC/MP4Box
       run: |
         brew update
-        brew upgrade
-        brew install gpac
+        brew upgrade || true
+        HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install gpac
 
     - name: install ffmpeg
       run: brew install ffmpeg
