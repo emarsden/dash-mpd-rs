@@ -39,6 +39,7 @@ async fn test_dl1() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
+    check_file_size_approx(&out, 60_939);
     println!("DASH content saved to file {}", out.to_string_lossy());
 }
 
@@ -145,7 +146,6 @@ async fn test_follow_redirect() {
 }
 
 
-
 #[tokio::test]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_error_parsing() {
@@ -153,6 +153,39 @@ async fn test_error_parsing() {
     // SegmentBase node. The DASH XSD specification states that @presentationDuration is an
     // xs:unsignedLong.
     let url = "https://dash.akamaized.net/dash264/TestCasesHD/MultiPeriod_OnDemand/ThreePeriods/ThreePeriod_OnDemand_presentationDur_AudioTrim.mpd";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+#[tokio::test]
+#[should_panic(expected = "parsing DASH XML")]
+async fn test_error_invalidxml() {
+    // This content response is not valid XML because the processing instruction ("<?xml...>") is
+    // not at the beginning of the content.
+    let url = "https://httpbin.dmuth.org/xml";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+#[tokio::test]
+#[should_panic(expected = "parsing DASH XML")]
+async fn test_error_html() {
+    // Check that we fail to parse an HTML response.
+    let url = "https://httpbun.org/html";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+#[tokio::test]
+#[should_panic(expected = "dns error")]
+async fn test_error_dns() {
+    let url = "https://nothere.example.org/";
     DashDownloader::new(url)
         .best_quality()
         .download().await
