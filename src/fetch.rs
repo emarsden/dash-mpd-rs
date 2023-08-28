@@ -2087,9 +2087,8 @@ async fn do_period_subtitles(
                     if subtitle_formats.contains(&SubtitleType::Wvtt) {
                         let mut out = subs_path.clone();
                         out.set_extension("srt");
-                        // We can convert this to SRT format, which is more widely supported,
-                        // using MP4Box. However, it's not a fatal error if MP4Box is not
-                        // installed.
+                        // We can convert this to SRT format, which is more widely supported, using
+                        // MP4Box. However, it's not a fatal error if MP4Box is not installed.
                         if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                             .args(["-srt", "1", "-out", &out.to_string_lossy(),
                                    &subs_path.to_string_lossy()])
@@ -2531,9 +2530,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             return Err(DashMpdError::Network(msg));
         }
         redirected_url = response.url().clone();
-        let xml = response.text().await
+        let xml = response.bytes().await
             .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
-        mpd = parse(&xml)
+        mpd = parse_resolving_xlinks(downloader, &redirected_url, &xml).await
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }
     if let Some(mpdtype) = mpd.mpdtype.as_ref() {
