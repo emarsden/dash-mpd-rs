@@ -1019,7 +1019,8 @@ pub async fn parse_resolving_xlinks(
 {
     let mut doc = xmltree::Element::parse(xml)
         .map_err(|e| parse_error("xmltree parsing", e))?;
-    // The remote XLink fragments may contain further XLink references.
+    // The remote XLink fragments may contain further XLink references. However, we only repeat the
+    // resolution 5 times to avoid potential infloop DoS attacks.
     for _ in 1..5 {
         let pending = resolve_xlink_references_recurse(downloader, redirected_url, &mut doc).await?;
         do_pending_insertions_recurse(&mut doc, &pending);
@@ -2036,7 +2037,8 @@ async fn do_period_subtitles(
                     .map_err(|e| parse_error("joining base with BaseURL", e))?;
             }
         }
-        // We don't do any ranking on subtitle Representations, because there is probably only a single one.
+        // We don't do any ranking on subtitle Representations, because there is probably only a
+        // single one for our selected Adaptation.
         if let Some(rep) = subtitle_adaptation.representations.first() {
             if !rep.BaseURL.is_empty() {
                 for st_bu in rep.BaseURL.iter() {
@@ -2500,8 +2502,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         return Err(DashMpdError::Network(msg));
     }
     let mut redirected_url = response.url().clone();
-    let xml = response.bytes()
-        .await
+    let xml = response.bytes().await
         .map_err(|e| network_error("fetching DASH manifest", e))?;
     let mut mpd: MPD = parse_resolving_xlinks(downloader, &redirected_url, &xml).await
         .map_err(|e| parse_error("parsing DASH XML", e))?;
@@ -3133,7 +3134,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                     }
                 }
                 tmpfile_subs.flush().map_err(|e| {
-                    error!("Couldn't flush subs file disk: {e}");
+                    error!("Couldn't flush subs file: {e}");
                     DashMpdError::Io(e, String::from("flushing subtitle file"))
                 })?;
             } // end local scope for tmpfile_subs File
@@ -3251,6 +3252,12 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if downloader.keep_video.is_none() && downloader.fetch_video {
             if fs::remove_file(tmppath_video).is_err() {
                 info!("Failed to delete temporary file for video stream");
+            }
+        }
+        #[allow(clippy::collapsible_if)]
+        if downloader.fetch_subtitles {
+            if fs::remove_file(tmppath_subs).is_err() {
+                info!("Failed to delete temporary file for subtitles");
             }
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video) {
