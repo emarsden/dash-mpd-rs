@@ -51,6 +51,7 @@ axum-server = { version = "0.5.1" }
 anyhow = "1.0.75"
 roxmltree = "0.18.0"
 xmlem = "0.2.3"
+json = "0.12.4"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]

@@ -12,12 +12,16 @@
 //
 //   - For different quality preferences (best_quality, intermediate_quality etc.) and for different
 //   preferred video widths and heights, check that the media returned corresponds to that
-//   requested.
+//   requested. We use valid MP4 files for the segments (created using ffmpeg), so that the muxing
+//   process works correctly. The information concerning the quality or resolution that we are
+//   expecting is smuggled in the title metadata field (extracted using ffprobe).
 
 
 use fs_err as fs;
 use std::env;
+use std::process::Command;
 use std::time::Duration;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
@@ -44,6 +48,22 @@ impl AppState {
 const QUALITY_BEST: u8 = 55;
 const QUALITY_INTERMEDIATE: u8 = 66;
 const QUALITY_WORST: u8 = 77;
+
+
+// ffprobe -loglevel error -show_entries format_tags -of json tiny.mp4
+fn ffprobe_metadata_title(mp4: &PathBuf) -> Result<u8> {
+    let ffprobe = Command::new("ffprobe")
+        .args(["-loglevel", "error",
+               "-show_entries", "format_tags",
+               "-of", "json",
+               mp4.to_str().unwrap()])
+        .output()
+        .expect("spawning ffmpeg");
+    assert!(ffprobe.status.success());
+    let parsed = json::parse(&String::from_utf8_lossy(&ffprobe.stdout)).unwrap();
+    let title = parsed["format"]["tags"]["title"].as_str().unwrap();
+    title.parse().context("parsing title metadata")
+}
 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -112,12 +132,27 @@ async fn test_preference_ranking() -> Result<()> {
     // of requests made, to check that each XLink reference has been resolved.
     let shared_state = Arc::new(AppState::new());
 
+
+    // ffmpeg -y -f lavfi -i testsrc=size=10x10:rate=1 -vf hue=s=0 -t 1 -metadata title=foobles1 tiny.mp4
     async fn send_segment(Path(id): Path<u8>, State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
         state.counter.fetch_add(1, Ordering::SeqCst);
+        let tmp = env::temp_dir().join("segment.mp4");
+        let ffmpeg = Command::new("ffmpeg")
+            .args(["-f", "lavfi",
+                   "-y",  // overwrite output file if it exists
+                   "-i", "testsrc=size=10x10:rate=1",
+                   "-vf", "hue=s=0",
+                   "-t", "1",
+                   "-metadata", &format!("title={id}"),
+                   tmp.to_str().unwrap()])
+            .output()
+            .expect("spawning ffmpeg");
+        assert!(ffmpeg.status.success());
+        let bytes = fs::read(tmp).unwrap();
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")
-            .body(Full::from(vec![42, id]))
+            .body(Full::from(bytes))
             .unwrap()
     }
 
@@ -158,10 +193,7 @@ async fn test_preference_ranking() -> Result<()> {
         .with_http_client(client.clone())
         .download_to(wb.clone()).await
         .unwrap();
-    let got = fs::read(wb).unwrap();
-    assert_eq!(got.len(), 2);
-    assert_eq!(got[0], 42);
-    assert_eq!(got[1], QUALITY_BEST);
+    assert_eq!(ffprobe_metadata_title(&wb).unwrap(), QUALITY_BEST);
 
     let ww = env::temp_dir().join("wanting-worst.mp4");
     DashDownloader::new(mpd_url)
@@ -169,10 +201,7 @@ async fn test_preference_ranking() -> Result<()> {
         .with_http_client(client.clone())
         .download_to(ww.clone()).await
         .unwrap();
-    let got = fs::read(ww).unwrap();
-    assert_eq!(got.len(), 2);
-    assert_eq!(got[0], 42);
-    assert_eq!(got[1], QUALITY_WORST);
+    assert_eq!(ffprobe_metadata_title(&ww).unwrap(), QUALITY_WORST);
 
     let wi = env::temp_dir().join("wanting-intermediate.mp4");
     DashDownloader::new(mpd_url)
@@ -180,10 +209,7 @@ async fn test_preference_ranking() -> Result<()> {
         .with_http_client(client.clone())
         .download_to(wi.clone()).await
         .unwrap();
-    let got = fs::read(wi).unwrap();
-    assert_eq!(got.len(), 2);
-    assert_eq!(got[0], 42);
-    assert_eq!(got[1], QUALITY_INTERMEDIATE);
+    assert_eq!(ffprobe_metadata_title(&wi).unwrap(), QUALITY_INTERMEDIATE);
 
     let w = env::temp_dir().join("wanting-w1920.mp4");
     DashDownloader::new(mpd_url)
@@ -191,10 +217,7 @@ async fn test_preference_ranking() -> Result<()> {
         .with_http_client(client.clone())
         .download_to(w.clone()).await
         .unwrap();
-    let got = fs::read(w).unwrap();
-    assert_eq!(got.len(), 2);
-    assert_eq!(got[0], 42);
-    assert_eq!(got[1], QUALITY_BEST);
+    assert_eq!(ffprobe_metadata_title(&w).unwrap(), QUALITY_BEST);
 
     let w = env::temp_dir().join("wanting-h120.mp4");
     DashDownloader::new(mpd_url)
@@ -202,10 +225,7 @@ async fn test_preference_ranking() -> Result<()> {
         .with_http_client(client.clone())
         .download_to(w.clone()).await
         .unwrap();
-    let got = fs::read(w).unwrap();
-    assert_eq!(got.len(), 2);
-    assert_eq!(got[0], 42);
-    assert_eq!(got[1], QUALITY_WORST);
+    assert_eq!(ffprobe_metadata_title(&w).unwrap(), QUALITY_WORST);
 
     // Check the total number of requested media segments corresponds to what we expect.
     let txt = client.get("http://localhost:6666/status")
