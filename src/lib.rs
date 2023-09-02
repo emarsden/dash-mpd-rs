@@ -432,7 +432,7 @@ where S: serde::Serializer {
 
 /// The title of the media stream.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Title {
     #[serde(rename = "$text")]
@@ -441,7 +441,7 @@ pub struct Title {
 
 /// The original source of the media stream.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Source {
     #[serde(rename = "$text")]
@@ -450,7 +450,7 @@ pub struct Source {
 
 /// Copyright information concerning the media stream.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Copyright {
     #[serde(rename = "$text")]
@@ -459,7 +459,7 @@ pub struct Copyright {
 
 /// Metainformation concerning the media stream (title, language, etc.)
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ProgramInformation {
     pub Title: Option<Title>,
@@ -478,7 +478,7 @@ pub struct ProgramInformation {
 /// Dash specification MPEG extension (SCTE 214) program identification type
 /// (indicates how the program content is identified).
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Scte214ContentIdentifier {
     #[serde(rename = "@type")]
@@ -489,7 +489,7 @@ pub struct Scte214ContentIdentifier {
 
 /// Describes a sequence of contiguous Segments with identical duration.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct S {
     /// time
@@ -507,7 +507,7 @@ pub struct S {
 /// Contains a sequence of `S` elements, each of which describes a sequence of contiguous segments of
 /// identical duration.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct SegmentTimeline {
     #[serde(rename = "S")]
@@ -517,7 +517,7 @@ pub struct SegmentTimeline {
 /// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
 /// segment to produce a media stream.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Initialization {
     #[serde(rename = "@sourceURL")]
@@ -527,7 +527,7 @@ pub struct Initialization {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct RepresentationIndex {
     #[serde(rename = "@range")]
@@ -578,7 +578,7 @@ pub struct SegmentTemplate {
 
 /// A URI string to which a new request for an updated manifest should be made. This feature is
 /// intended for servers and clients that can't use sticky HTTP redirects.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Location {
     #[serde(rename = "$text")]
@@ -620,7 +620,7 @@ pub struct BaseURL {
 /// can and is also used to represent gaps where no segments are present at all -
 /// used within the `FailoverContent` element.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Fcs {
     /// The time at which no/failover segments for this representation starts (if the valid
@@ -637,7 +637,7 @@ pub struct Fcs {
 /// Period of time for which either failover content or no content/segments exist for the
 /// for the parent `Representation`.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct FailoverContent {
     #[serde(rename = "FCS")]
@@ -676,7 +676,7 @@ pub struct SegmentBase {
 
 /// The URL of a media segment.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct SegmentURL {
     #[serde(rename = "@media")]
@@ -691,7 +691,7 @@ pub struct SegmentURL {
 
 /// Contains a sequence of SegmentURL elements.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct SegmentList {
     // note: the spec says this is an unsigned int, not an xs:duration
@@ -722,7 +722,7 @@ pub struct SegmentList {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Resync {
     #[serde(rename = "@dT")]
@@ -737,7 +737,7 @@ pub struct Resync {
 
 /// Specifies information concerning the audio channel (e.g. stereo, multichannel).
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct AudioChannelConfiguration {
     #[serde(rename = "@id")]
@@ -750,7 +750,7 @@ pub struct AudioChannelConfiguration {
 
 // This element is not specified in ISO/IEC 23009-1:2022; exact format is unclear.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Language {
     #[serde(rename = "$text")]
@@ -762,7 +762,7 @@ pub struct Language {
 /// experience”. Details are specified by the “DASH-IF Interoperability Point for ATSC 3.0”
 /// document.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Preselection {
     #[serde(rename = "@id")]
@@ -803,7 +803,7 @@ pub struct Preselection {
 /// Specifies that content is suitable for presentation to audiences for which that rating is known to be
 /// appropriate, or for unrestricted audiences.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Rating {
     #[serde(rename = "@id")]
@@ -816,7 +816,7 @@ pub struct Rating {
 
 /// Specifies frame-packing arrangement information of the video media component type.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct FramePacking {
     #[serde(rename = "@id")]
@@ -830,7 +830,7 @@ pub struct FramePacking {
 /// Information used to allow Adaptation Set Switching (for instance, allowing the player to switch
 /// between camera angles). This is different from "bitstream switching".
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Switching {
     #[serde(rename = "@interval")]
@@ -841,7 +841,7 @@ pub struct Switching {
 
 /// Specifies the accessibility scheme used by the media content.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Accessibility {
     #[serde(rename = "@id")]
@@ -854,7 +854,7 @@ pub struct Accessibility {
 
 /// Scope of a namespace.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Scope {
     #[serde(rename = "@schemeIdUri")]
@@ -1013,7 +1013,7 @@ pub struct Representation {
 
 /// Describes a media content component.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ContentComponent {
     #[serde(rename = "@id")]
@@ -1035,7 +1035,7 @@ pub struct ContentComponent {
 
 /// A Common Encryption "Protection System Specific Header" box. Content is typically base64 encoded.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct CencPssh {
     #[serde(rename = "$text")]
@@ -1043,7 +1043,7 @@ pub struct CencPssh {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Laurl {
     #[serde(rename = "@Lic_type")]
@@ -1053,7 +1053,7 @@ pub struct Laurl {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct MsprPro {
     #[serde(rename = "@xmlns", serialize_with="serialize_xmlns")]
@@ -1063,7 +1063,7 @@ pub struct MsprPro {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct MsprIsEncrypted {
     #[serde(rename = "$text")]
@@ -1071,7 +1071,7 @@ pub struct MsprIsEncrypted {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct MsprIVSize {
     #[serde(rename = "$text")]
@@ -1079,7 +1079,7 @@ pub struct MsprIVSize {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct MsprKid {
     #[serde(rename = "$text")]
@@ -1090,7 +1090,7 @@ pub struct MsprKid {
 /// as Widevine and Playready. If this node is not present, no content protection is applied by the
 /// source.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ContentProtection {
     #[serde(rename = "@robustness")]
@@ -1124,7 +1124,7 @@ pub struct ContentProtection {
 /// "supplementary", "commentary", and "dub" (this is the attribute scheme for @value when the
 /// schemeIdUri is "urn:mpeg:dash:role:2011").
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Role {
     #[serde(rename = "@schemeIdUri")]
@@ -1134,7 +1134,7 @@ pub struct Role {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Viewpoint {
     #[serde(rename = "@schemeIdUri")]
@@ -1226,7 +1226,7 @@ pub struct InbandEventStream {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct EssentialProperty {
     #[serde(rename = "@id")]
@@ -1238,7 +1238,7 @@ pub struct EssentialProperty {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct SupplementalProperty {
     #[serde(rename = "@id")]
@@ -1252,7 +1252,7 @@ pub struct SupplementalProperty {
 /// Provides a textual description of the content, which can be used by the client to allow
 /// selection of the desired media stream.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Label {
     #[serde(rename = "@id")]
@@ -1377,7 +1377,7 @@ pub struct AdaptationSet {
 /// Identifies the asset to which a given Period belongs. Can be used to implement
 /// client functionality that depends on distinguishing between ads and main content.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct AssetIdentifier {
     #[serde(rename = "@schemeIdUri")]
@@ -1427,7 +1427,7 @@ pub struct Period {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Reporting {
     #[serde(rename = "@schemeIdUri")]
@@ -1441,7 +1441,7 @@ pub struct Reporting {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Range {
     #[serde(deserialize_with = "deserialize_xs_duration", default)]
@@ -1455,7 +1455,7 @@ pub struct Range {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Metrics {
     #[serde(rename = "@metrics")]
@@ -1502,7 +1502,7 @@ pub struct ServiceDescription {
 
 /// Used to synchronize the clocks of the DASH client and server, to allow low-latency streaming.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct UTCTiming {
     // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
@@ -1517,7 +1517,7 @@ pub struct UTCTiming {
 /// fragments at the same rate at which they were produced. Used by the low-latency streaming
 /// extensions to DASH.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ProducerReferenceTime {
     #[serde(rename = "@id")]
@@ -1537,7 +1537,7 @@ pub struct ProducerReferenceTime {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct LeapSecondInformation {
     #[serde(rename = "@availabilityStartLeapOffset")]

@@ -14,10 +14,10 @@ edition = "2021"
 [dependencies]
 base64 = "0.21.2"
 base64-serde = "0.7.0"
-serde = { version = "1.0.185", features = ["derive"] }
+serde = { version = "1.0.188", features = ["derive"] }
 serde_with = { version = "3.3.0", features = ["base64"] }
 quick-xml = { version = "0.30.0", features = ["serialize", "overlapped-lists"] }
-chrono = { version = "0.4.26", features = ["serde"] }
+chrono = { version = "0.4.28", features = ["serde"] }
 num-traits = "0.2.16"
 iso8601 = "0.6.1"
 regex = "1.9.4"
@@ -31,7 +31,7 @@ tokio = { version = "1.32.0", features = ["rt-multi-thread", "time"] }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.6.0", optional = true }
 xmltree = { version = "0.10.3", optional = true }
-async-recursion = { version = "1.0.4", optional = true }
+async-recursion = { version = "1.0.5", optional = true }
 tempfile = { version = "3.8.0", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
