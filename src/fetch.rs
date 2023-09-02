@@ -586,6 +586,16 @@ fn is_absolute_url(s: &str) -> bool {
         s.starts_with("ftp://")
 }
 
+fn merge_baseurls(current: &Url, new: &str) -> Result<Url, DashMpdError> {
+    if is_absolute_url(new) {
+        Url::parse(new)
+            .map_err(|e| parse_error("parsing BaseURL", e))
+    } else {
+        current.join(new)
+            .map_err(|e| parse_error("joining base with BaseURL", e))
+    }
+}
+
 // Return true if the response includes a content-type header corresponding to audio. We need to
 // allow "video/" MIME types because some servers return "video/mp4" content-type for audio segments
 // in an MP4 container, and we accept application/octet-stream headers because some servers are
@@ -1069,14 +1079,7 @@ async fn do_period_audio(
         // to make sure we don't "corrupt" the base_url for the video segments.
         let mut base_url = base_url.clone();
         if !audio.BaseURL.is_empty() {
-            let bu = &audio.BaseURL[0];
-            if is_absolute_url(&bu.base) {
-                base_url = Url::parse(&bu.base)
-                    .map_err(|e| parse_error("parsing AdaptationSet BaseURL", e))?;
-            } else {
-                base_url = base_url.join(&bu.base)
-                    .map_err(|e| parse_error("joining with AdaptationSet BaseURL", e))?;
-            }
+            base_url = merge_baseurls(&base_url, &audio.BaseURL[0].base)?;
         }
         if let Some(audio_repr) = select_stream_quality_preference(&audio.representations, downloader.quality_preference) {
             if downloader.verbosity > 0 {
@@ -1111,14 +1114,7 @@ async fn do_period_audio(
             // the Representation may have a BaseURL
             let mut base_url = base_url;
             if !audio_repr.BaseURL.is_empty() {
-                let bu = &audio_repr.BaseURL[0];
-                if is_absolute_url(&bu.base) {
-                    base_url = Url::parse(&bu.base)
-                        .map_err(|e| parse_error("parsing Representation BaseURL", e))?;
-                } else {
-                    base_url = base_url.join(&bu.base)
-                        .map_err(|e| parse_error("joining with Representation BaseURL", e))?;
-                }
+                base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
             }
             let mut opt_init: Option<String> = None;
             let mut opt_media: Option<String> = None;
@@ -1177,13 +1173,7 @@ async fn do_period_audio(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let init_url = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining with sourceURL", e))?
-                        };
+                        let init_url = merge_baseurls(&base_url, &path)?;
                         let mf = MediaFragment{
                             period: period_counter,
                             url: init_url,
@@ -1216,15 +1206,8 @@ async fn do_period_audio(
                         let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     } else if !audio_adaptation.BaseURL.is_empty() {
-                        let bu = &audio_adaptation.BaseURL[0];
-                        let base_url = if is_absolute_url(&bu.base) {
-                            Url::parse(&bu.base)
-                                .map_err(|e| parse_error("parsing Representation BaseURL", e))?
-                        } else {
-                            base_url.join(&bu.base)
-                                .map_err(|e| parse_error("joining with Representation BaseURL", e))?
-                        };
-                        let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                        let u = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
+                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     }
                 }
@@ -1244,13 +1227,7 @@ async fn do_period_audio(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let init_url = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining with sourceURL", e))?
-                        };
+                        let init_url = merge_baseurls(&base_url, &path)?;
                         let mf = MediaFragment{
                             period: period_counter,
                             url: init_url,
@@ -1283,15 +1260,8 @@ async fn do_period_audio(
                         let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     } else if !audio_repr.BaseURL.is_empty() {
-                        let bu = &audio_repr.BaseURL[0];
-                        let base_url = if is_absolute_url(&bu.base) {
-                            Url::parse(&bu.base)
-                                .map_err(|e| parse_error("parsing Representation BaseURL", e))?
-                        } else {
-                            base_url.join(&bu.base)
-                                .map_err(|e| parse_error("joining with Representation BaseURL", e))?
-                        };
-                        let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                        let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     }
                 }
@@ -1470,16 +1440,9 @@ async fn do_period_audio(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let u = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining with sourceURL", e))?
-                        };
                         let mf = MediaFragment {
                             period: period_counter,
-                            url: u,
+                            url: merge_baseurls(&base_url, &path)?,
                             start_byte, end_byte,
                             is_init: true,
                         };
@@ -1499,13 +1462,7 @@ async fn do_period_audio(
                 if downloader.verbosity > 1 {
                     println!("  Using BaseURL addressing mode for audio representation");
                 }
-                let u = if is_absolute_url(&audio_repr.BaseURL[0].base) {
-                    Url::parse(&audio_repr.BaseURL[0].base)
-                        .map_err(|e| parse_error("parsing BaseURL", e))?
-                } else {
-                    base_url.join(&audio_repr.BaseURL[0].base)
-                        .map_err(|e| parse_error("joining Representation BaseURL", e))?
-                };
+                let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
                 let mf = make_fragment(period_counter, u, None, None);
                 fragments.push(mf);
             }
@@ -1544,14 +1501,7 @@ async fn do_period_video(
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
         if !video.BaseURL.is_empty() {
-            let bu = &video.BaseURL[0];
-            if is_absolute_url(&bu.base) {
-                base_url = Url::parse(&bu.base)
-                    .map_err(|e| parse_error("parsing BaseURL", e))?;
-            } else {
-                base_url = base_url.join(&bu.base)
-                    .map_err(|e| parse_error("joining base with BaseURL", e))?;
-            }
+            base_url = merge_baseurls(&base_url, &video.BaseURL[0].base)?;
         }
         // A manifest often contains multiple video Representations with different bandwidths and
         // video resolutions. We select the Representation to download by ranking the available
@@ -1600,14 +1550,7 @@ async fn do_period_video(
                 }
             }
             if !video_repr.BaseURL.is_empty() {
-                let bu = &video_repr.BaseURL[0];
-                if is_absolute_url(&bu.base) {
-                    base_url = Url::parse(&bu.base)
-                        .map_err(|e| parse_error("parsing BaseURL", e))?;
-                } else {
-                    base_url = base_url.join(&bu.base)
-                        .map_err(|e| parse_error("joining base with BaseURL", e))?;
-                }
+                base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
             }
             let mut dict = HashMap::new();
             if let Some(rid) = &video_repr.id {
@@ -1660,16 +1603,9 @@ async fn do_period_video(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let u = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining sourceURL with BaseURL", e))?
-                        };
                         let mf = MediaFragment {
                             period: period_counter,
-                            url: u,
+                            url: merge_baseurls(&base_url, &path)?,
                             start_byte, end_byte,
                             is_init: true,
                         };
@@ -1699,15 +1635,8 @@ async fn do_period_video(
                         let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     } else if !video_adaptation.BaseURL.is_empty() {
-                        let bu = &video_adaptation.BaseURL[0];
-                        let base_url = if is_absolute_url(&bu.base) {
-                            Url::parse(&bu.base)
-                                .map_err(|e| parse_error("parsing BaseURL", e))?
-                        } else {
-                            base_url.join(&bu.base)
-                                .map_err(|e| parse_error("joining with BaseURL", e))?
-                        };
-                        let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                        let u = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
+                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     }
                 }
@@ -1727,16 +1656,9 @@ async fn do_period_video(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let u = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining sourceURL with BaseURL", e))?
-                        };
                         let mf = MediaFragment {
                             period: period_counter,
-                            url: u,
+                            url: merge_baseurls(&base_url, &path)?,
                             start_byte, end_byte,
                             is_init: true,
                         };
@@ -1766,15 +1688,8 @@ async fn do_period_video(
                         let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     } else if !video_repr.BaseURL.is_empty() {
-                        let bu = &video_repr.BaseURL[0];
-                        let base_url = if is_absolute_url(&bu.base) {
-                            Url::parse(&bu.base)
-                                .map_err(|e| parse_error("parsing BaseURL", e))?
-                        } else {
-                            base_url.join(&bu.base)
-                                .map_err(|e| parse_error("joining with BaseURL", e))?
-                        };
-                        let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                        let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
                         fragments.push(mf);
                     }
                 }
@@ -1938,16 +1853,9 @@ async fn do_period_video(
                     }
                     if let Some(su) = &init.sourceURL {
                         let path = resolve_url_template(su, &dict);
-                        let u = if is_absolute_url(&path) {
-                            Url::parse(&path)
-                                .map_err(|e| parse_error("parsing sourceURL", e))?
-                        } else {
-                            base_url.join(&path)
-                                .map_err(|e| parse_error("joining with sourceURL", e))?
-                        };
                         let mf = MediaFragment {
                             period: period_counter,
-                            url: u,
+                            url: merge_baseurls(&base_url, &path)?,
                             start_byte, end_byte,
                             is_init: true
                         };
@@ -1967,13 +1875,7 @@ async fn do_period_video(
                 if downloader.verbosity > 1 {
                     println!("  Using BaseURL addressing mode for video representation");
                 }
-                let u = if is_absolute_url(&video_repr.BaseURL[0].base) {
-                    Url::parse(&video_repr.BaseURL[0].base)
-                        .map_err(|e| parse_error("parsing BaseURL", e))?
-                } else {
-                    base_url.join(&video_repr.BaseURL[0].base)
-                        .map_err(|e| parse_error("joining Representation BaseURL", e))?
-                };
+                let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
                 let mf = make_fragment(period_counter, u, None, None);
                 fragments.push(mf);
             }
@@ -2028,27 +1930,14 @@ async fn do_period_subtitles(
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
         if !subtitle_adaptation.BaseURL.is_empty() {
-            let bu = &subtitle_adaptation.BaseURL[0];
-            if is_absolute_url(&bu.base) {
-                base_url = Url::parse(&bu.base)
-                    .map_err(|e| parse_error("parsing BaseURL", e))?;
-            } else {
-                base_url = base_url.join(&bu.base)
-                    .map_err(|e| parse_error("joining base with BaseURL", e))?;
-            }
+            base_url = merge_baseurls(&base_url, &subtitle_adaptation.BaseURL[0].base)?;
         }
         // We don't do any ranking on subtitle Representations, because there is probably only a
         // single one for our selected Adaptation.
         if let Some(rep) = subtitle_adaptation.representations.first() {
             if !rep.BaseURL.is_empty() {
                 for st_bu in rep.BaseURL.iter() {
-                    let st_url = if is_absolute_url(&st_bu.base) {
-                        Url::parse(&st_bu.base)
-                            .map_err(|e| parse_error("parsing subtitle BaseURL", e))?
-                    } else {
-                        base_url.join(&st_bu.base)
-                            .map_err(|e| parse_error("joining subtitle BaseURL", e))?
-                    };
+                    let st_url = merge_baseurls(&base_url, &st_bu.base)?;
                     let subs = client.get(st_url.clone())
                         .header("Referer", base_url.to_string())
                         .send().await
@@ -2172,16 +2061,9 @@ async fn do_period_subtitles(
                         }
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url = if is_absolute_url(&path) {
-                                Url::parse(&path)
-                                    .map_err(|e| parse_error("parsing sourceURL", e))?
-                            } else {
-                                base_url.join(&path)
-                                    .map_err(|e| parse_error("joining with sourceURL", e))?
-                            };
                             let mf = MediaFragment{
                                 period: period_counter,
-                                url: init_url,
+                                url: merge_baseurls(&base_url, &path)?,
                                 start_byte, end_byte,
                                 is_init: true
                             };
@@ -2211,15 +2093,8 @@ async fn do_period_subtitles(
                             let mf = make_fragment(period_counter, u, start_byte, end_byte);
                             fragments.push(mf);
                         } else if !subtitle_adaptation.BaseURL.is_empty() {
-                            let bu = &subtitle_adaptation.BaseURL[0];
-                            let base_url = if is_absolute_url(&bu.base) {
-                                Url::parse(&bu.base)
-                                    .map_err(|e| parse_error("parsing Representation BaseURL", e))?
-                            } else {
-                                base_url.join(&bu.base)
-                                    .map_err(|e| parse_error("joining with Representation BaseURL", e))?
-                            };
-                            let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                            let u = merge_baseurls(&base_url, &subtitle_adaptation.BaseURL[0].base)?;
+                            let mf = make_fragment(period_counter, u, start_byte, end_byte);
                             fragments.push(mf);
                         }
                     }
@@ -2239,16 +2114,9 @@ async fn do_period_subtitles(
                         }
                         if let Some(su) = &init.sourceURL {
                             let path = resolve_url_template(su, &dict);
-                            let init_url = if is_absolute_url(&path) {
-                                Url::parse(&path)
-                                    .map_err(|e| parse_error("parsing sourceURL", e))?
-                            } else {
-                                base_url.join(&path)
-                                    .map_err(|e| parse_error("joining with sourceURL", e))?
-                            };
                             let mf = MediaFragment{
                                 period: period_counter,
-                                url: init_url,
+                                url: merge_baseurls(&base_url, &path)?,
                                 start_byte, end_byte,
                                 is_init: true,
                             };
@@ -2278,15 +2146,8 @@ async fn do_period_subtitles(
                             let mf = make_fragment(period_counter, u, start_byte, end_byte);
                             fragments.push(mf);
                         } else if !rep.BaseURL.is_empty() {
-                            let bu = &rep.BaseURL[0];
-                            let base_url = if is_absolute_url(&bu.base) {
-                                Url::parse(&bu.base)
-                                    .map_err(|e| parse_error("parsing Representation BaseURL", e))?
-                            } else {
-                                base_url.join(&bu.base)
-                                    .map_err(|e| parse_error("joining with Representation BaseURL", e))?
-                            };
-                            let mf = make_fragment(period_counter, base_url.clone(), start_byte, end_byte);
+                            let u = merge_baseurls(&base_url, &rep.BaseURL[0].base)?;
+                            let mf = make_fragment(period_counter, u, start_byte, end_byte);
                             fragments.push(mf);
                         }
                     }
@@ -2546,13 +2407,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let mut toplevel_base_url = redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
     if !mpd.base_url.is_empty() {
-        if is_absolute_url(&mpd.base_url[0].base) {
-            toplevel_base_url = Url::parse(&mpd.base_url[0].base)
-                .map_err(|e| parse_error("parsing BaseURL", e))?;
-        } else {
-            toplevel_base_url = redirected_url.join(&mpd.base_url[0].base)
-                .map_err(|e| parse_error("parsing BaseURL", e))?;
-        }
+        toplevel_base_url = merge_baseurls(&redirected_url, &mpd.base_url[0].base)?;
     }
     let mut audio_fragments = Vec::new();
     let mut video_fragments = Vec::new();
@@ -2584,16 +2439,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         let mut base_url = toplevel_base_url.clone();
         // A BaseURL could be specified for each Period
         if !period.BaseURL.is_empty() {
-            let bu = &period.BaseURL[0];
-            if is_absolute_url(&bu.base) {
-                base_url = Url::parse(&bu.base)
-                    .map_err(|e| parse_error("parsing Period BaseURL", e))?;
-            } else {
-                base_url = base_url.join(&bu.base)
-                    .map_err(|e| parse_error("joining with Period BaseURL", e))?;
-            }
+            base_url = merge_baseurls(&base_url, &period.BaseURL[0].base)?;
         }
-
         let audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
         for f in audio_outputs.fragments {
             audio_fragments.push(f);
