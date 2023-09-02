@@ -37,7 +37,7 @@ use anyhow::{Result, Context};
 use env_logger::Env;
 use clap::Arg;
 use url::Url;
-use dash_mpd::{MPD, parse};
+use dash_mpd::MPD;
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 
 
