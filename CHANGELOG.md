@@ -10,6 +10,17 @@
   with an intermediate bitrate (closest to the median value). Similar to `best_quality` and
   `worst_quality` functions.
 
+- Downloading: improve support for selecting the output container format based on its filename
+  extension. Selecting an output file with an `.mkv` extension will now produce an output file in
+  Matroska container format, even in cases where the manifest only contained a video stream or only
+  an audio stream (shortcircuiting the muxing functionality). In these cases, the stream will be
+  copied if the output container requested is compatible with the downloaded stream format, and
+  otherwise a new media container with the requested format will be created and the audio or video
+  stream will be inserted (and reencoded if necessary) into the output file. This insertion and
+  reencoding is undertaken by the same commandline applications used for muxing: ffmpeg, mkvmerge,
+  mp4box (currently not vlc). This support is not currently implemented when building with the libav
+  feature.
+
 - Derive `Hash` on those structs for which it can be derived automatically.
 
 

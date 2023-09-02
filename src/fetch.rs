@@ -3,8 +3,7 @@
 use std::env;
 use fs_err as fs;
 use fs::File;
-use std::io;
-use std::io::{Write, BufReader, BufWriter};
+use std::io::{Write, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -21,7 +20,7 @@ use backoff::{future::retry_notify, ExponentialBackoff};
 use governor::{Quota, RateLimiter};
 use async_recursion::async_recursion;
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
-use crate::{parse, mux_audio_video};
+use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
 #[cfg(not(feature = "libav"))]
@@ -29,6 +28,10 @@ use crate::ffmpeg::{video_containers_concatable, concat_output_files};
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::Client;
+type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
+                                     governor::state::InMemoryState,
+                                     governor::clock::DefaultClock,
+                                     governor::middleware::NoOpMiddleware>;
 
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
@@ -86,6 +89,7 @@ pub struct DashDownloader {
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
     rate_limit: u64,
+    bw_limiter: Option<DirectRateLimiter>,
     verbosity: u8,
     record_metainformation: bool,
     pub ffmpeg_location: String,
@@ -179,6 +183,7 @@ impl DashDownloader {
             progress_observers: vec![],
             sleep_between_requests: 0,
             rate_limit: 0,
+            bw_limiter: None,
             verbosity: 0,
             record_metainformation: true,
             ffmpeg_location: if cfg!(target_os = "windows") {
@@ -398,6 +403,20 @@ impl DashDownloader {
             info!("Limiting bandwidth to {}kB/s", bps/1024);
         }
         self.rate_limit = bps;
+        // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
+        // We express our cells in the RateLimiter in kB/s instead of bytes/second, to allow for numbing
+        // future bandwidth capacities. We need to be careful to allow a quota burst size which
+        // corresponds to the size (in kB) of the largest media segments we are going to be retrieving,
+        // because that's the number of bucket cells that will be consumed for each downloaded segment.
+        let mut kps = 1 + bps / 1024;
+        if kps > u32::MAX.into() {
+            warn!("Throttling bandwidth limit");
+            kps = u32::MAX.into();
+        }
+        let bw_limit = NonZeroU32::new(kps as u32).unwrap();
+        let bw_quota = Quota::per_second(bw_limit)
+            .allow_burst(NonZeroU32::new(10 * 1024).unwrap());
+        self.bw_limiter = Some(RateLimiter::direct(bw_quota));
         self
     }
 
@@ -519,6 +538,21 @@ impl DashDownloader {
         fetch_mpd(&self).await
     }
 }
+
+async fn throttle_download_rate(downloader: &DashDownloader, size: u32) -> Result<(), DashMpdError> {
+    if downloader.rate_limit > 0 {
+        if let Some(cells) = NonZeroU32::new(size) {
+            #[allow(clippy::redundant_pattern_matching)]
+            if let Err(_) = downloader.bw_limiter.as_ref().unwrap().until_n_ready(cells).await {
+                return Err(DashMpdError::Other(
+                    "Bandwidth limit is too low".to_string()));
+            }
+        }
+    }
+    Ok(())
+}
+
+
 
 fn generate_filename_from_url(url: &str) -> PathBuf {
     use sanitise_file_name::{sanitise_with_options, Options};
@@ -2333,6 +2367,519 @@ async fn do_period_subtitles(
 }
 
 
+// Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
+async fn fetch_period_audio(
+    downloader: &DashDownloader,
+    redirected_url: &Url,
+    tmppath: PathBuf,
+    audio_fragments: &Vec<MediaFragment>,
+    period_counter: u8,
+    segment_count: usize,
+    segment_counter: &mut usize,
+    download_errors: &mut u32) -> Result<bool, DashMpdError>
+{
+    let client = downloader.http_client.clone().unwrap();
+    let start_download = Instant::now();
+    let mut have_audio = false;
+    {
+        // We need a local scope for our temporary File, so that the file is closed when we later
+        // optionally call mp4decrypt (which requires exclusive access to its input file on
+        // Windows).
+        let tmpfile_audio = File::create(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
+        let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
+        // Optionally create the directory to which we will save the audio fragments.
+        if let Some(ref fragment_path) = downloader.fragment_path {
+            let audio_fragment_dir = fragment_path.join("audio");
+            if !audio_fragment_dir.exists() {
+                fs::create_dir_all(audio_fragment_dir)
+                    .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
+            }
+        }
+        // FIXME: in DASH, the init segment contains headers that are necessary to generate a valid MP4
+        // file, so we should always abort if the first segment cannot be fetched. However, we could
+        // tolerate loss of subsequent segments.
+        for frag in audio_fragments.iter().filter(|f| f.period == period_counter) {
+            // Update any ProgressObservers
+            *segment_counter += 1;
+            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            for observer in &downloader.progress_observers {
+                observer.update(progress_percent, "Fetching audio segments");
+            }
+            let url = &frag.url;
+            // A manifest may use a data URL (RFC 2397) to embed media content such as the
+            // initialization segment directly in the manifest (recommended by YouTube for live
+            // streaming, but uncommon in practice).
+            if url.scheme() == "data" {
+                let us = &url.to_string();
+                let du = DataUrl::process(us)
+                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                if du.mime_type().type_ != "audio" {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        String::from("expecting audio content in data URL")));
+                }
+                let (body, _fragment) = du.decode_to_vec()
+                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                if downloader.verbosity > 2 {
+                    println!("  Audio segment data URL -> {} octets", body.len());
+                }
+                if let Err(e) = tmpfile_audio.write_all(&body) {
+                    error!("Unable to write DASH audio data: {e:?}");
+                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                }
+                have_audio = true;
+            } else {
+                // We could download these segments in parallel, but that might upset some servers.
+                let fetch = || async {
+                    // Don't use only "audio/*" in Accept header because some web servers
+                    // (eg. media.axprod.net) are misconfigured and reject requests for
+                    // valid audio content (eg .m4s)
+                    let mut req = client.get(url.clone())
+                        .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
+                        .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate");
+                    if let Some(sb) = &frag.start_byte {
+                        if let Some(eb) = &frag.end_byte {
+                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                        }
+                    }
+                    req.send().await
+                        .map_err(categorize_reqwest_error)?
+                        .error_for_status()
+                        .map_err(categorize_reqwest_error)
+                };
+                let mut failure = None;
+                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            if !downloader.content_type_checks || content_type_audio_p(&response) {
+                                let dash_bytes = response.bytes().await
+                                    .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("  Audio segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, dash_bytes.len());
+                                        }
+                                    } else {
+                                        println!("  Audio segment {url} -> {} octets", dash_bytes.len());
+                                    }
+                                }
+                                let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
+                                throttle_download_rate(downloader, size).await?;
+                                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
+                                    error!("Unable to write DASH audio data: {e:?}");
+                                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                                }
+                                if let Some(ref fragment_path) = downloader.fragment_path {
+                                    if let Some(path) = frag.url.path_segments()
+                                        .unwrap_or_else(|| "".split(' '))
+                                        .last()
+                                    {
+                                        let af_file = fragment_path.clone().join("audio").join(path);
+                                        let mut out = File::create(af_file)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
+                                        out.write_all(&dash_bytes)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
+                                    }
+                                }
+                                have_audio = true;
+                            } else {
+                                warn!("Ignoring segment {url} with non-audio content-type");
+                            }
+                        } else {
+                            failure = Some(format!("HTTP error {}", response.status().as_str()));
+                        }
+                    },
+                    Err(e) => failure = Some(format!("{e}")),
+                }
+                if let Some(f) = failure {
+                    if downloader.verbosity > 0 {
+                        eprintln!("{f} fetching audio segment {url}");
+                    }
+                    *download_errors += 1;
+                    if *download_errors > downloader.max_error_count {
+                        return Err(DashMpdError::Network(
+                            String::from("more than max_error_count network errors")));
+                    }
+                }
+            }
+            if downloader.sleep_between_requests > 0 {
+                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+            }
+        }
+        tmpfile_audio.flush().map_err(|e| {
+            error!("Couldn't flush DASH audio file: {e}");
+            DashMpdError::Io(e, String::from("flushing DASH audio file"))
+        })?;
+    } // end local scope for the FileHandle
+    if !downloader.decryption_keys.is_empty() {
+        if downloader.verbosity > 0 {
+            println!("  Attempting to decrypt audio stream");
+        }
+        let mut args = Vec::new();
+        for (k, v) in downloader.decryption_keys.iter() {
+            args.push("--key".to_string());
+            args.push(format!("{k}:{v}"));
+        }
+        args.push(String::from(tmppath.to_string_lossy()));
+        let decrypted = tmp_file_path("dashmpd-decrypted-audio")?;
+        args.push(String::from(decrypted.to_string_lossy()));
+        let out = Command::new(downloader.mp4decrypt_location.clone())
+            .args(args)
+            .output()
+            .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+        if !out.status.success() {
+            warn!("mp4decrypt subprocess failed");
+            let msg = String::from_utf8_lossy(&out.stdout);
+            if msg.len() > 0 {
+                warn!("mp4decrypt stdout: {msg}");
+            }
+            let msg = String::from_utf8_lossy(&out.stderr);
+            if msg.len() > 0 {
+                warn!("mp4decrypt stderr: {msg}");
+            }
+        }
+        fs::rename(decrypted, tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
+    }
+    if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+        if downloader.verbosity > 1 {
+            let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+            let elapsed = start_download.elapsed();
+            println!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1}MB/s)",
+                     mbytes / elapsed.as_secs_f64());
+        }
+    }
+    Ok(have_audio)
+}
+
+
+// Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
+async fn fetch_period_video(
+    downloader: &DashDownloader,
+    redirected_url: &Url,
+    tmppath: PathBuf,
+    video_fragments: &Vec<MediaFragment>,
+    period_counter: u8,
+    segment_count: usize,
+    segment_counter: &mut usize,
+    download_errors: &mut u32) -> Result<bool, DashMpdError>
+{
+    let client = downloader.http_client.clone().unwrap();
+    let start_download = Instant::now();
+    let mut have_video = false;
+    {
+        // We need a local scope for our tmpfile_video File, so that the file is closed when
+        // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
+        let tmpfile_video = File::create(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
+        let mut tmpfile_video = BufWriter::new(tmpfile_video);
+        // Optionally create the directory to which we will save the video fragments.
+        if let Some(ref fragment_path) = downloader.fragment_path {
+            let video_fragment_dir = fragment_path.join("video");
+            if !video_fragment_dir.exists() {
+                fs::create_dir_all(video_fragment_dir)
+                    .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
+            }
+        }
+        for frag in video_fragments.iter().filter(|f| f.period == period_counter) {
+            // Update any ProgressObservers
+            *segment_counter += 1;
+            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            for observer in &downloader.progress_observers {
+                observer.update(progress_percent, "Fetching video segments");
+            }
+            if frag.url.scheme() == "data" {
+                let us = &frag.url.to_string();
+                let du = DataUrl::process(us)
+                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                if du.mime_type().type_ != "video" {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        String::from("expecting video content in data URL")));
+                }
+                let (body, _fragment) = du.decode_to_vec()
+                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                if downloader.verbosity > 2 {
+                    println!("  Video segment data URL -> {} octets", body.len());
+                }
+                if let Err(e) = tmpfile_video.write_all(&body) {
+                    error!("Unable to write DASH video data: {e:?}");
+                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                }
+                have_video = true;
+            } else {
+                let fetch = || async {
+                    let mut req = client.get(frag.url.clone())
+                        .header("Accept", "video/*")
+                        .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate");
+                    if let Some(sb) = &frag.start_byte {
+                        if let Some(eb) = &frag.end_byte {
+                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                        }
+                    }
+                    req.send().await
+                        .map_err(categorize_reqwest_error)?
+                        .error_for_status()
+                        .map_err(categorize_reqwest_error)
+                };
+                let mut failure = None;
+                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            if !downloader.content_type_checks || content_type_video_p(&response) {
+                                let dash_bytes = response.bytes().await
+                                    .map_err(|e| network_error("fetching DASH video segment", e))?;
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("  Video segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, dash_bytes.len());
+                                        }
+                                    } else {
+                                        println!("  Video segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    }
+                                }
+                                let size = min((dash_bytes.len()/1024+1) as u32, u32::MAX);
+                                throttle_download_rate(downloader, size).await?;
+                                if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
+                                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                }
+                                if let Some(ref fragment_path) = downloader.fragment_path {
+                                    if let Some(path) = frag.url.path_segments()
+                                        .unwrap_or_else(|| "".split(' '))
+                                        .last()
+                                    {
+                                        let vf_file = fragment_path.clone().join("video").join(path);
+                                        let mut out = File::create(vf_file)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
+                                        out.write_all(&dash_bytes)
+                                            .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
+                                    }
+                                }
+                                have_video = true;
+                            } else {
+                                warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                            }
+                        } else {
+                            failure = Some(format!("HTTP error {}", response.status().as_str()));
+                        }
+                    },
+                    Err(e) => failure = Some(format!("{e}")),
+                }
+                if let Some(f) = failure {
+                    if downloader.verbosity > 0 {
+                        eprintln!("{f} fetching video segment {}", &frag.url);
+                    }
+                    *download_errors += 1;
+                    if *download_errors > downloader.max_error_count {
+                        return Err(DashMpdError::Network(
+                            String::from("more than max_error_count network errors")));
+                    }
+                }
+            }
+            if downloader.sleep_between_requests > 0 {
+                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+            }
+        }
+        tmpfile_video.flush().map_err(|e| {
+            error!("Couldn't flush video file: {e}");
+            DashMpdError::Io(e, String::from("flushing video file"))
+        })?;
+    } // end local scope for tmpfile_video File
+    if !downloader.decryption_keys.is_empty() {
+        if downloader.verbosity > 0 {
+            println!("  Attempting to decrypt video stream");
+        }
+        let mut args = Vec::new();
+        for (k, v) in downloader.decryption_keys.iter() {
+            args.push("--key".to_string());
+            args.push(format!("{k}:{v}"));
+        }
+        args.push(String::from(tmppath.to_string_lossy()));
+        let decrypted = tmp_file_path("dashmpd-decrypted-video")?;
+        args.push(String::from(decrypted.to_string_lossy()));
+        let out = Command::new(downloader.mp4decrypt_location.clone())
+            .args(args)
+            .output()
+            .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+        if ! out.status.success() {
+            warn!("mp4decrypt subprocess failed");
+            let msg = String::from_utf8_lossy(&out.stdout);
+            if msg.len() > 0 {
+                warn!("mp4decrypt stdout: {msg}");
+            }
+            let msg = String::from_utf8_lossy(&out.stderr);
+            if msg.len() > 0 {
+                warn!("mp4decrypt stderr: {msg}");
+            }
+        }
+        fs::rename(decrypted, tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
+    }
+    if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+        if downloader.verbosity > 1 {
+            let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+            let elapsed = start_download.elapsed();
+            println!("  Wrote {mbytes:.1}MB to DASH video file ({:.1}MB/s)",
+                     mbytes / elapsed.as_secs_f64());
+        }
+    }
+    Ok(have_video)
+}
+
+
+// Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
+async fn fetch_period_subtitles(
+    downloader: &DashDownloader,
+    redirected_url: &Url,
+    tmppath: PathBuf,
+    subtitle_fragments: &Vec<MediaFragment>,
+    subtitle_formats: &Vec<Vec<SubtitleType>>,
+    period_counter: u8,
+    segment_count: usize,
+    segment_counter: &mut usize,
+    download_errors: &mut u32) -> Result<bool, DashMpdError>
+{
+    let client = downloader.http_client.clone().unwrap();
+    let period_subtitle_formats = &subtitle_formats[period_counter as usize - 1];
+    let start_download = Instant::now();
+    let mut have_subtitles = false;
+    {
+        let tmpfile_subs = File::create(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
+        let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
+        for frag in subtitle_fragments {
+            // Update any ProgressObservers
+            *segment_counter += 1;
+            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            for observer in &downloader.progress_observers {
+                observer.update(progress_percent, "Fetching subtitle segments");
+            }
+            if frag.url.scheme() == "data" {
+                let us = &frag.url.to_string();
+                let du = DataUrl::process(us)
+                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                if du.mime_type().type_ != "video" {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        String::from("expecting video content in data URL")));
+                }
+                let (body, _fragment) = du.decode_to_vec()
+                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                if downloader.verbosity > 2 {
+                    println!("  Subtitle segment data URL -> {} octets", body.len());
+                }
+                if let Err(e) = tmpfile_subs.write_all(&body) {
+                    error!("Unable to write DASH subtitle data: {e:?}");
+                    return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                }
+                have_subtitles = true;
+            } else {
+                let fetch = || async {
+                    let mut req = client.get(frag.url.clone())
+                        .header("Referer", redirected_url.to_string())
+                        .header("Sec-Fetch-Mode", "navigate");
+                    if let Some(sb) = &frag.start_byte {
+                        if let Some(eb) = &frag.end_byte {
+                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+                        }
+                    }
+                    req.send().await
+                        .map_err(categorize_reqwest_error)?
+                        .error_for_status()
+                        .map_err(categorize_reqwest_error)
+                };
+                let mut failure = None;
+                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            let dash_bytes = response.bytes().await
+                                .map_err(|e| network_error("fetching DASH subtitle segment", e))?;
+                            if downloader.verbosity > 2 {
+                                if let Some(sb) = &frag.start_byte {
+                                    if let Some(eb) = &frag.end_byte {
+                                        println!("  Subtitle segment {} range {sb}-{eb} -> {} octets",
+                                                 &frag.url, dash_bytes.len());
+                                    }
+                                } else {
+                                    println!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                }
+                            }
+                            let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
+                            throttle_download_rate(downloader, size).await?;
+                            if let Err(e) = tmpfile_subs.write_all(&dash_bytes) {
+                                return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                            }
+                            have_subtitles = true;
+                        } else {
+                            failure = Some(format!("HTTP error {}", response.status().as_str()));
+                        }
+                    },
+                    Err(e) => failure = Some(format!("{e}")),
+                }
+                if let Some(f) = failure {
+                    if downloader.verbosity > 0 {
+                        eprintln!("{f} fetching subtitle segment {}", &frag.url);
+                    }
+                    *download_errors += 1;
+                    if *download_errors > downloader.max_error_count {
+                        return Err(DashMpdError::Network(
+                            String::from("more than max_error_count network errors")));
+                    }
+                }
+            }
+            if downloader.sleep_between_requests > 0 {
+                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+            }
+        }
+        tmpfile_subs.flush().map_err(|e| {
+            error!("Couldn't flush subs file: {e}");
+            DashMpdError::Io(e, String::from("flushing subtitle file"))
+        })?;
+    } // end local scope for tmpfile_subs File
+    if have_subtitles {
+        if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+            if downloader.verbosity > 1 {
+                let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
+                let elapsed = start_download.elapsed();
+                println!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1}MB/s)",
+                         mbytes / elapsed.as_secs_f64());
+            }
+        }
+        if period_subtitle_formats.contains(&SubtitleType::Wvtt) {
+            // We can extract these from the MP4 container in .srt format, using MP4Box.
+            if downloader.verbosity > 1 {
+                println!("  Running MP4Box to extract WVTT subtitles in SRT format");
+            }
+            let mut out = downloader.output_path.as_ref().unwrap().clone();
+            out.set_extension("srt");
+            if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
+                .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath.to_string_lossy()])
+                .output()
+            {
+                let msg = String::from_utf8_lossy(&mp4box.stdout);
+                if msg.len() > 0 {
+                    info!("MP4Box stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&mp4box.stderr);
+                if msg.len() > 0 {
+                    info!("MP4Box stderr: {msg}");
+                }
+                if mp4box.status.success() {
+                    info!("Extracted WVTT subtitles as SRT");
+                } else {
+                    warn!("Error running MP4Box to extract WVTT subtitles");
+                }
+            } else {
+                warn!("Failed to spawn MP4Box to extract WVTT subtitles");
+            }
+        }
+    }
+    Ok(have_subtitles)
+}
+
+
 async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError> {
     let client = &downloader.http_client.clone().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
@@ -2449,17 +2996,20 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         for f in video_outputs.fragments {
             video_fragments.push(f);
         }
+        // The subtitle formats seen for this period. 
+        let mut period_subtitle_formats = Vec::new();
         match do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await {
             Ok(subtitle_outputs) => {
                 for f in subtitle_outputs.fragments {
                     subtitle_fragments.push(f);
                 }
                 for f in subtitle_outputs.subtitle_formats {
-                    subtitle_formats.push(f);
+                    period_subtitle_formats.push(f);
                 }
             },
             Err(e) => warn!("Ignoring error triggered while processing subtitles: {e}"),
         }
+        subtitle_formats.push(period_subtitle_formats);
 
         // Print some diagnostics information on the selected streams
         if downloader.verbosity > 0 {
@@ -2483,24 +3033,10 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
     let mut period_output_paths: Vec<PathBuf> = Vec::new();
-    
     let mut download_errors = 0;
     // The additional +2 is for our initial .mpd fetch action and final muxing action
     let segment_count = audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2;
     let mut segment_counter = 0;
-    // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
-    // We express our cells in the RateLimiter in kB/s instead of bytes/second, to allow for numbing
-    // future bandwidth capacities. We need to be careful to allow a quota burst size which
-    // corresponds to the size (in kB) of the largest media segments we are going to be retrieving,
-    // because that's the number of bucket cells that will be consumed for each downloaded segment.
-    let kps = 1 + downloader.rate_limit / 1024;
-    if kps > u32::MAX.into() {
-        return Err(DashMpdError::Other("Bandwidth limit is too high".to_string()));
-    }
-    let bw_limit = NonZeroU32::new(kps as u32).unwrap();
-    let bw_quota = Quota::per_second(bw_limit)
-        .allow_burst(NonZeroU32::new(10 * 1024).unwrap());
-    let bw_limiter = RateLimiter::direct(bw_quota);
     period_counter = 0;
     for _mpd_period in &mpd.periods {
         period_counter += 1;
@@ -2525,506 +3061,37 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             tmp_file_path("dashmpd-video")?
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs")?;
-        
-        // Concatenate the audio segments to a file.
-        //
-        // FIXME: in DASH, the first segment contains headers that are necessary to generate a valid MP4
-        // file, so we should always abort if the first segment cannot be fetched. However, we could
-        // tolerate loss of subsequent segments.
-        if downloader.fetch_audio {
-            let start_audio_download = Instant::now();
-            {
-                // We need a local scope for our tmpfile_video File, so that the file is closed when
-                // we later optionally call mp4decrypt (which requires exclusive access to its input
-                // file on Windows).
-                let tmpfile_audio = File::create(tmppath_audio.clone())
-                    .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
-                let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
-                // Optionally create the directory to which we will save the audio fragments.
-                if let Some(ref fragment_path) = downloader.fragment_path {
-                    let audio_fragment_dir = fragment_path.join("audio");
-                    if !audio_fragment_dir.exists() {
-                        fs::create_dir_all(audio_fragment_dir)
-                            .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
-                    }
-                }
-                for frag in audio_fragments.iter().filter(|f| f.period == period_counter) {
-                    // Update any ProgressObservers
-                    segment_counter += 1;
-                    let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
-                    for observer in &downloader.progress_observers {
-                        observer.update(progress_percent, "Fetching audio segments");
-                    }
-                    let url = &frag.url;
-                    // A manifest may use a data URL (RFC 2397) to embed media content such as the
-                    // initialization segment directly in the manifest (recommended by YouTube for live
-                    // streaming, but uncommon in practice).
-                    if url.scheme() == "data" {
-                        let us = &url.to_string();
-                        let du = DataUrl::process(us)
-                            .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                        if du.mime_type().type_ != "audio" {
-                            return Err(DashMpdError::UnhandledMediaStream(
-                                String::from("expecting audio content in data URL")));
-                        }
-                        let (body, _fragment) = du.decode_to_vec()
-                            .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                        if downloader.verbosity > 2 {
-                            println!("  Audio segment data URL -> {} octets", body.len());
-                        }
-                        if let Err(e) = tmpfile_audio.write_all(&body) {
-                            error!("Unable to write DASH audio data: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                        }
-                        have_audio = true;
-                    } else {
-                        // We could download these segments in parallel, but that might upset some servers.
-                        let fetch = || async {
-                            // Don't use only "audio/*" in Accept header because some web servers
-                            // (eg. media.axprod.net) are misconfigured and reject requests for
-                            // valid audio content (eg .m4s)
-                            let mut req = client.get(url.clone())
-                                .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
-                                .header("Referer", redirected_url.to_string())
-                                .header("Sec-Fetch-Mode", "navigate");
-                            if let Some(sb) = &frag.start_byte {
-                                if let Some(eb) = &frag.end_byte {
-                                    req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                                }
-                            }
-                            req.send().await
-                                .map_err(categorize_reqwest_error)?
-                                .error_for_status()
-                                .map_err(categorize_reqwest_error)
-                        };
-                        let mut failure = None;
-                        match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                            Ok(response) => {
-                                if response.status().is_success() {
-                                    if !downloader.content_type_checks || content_type_audio_p(&response) {
-                                        let dash_bytes = response.bytes().await
-                                            .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
-                                        if downloader.verbosity > 2 {
-                                            if let Some(sb) = &frag.start_byte {
-                                                if let Some(eb) = &frag.end_byte {
-                                                    println!("  Audio segment {} range {sb}-{eb} -> {} octets",
-                                                             &frag.url, dash_bytes.len());
-                                                }
-                                            } else {
-                                                println!("  Audio segment {url} -> {} octets", dash_bytes.len());
-                                            }
-                                        }
-                                        if downloader.rate_limit > 0 {
-                                            let size = min(dash_bytes.len()/1024 + 1, u32::MAX as usize);
-                                            if let Some(cells) = NonZeroU32::new(size as u32) {
-                                                #[allow(clippy::redundant_pattern_matching)]
-                                                if let Err(_) = bw_limiter.until_n_ready(cells).await {
-                                                    return Err(DashMpdError::Other(
-                                                        "Bandwidth limit is too low".to_string()));
-                                                }
-                                            }
-                                        }
-                                        if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                                            error!("Unable to write DASH audio data: {e:?}");
-                                            return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                                        }
-                                        if let Some(ref fragment_path) = downloader.fragment_path {
-                                            if let Some(path) = frag.url.path_segments()
-                                                .unwrap_or_else(|| "".split(' '))
-                                                .last()
-                                            {
-                                                let af_file = fragment_path.clone().join("audio").join(path);
-                                                let mut out = File::create(af_file)
-                                                    .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
-                                                out.write_all(&dash_bytes)
-                                                    .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
-                                            }
-                                        }
-                                        have_audio = true;
-                                    } else {
-                                        warn!("Ignoring segment {url} with non-audio content-type");
-                                    }
-                                } else {
-                                    failure = Some(format!("HTTP error {}", response.status().as_str()));
-                                }
-                            },
-                            Err(e) => failure = Some(format!("{e}")),
-                        }
-                        if let Some(f) = failure {
-                            if downloader.verbosity > 0 {
-                                eprintln!("{f} fetching audio segment {url}");
-                            }
-                            download_errors += 1;
-                            if download_errors > downloader.max_error_count {
-                                return Err(DashMpdError::Network(
-                                    String::from("more than max_error_count network errors")));
-                            }
-                        }
-                    }
-                    if downloader.sleep_between_requests > 0 {
-                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
-                    }
-                }
-                tmpfile_audio.flush().map_err(|e| {
-                    error!("Couldn't flush DASH audio file: {e}");
-                    DashMpdError::Io(e, String::from("flushing DASH audio file"))
-                })?;
-            } // end local scope for the FileHandle
-            if !downloader.decryption_keys.is_empty() {
-                if downloader.verbosity > 0 {
-                    println!("  Attempting to decrypt audio stream");
-                }
-                let mut args = Vec::new();
-                for (k, v) in downloader.decryption_keys.iter() {
-                    args.push("--key".to_string());
-                    args.push(format!("{k}:{v}"));
-                }
-                args.push(String::from(tmppath_audio.to_string_lossy()));
-                let decrypted = tmp_file_path("dashmpd-decrypted-audio")?;
-                args.push(String::from(decrypted.to_string_lossy()));
-                let out = Command::new(downloader.mp4decrypt_location.clone())
-                    .args(args)
-                    .output()
-                    .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-                if !out.status.success() {
-                    warn!("mp4decrypt subprocess failed");
-                    let msg = String::from_utf8_lossy(&out.stdout);
-                    if msg.len() > 0 {
-                        warn!("mp4decrypt stdout: {msg}");
-                    }
-                    let msg = String::from_utf8_lossy(&out.stderr);
-                    if msg.len() > 0 {
-                        warn!("mp4decrypt stderr: {msg}");
-                    }
-                }
-                fs::rename(decrypted, tmppath_audio.clone())
-                    .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
-            }
-            if let Ok(metadata) = fs::metadata(tmppath_audio.clone()) {
-                if downloader.verbosity > 1 {
-                    let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
-                    let elapsed = start_audio_download.elapsed();
-                    println!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1}MB/s)",
-                             mbytes / elapsed.as_secs_f64());
-                }
-            }
-        } // if downloader.fetch_audio
 
+        if downloader.fetch_audio {
+            have_audio = fetch_period_audio(downloader, &redirected_url,
+                                            tmppath_audio.clone(), &audio_fragments,
+                                            period_counter, segment_count,
+                                            &mut segment_counter,
+                                            &mut download_errors).await?;
+        }
+        
         // Now fetch the video segments and concatenate them to the video file
         if downloader.fetch_video {
-            let start_video_download = Instant::now();
-            {
-                // We need a local scope for our tmpfile_video File, so that the file is closed when
-                // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
-                let tmpfile_video = File::create(tmppath_video.clone())
-                    .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
-                let mut tmpfile_video = BufWriter::new(tmpfile_video);
-                // Optionally create the directory to which we will save the video fragments.
-                if let Some(ref fragment_path) = downloader.fragment_path {
-                    let video_fragment_dir = fragment_path.join("video");
-                    if !video_fragment_dir.exists() {
-                        fs::create_dir_all(video_fragment_dir)
-                            .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
-                    }
-                }
-                for frag in video_fragments.iter().filter(|f| f.period == period_counter) {
-                    // Update any ProgressObservers
-                    segment_counter += 1;
-                    let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
-                    for observer in &downloader.progress_observers {
-                        observer.update(progress_percent, "Fetching video segments");
-                    }
-                    if frag.url.scheme() == "data" {
-                        let us = &frag.url.to_string();
-                        let du = DataUrl::process(us)
-                            .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                        if du.mime_type().type_ != "video" {
-                            return Err(DashMpdError::UnhandledMediaStream(
-                                String::from("expecting video content in data URL")));
-                        }
-                        let (body, _fragment) = du.decode_to_vec()
-                            .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                        if downloader.verbosity > 2 {
-                            println!("  Video segment data URL -> {} octets", body.len());
-                        }
-                        if let Err(e) = tmpfile_video.write_all(&body) {
-                            error!("Unable to write DASH video data: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                        }
-                        have_video = true;
-                    } else {
-                        let fetch = || async {
-                            let mut req = client.get(frag.url.clone())
-                                .header("Accept", "video/*")
-                                .header("Referer", redirected_url.to_string())
-                                .header("Sec-Fetch-Mode", "navigate");
-                            if let Some(sb) = &frag.start_byte {
-                                if let Some(eb) = &frag.end_byte {
-                                    req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                                }
-                            }
-                            req.send().await
-                                .map_err(categorize_reqwest_error)?
-                                .error_for_status()
-                                .map_err(categorize_reqwest_error)
-                        };
-                        let mut failure = None;
-                        match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                            Ok(response) => {
-                                if response.status().is_success() {
-                                    if !downloader.content_type_checks || content_type_video_p(&response) {
-                                        let dash_bytes = response.bytes().await
-                                            .map_err(|e| network_error("fetching DASH video segment", e))?;
-                                        if downloader.verbosity > 2 {
-                                            if let Some(sb) = &frag.start_byte {
-                                                if let Some(eb) = &frag.end_byte {
-                                                    println!("  Video segment {} range {sb}-{eb} -> {} octets",
-                                                             &frag.url, dash_bytes.len());
-                                                }
-                                            } else {
-                                                println!("  Video segment {} -> {} octets", &frag.url, dash_bytes.len());
-                                            }
-                                        }
-                                        if downloader.rate_limit > 0 {
-                                            let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
-                                            if let Some(cells) = NonZeroU32::new(size as u32) {
-                                                #[allow(clippy::redundant_pattern_matching)]
-                                                if let Err(_) = bw_limiter.until_n_ready(cells).await {
-                                                    return Err(DashMpdError::Other(
-                                                        "Bandwidth limit is too low".to_string()));
-                                                }
-                                            }
-                                        }
-                                        if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                                            return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                                        }
-                                        if let Some(ref fragment_path) = downloader.fragment_path {
-                                            if let Some(path) = frag.url.path_segments()
-                                                .unwrap_or_else(|| "".split(' '))
-                                                .last()
-                                            {
-                                                let vf_file = fragment_path.clone().join("video").join(path);
-                                                let mut out = File::create(vf_file)
-                                                    .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
-                                                out.write_all(&dash_bytes)
-                                                    .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
-                                            }
-                                        }
-                                        have_video = true;
-                                    } else {
-                                        warn!("Ignoring segment {} with non-video content-type", &frag.url);
-                                    }
-                                } else {
-                                    failure = Some(format!("HTTP error {}", response.status().as_str()));
-                                }
-                            },
-                            Err(e) => failure = Some(format!("{e}")),
-                        }
-                        if let Some(f) = failure {
-                            if downloader.verbosity > 0 {
-                                eprintln!("{f} fetching video segment {}", &frag.url);
-                            }
-                            download_errors += 1;
-                            if download_errors > downloader.max_error_count {
-                                return Err(DashMpdError::Network(
-                                    String::from("more than max_error_count network errors")));
-                            }
-                        }
-                    }
-                    if downloader.sleep_between_requests > 0 {
-                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
-                    }
-                }
-                tmpfile_video.flush().map_err(|e| {
-                    error!("Couldn't flush video file: {e}");
-                    DashMpdError::Io(e, String::from("flushing video file"))
-                })?;
-            } // end local scope for tmpfile_video File
-            if !downloader.decryption_keys.is_empty() {
-                if downloader.verbosity > 0 {
-                    println!("  Attempting to decrypt video stream");
-                }
-                let mut args = Vec::new();
-                for (k, v) in downloader.decryption_keys.iter() {
-                    args.push("--key".to_string());
-                    args.push(format!("{k}:{v}"));
-                }
-                args.push(String::from(tmppath_video.to_string_lossy()));
-                let decrypted = tmp_file_path("dashmpd-decrypted-video")?;
-                args.push(String::from(decrypted.to_string_lossy()));
-                let out = Command::new(downloader.mp4decrypt_location.clone())
-                    .args(args)
-                    .output()
-                    .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-                if ! out.status.success() {
-                    warn!("mp4decrypt subprocess failed");
-                    let msg = String::from_utf8_lossy(&out.stdout);
-                    if msg.len() > 0 {
-                        warn!("mp4decrypt stdout: {msg}");
-                    }
-                    let msg = String::from_utf8_lossy(&out.stderr);
-                    if msg.len() > 0 {
-                        warn!("mp4decrypt stderr: {msg}");
-                    }
-                }
-                fs::rename(decrypted, tmppath_video.clone())
-                    .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
-            }
-            if let Ok(metadata) = fs::metadata(tmppath_video.clone()) {
-                if downloader.verbosity > 1 {
-                    let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
-                    let elapsed = start_video_download.elapsed();
-                    println!("  Wrote {mbytes:.1}MB to DASH video file ({:.1}MB/s)",
-                             mbytes / elapsed.as_secs_f64());
-                }
-            }
-        } // if downloader.fetch_video
+            have_video = fetch_period_video(downloader, &redirected_url,
+                                            tmppath_video.clone(), &video_fragments,
+                                            period_counter, segment_count,
+                                            &mut segment_counter,
+                                            &mut download_errors).await?;
+        }
 
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
         // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
         // formatted as EBU-TT for DASH media) formats.
         if downloader.fetch_subtitles {
-            let start_subs_download = Instant::now();
-            {
-                let tmpfile_subs = File::create(tmppath_subs.clone())
-                    .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
-                let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
-                for frag in &subtitle_fragments {
-                    // Update any ProgressObservers
-                    segment_counter += 1;
-                    let progress_percent = (100.0 * segment_counter as f32 / segment_count as f32).ceil() as u32;
-                    for observer in &downloader.progress_observers {
-                        observer.update(progress_percent, "Fetching subtitle segments");
-                    }
-                    if frag.url.scheme() == "data" {
-                        let us = &frag.url.to_string();
-                        let du = DataUrl::process(us)
-                            .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
-                        if du.mime_type().type_ != "video" {
-                            return Err(DashMpdError::UnhandledMediaStream(
-                                String::from("expecting video content in data URL")));
-                        }
-                        let (body, _fragment) = du.decode_to_vec()
-                            .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
-                        if downloader.verbosity > 2 {
-                            println!("  Subtitle segment data URL -> {} octets", body.len());
-                        }
-                        if let Err(e) = tmpfile_subs.write_all(&body) {
-                            error!("Unable to write DASH subtitle data: {e:?}");
-                            return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
-                        }
-                        have_subtitles = true;
-                    } else {
-                        let fetch = || async {
-                            let mut req = client.get(frag.url.clone())
-                                .header("Referer", redirected_url.to_string())
-                                .header("Sec-Fetch-Mode", "navigate");
-                            if let Some(sb) = &frag.start_byte {
-                                if let Some(eb) = &frag.end_byte {
-                                    req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                                }
-                            }
-                            req.send().await
-                                .map_err(categorize_reqwest_error)?
-                                .error_for_status()
-                                .map_err(categorize_reqwest_error)
-                        };
-                        let mut failure = None;
-                        match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                            Ok(response) => {
-                                if response.status().is_success() {
-                                    let dash_bytes = response.bytes().await
-                                        .map_err(|e| network_error("fetching DASH subtitle segment", e))?;
-                                    if downloader.verbosity > 2 {
-                                        if let Some(sb) = &frag.start_byte {
-                                            if let Some(eb) = &frag.end_byte {
-                                                println!("  Subtitle segment {} range {sb}-{eb} -> {} octets",
-                                                         &frag.url, dash_bytes.len());
-                                            }
-                                        } else {
-                                            println!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
-                                        }
-                                    }
-                                    if downloader.rate_limit > 0 {
-                                        let size = min(dash_bytes.len()/1024+1, u32::MAX as usize);
-                                        if let Some(cells) = NonZeroU32::new(size as u32) {
-                                            #[allow(clippy::redundant_pattern_matching)]
-                                            if let Err(_) = bw_limiter.until_n_ready(cells).await {
-                                                return Err(DashMpdError::Other(
-                                                    "Bandwidth limit is too low".to_string()));
-                                            }
-                                        }
-                                    }
-                                    if let Err(e) = tmpfile_subs.write_all(&dash_bytes) {
-                                        return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
-                                    }
-                                    have_subtitles = true;
-                                } else {
-                                    failure = Some(format!("HTTP error {}", response.status().as_str()));
-                                }
-                            },
-                            Err(e) => failure = Some(format!("{e}")),
-                        }
-                        if let Some(f) = failure {
-                            if downloader.verbosity > 0 {
-                                eprintln!("{f} fetching subtitle segment {}", &frag.url);
-                            }
-                            download_errors += 1;
-                            if download_errors > downloader.max_error_count {
-                                return Err(DashMpdError::Network(
-                                    String::from("more than max_error_count network errors")));
-                            }
-                        }
-                    }
-                    if downloader.sleep_between_requests > 0 {
-                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
-                    }
-                }
-                tmpfile_subs.flush().map_err(|e| {
-                    error!("Couldn't flush subs file: {e}");
-                    DashMpdError::Io(e, String::from("flushing subtitle file"))
-                })?;
-            } // end local scope for tmpfile_subs File
-            if have_subtitles {
-                if let Ok(metadata) = fs::metadata(tmppath_subs.clone()) {
-                    if downloader.verbosity > 1 {
-                        let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
-                        let elapsed = start_subs_download.elapsed();
-                        println!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1}MB/s)",
-                                 mbytes / elapsed.as_secs_f64());
-                    }
-                }
-                if subtitle_formats.contains(&SubtitleType::Wvtt) {
-                    // We can extract these from the MP4 container in .srt format, using MP4Box.
-                    if downloader.verbosity > 1 {
-                        println!("  Running MP4Box to extract WVTT subtitles in SRT format");
-                    }
-                    let mut out = output_path.clone();
-                    out.set_extension("srt");
-                    if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                        .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath_subs.to_string_lossy()])
-                        .output()
-                    {
-                        let msg = String::from_utf8_lossy(&mp4box.stdout);
-                        if msg.len() > 0 {
-                            info!("MP4Box stdout: {msg}");
-                        }
-                        let msg = String::from_utf8_lossy(&mp4box.stderr);
-                        if msg.len() > 0 {
-                            info!("MP4Box stderr: {msg}");
-                        }
-                        if mp4box.status.success() {
-                            info!("Extracted WVTT subtitles as SRT");
-                        } else {
-                            warn!("Error running MP4Box to extract WVTT subtitles");
-                        }
-                    } else {
-                        warn!("Failed to spawn MP4Box to extract WVTT subtitles");
-                    }
-                }
-            }
-        } // if downloader.fetch_subtitles
-        
+            have_subtitles = fetch_period_subtitles(downloader, &redirected_url,
+                                                    tmppath_subs.clone(),
+                                                    &subtitle_fragments,
+                                                    &subtitle_formats,
+                                                    period_counter, segment_count,
+                                                    &mut segment_counter,
+                                                    &mut download_errors).await?;
+        }
+
         // The output file for this Period is either a mux of the audio and video streams, if both
         // are present, or just the audio stream, or just the video stream.
         if have_audio && have_video {
@@ -3035,11 +3102,11 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 println!("  Muxing audio and video streams");
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
-            if subtitle_formats.contains(&SubtitleType::Stpp) {
+            if subtitle_formats[period_counter as usize - 1].contains(&SubtitleType::Stpp) {
                 if downloader.verbosity > 1 {
                     println!("  Running MP4Box to merge STPP subtitles with output file");
                 }
-                // We can try to merge these with the MP4 container, using MP4Box.
+                // We can try to add the subtitles to the MP4 container, using MP4Box.
                 if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                     .args(["-add", &tmppath_subs.to_string_lossy(),
                            &period_output_path.clone().to_string_lossy()])
@@ -3063,25 +3130,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 }
             }
         } else if have_audio {
-            // Copy the downloaded audio segments to the output file. We don't use fs::rename() because
-            // it might fail if temporary files and our output are on different filesystems.
-            let tmpfile_audio = File::open(&tmppath_audio)
-                .map_err(|e| DashMpdError::Io(e, String::from("opening temporary audio output file")))?;
-            let mut audio = BufReader::new(tmpfile_audio);
-            let output_file = File::create(period_output_path.clone())
-                .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
-            let mut sink = BufWriter::new(output_file);
-            io::copy(&mut audio, &mut sink)
-                .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
+            copy_audio_to_container(downloader, &period_output_path, &tmppath_audio)?;
         } else if have_video {
-            let tmpfile_video = File::open(&tmppath_video)
-                .map_err(|e| DashMpdError::Io(e, String::from("opening temporary video output file")))?;
-            let mut video = BufReader::new(tmpfile_video);
-            let output_file = File::create(period_output_path.clone())
-                .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
-            let mut sink = BufWriter::new(output_file);
-            io::copy(&mut video, &mut sink)
-                .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
+            copy_video_to_container(downloader, &period_output_path, &tmppath_video)?;
         } else if downloader.fetch_video && downloader.fetch_audio {
             return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
         } else if downloader.fetch_video {
@@ -3107,7 +3158,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 info!("Failed to delete temporary file for subtitles");
             }
         }
-        if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video) {
+        if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
                 println!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
             }

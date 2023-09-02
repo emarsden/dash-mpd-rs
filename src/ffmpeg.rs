@@ -11,8 +11,24 @@ use std::process::Command;
 use fs_err as fs;
 use fs::File;
 use log::{trace, info, warn};
+use file_format::FileFormat;
 use crate::DashMpdError;
 use crate::fetch::DashDownloader;
+
+
+// Returns "mp4", "mkv", "avi" etc. Based on analyzing the media content rather than on the filename
+// extension.
+fn audio_container_type(container: &Path) -> Result<String, DashMpdError> {
+    let format = FileFormat::from_file(container)
+        .map_err(|e| DashMpdError::Io(e, String::from("determining audio container type")))?;
+    Ok(format.extension().to_string())
+}
+
+fn video_container_type(container: &Path) -> Result<String, DashMpdError> {
+    let format = FileFormat::from_file(container)
+        .map_err(|e| DashMpdError::Io(e, String::from("determining video container type")))?;
+    Ok(format.extension().to_string())
+}
 
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
@@ -56,6 +72,75 @@ fn mux_audio_video_ffmpeg(
                "-i", video_str,
                "-c:v", "copy",
                "-c:a", "copy",
+               "-movflags", "+faststart", "-preset", "veryfast",
+               // select the muxer explicitly
+               "-f", container,
+               tmppath])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
+    let msg = String::from_utf8_lossy(&ffmpeg.stdout);
+    if msg.len() > 0 {
+        info!("ffmpeg stdout: {msg}");
+    }
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    if msg.len() > 0 {
+        info!("ffmpeg stderr: {msg}");
+    }
+    if ffmpeg.status.success() {
+        // local scope so that tmppath is not busy on Windows and can be deleted
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+        }
+	if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary ffmpeg output: {e}");
+        }
+        Ok(())
+    } else {
+        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+    }
+}
+
+
+// This can be used to package either an audio stream or a video stream into the container format
+// that is determined by the extension of output_path.
+fn mux_stream_ffmpeg(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    input_path: &Path) -> Result<(), DashMpdError> {
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{container}"))
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    let input = input_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining input name"),
+            String::from("")))?;
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
+        .args(["-hide_banner",
+               "-nostats",
+               "-loglevel", "error",  // or "warning", "info"
+               "-y",  // overwrite output file if it exists
+               "-i", input,
                "-movflags", "+faststart", "-preset", "veryfast",
                // select the muxer explicitly
                "-f", container,
@@ -214,6 +299,59 @@ fn mux_audio_video_mp4box(
     }
 }
 
+// This can be used to package either an audio stream or a video stream into the container format
+// that is determined by the extension of output_path.
+fn mux_stream_mp4box(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    input_path: &Path) -> Result<(), DashMpdError> {
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{container}"))
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    let input = input_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining input stream name"),
+            String::from("")))?;
+    let cmd = Command::new(&downloader.mp4box_location)
+        .args(["-add", input,
+               "-new", tmppath])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
+    if cmd.status.success() {
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening MP4Box output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
+        }
+	if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary MP4Box output: {e}");
+        }
+        Ok(())
+    } else {
+        let msg = String::from_utf8_lossy(&cmd.stderr);
+        Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
+    }
+}
+
 
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
 // create the temporary file in the current directory.
@@ -280,8 +418,86 @@ fn mux_audio_video_mkvmerge(
     }
 }
 
+// Copy video stream at video_path into Matroska container at output_path.
+fn mux_video_mkvmerge(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    video_path: &Path) -> Result<(), DashMpdError> {
+    let tmppath = temporary_outpath(".mkv")?;
+    let video_str = video_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            String::from("")))?;
+    let mkv = Command::new(&downloader.mkvmerge_location)
+        .args(["--output", &tmppath,
+               "--no-audio", video_str])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
+    if mkv.status.success() {
+        {
+            let tmpfile = File::open(&tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening mkvmerge output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
+        }
+        if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary mkvmerge output: {e}");
+        }
+        Ok(())
+    } else {
+        // mkvmerge writes error messages to stdout, not to stderr
+        let msg = String::from_utf8_lossy(&mkv.stdout);
+        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
+    }
+}
 
-// First try ffmpeg subprocess, if that fails try vlc subprocess
+
+// Copy audio stream at video_path into Matroska container at output_path.
+fn mux_audio_mkvmerge(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    audio_path: &Path) -> Result<(), DashMpdError> {
+    let tmppath = temporary_outpath(".mkv")?;
+    let audio_str = audio_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            String::from("")))?;
+    let mkv = Command::new(&downloader.mkvmerge_location)
+        .args(["--output", &tmppath,
+               "--no-video", audio_str])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
+    if mkv.status.success() {
+        {
+            let tmpfile = File::open(&tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening mkvmerge output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
+        }
+        if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary mkvmerge output: {e}");
+        }
+        Ok(())
+    } else {
+        // mkvmerge writes error messages to stdout, not to stderr
+        let msg = String::from_utf8_lossy(&mkv.stdout);
+        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
+    }
+}
+
+
+// Mux (merge) audio and video using an external tool, selecting the tool based on the output
+// container format and on our preference (first try ffmpeg, then vlc, then mp4box, etc.).
 pub fn mux_audio_video(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -332,6 +548,130 @@ pub fn mux_audio_video(
             }
         } else if muxer.eq("mp4box") {
             if let Err(e) = mux_audio_video_mp4box(downloader, output_path, audio_path, video_path) {
+                warn!("Muxing with MP4Box subprocess failed: {e}");
+            } else {
+                info!("Muxing with MP4Box subprocess succeeded");
+                return Ok(());
+            }
+        }
+    }
+    warn!("All available muxers failed");
+    Err(DashMpdError::Muxing(String::from("all available muxers failed")))
+}
+
+
+pub fn copy_video_to_container(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    video_path: &Path) -> Result<(), DashMpdError> {
+    trace!("Copying video {} to output container {}", video_path.display(), output_path.display());
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // If the video stream is already in the desired container format, we can just copy it to the
+    // output file.
+    if video_container_type(video_path)?.eq(container) {
+        let tmpfile_video = File::open(video_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary video output file")))?;
+        let mut video = BufReader::new(tmpfile_video);
+        let output_file = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
+        let mut sink = BufWriter::new(output_file);
+        io::copy(&mut video, &mut sink)
+            .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
+        return Ok(());
+    }
+    // TODO: should allow the user to specify this ordering preference
+    let mut muxer_preference = vec![];
+    if container.eq("mkv") {
+        muxer_preference.push("mkvmerge");
+        muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
+    } else {
+        muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
+    }
+    for muxer in muxer_preference {
+        info!("Trying muxer {muxer}");
+        if muxer.eq("mkvmerge") {
+            if let Err(e) =  mux_video_mkvmerge(downloader, output_path, video_path) {
+                warn!("Muxing with mkvmerge subprocess failed: {e}");
+            } else {
+                info!("Muxing with mkvmerge subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("ffmpeg") {
+            if let Err(e) = mux_stream_ffmpeg(downloader, output_path, video_path) {
+                warn!("Muxing with ffmpeg subprocess failed: {e}");
+            } else {
+                info!("Muxing with ffmpeg subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("mp4box") {
+            if let Err(e) = mux_stream_mp4box(downloader, output_path, video_path) {
+                warn!("Muxing with MP4Box subprocess failed: {e}");
+            } else {
+                info!("Muxing with MP4Box subprocess succeeded");
+                return Ok(());
+            }
+        }
+    }
+    warn!("All available muxers failed");
+    Err(DashMpdError::Muxing(String::from("all available muxers failed")))
+}
+
+
+pub fn copy_audio_to_container(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    audio_path: &Path) -> Result<(), DashMpdError> {
+    trace!("Copying audio {} to output container {}", audio_path.display(), output_path.display());
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // If the audio stream is already in the desired container format, we can just copy it to the
+    // output file.
+    if audio_container_type(audio_path)?.eq(container) {
+        let tmpfile_video = File::open(audio_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary output file")))?;
+        let mut video = BufReader::new(tmpfile_video);
+        let output_file = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+        let mut sink = BufWriter::new(output_file);
+        io::copy(&mut video, &mut sink)
+            .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
+        return Ok(());
+    }
+    // TODO: should allow the user to specify this ordering preference
+    let mut muxer_preference = vec![];
+    if container.eq("mkv") {
+        muxer_preference.push("mkvmerge");
+        muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
+    } else {
+        muxer_preference.push("ffmpeg");
+        muxer_preference.push("mp4box");
+    }
+    for muxer in muxer_preference {
+        info!("Trying muxer {muxer}");
+        if muxer.eq("mkvmerge") {
+            if let Err(e) =  mux_audio_mkvmerge(downloader, output_path, audio_path) {
+                warn!("Muxing with mkvmerge subprocess failed: {e}");
+            } else {
+                info!("Muxing with mkvmerge subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("ffmpeg") {
+            if let Err(e) = mux_stream_ffmpeg(downloader, output_path, audio_path) {
+                warn!("Muxing with ffmpeg subprocess failed: {e}");
+            } else {
+                info!("Muxing with ffmpeg subprocess succeeded");
+                return Ok(());
+            }
+        } else if muxer.eq("mp4box") {
+            if let Err(e) = mux_stream_mp4box(downloader, output_path, audio_path) {
                 warn!("Muxing with MP4Box subprocess failed: {e}");
             } else {
                 info!("Muxing with MP4Box subprocess succeeded");

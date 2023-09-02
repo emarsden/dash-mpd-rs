@@ -12,6 +12,7 @@ use fs_err as fs;
 use std::env;
 use std::path::Path;
 use log::info;
+use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
 // This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to
@@ -41,6 +42,10 @@ async fn test_subtitles_wvtt () {
         .unwrap();
     assert!(fs::metadata(subpath_wvtt).is_ok());
     assert!(fs::metadata(subpath_srt).is_ok());
+    let format = FileFormat::from_file(subpath_wvtt.clone()).unwrap();
+    assert_eq!(format, FileFormat::WebVideoTextTracks);
+    let format = FileFormat::from_file(subpath_srt.clone()).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land van de poortwachters"));
     if let Err(e) = fs::remove_file(subpath_wvtt) {
@@ -77,6 +82,9 @@ async fn test_subtitles_ttml () {
         .fetch_subtitles(true)
         .download_to(outpath.clone()).await
         .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
     let ttml = fs::read_to_string(subpath).unwrap();
     // We didn't specify a preferred language, so the first available one in the manifest (here
     // English) is downloaded.
@@ -112,6 +120,8 @@ async fn test_subtitles_vtt () {
         .download_to(outpath.clone()).await
         .unwrap();
     assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::WebVideoTextTracks);
     // This manifest contains a single subtitle track, available in VTT format via BaseURL addressing.
     let vtt = fs::read_to_string(subpath).unwrap();
     assert!(vtt.contains("Hurry Emo!"));

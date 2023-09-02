@@ -213,3 +213,21 @@ pub fn mux_audio_video(
         .map_err(|_| DashMpdError::Muxing(String::from("closing libav muxer")))?;
     Ok(())
 }
+
+
+pub fn copy_video_to_container(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    video_path: &Path) -> Result<(), DashMpdError>
+{
+    todo!()
+}
+
+
+pub fn copy_audio_to_container(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    audio_path: &Path) -> Result<(), DashMpdError>
+{
+    todo!()
+}

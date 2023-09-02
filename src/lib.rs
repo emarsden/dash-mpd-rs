@@ -75,9 +75,9 @@ pub mod scte35;
 use crate::scte35::{Signal, SpliceInfoSection};
 
 #[cfg(all(feature = "fetch", feature = "libav"))]
-use crate::libav::mux_audio_video;
+use crate::libav::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
-use crate::ffmpeg::{mux_audio_video};
+use crate::ffmpeg::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use base64_serde::base64_serde_type;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;

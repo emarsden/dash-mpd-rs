@@ -14,6 +14,7 @@ use fs_err as fs;
 use std::env;
 use std::time::Duration;
 use std::path::PathBuf;
+use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
 
@@ -28,11 +29,7 @@ fn check_file_size_approx(p: &PathBuf, expected: u64) {
 
 
 #[tokio::test]
-async fn test_dl1() {
-    // Don't run download tests on CI infrastructure
-    if env::var("CI").is_ok() {
-        return;
-    }
+async fn test_dl_mp4() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("itec-elephants-dream.mp4");
     DashDownloader::new(mpd_url)
@@ -40,8 +37,40 @@ async fn test_dl1() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 60_939);
-    println!("DASH content saved to file {}", out.to_string_lossy());
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+    println!("DASH content saved to MP4 container at {}", out.to_string_lossy());
 }
+
+// This test requires mkvmerge to be installed.
+#[tokio::test]
+async fn test_dl_mkv() {
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let out = env::temp_dir().join("itec-elephants-dream.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 65_798);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mkv");
+    println!("DASH content saved to MKV container at {}", out.to_string_lossy());
+}
+
+#[tokio::test]
+async fn test_dl_webm() {
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let out = env::temp_dir().join("itec-elephants-dream.webm");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 65_798);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "webm");
+    println!("DASH content saved to WebM container at {}", out.to_string_lossy());
+}
+
 
 
 // These tests retrieve content from some public MPD manifests and check that the content is
@@ -126,6 +155,8 @@ async fn test_h265() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
     check_file_size_approx(&out, 48_352_569);
 }
 
