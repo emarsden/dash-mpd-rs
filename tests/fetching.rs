@@ -1,6 +1,8 @@
 // Tests for MPD download support
 //
-// To run tests while enabling printing to stdout/stderr, "cargo test -- --show-output"
+// To run tests while enabling printing to stdout/stderr
+//
+//    cargo test --test fetching -- --show-output
 //
 // Testing resources:
 //
@@ -42,7 +44,9 @@ async fn test_dl_mp4() {
     println!("DASH content saved to MP4 container at {}", out.to_string_lossy());
 }
 
-// This test requires mkvmerge to be installed.
+// We can't check file size for this test, as depending on whether mkvmerge or ffmpeg or mp4box are
+// used to copy the video stream into the Matroska container (depending on which one is installed),
+// the output file size varies quite a lot.
 #[tokio::test]
 async fn test_dl_mkv() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
@@ -51,7 +55,6 @@ async fn test_dl_mkv() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 65_798);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format.extension(), "mkv");
     println!("DASH content saved to MKV container at {}", out.to_string_lossy());

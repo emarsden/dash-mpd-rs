@@ -108,6 +108,21 @@ fn mux_audio_video_ffmpeg(
 }
 
 
+
+// See "ffmpeg -formats"
+fn ffmpeg_container_name(extension: &str) -> Option<String> {
+    match extension {
+        "mkv" => Some(String::from("matroska")),
+        "avi" => Some(String::from("avi")),
+        "mov" => Some(String::from("mov")),
+        "mp4" => Some(String::from("mp4")),
+        "ts" => Some(String::from("mpegts")),
+        "ogg" => Some(String::from("ogg")),
+        "vob" => Some(String::from("vob")),
+        _ => None,
+    }
+}
+
 // This can be used to package either an audio stream or a video stream into the container format
 // that is determined by the extension of output_path.
 fn mux_stream_ffmpeg(
@@ -118,6 +133,7 @@ fn mux_stream_ffmpeg(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
+    info!("ffmpeg inserting stream into {container} container named {}", output_path.display());
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
@@ -135,16 +151,23 @@ fn mux_stream_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining input name"),
             String::from("")))?;
+    let cn: String;
+    let mut args = vec!("-hide_banner",
+                    "-nostats",
+                    "-loglevel", "error",  // or "warning", "info"
+                    "-y",  // overwrite output file if it exists
+                    "-i", input,
+                    "-movflags", "+faststart", "-preset", "veryfast");
+    // We can select the muxer explicitly (otherwise it is determined using heuristics based in the
+    // filename extension).
+    if let Some(container_name) = ffmpeg_container_name(container) {
+        args.push("-f");
+        cn = container_name;
+        args.push(&cn);
+    }
+    args.push(tmppath);
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(["-hide_banner",
-               "-nostats",
-               "-loglevel", "error",  // or "warning", "info"
-               "-y",  // overwrite output file if it exists
-               "-i", input,
-               "-movflags", "+faststart", "-preset", "veryfast",
-               // select the muxer explicitly
-               "-f", container,
-               tmppath])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = String::from_utf8_lossy(&ffmpeg.stdout);
