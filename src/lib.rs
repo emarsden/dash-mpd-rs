@@ -2016,12 +2016,12 @@ mod tests {
             .and_hms_opt(1, 3, 2)
             .unwrap();
         assert_eq!(parse_xs_datetime("2023-04-19T01:03:02Z").ok(),
-                   Some(DateTime::<Utc>::from_utc(date, Utc)));
+                   Some(DateTime::<Utc>::from_naive_utc_and_offset(date, Utc)));
         let date = NaiveDate::from_ymd_opt(2023, 4, 19)
             .unwrap()
             .and_hms_nano_opt(1, 3, 2, 958*1000*1000)
             .unwrap();
         assert_eq!(parse_xs_datetime("2023-04-19T01:03:02.958Z").ok(),
-                   Some(DateTime::<Utc>::from_utc(date, Utc)));
+                   Some(DateTime::<Utc>::from_naive_utc_and_offset(date, Utc)));
     }
 }
