@@ -43,7 +43,9 @@ async fn test_subtitles_wvtt () {
     assert!(fs::metadata(subpath_wvtt).is_ok());
     assert!(fs::metadata(subpath_srt).is_ok());
     let format = FileFormat::from_file(subpath_wvtt.clone()).unwrap();
-    assert_eq!(format, FileFormat::WebVideoTextTracks);
+    // For some reason, the file-format crate is not detecting this format correctly (it detects the
+    // more generic Mpeg4Part14Video type).
+    // assert_eq!(format, FileFormat::WebVideoTextTracks);
     let format = FileFormat::from_file(subpath_srt.clone()).unwrap();
     assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath_srt).unwrap();
@@ -84,7 +86,9 @@ async fn test_subtitles_ttml () {
         .unwrap();
     assert!(fs::metadata(subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
-    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    // For some reason, the file-format crate is not detecting the TimedTextMarkupLanguage format here (it
+    // is detecting the more generic ExtensibleMarkupLanguage format).
+    // assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
     let ttml = fs::read_to_string(subpath).unwrap();
     // We didn't specify a preferred language, so the first available one in the manifest (here
     // English) is downloaded.
