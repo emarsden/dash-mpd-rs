@@ -1,0 +1,136 @@
+/// Common code for media handling.
+//
+// This file contains functions used both by the external subprocess muxing in ffmpeg.rs and the
+// libav muxing in libav.rs.
+
+
+use std::path::{Path, PathBuf};
+use file_format::FileFormat;
+use log::warn;
+use crate::DashMpdError;
+use crate::fetch::DashDownloader;
+
+
+
+// Returns "mp4", "mkv", "avi" etc. Based on analyzing the media content rather than on the filename
+// extension.
+pub(crate) fn audio_container_type(container: &Path) -> Result<String, DashMpdError> {
+    let format = FileFormat::from_file(container)
+        .map_err(|e| DashMpdError::Io(e, String::from("determining audio container type")))?;
+    Ok(format.extension().to_string())
+}
+
+pub(crate) fn video_container_type(container: &Path) -> Result<String, DashMpdError> {
+    let format = FileFormat::from_file(container)
+        .map_err(|e| DashMpdError::Io(e, String::from("determining video container type")))?;
+    Ok(format.extension().to_string())
+}
+
+
+// This is the metainformation that we need in order to determine whether two video streams can be
+// concatenated using the ffmpeg concat filter.
+#[derive(Debug, Clone)]
+struct VideoMetainfo {
+    width: i64,
+    height: i64,
+    frame_rate: f64,
+    sar: f64,
+}
+
+impl PartialEq for VideoMetainfo {
+    fn eq(&self, other: &Self) -> bool {
+        (self.width == other.width) &&
+            (self.height == other.height) &&
+            ((self.frame_rate - other.frame_rate).abs() / self.frame_rate < 0.01) &&
+            ((self.sar - other.sar).abs() / self.sar < 0.01)
+    }
+}
+
+// Frame rate as returned by ffprobe is a rational number serialized as "24/1" for example.
+fn parse_frame_rate(s: &str) -> Option<f64> {
+    if let Some((num, den)) = s.split_once('/') {
+        if let Ok(numerator) = num.parse::<u64>() {
+            if let Ok(denominator) = den.parse::<u64>() {
+                return Some(numerator as f64 / denominator as f64);
+            }
+        }
+    }
+    None
+}
+
+// Aspect ratio as returned by ffprobe is a rational number serialized as "1:1" or "16:9" for example.
+fn parse_aspect_ratio(s: &str) -> Option<f64> {
+    if let Some((num, den)) = s.split_once(':') {
+        if let Ok(numerator) = num.parse::<u64>() {
+            if let Ok(denominator) = den.parse::<u64>() {
+                return Some(numerator as f64 / denominator as f64);
+            }
+        }
+    }
+    None
+}
+
+// Return metainformation concerning the first stream of the media content at path.
+// Uses ffprobe as a subprocess.
+fn video_container_metainfo(path: &PathBuf) -> Result<VideoMetainfo, DashMpdError> {
+    match ffprobe::ffprobe(path) {
+        Ok(meta) => {
+            if meta.streams.is_empty() {
+                return Err(DashMpdError::Muxing(String::from("reading video resolution")));
+            }
+            if let Some(s) = &meta.streams.iter().find(|s| s.width.is_some() && s.height.is_some()) {
+                if let Some(fr) = parse_frame_rate(&s.avg_frame_rate) {
+                    if let Some(sar) = s.sample_aspect_ratio.as_ref().and_then(|sr| parse_aspect_ratio(sr)) {
+                        return Ok(VideoMetainfo {
+                            width: s.width.unwrap(),
+                            height: s.height.unwrap(),
+                            frame_rate: fr,
+                            sar,
+                        });
+                    }
+                }
+            }
+        },
+        Err(e) => warn!("Error running ffprobe: {e}"),
+    }
+    Err(DashMpdError::Muxing(String::from("reading video metainformation")))
+}
+
+pub(crate) fn container_only_audio(path: &PathBuf) -> bool {
+    if let Ok(meta) =  ffprobe::ffprobe(path) {
+        return meta.streams.iter().all(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("audio")));
+    }
+    false
+}
+
+
+// Does the media container at path contain an audio track (separate from the video track)?
+pub(crate) fn container_has_audio(path: &PathBuf) -> bool {
+    if let Ok(meta) =  ffprobe::ffprobe(path) {
+        return meta.streams.iter().any(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("audio")));
+    }
+    false
+}
+
+// Does the media container at path contain a video track?
+pub(crate) fn container_has_video(path: &PathBuf) -> bool {
+    if let Ok(meta) =  ffprobe::ffprobe(path) {
+        return meta.streams.iter().any(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("video")));
+    }
+    false
+}
+
+// Can the video streams in these containers be merged together using the ffmpeg concat filter
+// (concatenated, possibly reencoding if the codecs used are different)? They can if:
+//   - they have identical resolutions, frame rate and aspect ratio
+//   - they all only contain audio content
+pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &Vec<PathBuf>) -> bool {
+    if paths.is_empty() {
+        return false;
+    }
+    if let Ok(p0m) = video_container_metainfo(&paths[0]) {
+        return paths.iter().all(|p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
+    }
+    paths.iter().all(container_only_audio)
+}
+

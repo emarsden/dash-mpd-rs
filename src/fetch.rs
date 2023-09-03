@@ -24,7 +24,9 @@ use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_conta
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
 #[cfg(not(feature = "libav"))]
-use crate::ffmpeg::{video_containers_concatable, concat_output_files};
+use crate::ffmpeg::concat_output_files;
+use crate::media::video_containers_concatable;
+
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::Client;

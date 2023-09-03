@@ -220,6 +220,24 @@ pub fn copy_video_to_container(
     output_path: &Path,
     video_path: &Path) -> Result<(), DashMpdError>
 {
+    trace!("Copying video {} to output container {}", video_path.display(), output_path.display());
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // If the video stream is already in the desired container format, we can just copy it to the
+    // output file.
+    if video_container_type(video_path)?.eq(container) {
+        let tmpfile_video = File::open(video_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary video output file")))?;
+        let mut video = BufReader::new(tmpfile_video);
+        let output_file = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file for video")))?;
+        let mut sink = BufWriter::new(output_file);
+        io::copy(&mut video, &mut sink)
+            .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
+        return Ok(());
+    }
     todo!()
 }
 
@@ -229,5 +247,23 @@ pub fn copy_audio_to_container(
     output_path: &Path,
     audio_path: &Path) -> Result<(), DashMpdError>
 {
+    trace!("Copying audio {} to output container {}", audio_path.display(), output_path.display());
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // If the audio stream is already in the desired container format, we can just copy it to the
+    // output file.
+    if audio_container_type(audio_path)?.eq(container) {
+        let tmpfile_video = File::open(video_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("opening temporary audio output file")))?;
+        let mut video = BufReader::new(tmpfile_video);
+        let output_file = File::create(output_path)
+            .map_err(|e| DashMpdError::Io(e, String::from("creating output file for audio")))?;
+        let mut sink = BufWriter::new(output_file);
+        io::copy(&mut video, &mut sink)
+            .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
+        return Ok(());
+    }
     todo!()
 }
