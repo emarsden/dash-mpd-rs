@@ -31,6 +31,7 @@ fn check_file_size_approx(p: &PathBuf, expected: u64) {
 
 
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_mp4() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("itec-elephants-dream.mp4");
@@ -48,6 +49,7 @@ async fn test_dl_mp4() {
 // used to copy the video stream into the Matroska container (depending on which one is installed),
 // the output file size varies quite a lot.
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_mkv() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("itec-elephants-dream.mkv");
@@ -61,6 +63,7 @@ async fn test_dl_mkv() {
 }
 
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_webm() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("itec-elephants-dream.webm");
