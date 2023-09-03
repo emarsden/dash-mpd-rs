@@ -23,7 +23,8 @@ use std::cmp::{min, max};
 use fs_err as fs;
 use fs::File;
 use std::path::Path;
-use log::info;
+use std::io::{BufReader, BufWriter};
+use log::{info, trace};
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;
@@ -34,6 +35,7 @@ use ac_ffmpeg::format::muxer::Muxer;
 use ac_ffmpeg::format::muxer::OutputFormat;
 use crate::DashMpdError;
 use crate::fetch::DashDownloader;
+use crate::media::{audio_container_type, video_container_type};
 
 
 
@@ -216,7 +218,7 @@ pub fn mux_audio_video(
 
 
 pub fn copy_video_to_container(
-    downloader: &DashDownloader,
+    _downloader: &DashDownloader,
     output_path: &Path,
     video_path: &Path) -> Result<(), DashMpdError>
 {
@@ -243,7 +245,7 @@ pub fn copy_video_to_container(
 
 
 pub fn copy_audio_to_container(
-    downloader: &DashDownloader,
+    _downloader: &DashDownloader,
     output_path: &Path,
     audio_path: &Path) -> Result<(), DashMpdError>
 {
@@ -255,13 +257,13 @@ pub fn copy_audio_to_container(
     // If the audio stream is already in the desired container format, we can just copy it to the
     // output file.
     if audio_container_type(audio_path)?.eq(container) {
-        let tmpfile_video = File::open(video_path)
+        let tmpfile_audio = File::open(audio_path)
             .map_err(|e| DashMpdError::Io(e, String::from("opening temporary audio output file")))?;
-        let mut video = BufReader::new(tmpfile_video);
+        let mut audio = BufReader::new(tmpfile_audio);
         let output_file = File::create(output_path)
             .map_err(|e| DashMpdError::Io(e, String::from("creating output file for audio")))?;
         let mut sink = BufWriter::new(output_file);
-        io::copy(&mut video, &mut sink)
+        io::copy(&mut audio, &mut sink)
             .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
         return Ok(());
     }

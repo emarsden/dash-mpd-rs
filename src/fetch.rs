@@ -25,6 +25,7 @@ use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
+#[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
 

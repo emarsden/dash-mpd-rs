@@ -1,7 +1,12 @@
-/// Common code for media handling.
+// Common code for media handling.
 //
 // This file contains functions used both by the external subprocess muxing in ffmpeg.rs and the
 // libav muxing in libav.rs.
+
+
+// When building with the libav feature, several functions here are unused.
+
+#![allow(dead_code)]
 
 
 use std::path::{Path, PathBuf};
