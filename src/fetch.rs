@@ -2391,16 +2391,23 @@ async fn do_period_subtitles(
 }
 
 
+// This is a complement to the DashDownloader struct, intended to contain the mutable state
+// associated with a download. We have chosen an API where the DashDownloader is not mutable.
+struct DownloadState {
+    period_counter: u8,
+    segment_count: usize,
+    segment_counter: usize,
+    download_errors: u32
+}
+
+
 // Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
 async fn fetch_period_audio(
     downloader: &DashDownloader,
     redirected_url: &Url,
     tmppath: PathBuf,
-    audio_fragments: &Vec<MediaFragment>,
-    period_counter: u8,
-    segment_count: usize,
-    segment_counter: &mut usize,
-    download_errors: &mut u32) -> Result<bool, DashMpdError>
+    audio_fragments: &[MediaFragment],
+    ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
@@ -2423,10 +2430,10 @@ async fn fetch_period_audio(
         // FIXME: in DASH, the init segment contains headers that are necessary to generate a valid MP4
         // file, so we should always abort if the first segment cannot be fetched. However, we could
         // tolerate loss of subsequent segments.
-        for frag in audio_fragments.iter().filter(|f| f.period == period_counter) {
+        for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
             // Update any ProgressObservers
-            *segment_counter += 1;
-            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            ds.segment_counter += 1;
+            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching audio segments");
             }
@@ -2526,8 +2533,8 @@ async fn fetch_period_audio(
                     if downloader.verbosity > 0 {
                         eprintln!("{f} fetching audio segment {url}");
                     }
-                    *download_errors += 1;
-                    if *download_errors > downloader.max_error_count {
+                    ds.download_errors += 1;
+                    if ds.download_errors > downloader.max_error_count {
                         return Err(DashMpdError::Network(
                             String::from("more than max_error_count network errors")));
                     }
@@ -2589,11 +2596,8 @@ async fn fetch_period_video(
     downloader: &DashDownloader,
     redirected_url: &Url,
     tmppath: PathBuf,
-    video_fragments: &Vec<MediaFragment>,
-    period_counter: u8,
-    segment_count: usize,
-    segment_counter: &mut usize,
-    download_errors: &mut u32) -> Result<bool, DashMpdError>
+    video_fragments: &[MediaFragment],
+    ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
@@ -2612,10 +2616,10 @@ async fn fetch_period_video(
                     .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
             }
         }
-        for frag in video_fragments.iter().filter(|f| f.period == period_counter) {
+        for frag in video_fragments.iter().filter(|f| f.period == ds.period_counter) {
             // Update any ProgressObservers
-            *segment_counter += 1;
-            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            ds.segment_counter += 1;
+            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching video segments");
             }
@@ -2706,8 +2710,8 @@ async fn fetch_period_video(
                     if downloader.verbosity > 0 {
                         eprintln!("{f} fetching video segment {}", &frag.url);
                     }
-                    *download_errors += 1;
-                    if *download_errors > downloader.max_error_count {
+                    ds.download_errors += 1;
+                    if ds.download_errors > downloader.max_error_count {
                         return Err(DashMpdError::Network(
                             String::from("more than max_error_count network errors")));
                     }
@@ -2764,20 +2768,17 @@ async fn fetch_period_video(
 }
 
 
-// Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
+// Retrieve the video segments for period `ds.period_counter` and concatenate them to a file at tmppath.
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
     redirected_url: &Url,
     tmppath: PathBuf,
-    subtitle_fragments: &Vec<MediaFragment>,
-    subtitle_formats: &Vec<Vec<SubtitleType>>,
-    period_counter: u8,
-    segment_count: usize,
-    segment_counter: &mut usize,
-    download_errors: &mut u32) -> Result<bool, DashMpdError>
+    subtitle_fragments: &[MediaFragment],
+    subtitle_formats: &[Vec<SubtitleType>],
+    ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let client = downloader.http_client.clone().unwrap();
-    let period_subtitle_formats = &subtitle_formats[period_counter as usize - 1];
+    let period_subtitle_formats = &subtitle_formats[ds.period_counter as usize - 1];
     let start_download = Instant::now();
     let mut have_subtitles = false;
     {
@@ -2786,8 +2787,8 @@ async fn fetch_period_subtitles(
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
             // Update any ProgressObservers
-            *segment_counter += 1;
-            let progress_percent = (100.0 * *segment_counter as f32 / segment_count as f32).ceil() as u32;
+            ds.segment_counter += 1;
+            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching subtitle segments");
             }
@@ -2861,8 +2862,8 @@ async fn fetch_period_subtitles(
                     if downloader.verbosity > 0 {
                         eprintln!("{f} fetching subtitle segment {}", &frag.url);
                     }
-                    *download_errors += 1;
-                    if *download_errors > downloader.max_error_count {
+                    ds.download_errors += 1;
+                    if ds.download_errors > downloader.max_error_count {
                         return Err(DashMpdError::Network(
                             String::from("more than max_error_count network errors")));
                     }
@@ -3082,14 +3083,16 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
     let mut period_output_paths: Vec<PathBuf> = Vec::new();
-    let mut download_errors = 0;
-    // The additional +2 is for our initial .mpd fetch action and final muxing action
-    let segment_count = audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2;
-    let mut segment_counter = 0;
-    period_counter = 0;
+    let mut ds = DownloadState {
+        period_counter: 0,
+        // The additional +2 is for our initial .mpd fetch action and final muxing action
+        segment_count: audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2,
+        segment_counter: 0,
+        download_errors: 0
+    };
     for _mpd_period in &mpd.periods {
-        period_counter += 1;
-        let period_output_path = output_path_for_period(output_path, period_counter);
+        ds.period_counter += 1;
+        let period_output_path = output_path_for_period(output_path, ds.period_counter);
         #[allow(clippy::collapsible_if)]
         if downloader.verbosity > 0 {
             if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
@@ -3110,24 +3113,16 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             tmp_file_path("dashmpd-video")?
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs")?;
-
         if downloader.fetch_audio {
             have_audio = fetch_period_audio(downloader, &redirected_url,
                                             tmppath_audio.clone(), &audio_fragments,
-                                            period_counter, segment_count,
-                                            &mut segment_counter,
-                                            &mut download_errors).await?;
+                                            &mut ds).await?;
         }
-        
-        // Now fetch the video segments and concatenate them to the video file
         if downloader.fetch_video {
             have_video = fetch_period_video(downloader, &redirected_url,
                                             tmppath_video.clone(), &video_fragments,
-                                            period_counter, segment_count,
-                                            &mut segment_counter,
-                                            &mut download_errors).await?;
+                                            &mut ds).await?;
         }
-
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
         // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
         // formatted as EBU-TT for DASH media) formats.
@@ -3136,9 +3131,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                                                     tmppath_subs.clone(),
                                                     &subtitle_fragments,
                                                     &subtitle_formats,
-                                                    period_counter, segment_count,
-                                                    &mut segment_counter,
-                                                    &mut download_errors).await?;
+                                                    &mut ds).await?;
         }
 
         // The output file for this Period is either a mux of the audio and video streams, if both
@@ -3151,7 +3144,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 println!("  Muxing audio and video streams");
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
-            if subtitle_formats[period_counter as usize - 1].contains(&SubtitleType::Stpp) {
+            if subtitle_formats[ds.period_counter as usize - 1].contains(&SubtitleType::Stpp) {
                 if downloader.verbosity > 1 {
                     println!("  Running MP4Box to merge STPP subtitles with output file");
                 }
