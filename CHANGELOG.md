@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.13.2] - Unreleased
+## [0.14.0] - 2023-09-03
 ### New
 - Downloading: add support for selecting the desired video stream based on its resolution. See
   functions `prefer_video_width` and `prefer_video_height` on `DashDownloader`.
@@ -17,7 +17,7 @@
 
 - Downloading: improve support for selecting the output container format based on its filename
   extension. Selecting an output file with an `.mkv` extension will now produce an output file in
-  Matroska container format, even in cases where the manifest only contained a video stream or only
+  Matroska container format, even in cases where the manifest only contains a video stream or only
   an audio stream (shortcircuiting the muxing functionality). In these cases, the stream will be
   copied if the output container requested is compatible with the downloaded stream format, and
   otherwise a new media container with the requested format will be created and the audio or video

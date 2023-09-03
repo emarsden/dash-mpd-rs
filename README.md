@@ -48,7 +48,7 @@ with the default configuration (using an external application as a subprocess).
 The choice of external muxer depends on the filename extension of the path supplied to `download_to()`
 (will be `.mp4` if you call `download()`):
 
-- `.mkv`: call mkvmerge first, then if that fails call ffmpeg, then try MP4Box
+- `.mkv`: call mkvmerge first, then if that isn't installed or fails call ffmpeg, then try MP4Box
 - `.mp4`: call ffmpeg first, then if that fails call vlc, then try MP4Box
 - other: try ffmpeg, which supports many container formats, then try MP4Box
 
@@ -193,14 +193,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.13"
+dash-mpd = "0.14"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.13", default-features = false }
+dash-mpd = { version = "0.14", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
