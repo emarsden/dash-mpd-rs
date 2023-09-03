@@ -10,6 +10,11 @@
   with an intermediate bitrate (closest to the median value). Similar to `best_quality` and
   `worst_quality` functions.
 
+- Downloading: enable support for authentication of network requests to retrieve the manifest and
+  the media segments. See function `with_authentication` on `DashDownloader`. This provides support
+  only for the “Basic” HTTP authentication scheme (RFC 7617). Bearer authentication (RFC 6750) is
+  not currently supported.
+
 - Downloading: improve support for selecting the output container format based on its filename
   extension. Selecting an output file with an `.mkv` extension will now produce an output file in
   Matroska container format, even in cases where the manifest only contained a video stream or only

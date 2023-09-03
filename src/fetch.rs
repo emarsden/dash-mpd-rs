@@ -70,6 +70,8 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 /// and for [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     pub mpd_url: String,
+    auth_username: Option<String>,
+    auth_password: Option<String>,
     pub output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
@@ -164,6 +166,8 @@ impl DashDownloader {
     pub fn new(mpd_url: &str) -> DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
+            auth_username: None,
+            auth_password: None,
             output_path: None,
             http_client: None,
             quality_preference: QualityPreference::Lowest,
@@ -238,6 +242,14 @@ impl DashDownloader {
     /// ```
     pub fn with_http_client(mut self, client: HttpClient) -> DashDownloader {
         self.http_client = Some(client);
+        self
+    }
+
+    /// Specify the username and password to use to authenticate network requests for the manifest
+    /// and media segments.
+    pub fn with_authentication(mut self, username: String, password: String) -> DashDownloader {
+        self.auth_username = Some(username.clone());
+        self.auth_password = Some(password.clone());
         self
     }
 
@@ -816,8 +828,15 @@ fn print_available_streams(mpd: &MPD) {
     }
 }
 
-async fn extract_init_pssh(client: &HttpClient, init_url: Url) -> Option<Vec<u8>> {
-    if let Ok(resp) = client.get(init_url).send().await {
+async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option<Vec<u8>> {
+    let client = downloader.http_client.as_ref().unwrap();
+    let mut req = client.get(init_url);
+    if let Some(username) = &downloader.auth_username {
+        if let Some(password) = &downloader.auth_password {
+            req = req.basic_auth(username, Some(password));
+        }
+    }
+    if let Ok(resp) = req.send().await {
         if let Ok(bytes) = resp.bytes().await {
             let needle = b"pssh";
             if let Some(offset) = bytes.windows(needle.len()).position(|window| window == needle) {
@@ -1008,11 +1027,16 @@ async fn resolve_xlink_references_recurse(
                     .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?
             };
             let client = downloader.http_client.as_ref().unwrap();
-            let xml = client.get(xlink_url.clone())
+            let mut req = client.get(xlink_url.clone())
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
-                .header("Sec-Fetch-Mode", "navigate")
-                .send().await
+                .header("Sec-Fetch-Mode", "navigate");
+            if let Some(username) = &downloader.auth_username {
+                if let Some(password) = &downloader.auth_password {
+                    req = req.basic_auth(username, Some(password));
+                }
+            }
+            let xml = req.send().await
                 .map_err(|e| network_error(&format!("fetching XLink for {}", element.name), e))?
                 .error_for_status()
                 .map_err(|e| network_error(&format!("fetching XLink for {}", element.name), e))?
@@ -2443,6 +2467,11 @@ async fn fetch_period_audio(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(username) = &downloader.auth_username {
+                        if let Some(password) = &downloader.auth_password {
+                            req = req.basic_auth(username, Some(password));
+                        }
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2619,6 +2648,11 @@ async fn fetch_period_video(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(username) = &downloader.auth_username {
+                        if let Some(password) = &downloader.auth_password {
+                            req = req.basic_auth(username, Some(password));
+                        }
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2785,6 +2819,11 @@ async fn fetch_period_subtitles(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(username) = &downloader.auth_username {
+                        if let Some(password) = &downloader.auth_password {
+                            req = req.basic_auth(username, Some(password));
+                        }
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2884,12 +2923,17 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let client = &downloader.http_client.clone().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
     let fetch = || async {
-        client.get(&downloader.mpd_url)
+        let mut req = client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-Language", "en-US,en")
             .header("Upgrade-Insecure-Requests", "1")
-            .header("Sec-Fetch-Mode", "navigate")
-            .send().await
+            .header("Sec-Fetch-Mode", "navigate");
+        if let Some(username) = &downloader.auth_username {
+            if let Some(password) = &downloader.auth_password {
+                req = req.basic_auth(username, Some(password));
+            }
+        }
+        req.send().await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
             .map_err(categorize_reqwest_error)
@@ -2922,11 +2966,16 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             println!("Redirecting to new manifest <Location> {new_url}");
         }
         let fetch = || async {
-            client.get(new_url)
+            let mut req = client.get(new_url)
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
-                .header("Sec-Fetch-Mode", "navigate")
-                .send().await
+                .header("Sec-Fetch-Mode", "navigate");
+            if let Some(username) = &downloader.auth_username {
+                if let Some(password) = &downloader.auth_password {
+                    req = req.basic_auth(username, Some(password));
+                }
+            }
+            req.send().await
                 .map_err(categorize_reqwest_error)?
                 .error_for_status()
                 .map_err(categorize_reqwest_error)
@@ -3017,13 +3066,13 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
 
             print!("{}", audio_outputs.diagnostics);
             for f in audio_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh) = extract_init_pssh(client, f.url.clone()).await {
+                if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
             print!("{}", video_outputs.diagnostics);
             for f in video_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh) = extract_init_pssh(client, f.url.clone()).await {
+                if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
