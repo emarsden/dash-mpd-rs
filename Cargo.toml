@@ -21,7 +21,7 @@ chrono = { version = "0.4.28", features = ["serde"] }
 num-traits = "0.2.16"
 iso8601 = "0.6.1"
 regex = "1.9.4"
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 fs-err = "2.9.0"
 log = "0.4.20"
 url = { version = "2.4.1", optional = true }
@@ -52,6 +52,7 @@ anyhow = "1.0.75"
 roxmltree = "0.18.0"
 xmlem = "0.2.3"
 json = "0.12.4"
+mp4 = "0.14.0"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]

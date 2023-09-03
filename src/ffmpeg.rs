@@ -906,7 +906,7 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     let filter_args = make_ffmpeg_concat_filter_args(paths);
     filter_args.iter().for_each(|a| args.push(a));
     args.push("-movflags");
-    args.push("+faststart");
+    args.push("faststart+omit_tfhd_offset");
     args.push("-f");
     args.push(container);
     let target = paths[0].to_string_lossy();

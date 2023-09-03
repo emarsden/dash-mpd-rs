@@ -11,7 +11,7 @@
 //
 // To run tests while enabling printing to stdout/stderr
 //
-//    cargo test --test xlink -- --show-output
+//    RUST_LOG=info cargo test --test xlink -- --show-output
 //
 // What happens in this test:
 //
@@ -34,7 +34,9 @@
 
 use fs_err as fs;
 use std::env;
+use std::process::Command;
 use std::time::Duration;
+use std::io::Cursor;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -48,6 +50,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
 use dash_mpd::{SegmentTemplate, SegmentURL};
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 use anyhow::{Context, Result};
+use env_logger::Env;
 
 
 #[derive(Debug, Default)]
@@ -192,12 +195,55 @@ async fn test_xlink_retrieval() -> Result<()> {
     // of requests made, to check that each XLink reference has been resolved.
     let shared_state = Arc::new(AppState::new());
 
+    // Create a minimal sufficiently-valid MP4 file to use for this period.
     async fn send_mp4(State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
         state.counter.fetch_add(1, Ordering::SeqCst);
+        let config = mp4::Mp4Config {
+            major_brand: str::parse("isom").unwrap(),
+            minor_version: 512,
+            compatible_brands: vec![
+                str::parse("isom").unwrap(),
+                str::parse("iso2").unwrap(),
+                str::parse("avc1").unwrap(),
+                str::parse("mp41").unwrap(),
+            ],
+            timescale: 1000,
+        };
+        let data = Cursor::new(Vec::<u8>::new());
+        let mut writer = mp4::Mp4Writer::write_start(data, &config).unwrap();
+        let media_conf = mp4::MediaConfig::AvcConfig(mp4::AvcConfig {
+            width: 10,
+            height: 10,
+            // from https://github.com/ISSOtm/gb-packing-visualizer/blob/1954066537b373f2ddcd5768131bdb5595734a85/src/render.rs#L260
+            seq_param_set: vec![
+                0, // ???
+                0, // avc_profile_indication
+                0, // profile_compatibility
+                0, // avc_level_indication
+            ],
+            pic_param_set: vec![],
+        });
+        let track_conf = mp4::TrackConfig {
+            track_type: mp4::TrackType::Video,
+            timescale: 1000,
+            language: "und".to_string(),
+            media_conf,
+        };
+        writer.add_track(&track_conf).unwrap();
+        let sample = mp4::Mp4Sample {
+            start_time: 0,
+            duration: 2,
+            rendering_offset: 0,
+            is_sync: true,
+            bytes: mp4::Bytes::from(vec![0x0u8; 751]),
+        };
+        writer.write_sample(1, &sample).unwrap();
+        writer.write_end().unwrap();
+        let data: Vec<u8> = writer.into_writer().into_inner();
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")
-            .body(Full::from(vec![1, 2, 3, 4]))
+            .body(Full::from(data))
             .unwrap()
     }
 
@@ -205,6 +251,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         ([(header::CONTENT_TYPE, "text/plain")], format!("{}", state.counter.load(Ordering::Relaxed)))
     }
 
+    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
@@ -254,8 +301,8 @@ async fn test_xlink_retrieval() -> Result<()> {
     assert!(mpd.periods.iter().any(|p| p.id.as_ref().is_some_and(|id| id.eq("r2"))));
 
     // Now download the media content from the MPD and check that the expected number of segments
-    // were requested. Note that the output file does not contain valid media content.
-    let outpath = env::temp_dir().join("corrupt.mp4");
+    // were requested.
+    let outpath = env::temp_dir().join("xlinked.mp4");
     DashDownloader::new(mpd_urls)
         .download_to(outpath.clone()).await
         .unwrap();
