@@ -34,7 +34,7 @@ fn check_file_size_approx(p: &PathBuf, expected: u64) {
 #[cfg(not(feature = "libav"))]
 async fn test_dl_mp4() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("itec-elephants-dream.mp4");
+    let out = env::temp_dir().join("cf.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -52,9 +52,10 @@ async fn test_dl_mp4() {
 #[cfg(not(feature = "libav"))]
 async fn test_dl_mkv() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("itec-elephants-dream.mkv");
+    let out = env::temp_dir().join("cf.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .verbose(3)
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
@@ -66,7 +67,7 @@ async fn test_dl_mkv() {
 #[cfg(not(feature = "libav"))]
 async fn test_dl_webm() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("itec-elephants-dream.webm");
+    let out = env::temp_dir().join("cf.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await

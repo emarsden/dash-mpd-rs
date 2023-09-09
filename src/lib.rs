@@ -1935,6 +1935,7 @@ mod tests {
         assert!(parse_xs_duration("foobles").is_err());
         assert!(parse_xs_duration("P").is_err());
         assert!(parse_xs_duration("PW").is_err());
+        assert!(parse_xs_duration("PT-4.5S").is_err());
         assert!(parse_xs_duration("1Y2M3DT4H5M6S").is_err()); // missing initial P
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
         assert_eq!(parse_xs_duration("PT42M30S").ok(), Some(Duration::new(2550, 0)));
