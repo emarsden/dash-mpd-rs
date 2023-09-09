@@ -55,7 +55,7 @@ async fn test_dl_mkv() {
     let out = env::temp_dir().join("cf.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .verbose(3)
+        .verbosity(3)
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
