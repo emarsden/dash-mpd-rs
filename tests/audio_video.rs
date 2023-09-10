@@ -12,6 +12,7 @@ use dash_mpd::fetch::DashDownloader;
 
 
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_video_only() {
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-video.mp4");
@@ -30,6 +31,7 @@ async fn test_dl_video_only() {
 }
 
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_audio_only() {
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-audio.mp4");
