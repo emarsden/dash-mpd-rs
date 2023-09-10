@@ -241,11 +241,8 @@ fn test_scte35_binary() {
 
     // from https://developers.broadpeak.io/docs/input-streaming-formats
     let bin6 = r#"<MPD><Period><EventStream
-      schemeIdUri="urn:scte:scte35:2014:xml+bin"
-      timescale="10000000">
-      <Event
-        presentationTime="15516962501159406"
-        id="3999785549">
+      schemeIdUri="urn:scte:scte35:2014:xml+bin" timescale="10000000">
+      <Event presentationTime="15516962501159406" id="3999785549">
         <Signal xmlns="http://www.scte.org/schemas/35/2016"> 
            <Binary>/DAnAAAAAAAAAP/wBQb/Y/SedwARAg9DVUVJAAAAPH+/AAAjAQEGLc/Q
            </Binary>
@@ -254,6 +251,18 @@ fn test_scte35_binary() {
       </EventStream></Period></MPD>"#;
     assert!(parse(bin6).is_ok());
 
+    let bin7 = r#"<MPD><Period><EventStream
+      schemeIdUri="urn:scte:scte35:2014:xml+bin" timescale="10000000">
+      <Event presentationTime="15516962501159406" id="2">
+        <Signal xmlns="http://www.scte.org/schemas/35/2016">
+           <Binary>/DAWAAAAAAAAAP/wBQb+AKmKxwAACzuu2Q==</Binary>
+        </Signal>
+        <Signal xmlns="http://www.scte.org/schemas/35/2016">
+           <Binary>/DCtAAAAAAAAAP/wBQb+Tq9DwQCXAixDVUVJCUvhcH+fAR1QQ1IxXzEyMTYyMTE0MDBXQUJDUkFDSEFFTFJBWSEBAQIsQ1VFSQlL4W9/nwEdUENSMV8xMjE2MjExNDAwV0FCQ1JBQ0hBRUxSQVkRAQECGUNVRUkJTBwVf58BClRLUlIxNjA4NEEQAQECHkNVRUkJTBwWf98AA3clYAEKVEtSUjE2MDg0QSABAdHBXYA=</Binary>
+        </Signal>
+      </Event>
+      </EventStream></Period></MPD>"#;
+    assert!(parse(bin7).is_ok());
 }
 
 #[test]
