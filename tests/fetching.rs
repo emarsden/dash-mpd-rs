@@ -39,7 +39,7 @@ async fn test_dl_mp4() {
         .worst_quality()
         .max_error_count(5)
         .record_metainformation(false)
-        .with_authentication("user", "dummy")
+        .with_authentication("user".to_string(), "dummy".to_string())
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 60_939);
