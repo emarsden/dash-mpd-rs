@@ -37,6 +37,9 @@ async fn test_dl_mp4() {
     let out = env::temp_dir().join("cf.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .max_error_count(5)
+        .record_metainformation(false)
+        .with_authentication("user", "dummy")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 60_939);
@@ -110,6 +113,70 @@ async fn test_dl_segment_base_indexrange() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 9_687_251);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+}
+
+// A test for BaseURL addressing mode.
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_baseurl() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCases/1a/sony/SNE_DASH_SD_CASE1A_REVISED.mpd";
+    let out = env::temp_dir().join("sony.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 38_710_852);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+}
+
+// A test for AdaptationSet>SegmentList + Representation>SegmentList addressing modes.
+#[tokio::test]
+async fn test_dl_adaptation_segment_list() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://ftp.itec.aau.at/datasets/mmsys13/redbull_4sec.mpd";
+    let out = env::temp_dir().join("redbull.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 110_010_161);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+}
+
+// A test for the progress observer functionality.
+#[tokio::test]
+async fn test_progress_observer() {
+    use dash_mpd::fetch::ProgressObserver;
+    use std::sync::Arc;
+
+    struct DownloadProgressionTest { }
+
+    impl ProgressObserver for DownloadProgressionTest {
+        fn update(&self, percent: u32, _message: &str) {
+            assert!(percent <= 100);
+        }
+    }
+
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let out = env::temp_dir().join("progress.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .add_progress_observer(Arc::new(DownloadProgressionTest{}))
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 60_939);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format.extension(), "mp4");
 }
