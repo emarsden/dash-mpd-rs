@@ -48,7 +48,7 @@ async fn test_content_protection_parsing() {
             .timeout(Duration::new(30, 0))
             .gzip(true)
             .build()
-            .expect("creating reqwest HTTP client");
+            .expect("creating HTTP client");
         let xml = client.get(mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .send().await
@@ -113,6 +113,7 @@ async fn test_decryption() {
         .unwrap();
     DashDownloader::new(url)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
                             String::from("429ec76475e7a952d224d8ef867f12b6"))
         .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
@@ -173,6 +174,7 @@ async fn test_decryption_variants () {
     let outpath = env::temp_dir().join("tears-steel.mp4");
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -189,6 +191,7 @@ async fn test_decryption_variants () {
     let outpath = env::temp_dir().join("llama.mp4");
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(3)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .download_to(outpath.clone()).await
