@@ -38,6 +38,7 @@ async fn test_subtitles_wvtt () {
         .fetch_audio(false)
         .fetch_video(false)
         .fetch_subtitles(true)
+        .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
     assert!(fs::metadata(subpath_wvtt).is_ok());
@@ -120,6 +121,7 @@ async fn test_subtitles_vtt () {
         .fetch_audio(false)
         .fetch_video(false)
         .fetch_subtitles(true)
+        .verbosity(2)
         .prefer_language(String::from("de"))
         .download_to(outpath.clone()).await
         .unwrap();
@@ -147,6 +149,7 @@ async fn test_subtitles_stpp() {
         .fetch_audio(true)
         .fetch_video(true)
         .fetch_subtitles(true)
+        .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
     let meta = ffprobe(outpath).unwrap();

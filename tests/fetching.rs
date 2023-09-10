@@ -78,6 +78,41 @@ async fn test_dl_webm() {
     println!("DASH content saved to WebM container at {}", out.to_string_lossy());
 }
 
+// A test for SegmentList addressing
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_segment_list() {
+    let mpd_url = "https://res.cloudinary.com/demo/video/upload/sp_full_hd/handshake.mpd";
+    let out = env::temp_dir().join("handshake.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 273_629);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+}
+
+// A test for SegmentBase@indexRange addressing with a single audio and video fragment that
+// is convenient for testing sleep_between_requests()
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_segment_base_indexrange() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://turtle-tube.appspot.com/t/t2/dash.mpd";
+    let out = env::temp_dir().join("turtle.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(3)
+        .sleep_between_requests(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 9_687_251);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format.extension(), "mp4");
+}
 
 
 // These tests retrieve content from some public MPD manifests and check that the content is
