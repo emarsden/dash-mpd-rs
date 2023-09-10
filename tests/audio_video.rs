@@ -82,7 +82,7 @@ async fn test_dl_keep_audio_video() {
 async fn test_dl_keep_segments() {
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-segments.mp4");
-    let fragments_dir = tempfile::temp_dir().unwrap();
+    let fragments_dir = tempfile::tempdir().unwrap();
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
