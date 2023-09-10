@@ -1936,6 +1936,7 @@ mod tests {
         assert!(parse_xs_duration("P").is_err());
         assert!(parse_xs_duration("PW").is_err());
         // assert!(parse_xs_duration("PT-4.5S").is_err());
+        assert!(parse_xs_duration("-PT4.5S").is_err());
         assert!(parse_xs_duration("1Y2M3DT4H5M6S").is_err()); // missing initial P
         assert_eq!(parse_xs_duration("PT3H11M53S").ok(), Some(Duration::new(11513, 0)));
         assert_eq!(parse_xs_duration("PT42M30S").ok(), Some(Duration::new(2550, 0)));
@@ -1960,6 +1961,7 @@ mod tests {
         assert_eq!(parse_xs_duration("P0W").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("P26W").ok(), Some(Duration::new(15724800, 0)));
         assert_eq!(parse_xs_duration("P52W").ok(), Some(Duration::new(31449600, 0)));
+        assert_eq!(parse_xs_duration("P10D").ok(), Some(Duration::new(864000, 0)));
         assert_eq!(parse_xs_duration("P0Y").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("P1Y").ok(), Some(Duration::new(31536000, 0)));
         assert_eq!(parse_xs_duration("P1Y0W0S").ok(), Some(Duration::new(31536000, 0)));
