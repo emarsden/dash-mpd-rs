@@ -5,6 +5,7 @@
 //    cargo test --test audio_video -- --show-output
 
 
+use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use dash_mpd::fetch::DashDownloader;
@@ -54,6 +55,7 @@ async fn test_dl_keep_audio_video() {
     let out_video = env::temp_dir().join("azure-promo-kept-video.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .verbosity(2)
         .keep_audio_as(out_audio.clone())
         .keep_video_as(out_video.clone())
         .download_to(out.clone()).await
@@ -72,5 +74,21 @@ async fn test_dl_keep_audio_video() {
         assert_eq!(stream.codec_name, Some(String::from("h264")));
         assert!(stream.width.is_some());
     }
+}
+
+#[tokio::test]
+async fn test_dl_keep_segments() {
+    let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
+    let out = env::temp_dir().join("azure-promo-segments.mp4");
+    let fragments_dir = tempfile::temp_dir().unwrap();
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .save_fragments_to(fragments_dir.clone())
+        .download_to(out.clone()).await
+        .unwrap();
+    let entries = fs::read_dir(fragments_dir.path()).unwrap();
+    let count = entries.count();
+    assert!(count > 10);
 }
 
