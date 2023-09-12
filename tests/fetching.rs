@@ -349,6 +349,17 @@ async fn test_error_html() {
 }
 
 #[tokio::test]
+#[should_panic(expected = "parsing DASH XML")]
+async fn test_error_img() {
+    // Check that we fail to parse an image response.
+    let url = "https://placekitten.com/240/120";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+#[tokio::test]
 #[should_panic(expected = "dns error")]
 async fn test_error_dns() {
     let url = "https://nothere.example.org/";
