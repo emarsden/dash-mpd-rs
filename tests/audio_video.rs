@@ -21,13 +21,12 @@ async fn test_dl_video_only() {
         .video_only()
         .download_to(out.clone()).await
         .unwrap();
-    if let Ok(meta) = ffprobe(out.clone()) {
-        assert_eq!(meta.streams.len(), 1);
-        let stream = &meta.streams[0];
-        assert_eq!(stream.codec_type, Some(String::from("video")));
-        assert_eq!(stream.codec_name, Some(String::from("h264")));
-        assert!(stream.width.is_some());
-    }
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert!(stream.width.is_some());
 }
 
 #[tokio::test]
@@ -40,13 +39,12 @@ async fn test_dl_audio_only() {
         .audio_only()
         .download_to(out.clone()).await
         .unwrap();
-    if let Ok(meta) = ffprobe(out.clone()) {
-        assert_eq!(meta.streams.len(), 1);
-        let stream = &meta.streams[0];
-        assert_eq!(stream.codec_type, Some(String::from("audio")));
-        assert_eq!(stream.codec_name, Some(String::from("aac")));
-        assert!(stream.width.is_none());
-    }
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    assert!(stream.width.is_none());
 }
 
 #[tokio::test]
@@ -62,20 +60,19 @@ async fn test_dl_keep_audio_video() {
         .keep_video_as(out_video.clone())
         .download_to(out.clone()).await
         .unwrap();
-    if let Ok(meta) = ffprobe(out_audio) {
-        assert_eq!(meta.streams.len(), 1);
-        let stream = &meta.streams[0];
-        assert_eq!(stream.codec_type, Some(String::from("audio")));
-        assert_eq!(stream.codec_name, Some(String::from("aac")));
-        assert!(stream.width.is_none());
-    }
-    if let Ok(meta) = ffprobe(out_video) {
-        assert_eq!(meta.streams.len(), 1);
-        let stream = &meta.streams[0];
-        assert_eq!(stream.codec_type, Some(String::from("video")));
-        assert_eq!(stream.codec_name, Some(String::from("h264")));
-        assert!(stream.width.is_some());
-    }
+    let meta = ffprobe(out_audio).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    assert!(stream.width.is_none());
+
+    let meta = ffprobe(out_video).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert!(stream.width.is_some());
 }
 
 #[tokio::test]

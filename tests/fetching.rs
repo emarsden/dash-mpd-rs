@@ -16,6 +16,7 @@ use fs_err as fs;
 use std::env;
 use std::time::Duration;
 use std::path::PathBuf;
+use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
@@ -44,7 +45,7 @@ async fn test_dl_mp4() {
         .unwrap();
     check_file_size_approx(&out, 60_939);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
     println!("DASH content saved to MP4 container at {}", out.to_string_lossy());
 }
 
@@ -62,7 +63,7 @@ async fn test_dl_mkv() {
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mkv");
+    assert_eq!(format, FileFormat::MatroskaVideo);
     println!("DASH content saved to MKV container at {}", out.to_string_lossy());
 }
 
@@ -77,8 +78,24 @@ async fn test_dl_webm() {
         .unwrap();
     check_file_size_approx(&out, 65_798);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "webm");
-    println!("DASH content saved to WebM container at {}", out.to_string_lossy());
+    assert_eq!(format, FileFormat::Webm);
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_avi() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://m.dtv.fi/dash/dasherh264/manifest.mpd";
+    let out = env::temp_dir().join("caminandes.avi");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 7_128_748);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
 
 #[tokio::test]
@@ -104,6 +121,49 @@ async fn test_dl_av1() {
     let audio = &meta.streams[1];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("opus")));
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_audio_mp4a() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCases/3a/fraunhofer/aac-lc_stereo_without_video/Sintel/sintel_audio_only_aaclc_stereo_sidx.mpd";
+    let out = env::temp_dir().join("sintel-audio.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 7_456_334);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let audio = &meta.streams[0];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+}
+
+// Test transcoding audio from mp4a/aac to Ogg Vorbis
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_audio_vorbis() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCases/3a/fraunhofer/aac-lc_stereo_without_video/Sintel/sintel_audio_only_aaclc_stereo_sidx.mpd";
+    let out = env::temp_dir().join("sintel-audio.ogg");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 9_880_500);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::OggVorbis);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let audio = &meta.streams[0];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("vorbis")));
 }
 
 
