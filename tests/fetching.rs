@@ -81,6 +81,32 @@ async fn test_dl_webm() {
     println!("DASH content saved to WebM container at {}", out.to_string_lossy());
 }
 
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_av1() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // from demo page at https://bitmovin.com/demos/av1
+    let mpd_url = "https://storage.googleapis.com/bitmovin-demos/av1/stream.mpd";
+    let out = env::temp_dir().join("mango.webm");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 12_987_188);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("av1")));
+    assert!(video.width.is_some());
+    let audio = &meta.streams[1];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("opus")));
+}
+
+
 // A test for SegmentList addressing
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
