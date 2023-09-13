@@ -186,6 +186,7 @@ async fn test_basic_auth() -> Result<()> {
     let outpath = env::temp_dir().join("basic_auth.mp4");
     DashDownloader::new("http://localhost:6666/mpd")
         .with_authentication(String::from("myuser"), String::from("mypassword"))
+        .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
