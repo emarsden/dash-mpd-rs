@@ -182,7 +182,8 @@ async fn test_basic_auth() -> Result<()> {
     assert_eq!(segment_fail.status(), StatusCode::BAD_REQUEST);
 
     // Now download the media content from the MPD and check that the expected number of segments
-    // were requested.
+    // were requested. We expect 2 segment requests because our verbosity level of 2 means that the
+    // init segment will be retrieved twice, one of those times to print the PSSH if it is present.
     let outpath = env::temp_dir().join("basic_auth.mp4");
     DashDownloader::new("http://localhost:6666/mpd")
         .with_authentication(String::from("myuser"), String::from("mypassword"))
@@ -195,7 +196,7 @@ async fn test_basic_auth() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("1"));
+    assert!(txt.eq("2"), "Expecting 2 segment requests, got {txt}");
 
     Ok(())
 }
