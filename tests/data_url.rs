@@ -149,7 +149,7 @@ async fn test_data_url() -> Result<()> {
     tokio::spawn(backend);
     tokio::time::sleep(Duration::from_millis(500)).await;
 
-    let out = tmpdp.join("data-url.mkv");
+    let out = tmpdp.join("data-url.mp4");
     DashDownloader::new("http://localhost:6666/mpd")
         .intermediate_quality()
         .verbosity(2)
