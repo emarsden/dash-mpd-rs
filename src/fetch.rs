@@ -1090,6 +1090,9 @@ pub async fn parse_resolving_xlinks(
 {
     let mut doc = xmltree::Element::parse(xml)
         .map_err(|e| parse_error("xmltree parsing", e))?;
+    if !doc.name.eq("MPD") {
+        return Err(DashMpdError::Parsing(format!("root element {} is not MPD", doc.name)));
+    }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
     for _ in 1..5 {
