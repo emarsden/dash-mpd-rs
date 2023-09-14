@@ -7,6 +7,7 @@
 
 use fs_err as fs;
 use std::env;
+use std::path;
 use std::process::Command;
 use std::time::Duration;
 use std::path::PathBuf;
@@ -81,7 +82,7 @@ async fn test_content_protection_parsing() {
 }
 
 
-fn ffmpeg_approval(name: &PathBuf) -> bool {
+fn ffmpeg_approval(name: &path::Path) -> bool {
     let ffmpeg = Command::new("ffmpeg")
         .args(["-v", "error",
                "-i", &name.to_string_lossy(),

@@ -15,7 +15,7 @@
 // were correctly encoded then decoded, and that the media fragments were correctly reassembled.
 
 use fs_err as fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 use tempfile::Builder;
@@ -29,7 +29,7 @@ use env_logger::Env;
 
 
 // Check that the video at timestamp has a solid color of expected_rgb.
-fn check_frame_color(video: &PathBuf, timestamp: &str, expected_rgb: &[u8; 3]) {
+fn check_frame_color(video: &Path, timestamp: &str, expected_rgb: &[u8; 3]) {
     use image::GenericImageView;
     
     let out = Builder::new().suffix(".png").tempfile().unwrap();
@@ -54,11 +54,11 @@ fn check_frame_color(video: &PathBuf, timestamp: &str, expected_rgb: &[u8; 3]) {
 }
 
 // The format of a data URL is specifed by https://www.rfc-editor.org/rfc/rfc2397.
-fn as_data_url(video: &PathBuf) -> String {
+fn as_data_url(video: &Path) -> String {
     use base64::prelude::{Engine as _, BASE64_STANDARD};
 
     let bytes = fs::read(video).unwrap();
-    "data:video/x-matroska;base64,".to_owned() + &BASE64_STANDARD.encode(&bytes)
+    "data:video/x-matroska;base64,".to_owned() + &BASE64_STANDARD.encode(bytes)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
