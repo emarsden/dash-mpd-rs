@@ -21,7 +21,7 @@ use fs_err as fs;
 use std::env;
 use std::process::Command;
 use std::time::Duration;
-use std::path::PathBuf;
+use std::path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
@@ -32,6 +32,7 @@ use axum::body::{Full, Bytes};
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
+use env_logger::Env;
 
 
 #[derive(Debug, Default)]
@@ -51,7 +52,7 @@ const QUALITY_WORST: u8 = 77;
 
 
 // ffprobe -loglevel error -show_entries format_tags -of json tiny.mp4
-fn ffprobe_metadata_title(mp4: &PathBuf) -> Result<u8> {
+fn ffprobe_metadata_title(mp4: &path::Path) -> Result<u8> {
     let ffprobe = Command::new("ffprobe")
         .args(["-loglevel", "error",
                "-show_entries", "format_tags",
@@ -68,6 +69,8 @@ fn ffprobe_metadata_title(mp4: &PathBuf) -> Result<u8> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_preference_ranking() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+
     let segment_template1 = SegmentTemplate {
         initialization: Some(format!("/media/{QUALITY_BEST}")),
         ..Default::default()
