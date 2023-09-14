@@ -67,7 +67,122 @@ async fn test_dl_audio_mp4a() {
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("aac")));
+    assert!(audio.width.is_none());
 }
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_dolby_eac3() {
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dolby/3/1/ChID_voices_20_128_ddp.mpd";
+    let out = env::temp_dir().join("dolby-eac3.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 2_436_607);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("eac3")));
+}
+
+// As of 2023-09, ffmpeg v6.0 is unable to mux this ac-4 audio codec into an MP4 container. mkvmerge
+// is able to mux it into a Matroska container.
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_dolby_eac4() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesDolby/2/Living_Room_1080p_20_96k_2997fps.mpd";
+    let out = env::temp_dir().join("dolby-eac4.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 11_668_955);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    // This codec is not currently recogized by ffprobe
+    // assert_eq!(stream.codec_name, Some(String::from("ac-4")));
+}
+
+// As of 2023-09, ffmpeg v6.0 is unable to mux this Dolby DTSC audio codec into an MP4 container. mkvmerge
+// is able to mux it into a Matroska container.
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_dolby_dtsc() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dts/1/Paint_dtsc_testA.mpd";
+    let out = env::temp_dir().join("dolby-dtsc.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 35_408_884);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("dts")));
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_hevc_hdr() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesHDR/3a/3/MultiRate.mpd";
+    let out = env::temp_dir().join("hevc-hdr.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 4_052_727);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("hevc")));
+    assert!(stream.width.is_some());
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_vp9_uhd() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesVP9/vp9-uhd/sintel-vp9-uhd.mpd";
+    let out = env::temp_dir().join("vp9-uhd.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 71_339_734);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("vp9")));
+    assert_eq!(stream.width, Some(3840));
+}
+
+// https://livesim.dashif.org/dash/vod/testpic_2s/imsc1_img.mpd
 
 // A test for SegmentList addressing
 #[tokio::test]
