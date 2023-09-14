@@ -20,6 +20,7 @@ use axum::body::{Full, Bytes};
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate, Location};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
+use env_logger::Env;
 
 
 #[derive(Debug, Default)]
@@ -36,8 +37,10 @@ impl AppState {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mpd_location() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+
     let segment_template1 = SegmentTemplate {
-        initialization: Some(format!("/media/init.mp4")),
+        initialization: Some("/media/init.mp4".to_string()),
         ..Default::default()
     };
     let rep1 = Representation {
