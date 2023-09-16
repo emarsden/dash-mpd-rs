@@ -12,6 +12,7 @@ use fs_err as fs;
 use std::env;
 use std::path::Path;
 use log::info;
+use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
@@ -136,8 +137,6 @@ async fn test_subtitles_vtt () {
 // this type. So we don't run this test on CI infrastructure.
 #[tokio::test]
 async fn test_subtitles_stpp() {
-    use ffprobe::ffprobe;
-
     if env::var("CI").is_ok() {
         return;
     }
@@ -156,6 +155,32 @@ async fn test_subtitles_stpp() {
     assert_eq!(stpp.codec_tag_string, "stpp");
     let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
     assert!((620.0 < duration) && (duration < 640.0));
+}
+
+
+// Image-based (IMSC1 CMAF) STPP subtitles.
+#[tokio::test]
+async fn test_subtitles_stpp_imsc1() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://livesim.dashif.org/dash/vod/testpic_2s/imsc1_img.mpd";
+    let outpath = env::temp_dir().join("imsc1-subs.mp4");
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(outpath.clone()).await
+        .unwrap();
+    let meta = ffprobe(outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let stpp = &meta.streams[2];
+    // In the MPD it's specified as stpp.ttml.im1i.
+    assert_eq!(stpp.codec_tag_string, "stpp");
+    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!((56.0 < duration) && (duration < 60.0));
 }
 
 
