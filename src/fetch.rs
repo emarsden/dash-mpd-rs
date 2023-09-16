@@ -75,6 +75,7 @@ pub struct DashDownloader {
     pub mpd_url: String,
     auth_username: Option<String>,
     auth_password: Option<String>,
+    auth_bearer_token: Option<String>,
     pub output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
@@ -171,6 +172,7 @@ impl DashDownloader {
             mpd_url: String::from(mpd_url),
             auth_username: None,
             auth_password: None,
+            auth_bearer_token: None,
             output_path: None,
             http_client: None,
             quality_preference: QualityPreference::Lowest,
@@ -253,6 +255,13 @@ impl DashDownloader {
     pub fn with_authentication(mut self, username: String, password: String) -> DashDownloader {
         self.auth_username = Some(username.clone());
         self.auth_password = Some(password.clone());
+        self
+    }
+
+    /// Specify the Bearer token to use to authenticate network requests for the manifest and media
+    /// segments.
+    pub fn with_auth_bearer(mut self, token: String) -> DashDownloader {
+        self.auth_bearer_token = Some(token.clone());
         self
     }
 
@@ -839,6 +848,9 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
             req = req.basic_auth(username, Some(password));
         }
     }
+    if let Some(token) = &downloader.auth_bearer_token {
+        req = req.bearer_auth(token);
+    }
     if let Ok(resp) = req.send().await {
         if let Ok(bytes) = resp.bytes().await {
             let needle = b"pssh";
@@ -1038,6 +1050,9 @@ async fn resolve_xlink_references_recurse(
                 if let Some(password) = &downloader.auth_password {
                     req = req.basic_auth(username, Some(password));
                 }
+            }
+            if let Some(token) = &downloader.auth_bearer_token {
+                req = req.bearer_auth(token);
             }
             let xml = req.send().await
                 .map_err(|e| network_error(&format!("fetching XLink for {}", element.name), e))?
@@ -2485,6 +2500,9 @@ async fn fetch_period_audio(
                             req = req.basic_auth(username, Some(password));
                         }
                     }
+                    if let Some(token) = &downloader.auth_bearer_token {
+                        req = req.bearer_auth(token);
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2663,6 +2681,9 @@ async fn fetch_period_video(
                             req = req.basic_auth(username, Some(password));
                         }
                     }
+                    if let Some(token) = &downloader.auth_bearer_token {
+                        req = req.bearer_auth(token);
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2831,6 +2852,9 @@ async fn fetch_period_subtitles(
                             req = req.basic_auth(username, Some(password));
                         }
                     }
+                    if let Some(token) = &downloader.auth_bearer_token {
+                        req = req.bearer_auth(token);
+                    }
                     req.send().await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
@@ -2940,6 +2964,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 req = req.basic_auth(username, Some(password));
             }
         }
+        if let Some(token) = &downloader.auth_bearer_token {
+            req = req.bearer_auth(token);
+        }
         req.send().await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
@@ -2981,6 +3008,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 if let Some(password) = &downloader.auth_password {
                     req = req.basic_auth(username, Some(password));
                 }
+            }
+            if let Some(token) = &downloader.auth_bearer_token {
+                req = req.bearer_auth(token);
             }
             req.send().await
                 .map_err(categorize_reqwest_error)?
