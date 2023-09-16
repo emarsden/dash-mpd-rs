@@ -1,6 +1,8 @@
 // TODO: the manifest at https://refplayer-dev.cloud.digitaluk.co.uk/dynamic/stl-dashads-dartest.mpd
 // has scte35:Binary content that doesn't parse as Base64, for some reason.
 
+use std::time::Duration;
+
 #[test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 fn test_scte35_binary() {
@@ -159,3 +161,24 @@ fn test_scte35_elements() {
     assert!(parse(elem4).is_ok());
 }
 
+
+// This MPD contains an SCTE35 EventStream with events encoding in Binary format.
+#[tokio::test]
+#[cfg_attr(not(feature = "scte35"), ignore)]
+async fn test_scte35_live() {
+    use dash_mpd::{MPD, parse};
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let xml = client.get("https://demo.unified-streaming.com/k8s/live/scte35.isml/.mpd")
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let _mpd: MPD = parse(&xml)
+        .expect("parsing MPD");
+}
