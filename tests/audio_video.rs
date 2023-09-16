@@ -7,13 +7,28 @@
 
 use fs_err as fs;
 use std::env;
+use std::path::PathBuf;
 use ffprobe::ffprobe;
+use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
+
+
+// We tolerate significant differences in final output file size, because as encoder performance
+// changes in newer versions of ffmpeg, the resulting file size when reencoding may change
+// significantly.
+fn check_file_size_approx(p: &PathBuf, expected: u64) {
+    let meta = fs::metadata(p).unwrap();
+    let ratio = meta.len() as f64 / expected as f64;
+    assert!(0.9 < ratio && ratio < 1.1, "File sizes: expected {}, got {}", expected, meta.len());
+}
 
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_video_only() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-video.mp4");
     DashDownloader::new(mpd_url)
@@ -32,6 +47,9 @@ async fn test_dl_video_only() {
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_only() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-audio.mp4");
     DashDownloader::new(mpd_url)
@@ -49,6 +67,9 @@ async fn test_dl_audio_only() {
 
 #[tokio::test]
 async fn test_dl_keep_audio_video() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo.mp4");
     let out_audio = env::temp_dir().join("azure-promo-kept-audio.mp4");
@@ -77,6 +98,9 @@ async fn test_dl_keep_audio_video() {
 
 #[tokio::test]
 async fn test_dl_keep_segments() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("azure-promo-segments.mp4");
     let fragments_dir = tempfile::tempdir().unwrap();
@@ -92,6 +116,26 @@ async fn test_dl_keep_segments() {
     assert!(audio_entries.count() > 3);
     let video_entries = fs::read_dir(video_fragments_dir).unwrap();
     assert!(video_entries.count() > 3);
+}
+
+
+#[tokio::test]
+async fn test_dl_cea608_captions() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://livesim.dashif.org/dash/vod/testpic_2s/cea608.mpd";
+    let out = env::temp_dir().join("cea-closed-captions.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 1_977_918);
+    // The closed captions are embedded in the video stream.
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 

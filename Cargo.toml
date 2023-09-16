@@ -17,7 +17,7 @@ base64-serde = "0.7.0"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_with = { version = "3.3.0", features = ["base64"] }
 quick-xml = { version = "0.30.0", features = ["serialize", "overlapped-lists"] }
-chrono = { version = "0.4.30", features = ["serde"] }
+chrono = { version = "0.4.31", features = ["serde"] }
 num-traits = "0.2.16"
 iso8601 = "0.6.1"
 regex = "1.9.5"
