@@ -9,6 +9,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 use dash_mpd::parse;
+use dash_mpd::fetch::DashDownloader;
 
 
 #[test]
