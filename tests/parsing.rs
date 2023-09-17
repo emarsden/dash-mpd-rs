@@ -5,14 +5,14 @@
 // use std::assert_matches::assert_matches;
 
 use std::fs;
+use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
+use dash_mpd::parse;
 
 
 #[test]
 fn test_mpd_parser () {
-    use dash_mpd::parse;
-
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></Period></MPD>"#;
     let res = parse(case1);
     assert!(res.is_ok());
@@ -69,8 +69,6 @@ fn test_mpd_parser () {
 // of triggering a parse failure.
 #[test]
 fn test_unknown_elements () {
-    use dash_mpd::parse;
-
     let case1 = r#"<MPD><UnknownElement/></MPD>"#;
     let res = parse(case1);
     assert!(res.is_ok());
@@ -111,7 +109,6 @@ fn test_unknown_elements () {
 
 #[test]
 fn test_datetime_parsing () {
-    use dash_mpd::parse;
     use chrono::{Timelike, Datelike};
 
     let case1 = r#"<MPD minBufferTime="PT1.500S"></MPD>"#;
@@ -173,8 +170,6 @@ fn test_datetime_parsing () {
 
 #[test]
 fn test_file_parsing() {
-    use dash_mpd::parse;
-
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -254,10 +249,8 @@ fn test_file_parsing() {
 // at https://github.com/MPEGGroup/DASHSchema
 #[tokio::test]
 async fn test_parsing_online() {
-    use dash_mpd::parse;
-
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
 
@@ -288,10 +281,8 @@ async fn test_parsing_online() {
 
 #[tokio::test]
 async fn test_parsing_subrepresentations() {
-    use dash_mpd::parse;
-
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     let client = reqwest::Client::builder()
@@ -319,10 +310,8 @@ async fn test_parsing_subrepresentations() {
 
 #[tokio::test]
 async fn test_parsing_eventstream() {
-    use dash_mpd::parse;
-
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     let client = reqwest::Client::builder()
@@ -353,7 +342,7 @@ async fn test_parsing_eventstream() {
 #[tokio::test]
 async fn test_parsing_supplementalproperty() {
     // Don't run download tests on CI infrastructure
-    if std::env::var("CI").is_ok() {
+    if env::var("CI").is_ok() {
         return;
     }
     let client = reqwest::Client::builder()
@@ -381,3 +370,15 @@ async fn test_parsing_supplementalproperty() {
                 |sp| sp.value.as_ref().is_some_and(|v| !v.eq("42"))))));
 }
 
+
+// This manifest is invalid because it contains a subsegmentStartsWithSAP="true", whereas the DASH
+// specification states that this should be an SAPType, an integer (checked with
+// https://conformance.dashif.org/).
+#[tokio::test]
+#[should_panic(expected = "invalid digit found in string")]
+async fn test_parsing_fail_invalid_int() {
+    DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd"
+        .best_quality()
+        .download().await
+        .unwrap();
+}
