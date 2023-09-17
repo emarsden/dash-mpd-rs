@@ -377,7 +377,7 @@ async fn test_parsing_supplementalproperty() {
 #[tokio::test]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_parsing_fail_invalid_int() {
-    DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd"
+    DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd")
         .best_quality()
         .download().await
         .unwrap();
@@ -387,7 +387,7 @@ async fn test_parsing_fail_invalid_int() {
 #[tokio::test]
 #[should_panic(expected = "error parsing DASH XML")]
 async fn test_parsing_fail_incorrect_tag() {
-    DashDownloader::new("https://dash.akamaized.net/akamai/test/isptest.mpd"
+    DashDownloader::new("https://dash.akamaized.net/akamai/test/isptest.mpd")
         .best_quality()
         .download().await
         .unwrap();
