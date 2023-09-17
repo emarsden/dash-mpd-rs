@@ -182,7 +182,57 @@ async fn test_dl_vp9_uhd() {
     assert_eq!(stream.width, Some(3840));
 }
 
-// https://livesim.dashif.org/dash/vod/testpic_2s/imsc1_img.mpd
+// H.266/VVC codec. ffmpeg v6.0 is not able to place this video stream in an MP4 container, but
+// muxing to Matroska with mkvmerge works. Neither mplayer nor VLC can play the video.
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_vvc() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://ftp.itec.aau.at/datasets/mmsys22/Skateboarding/8sec/vvc/manifest.mpd";
+    let out = env::temp_dir().join("vvc.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 9_311_029);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("vvc1")));
+    assert_eq!(stream.width, Some(384));
+}
+
+// MPEG2 TS codec (mostly historical interest).
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_mp2t() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mpeg2-simple/mpeg2-simple-mpd.mpd";
+    let out = env::temp_dir().join("mp2ts.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 9_019_006);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert_eq!(stream.width, Some(320));
+}
+
+http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mpeg2-simple/mpeg2-simple-mpd.mpd
+
 
 // A test for SegmentList addressing
 #[tokio::test]
