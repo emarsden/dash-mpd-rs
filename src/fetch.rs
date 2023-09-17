@@ -1367,7 +1367,9 @@ async fn do_period_audio(
                 if let Some(sn) = st.startNumber {
                     start_number = sn;
                 }
-                if let Some(stl) = &st.SegmentTimeline {
+                if let Some(stl) = &audio_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
+                    .or(audio.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+                {
                     // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                     // "explicit addressing" in certain DASH-IF documents)
                     if downloader.verbosity > 1 {
@@ -1795,7 +1797,9 @@ async fn do_period_video(
                 if let Some(sn) = st.startNumber {
                     start_number = sn;
                 }
-                if let Some(stl) = &st.SegmentTimeline {
+                if let Some(stl) = &video_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
+                    .or(video.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+                {
                     // (2) SegmentTemplate with SegmentTimeline addressing mode
                     if downloader.verbosity > 1 {
                         println!("  Using SegmentTemplate+SegmentTimeline addressing mode for video representation");
@@ -2256,7 +2260,9 @@ async fn do_period_subtitles(
                         if let Some(sn) = st.startNumber {
                             start_number = sn;
                         }
-                        if let Some(stl) = &st.SegmentTimeline {
+                        if let Some(stl) = &rep.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
+                            .or(subtitle_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+                        {
                             // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                             // "explicit addressing" in certain DASH-IF documents)
                             if downloader.verbosity > 1 {

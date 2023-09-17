@@ -244,7 +244,7 @@ async fn test_dl_segment_list() {
         .unwrap();
     check_file_size_approx(&out, 273_629);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 // A test for SegmentBase@indexRange addressing with a single audio and video fragment that
@@ -265,7 +265,28 @@ async fn test_dl_segment_base_indexrange() {
         .unwrap();
     check_file_size_approx(&out, 9_687_251);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+}
+
+// This manifest is built using a difficult structure, rarely seen in the wild. To retrieve segments
+// it is necessary to combine information from the AdaptationSet.SegmentTemplate element (which has
+// the SegmentTimeline) and the Representation.SegmentTemplate element (which has the media
+// template).
+#[tokio::test]
+async fn test_dl_segment_template_multilevel() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/akamai/test/bbb_enc/BigBuckBunny_320x180_enc_dash.mpd";
+    let out = env::temp_dir().join("bbb-segment-template.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(3)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 52_758_303);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 // A test for BaseURL addressing mode.
@@ -284,7 +305,7 @@ async fn test_dl_baseurl() {
         .unwrap();
     check_file_size_approx(&out, 38_710_852);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 // A test for AdaptationSet>SegmentList + Representation>SegmentList addressing modes.
@@ -303,7 +324,7 @@ async fn test_dl_adaptation_segment_list() {
         .unwrap();
     check_file_size_approx(&out, 110_010_161);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 // A test for the progress observer functionality.
@@ -329,7 +350,7 @@ async fn test_progress_observer() {
         .unwrap();
     check_file_size_approx(&out, 60_939);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
 
