@@ -382,3 +382,14 @@ async fn test_parsing_fail_invalid_int() {
         .download().await
         .unwrap();
 }
+
+// This manifest has <BaseURL> closed by <BaseURl>
+#[tokio::test]
+#[should_panic(expected = "error parsing DASH XML")]
+async fn test_parsing_fail_incorrect_tag() {
+    DashDownloader::new("https://dash.akamaized.net/akamai/test/isptest.mpd"
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
