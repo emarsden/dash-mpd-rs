@@ -1,13 +1,15 @@
 // TODO: the manifest at https://refplayer-dev.cloud.digitaluk.co.uk/dynamic/stl-dashads-dartest.mpd
 // has scte35:Binary content that doesn't parse as Base64, for some reason.
 
+use fs_err as fs;
+use std::path::PathBuf;
 use std::time::Duration;
+use dash_mpd::{MPD, parse};
+
 
 #[test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 fn test_scte35_binary() {
-    use dash_mpd::parse;
-
     let bin1 = r#"<MPD><Period>
           <EventStream timescale="10000000" schemeIdUri="urn:scte:scte35:2014:xml+bin">
             <Event>
@@ -100,8 +102,6 @@ fn test_scte35_binary() {
 #[test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 fn test_scte35_elements() {
-    use dash_mpd::parse;
-
     let elem1 = r#"<MPD><Period start="PT444806.040S" id="123586" duration="PT15.000S">
       <EventStream timescale="90000" schemeIdUri="urn:scte:scte35:2013:xml">
         <Event duration="1350000">
@@ -159,6 +159,16 @@ fn test_scte35_elements() {
         </scte35:SpliceInfoSection>
       </Event></EventStream></Period></MPD>"#;
     assert!(parse(elem4).is_ok());
+
+    // This is a copy of https://dash.akamaized.net/akamai/test/jurassic-compact-5975.mpd with the
+    // erroneous boolean values for @subsegmentStartsWithSAP corrected.
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("jurassic-compact-5975");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    assert!(parse(&xml).is_ok());
 }
 
 
@@ -166,8 +176,6 @@ fn test_scte35_elements() {
 #[tokio::test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 async fn test_scte35_live() {
-    use dash_mpd::{MPD, parse};
-
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
         .gzip(true)
