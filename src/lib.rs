@@ -1757,6 +1757,7 @@ fn is_subtitle_codec(c: &str) -> bool {
     c == "wvtt" ||
     c == "c608" ||
     c == "stpp" ||
+    c == "tx3g" ||
     c.starts_with("stpp.")
 }
 
@@ -1780,6 +1781,11 @@ pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
     }
     if a.codecs.as_deref().is_some_and(is_subtitle_codec) {
         return true;
+    }
+    for cc in a.ContentComponent.iter() {
+        if cc.contentType.as_deref().is_some_and(|ct| ct.eq("text")) {
+            return true;
+        }
     }
     for r in a.representations.iter() {
         if r.mimeType.as_deref().is_some_and(is_subtitle_mimetype) {
@@ -1805,7 +1811,7 @@ pub enum SubtitleType {
     Sub,
     /// Advanced Substation Alpha
     Ass,
-    /// MPEG-4 Timed Text, aka MP4TT aka 3GPP-TT
+    /// MPEG-4 Timed Text, aka MP4TT aka 3GPP-TT (codec=tx3g)
     Ttxt,
     /// Timed Text Markup Language
     Ttml,
@@ -1845,6 +1851,9 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
         if codecs == "c608" {
             return SubtitleType::Eia608;
         }
+        if codecs == "tx3g" {
+            return SubtitleType::Ttxt;
+        }
         if codecs == "stpp" {
             return SubtitleType::Stpp;
         }
@@ -1864,6 +1873,9 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
             }
             if codecs == "c608" {
                 return SubtitleType::Eia608;
+            }
+            if codecs == "tx3g" {
+                return SubtitleType::Ttxt;
             }
             if codecs == "stpp" {
                 return SubtitleType::Stpp;

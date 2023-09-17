@@ -183,6 +183,33 @@ async fn test_subtitles_stpp_imsc1() {
     assert!((56.0 < duration) && (duration < 60.0));
 }
 
+// MPEG-4 Part 17 (Timed Text), called "mov_text" in ffmpeg.
+#[tokio::test]
+async fn test_subtitles_tx3g() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-live-subtitle/mp4-live-subtitle-mpd-AVST.mpd";
+    let outpath = env::temp_dir().join("tx3g.mp4");
+    let mut subpath = outpath.clone();
+    subpath.set_extension("srt");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(outpath.clone()).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
+    let srt = fs::read_to_string(subpath).unwrap();
+    assert!(srt.contains("Cue #3 Start Time"));
+    let meta = ffprobe(outpath).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+}
 
 
 // https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd

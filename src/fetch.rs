@@ -2054,7 +2054,9 @@ async fn do_period_subtitles(
                             return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
                         },
                     }
-                    if subtitle_formats.contains(&SubtitleType::Wvtt) {
+                    if subtitle_formats.contains(&SubtitleType::Wvtt) ||
+                       subtitle_formats.contains(&SubtitleType::Ttxt)
+                    {
                         let mut out = subs_path.clone();
                         out.set_extension("srt");
                         // We can convert this to SRT format, which is more widely supported, using
@@ -2073,9 +2075,9 @@ async fn do_period_subtitles(
                                 info!("MP4Box stderr: {msg}");
                             }
                             if mp4box.status.success() {
-                                info!("Converted WVTT subtitles to SRT");
+                                info!("Converted subtitles to SRT");
                             } else {
-                                warn!("Error running MP4Box to convert WVTT subtitles");
+                                warn!("Error running MP4Box to convert subtitles");
                             }
                         }
                     }
@@ -2917,10 +2919,15 @@ async fn fetch_period_subtitles(
                          mbytes / elapsed.as_secs_f64());
             }
         }
-        if period_subtitle_formats.contains(&SubtitleType::Wvtt) {
+        if period_subtitle_formats.contains(&SubtitleType::Wvtt) ||
+           period_subtitle_formats.contains(&SubtitleType::Ttxt)
+        {
             // We can extract these from the MP4 container in .srt format, using MP4Box.
             if downloader.verbosity > 1 {
-                println!("  Running MP4Box to extract WVTT subtitles in SRT format");
+                if let Some(fmt) = period_subtitle_formats.first() {
+                    println!("  Downloaded media contains subtitles in {fmt:?} format");
+                }
+                println!("  Running MP4Box to extract subtitles in SRT format");
             }
             let mut out = downloader.output_path.as_ref().unwrap().clone();
             out.set_extension("srt");
@@ -2937,12 +2944,12 @@ async fn fetch_period_subtitles(
                     info!("MP4Box stderr: {msg}");
                 }
                 if mp4box.status.success() {
-                    info!("Extracted WVTT subtitles as SRT");
+                    info!("Extracted subtitles as SRT");
                 } else {
-                    warn!("Error running MP4Box to extract WVTT subtitles");
+                    warn!("Error running MP4Box to extract subtitles");
                 }
             } else {
-                warn!("Failed to spawn MP4Box to extract WVTT subtitles");
+                warn!("Failed to spawn MP4Box to extract subtitles");
             }
         }
     }
@@ -3182,7 +3189,10 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
             if subtitle_formats[ds.period_counter as usize - 1].contains(&SubtitleType::Stpp) {
                 if downloader.verbosity > 1 {
-                    println!("  Running MP4Box to merge STPP subtitles with output file");
+                    if let Some(fmt) = subtitle_formats[ds.period_counter as usize - 1].first() {
+                        println!("  Downloaded media contains subtitles in {fmt:?} format");
+                    }
+                    println!("  Running MP4Box to merge subtitles with output file");
                 }
                 // We can try to add the subtitles to the MP4 container, using MP4Box.
                 if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
@@ -3199,12 +3209,12 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                         info!("MP4Box stderr: {msg}");
                     }
                     if mp4box.status.success() {
-                        info!("  Merged STPP subtitles with MP4 container");
+                        info!("  Merged subtitles with MP4 container");
                     } else {
-                        warn!("Error running MP4Box to merge STPP subtitles");
+                        warn!("Error running MP4Box to merge subtitles");
                     }
                 } else {
-                    warn!("Failed to spawn MP4Box to merge STPP subtitles");
+                    warn!("Failed to spawn MP4Box to merge subtitles");
                 }
             }
         } else if have_audio {

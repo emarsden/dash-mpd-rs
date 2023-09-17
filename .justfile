@@ -3,7 +3,8 @@
 export LLVM_PROFILE_FILE := 'coverage/cargo-test-%p-%m.profraw'
 
 grcov:
-  rm -r ${CARGO_TARGET_DIR}/coverage
+  @echo 'Running tests for coverage with grcov'
+  rm -rf ${CARGO_TARGET_DIR}/coverage
   CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' cargo test
   grcov . --binary-path ${CARGO_TARGET_DIR}/debug/deps/ \
     -s . -t html \
@@ -14,6 +15,7 @@ grcov:
 
 
 coverage-tarpaulin:
+  @echo 'Running tests for coverage with tarpaulin'
   mkdir /tmp/tarpaulin
   cargo tarpaulin --engine llvm --line --out html --output-dir /tmp/tarpaulin
 

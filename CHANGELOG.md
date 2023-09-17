@@ -6,6 +6,9 @@
   authentication method specified in RFC 6750, originally designed for OAuth 2.0, but also used in
   other settings such as JSON Web Token (JWT).
 
+- Downloading: enable support for MPEG-4 Part 17 (Timed Text) subtitles (tx3g codec). They will be
+  converted to SRT format if the MP4Box commandline application is installed.
+
 
 ## [0.14.0] - 2023-09-03
 ### New
