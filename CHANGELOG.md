@@ -9,6 +9,9 @@
 - Downloading: enable support for MPEG-4 Part 17 (Timed Text) subtitles (tx3g codec). They will be
   converted to SRT format if the MP4Box commandline application is installed.
 
+- Downloading: when printing the available media streams, print `Role` and `Label` information if
+  they are specified on an `AdaptationSet` element.
+
 
 ## [0.14.0] - 2023-09-03
 ### New
