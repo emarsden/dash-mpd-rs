@@ -12,6 +12,8 @@
 - Downloading: when printing the available media streams, print `Role` and `Label` information if
   they are specified on an `AdaptationSet` element.
 
+- Fix naming/parsing of `MPD.Location` field (thanks to @nissy34).
+
 
 ## [0.14.0] - 2023-09-03
 ### New

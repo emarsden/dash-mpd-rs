@@ -1654,6 +1654,7 @@ pub struct MPD {
     pub base_url: Vec<BaseURL>,
     #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
+    #[serde(rename = "Location", default)]
     pub locations: Vec<Location>,
     pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,
