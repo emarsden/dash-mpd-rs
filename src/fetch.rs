@@ -800,10 +800,10 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
     } else {
         format!("{w}x{h}")
     };
-    let role = a.Role.iter().next()
+    let role = a.Role.first()
         .map_or_else(|| String::from(""),
                      |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
-    let label = a.Label.iter().next()
+    let label = a.Label.first()
         .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
     println!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}", bw / 1024);
 }
