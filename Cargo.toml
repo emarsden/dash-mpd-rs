@@ -36,7 +36,7 @@ tempfile = { version = "3.8.0", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
 ffprobe = { version = "0.3.3", optional = true }
-file-format = { version = "0.20.0", features = ["reader"], optional = true }
+file-format = { version = "0.21.0", features = ["reader"], optional = true }
 
 [dev-dependencies]
 env_logger = "0.10.0"
