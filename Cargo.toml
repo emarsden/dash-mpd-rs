@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.14.0"
+version = "0.14.1"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -20,7 +20,7 @@ quick-xml = { version = "0.30.0", features = ["serialize", "overlapped-lists"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 num-traits = "0.2.16"
 iso8601 = "0.6.1"
-regex = "1.9.5"
+regex = "1.9.6"
 thiserror = "1.0.48"
 fs-err = "2.9.0"
 log = "0.4.20"

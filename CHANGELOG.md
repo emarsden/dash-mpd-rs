@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.1] - Unreleased
+## [0.14.1] - 2023-09-30
 - Downloading: enable support for Bearer authentication of network requests to retrieve the manifest
   and the media segments. See function `with_auth_bearer` on `DashDownloader`. This is the
   authentication method specified in RFC 6750, originally designed for OAuth 2.0, but also used in
