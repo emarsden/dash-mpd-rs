@@ -29,8 +29,8 @@ async fn test_dl_video_only() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
-    let out = env::temp_dir().join("azure-promo-video.mp4");
+    let mpd_url = "http://nimbuspm.origin.mediaservices.windows.net/aed33834-ec2d-4788-88b5-a4505b3d032c/Microsoft's HoloLens Live Demonstration.ism/manifest(format=mpd-time-csf)";
+    let out = env::temp_dir().join("hololens-video.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .video_only()
@@ -50,8 +50,8 @@ async fn test_dl_audio_only() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
-    let out = env::temp_dir().join("azure-promo-audio.mp4");
+    let mpd_url = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
+    let out = env::temp_dir().join("envivio-audio.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .audio_only()
@@ -70,10 +70,10 @@ async fn test_dl_keep_audio_video() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
-    let out = env::temp_dir().join("azure-promo.mp4");
-    let out_audio = env::temp_dir().join("azure-promo-kept-audio.mp4");
-    let out_video = env::temp_dir().join("azure-promo-kept-video.mp4");
+    let mpd_url = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
+    let out = env::temp_dir().join("envivio.mp4");
+    let out_audio = env::temp_dir().join("envivio-audio.mp4");
+    let out_video = env::temp_dir().join("envivio-video.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -101,8 +101,8 @@ async fn test_dl_keep_segments() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "http://amssamples.streaming.mediaservices.windows.net/69fbaeba-8e92-4740-aedc-ce09ae945073/AzurePromo.ism/manifest(format=mpd-time-csf)";
-    let out = env::temp_dir().join("azure-promo-segments.mp4");
+    let mpd_url = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
+    let out = env::temp_dir().join("envivio-segments.mp4");
     let fragments_dir = tempfile::tempdir().unwrap();
     let audio_fragments_dir = fragments_dir.path().join("audio");
     let video_fragments_dir = fragments_dir.path().join("video");
