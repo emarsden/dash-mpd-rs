@@ -1935,6 +1935,22 @@ fn content_protection_type(cp: &ContentProtection) -> String {
 }
 
 
+fn check_segment_template_conformity(
+    st: &SegmentTemplate,
+    max_seg_duration: &Duration) -> Result<(), DashMpdError>
+{
+    if let Some(timeline) = &st.SegmentTimeline {
+        for s in &timeline.segments {
+            let sd = s.d as u64 / st.timescale.unwrap_or(1);
+            if sd > max_seg_duration.as_secs() {
+                return Err(DashMpdError::Parsing(
+                    String::from("SegmentTimeline has segment@d > @maxSegmentDuration")));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
     // @maxHeight on the AdaptationSet should give the maximum value of the @height values of its
     // Representation elements.
@@ -1957,6 +1973,34 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
                 if let Some(mr) = a.representations.iter().max_by_key(|r| r.width.unwrap_or(0)) {
                     if mr.width.unwrap_or(0) > mw {
                         return Err(DashMpdError::Parsing(String::from("invalid @maxWidth on AdaptationSet")));
+                    }
+                }
+            }
+        }
+    }
+    // @maxBandwidth on the AdaptationSet should give the maximum value of the @bandwidth values of its
+    // Representation elements.
+    for p in &mpd.periods {
+        for a in &p.adaptations {
+            if let Some(mb) = a.maxBandwidth {
+                if let Some(mr) = a.representations.iter().max_by_key(|r| r.bandwidth.unwrap_or(0)) {
+                    if mr.bandwidth.unwrap_or(0) > mb {
+                        return Err(DashMpdError::Parsing(String::from("invalid @maxBandwidth on AdaptationSet")));
+                    }
+                }
+            }
+        }
+    }
+    // No @d of a segment should be greater than @maxSegmentDuration.
+    if let Some(max_seg_duration) = &mpd.maxSegmentDuration {
+        for p in &mpd.periods {
+            for a in &p.adaptations {
+                if let Some(st) = &a.SegmentTemplate {
+                    check_segment_template_conformity(st, max_seg_duration)?;
+                }
+                for r in &a.representations {
+                    if let Some(st) = &r.SegmentTemplate {
+                        check_segment_template_conformity(st, max_seg_duration)?;
                     }
                 }
             }

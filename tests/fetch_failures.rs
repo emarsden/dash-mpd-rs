@@ -63,6 +63,15 @@ async fn test_error_invalid_maxwidth() {
 
 
 #[tokio::test]
+#[should_panic(expected = "segment@d > @maxSegmentDuration")]
+async fn test_error_invalid_segment_duration() {
+    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_segmenttimeline_maxsegduration.mpd")
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_invalidxml() {
     // This content response is not valid XML because the processing instruction ("<?xml...>") is
