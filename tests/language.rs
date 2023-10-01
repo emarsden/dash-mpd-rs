@@ -49,3 +49,33 @@ async fn test_lang_prefer_spa() {
     assert_eq!(tags.language, Some(String::from("spa")));
 }
 
+
+#[tokio::test]
+async fn test_subtitle_lang_stpp_im1t() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-mobile.mpd";
+    let outpath = env::temp_dir().join("im1t-subs.mp4");
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .prefer_language(String::from("fra"))
+        .verbosity(2)
+        .download_to(outpath.clone()).await
+        .unwrap();
+    let meta = ffprobe(outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let audio = &meta.streams[1];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let tags = audio.tags.as_ref().unwrap();
+    assert_eq!(tags.language, Some(String::from("fra")));
+    let stpp = &meta.streams[2];
+    assert_eq!(stpp.codec_tag_string, "stpp");
+    let subtags = stpp.tags.as_ref().unwrap();
+    assert_eq!(subtags.language, Some(String::from("fra")));
+    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!((3598.0 < duration) && (duration < 3599.0));
+}
