@@ -178,7 +178,6 @@ fn test_file_parsing() {
     path.set_extension("xml");
     let xml = fs::read_to_string(path).unwrap();
     let res = parse(&xml);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.minBufferTime.unwrap(), Duration::new(30, 0));
     let mp = mpd.periods.iter()
@@ -195,8 +194,7 @@ fn test_file_parsing() {
     path.push("mediapackage");
     path.set_extension("xml");
     let xml = fs::read_to_string(path).unwrap();
-    let res = parse(&xml);
-    assert!(res.is_ok());
+    parse(&xml).unwrap();
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
@@ -204,8 +202,7 @@ fn test_file_parsing() {
     path.push("telestream-elements");
     path.set_extension("xml");
     let tsxml = fs::read_to_string(path).unwrap();
-    let tx = parse(&tsxml);
-    assert!(tx.is_ok());
+    parse(&tsxml).unwrap();
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
@@ -213,17 +210,7 @@ fn test_file_parsing() {
     path.push("telestream-binary");
     path.set_extension("xml");
     let tsxml = fs::read_to_string(path).unwrap();
-    let tx = parse(&tsxml);
-    assert!(tx.is_ok());
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("tests");
-    path.push("fixtures");
-    path.push("admanager");
-    path.set_extension("xml");
-    let amxml = fs::read_to_string(path).unwrap();
-    let am = parse(&amxml);
-    assert!(am.is_ok());
+    parse(&tsxml).unwrap();
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
@@ -231,8 +218,7 @@ fn test_file_parsing() {
     path.push("dolby-ac4");
     path.set_extension("xml");
     let xml = fs::read_to_string(path).unwrap();
-    let db = parse(&xml);
-    assert!(db.is_ok());
+    parse(&xml).unwrap();
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
@@ -240,9 +226,7 @@ fn test_file_parsing() {
     path.push("orange");
     path.set_extension("xml");
     let xml = fs::read_to_string(path).unwrap();
-    let db = parse(&xml);
-    assert!(db.is_ok());
-
+    parse(&xml).unwrap();
 }
 
 
@@ -394,3 +378,17 @@ async fn test_parsing_fail_incorrect_tag() {
         .unwrap();
 }
 
+// This a an exemple DASH manifest from a commercial ad management platform which is not spec
+// compliant. The MPD specifies maxSegmentDuration="PT2S", but the SegmentTimeline contains segments
+// of duration 132300 / 44100 (3 seconds).
+#[tokio::test]
+#[should_panic(expected = "segment@d > @maxSegmentDuration")]
+async fn test_parsing_invalid_maxsegmentduration() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("admanager");
+    path.set_extension("xml");
+    let amxml = fs::read_to_string(path).unwrap();
+    parse(&amxml).unwrap();
+}
