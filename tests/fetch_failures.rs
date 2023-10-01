@@ -4,12 +4,8 @@
 //
 //    cargo test --test fetch_failures -- --show-output
 
-use fs_err as fs;
 use std::env;
 use std::time::Duration;
-use std::path::PathBuf;
-use ffprobe::ffprobe;
-use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
 
@@ -28,7 +24,7 @@ async fn test_error_parsing() {
 
 #[tokio::test]
 #[should_panic(expected = "invalid digit found in string")]
-async fn test_error_parsing() {
+async fn test_error_group_attribute() {
     // This DASH manifest is invalid because it contains an invalid valid "notAnInteger" for the
     // AdaptationSet.group attribute.
     let url = "http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_group_string.mpd";
@@ -36,6 +32,35 @@ async fn test_error_parsing() {
         .download().await
         .unwrap();
 }
+
+
+#[tokio::test]
+#[should_panic(expected = "no audio or video streams found")]
+async fn test_error_empty_period() {
+    // This manifest contains an empty Period. Periods should have at least one AdaptationSet.
+    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_empty_period.mpd")
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "invalid @maxHeight on AdaptationSet")]
+async fn test_error_invalid_maxheight() {
+    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_maxHeight.mpd")
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "invalid @maxWidth on AdaptationSet")]
+async fn test_error_invalid_maxwidth() {
+    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_maxWidth.mpd")
+        .download().await
+        .unwrap();
+}
+
 
 #[tokio::test]
 #[should_panic(expected = "parsing DASH XML")]
@@ -221,16 +246,6 @@ async fn test_error_tls_too_large() {
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_wrong_name() {
     DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
-        .download().await
-        .unwrap();
-}
-
-
-#[tokio::test]
-#[should_panic(expected = "no audio or video streams found")]
-async fn test_error_tls_wrong_name() {
-    // This manifest contains an empty Period. Periods should have at least one AdaptationSet.
-    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_empty_period.mpd")
         .download().await
         .unwrap();
 }

@@ -1672,11 +1672,9 @@ pub struct MPD {
 
 /// Parse an MPD manifest, provided as an XML string, returning an `MPD` node.
 pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
-    let mpd: Result<MPD, quick_xml::DeError> = quick_xml::de::from_str(xml);
-    match mpd {
-        Ok(mpd) => Ok(mpd),
-        Err(e) => Err(DashMpdError::Parsing(e.to_string())),
-    }
+    let mpd: MPD = quick_xml::de::from_str(xml)
+        .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
+    check_conformity(mpd)
 }
 
 
@@ -1936,6 +1934,36 @@ fn content_protection_type(cp: &ContentProtection) -> String {
     String::from("<unknown>")
 }
 
+
+pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
+    // @maxHeight on the AdaptationSet should give the maximum value of the @height values of its
+    // Representation elements.
+    for p in &mpd.periods {
+        for a in &p.adaptations {
+            if let Some(mh) = a.maxHeight {
+                if let Some(mr) = a.representations.iter().max_by_key(|r| r.height.unwrap_or(0)) {
+                    if mr.height.unwrap_or(0) > mh {
+                        return Err(DashMpdError::Parsing(String::from("invalid @maxHeight on AdaptationSet")));
+                    }
+                }
+            }
+        }
+    }
+    // @maxWidth on the AdaptationSet should give the maximum value of the @width values of its
+    // Representation elements.
+    for p in &mpd.periods {
+        for a in &p.adaptations {
+            if let Some(mw) = a.maxWidth {
+                if let Some(mr) = a.representations.iter().max_by_key(|r| r.width.unwrap_or(0)) {
+                    if mr.width.unwrap_or(0) > mw {
+                        return Err(DashMpdError::Parsing(String::from("invalid @maxWidth on AdaptationSet")));
+                    }
+                }
+            }
+        }
+    }
+    Ok(mpd)
+}
 
 #[cfg(test)]
 mod tests {
