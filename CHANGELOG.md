@@ -1,5 +1,11 @@
 # Changelog
 
+
+## [0.14.2] - Unreleased
+- Add preliminary support for some simple conformity checks on DASH manifests during parsing.
+
+
+
 ## [0.14.1] - 2023-09-30
 - Downloading: enable support for Bearer authentication of network requests to retrieve the manifest
   and the media segments. See function `with_auth_bearer` on `DashDownloader`. This is the
