@@ -1937,11 +1937,12 @@ fn content_protection_type(cp: &ContentProtection) -> String {
 
 fn check_segment_template_conformity(
     st: &SegmentTemplate,
-    max_seg_duration: &Duration) -> Result<(), DashMpdError>
+    max_seg_duration: &Duration,
+    outer_timescale: u64) -> Result<(), DashMpdError>
 {
     if let Some(timeline) = &st.SegmentTimeline {
         for s in &timeline.segments {
-            let sd = s.d as u64 / st.timescale.unwrap_or(1);
+            let sd = s.d as u64 / st.timescale.unwrap_or(outer_timescale);
             if sd > max_seg_duration.as_secs() {
                 return Err(DashMpdError::Parsing(
                     String::from("SegmentTimeline has segment@d > @maxSegmentDuration")));
@@ -1995,12 +1996,26 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
     if let Some(max_seg_duration) = &mpd.maxSegmentDuration {
         for p in &mpd.periods {
             for a in &p.adaptations {
+                // We need to keep track of outer_timescale for situations with a nested SegmentTemplate.
+                // For an example see test/fixtures/aws.xml.
+                // <SegmentTemplate startNumber="1" timescale="90000"/>
+                //   <Representation bandwidth="3296000" ...>
+                //     <SegmentTemplate initialization="i.mp4" media="m$Number$.mp4">
+                //       <SegmentTimeline>
+                //         <S d="180000" r="6" t="0"/>
+                //       </SegmentTimeline>
+                //     </SegmentTemplate>
+                // ...
+                let mut outer_timescale = 1;
                 if let Some(st) = &a.SegmentTemplate {
-                    check_segment_template_conformity(st, max_seg_duration)?;
+                    check_segment_template_conformity(st, max_seg_duration, outer_timescale)?;
+                    if let Some(ots) = st.timescale {
+                        outer_timescale = ots;
+                    }
                 }
                 for r in &a.representations {
                     if let Some(st) = &r.SegmentTemplate {
-                        check_segment_template_conformity(st, max_seg_duration)?;
+                        check_segment_template_conformity(st, max_seg_duration, outer_timescale)?;
                     }
                 }
             }
