@@ -14,7 +14,6 @@
 
 use fs_err as fs;
 use std::env;
-use std::time::Duration;
 use std::path::PathBuf;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
@@ -67,6 +66,28 @@ async fn test_dl_audio_mp4a() {
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("aac")));
+    assert!(audio.width.is_none());
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_audio_flac() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // See http://rdmedia.bbc.co.uk/testcard/vod/
+    let mpd_url = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-flac-en.mpd";
+    let out = env::temp_dir().join("bbcradio-flac.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 81_603_640);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let audio = &meta.streams[0];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("flac")));
     assert!(audio.width.is_none());
 }
 
