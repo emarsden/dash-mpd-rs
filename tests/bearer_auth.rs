@@ -83,7 +83,7 @@ async fn test_bearer_auth() -> Result<()> {
             periods: vec!(period),
             ..Default::default()
         };
-        let xml = quick_xml::se::to_string(&mpd).unwrap();
+        let xml = mpd.to_string();
         ([(header::CONTENT_TYPE, "application/dash+xml")], xml)
     }
 

@@ -1669,6 +1669,11 @@ pub struct MPD {
     pub supplemental_property: Vec<SupplementalProperty>,
 }
 
+impl ToString for MPD {
+    fn to_string(&self) -> String {
+        quick_xml::se::to_string(self).unwrap()
+    }
+}
 
 /// Parse an MPD manifest, provided as an XML string, returning an `MPD` node.
 pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
@@ -2090,7 +2095,7 @@ mod tests {
                 minBufferTime: Some(d),
                 ..Default::default()
             };
-            let xml = quick_xml::se::to_string(&mpd).unwrap();
+            let xml = mpd.to_string();
             let doc = roxmltree::Document::parse(&xml).unwrap();
             String::from(doc.root_element().attribute("minBufferTime").unwrap())
         }

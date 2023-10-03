@@ -155,8 +155,7 @@ fn main() {
        ..Default::default()
    };
 
-   let xml = quick_xml::se::to_string(&mpd)
-        .expect("serializing MPD struct");
+   let xml = mpd.to_string();
 }
 ```
 

@@ -180,7 +180,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         periods: vec!(period1, period2, period3),
         ..Default::default()
     };
-    let xml = quick_xml::se::to_string(&mpd)?;
+    let xml = mpd.to_string();
     let xml = add_xml_namespaces(&xml)?;
     let remote_period1_xml = quick_xml::se::to_string(&remote_period1)?;
     let remote_period1_xml = add_xml_namespaces(&remote_period1_xml)?;

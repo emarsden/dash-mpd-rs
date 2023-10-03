@@ -19,8 +19,7 @@ fn test_serialize () {
         publishTime: Some(Utc.with_ymd_and_hms(2017, 5, 25, 11, 11, 0).unwrap()),
         ..Default::default()
     };
-    let xml = quick_xml::se::to_string(&mpd)
-        .expect("serializing MPD struct");
+    let xml = mpd.to_string();
     assert!(xml.contains("MPD"));
     assert!(xml.contains("urn:mpeg:dash:schema"));
     assert!(xml.contains("randomcookie"));
