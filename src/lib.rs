@@ -1669,9 +1669,9 @@ pub struct MPD {
     pub supplemental_property: Vec<SupplementalProperty>,
 }
 
-impl ToString for MPD {
-    fn to_string(&self) -> String {
-        quick_xml::se::to_string(self).unwrap()
+impl std::fmt::Display for MPD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", quick_xml::se::to_string(self).unwrap())
     }
 }
 
