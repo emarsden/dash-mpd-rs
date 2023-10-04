@@ -1671,7 +1671,7 @@ pub struct MPD {
 
 impl std::fmt::Display for MPD {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", quick_xml::se::to_string(self).unwrap())
+        write!(f, "{}", quick_xml::se::to_string(self).map_err(|_| std::fmt::Error)?)
     }
 }
 
