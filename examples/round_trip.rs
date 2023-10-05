@@ -73,8 +73,7 @@ async fn main() -> Result<()> {
         .with_http_client(client.clone());
     let mpd: MPD = parse_resolving_xlinks(&dl, &Url::parse(url)?, &xml.into_bytes()).await
         .context("parsing DASH XML")?;
-    let rewritten = quick_xml::se::to_string(&mpd)
-        .context("serializing MPD struct")?;
+    let rewritten = mpd.to_string();
     let out2 = env::temp_dir().join("mpd-rewritten.xml");
     fs::write(&out2, rewritten)?;
     // We tried using the natural_xml_diff crate for this purpose, but its output is less convenient

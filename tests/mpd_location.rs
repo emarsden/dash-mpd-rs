@@ -77,8 +77,8 @@ async fn test_mpd_location() -> Result<()> {
         periods: vec!(period),
         ..Default::default()
     };
-    let xml1 = quick_xml::se::to_string(&orig_mpd)?;
-    let xml2 = quick_xml::se::to_string(&relocated_mpd)?;
+    let xml1 = orig_mpd.to_string();
+    let xml2 = relocated_mpd.to_string();
 
     // State shared between the request handlers. We are simply maintaining a counter of the number
     // of requests made, to check that each XLink reference has been resolved.

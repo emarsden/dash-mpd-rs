@@ -138,7 +138,7 @@ async fn test_data_url() -> Result<()> {
         periods: vec!(period),
         ..Default::default()
     };
-    let xml = quick_xml::se::to_string(&mpd)?;
+    let xml = mpd.to_string();
     let app = Router::new()
         .route("/mpd", get(|| async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }));
     let backend = async move {

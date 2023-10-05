@@ -129,7 +129,7 @@ async fn test_preference_ranking() -> Result<()> {
         periods: vec!(period),
         ..Default::default()
     };
-    let xml = quick_xml::se::to_string(&mpd)?;
+    let xml = mpd.to_string();
 
     // State shared between the request handlers. We are simply maintaining a counter of the number
     // of requests made, to check that each XLink reference has been resolved.
