@@ -774,7 +774,12 @@ fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSe
     } else {
         format!("{typ:?}")
     };
-    println!("  subs {stype:>18} | {lang:>10} |");
+    let role = a.Role.first()
+        .map_or_else(|| String::from(""),
+                     |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
+    let label = a.Label.first()
+        .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
+    println!("  subs {stype:>18} | {lang:>10} |{role}{label}");
 }
 
 fn print_available_subtitles_adaptation(a: &AdaptationSet) {
