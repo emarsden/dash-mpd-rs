@@ -1202,6 +1202,8 @@ pub struct EventStream {
     pub event: Vec<Event>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename = "@presentationTimeOffset")]
+    pub presentationTimeOffset: Option<u64>,
 }
 
 /// "Inband" events are materialized by the presence of DASHEventMessageBoxes (emsg) in the media
