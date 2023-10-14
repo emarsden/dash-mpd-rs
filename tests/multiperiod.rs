@@ -8,6 +8,7 @@
 use fs_err as fs;
 use std::env;
 use std::path::PathBuf;
+use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
 
@@ -43,6 +44,8 @@ async fn test_multiperiod_helio() {
         .unwrap();
     // We see different file sizes for content from this manifest, for unknown reasons.
     check_file_size_approx(&out, 36_000);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Webm);
     // The three periods should have been merged into a single output file, and the other temporary
     // media files should be been explicitly deleted.
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -130,6 +133,31 @@ async fn test_multiperiod_audio() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 23_868_589);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+}
+
+
+// This manifest contains three Periods, each with a different BaseURL (which could be pointing to
+// different CDNs).
+#[tokio::test]
+async fn test_multiperiod_diffbase() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesIOP33/multiplePeriods/3/manifest_multiple_Periods_Content_Offering_CDN.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("multiperiod-diffbase.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 245_287_205);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
