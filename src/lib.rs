@@ -87,6 +87,7 @@ use serde_with::skip_serializing_none;
 use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
+use url::Url;
 
 base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
@@ -1959,6 +1960,29 @@ fn check_segment_template_conformity(
     Ok(())
 }
 
+// Check the URL or URL path u for conformity. This is a very relaxed check because the Url crate is
+// very tolerant, in particular concerning the syntax accepted for the path component of an URL.
+fn check_url(u: &str) -> Result<(), DashMpdError> {
+    use url::ParseError;
+
+    match Url::parse(u) {
+        Ok(url) => {
+            if url.scheme() == "https" ||
+                url.scheme() == "http" ||
+                url.scheme() == "ftp" ||
+                url.scheme() == "file" ||
+                url.scheme() == "data"
+            {
+                Ok(())
+            } else {
+                Err(DashMpdError::Parsing(String::from("invalid URL")))
+            }
+        },
+        Err(ParseError::RelativeUrlWithoutBase) => Ok(()),
+        Err(_) => Err(DashMpdError::Parsing(String::from("invalid URL"))),
+    }
+}
+
 pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
     // @maxHeight on the AdaptationSet should give the maximum value of the @height values of its
     // Representation elements.
@@ -2028,6 +2052,61 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
             }
         }
     }
+
+    for bu in &mpd.base_url {
+        check_url(&bu.base)?;
+    }
+    for p in &mpd.periods {
+        for bu in &p.BaseURL {
+            check_url(&bu.base)?;
+        }
+        for a in &p.adaptations {
+            for bu in &a.BaseURL {
+                check_url(&bu.base)?;
+            }
+            for r in &a.representations {
+                for bu in &r.BaseURL {
+                    check_url(&bu.base)?;
+                }
+                if let Some(sb) = &r.SegmentBase {
+                    if let Some(init) = &sb.initialization {
+                        if let Some(su) = &init.sourceURL {
+                            check_url(su)?;
+                        }
+                    }
+                    if let Some(ri) = &sb.RepresentationIndex {
+                        if let Some(su) = &ri.sourceURL {
+                            check_url(su)?;
+                        }
+                    }
+                }
+                if let Some(sl) = &r.SegmentList {
+                    if let Some(hr) = &sl.href {
+                        check_url(hr)?;
+                    }
+                    if let Some(init) = &sl.Initialization {
+                        if let Some(su) = &init.sourceURL {
+                            check_url(su)?;
+                        }
+                    }
+                    for su in &sl.segment_urls {
+                        if let Some(md) = &su.media {
+                            check_url(md)?;
+                        }
+                        if let Some(ix) = &su.index {
+                            check_url(ix)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some(pi) = &mpd.ProgramInformation {
+        if let Some(u) = &pi.moreInformationURL {
+            check_url(u)?;
+        }
+    }
+
     Ok(mpd)
 }
 
