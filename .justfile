@@ -27,6 +27,13 @@ setup-coverage-tools:
   cargo install cargo-tarpaulin
     
 
+# Compiling the openssl crate on Android is complicated so we use the rustls-tls feature. Avoid some
+# typing on tiny keyboards.
+termux:
+    cargo update
+    cargo test --no-default-features --features fetch,rustls-tls,compression,scte35 -- --show-output
+
+
 publish:
   cargo test
   cargo publish
