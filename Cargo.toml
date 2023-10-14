@@ -58,7 +58,7 @@ image = "0.24.7"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]
-fetch = ["url", "data-url", "reqwest", "backoff", "governor", "xmltree", "async-recursion", "tempfile", "sanitise-file-name", "ffprobe", "file-format"]
+fetch = ["data-url", "reqwest", "backoff", "governor", "xmltree", "async-recursion", "tempfile", "sanitise-file-name", "ffprobe", "file-format"]
 libav = ["ac-ffmpeg"]
 scte35 = []
 compression = ["reqwest/gzip"]
