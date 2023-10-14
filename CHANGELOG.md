@@ -9,6 +9,16 @@
 
 - Add attribute `presentationTimeOffset` to `EventStream` elements (thanks to @sbuzzard).
 
+- Downloading: allow the user to specify the order in which muxer applications are tried, instead of
+  using a hard-coded ordering per container type. The ordering is specified per container type
+  ("mkv", "mp4", "avi", "ts", etc.). The user specifies an ordering such as "ffmpeg,vlc,mp4box"
+  which means that ffmpeg is tried first, and if that fails vlc, and if that fails mp4box. The
+  muxers currently available are ffmpeg, vlc, mkvmerge and mp4box. See function
+  `with_muxer_preference` on `DashDownloader`.
+
+- Downloading: work around a bug in VLC, which does not correctly report failure to mux via a
+  non-zero exit code.
+
 
 ## [0.14.1] - 2023-09-30
 - Downloading: enable support for Bearer authentication of network requests to retrieve the manifest

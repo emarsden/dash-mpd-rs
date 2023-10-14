@@ -26,6 +26,12 @@ fn mux_audio_video_ffmpeg(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
+    // See output from "ffmpeg -muxers"
+    let muxer = match container {
+        "mkv" => "matroska",
+        "ts" => "mpegts",
+        _ => container,
+    };
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
@@ -58,8 +64,9 @@ fn mux_audio_video_ffmpeg(
                "-c:v", "copy",
                "-c:a", "copy",
                "-movflags", "+faststart", "-preset", "veryfast",
-               // select the muxer explicitly
-               "-f", container,
+               // select the muxer explicitly (debatable whether this is better than ffmpeg's
+               // heuristics based on output filename)
+               "-f", muxer,
                tmppath])
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
@@ -508,7 +515,8 @@ fn mux_audio_mkvmerge(
 
 
 // Mux (merge) audio and video using an external tool, selecting the tool based on the output
-// container format and on our preference (first try ffmpeg, then vlc, then mp4box, etc.).
+// container format and on the user-specified muxer preference ordering (e.g. "ffmpeg,vlc,mp4box")
+// or our hardcoded container-dependent preference ordering.
 pub fn mux_audio_video(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -519,7 +527,6 @@ pub fn mux_audio_video(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
-    // TODO: should probably allow the user to specify this ordering preference
     let mut muxer_preference = vec![];
     if container.eq("mkv") {
         muxer_preference.push("mkvmerge");
@@ -532,6 +539,12 @@ pub fn mux_audio_video(
     } else {
         muxer_preference.push("ffmpeg");
         muxer_preference.push("mp4box");
+    }
+    if let Some(ordering) = downloader.muxer_preference.get(container) {
+        muxer_preference.clear();
+        for m in ordering.split(',') {
+            muxer_preference.push(m);
+        }
     }
     info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
@@ -564,10 +577,12 @@ pub fn mux_audio_video(
                 info!("Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
+        } else {
+            warn!("Ignoring unknown muxer preference {muxer}");
         }
     }
-    warn!("All available muxers failed");
-    Err(DashMpdError::Muxing(String::from("all available muxers failed")))
+    warn!("All muxers failed");
+    Err(DashMpdError::Muxing(String::from("all muxers failed")))
 }
 
 

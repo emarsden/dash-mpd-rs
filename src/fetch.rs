@@ -98,6 +98,7 @@ pub struct DashDownloader {
     bw_limiter: Option<DirectRateLimiter>,
     verbosity: u8,
     record_metainformation: bool,
+    pub muxer_preference: HashMap<String, String>,
     pub ffmpeg_location: String,
     pub vlc_location: String,
     pub mkvmerge_location: String,
@@ -195,6 +196,7 @@ impl DashDownloader {
             bw_limiter: None,
             verbosity: 0,
             record_metainformation: true,
+            muxer_preference: HashMap::new(),
             ffmpeg_location: if cfg!(target_os = "windows") {
                 String::from("ffmpeg.exe")
             } else {
@@ -463,6 +465,19 @@ impl DashDownloader {
     /// output file.
     pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
         self.record_metainformation = record;
+        self
+    }
+
+    /// When muxing audio and video streams to a container of type `container`, try muxing
+    /// applications following the order given by `ordering`.
+    ///
+    /// # Arguments
+    ///
+    /// * `container`: the container type (e.g. "mp4", "mkv", "avi")
+    /// * `ordering`: the comma-separated order of preference for trying muxing applications (e.g.
+    ///   "ffmpeg,vlc,mp4box")
+    pub fn with_muxer_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
+        self.muxer_preference.insert(container.to_string(), ordering.to_string());
         self
     }
 
