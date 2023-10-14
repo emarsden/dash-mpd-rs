@@ -94,6 +94,8 @@ async fn test_dl_audio_flac() {
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_dolby_eac3() {
+    // E-AC-3 is the same as Dolby Digital Plus; it's an improved version of the AC-3 codec that
+    // allows higher bitrates.
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dolby/3/1/ChID_voices_20_128_ddp.mpd";
     let out = env::temp_dir().join("dolby-eac3.mp4");
     DashDownloader::new(mpd_url)
@@ -109,16 +111,16 @@ async fn test_dl_dolby_eac3() {
     assert_eq!(stream.codec_name, Some(String::from("eac3")));
 }
 
-// As of 2023-09, ffmpeg v6.0 is unable to mux this ac-4 audio codec into an MP4 container. mkvmerge
-// is able to mux it into a Matroska container.
+// As of 2023-09, ffmpeg v6.0 and VLC v3.0.18 are unable to mux this Dolby AC-4 audio stream into an
+// MP4 container, not play the content. mkvmerge is able to mux it into a Matroska container.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_dolby_eac4() {
+async fn test_dl_dolby_ac4_mkv() {
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesDolby/2/Living_Room_1080p_20_96k_2997fps.mpd";
-    let out = env::temp_dir().join("dolby-eac4.mkv");
+    let out = env::temp_dir().join("dolby-ac4.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -132,6 +134,30 @@ async fn test_dl_dolby_eac4() {
     // This codec is not currently recogized by ffprobe
     // assert_eq!(stream.codec_name, Some(String::from("ac-4")));
 }
+
+
+// As of 2023-10, ffmpeg v6.0 (https://trac.ffmpeg.org/ticket/8349) and VLC v3.0.18 are unable to
+// mux this Dolby AC-4 audio stream into an MP4 container, nor to play the content. mp4box is able
+// to mux it into an MP4 container.
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_dolby_ac4_mp4() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://ott.dolby.com/OnDelKits/AC-4/Dolby_AC-4_Online_Delivery_Kit_1.5/Test_Signals/muxed_streams/DASH/Live/MPD/Multi_Codec_720p_2997fps_h264.mpd";
+    let out = env::temp_dir().join("dolby-ac4.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 8_416_451);
+    // Don't attempt to ffprobe, because it generates an error ("no decoder could be found for codec
+    // none").
+}
+
 
 // As of 2023-09, ffmpeg v6.0 is unable to mux this Dolby DTSC audio codec into an MP4 container. mkvmerge
 // is able to mux it into a Matroska container.
@@ -157,6 +183,11 @@ async fn test_dl_dolby_dtsc() {
     assert_eq!(stream.codec_name, Some(String::from("dts")));
 }
 
+// Here a test manifest using MPEG H 3D audio format (mha1 codec), which is not supported by ffmpeg
+// 6.0 or mkvmerge.
+// https://dash.akamaized.net/dash264/TestCasesMCA/fraunhofer/MPEGH_Stereo_lc_mha1/1/Sintel/sintel_audio_video_mpegh_mha1_stereo_sidx.mpd
+
+
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_hevc_hdr() {
@@ -178,6 +209,32 @@ async fn test_dl_hevc_hdr() {
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("hevc")));
     assert!(stream.width.is_some());
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_hvc1() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
+    let out = env::temp_dir().join("hvc1.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 6_652_846);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("hevc")));
+    assert_eq!(video.width, Some(640));
+    let audio = &meta.streams[1];
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    assert!(audio.width.is_none());
 }
 
 #[tokio::test]
@@ -364,6 +421,34 @@ async fn test_dl_adaptation_segment_list() {
     check_file_size_approx(&out, 110_010_161);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+}
+
+// This manifest has video streams with different codecs (avc1 and hev1) in different AdaptationSets.
+#[tokio::test]
+async fn test_dl_adaptation_set_variants() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesIOP33/adapatationSetSwitching/2/manifest.mpd";
+    let out = env::temp_dir().join("adaptation-set-switch.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 94_921_878);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert_eq!(stream.width, Some(1920));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
 }
 
 // A test for the progress observer functionality.
