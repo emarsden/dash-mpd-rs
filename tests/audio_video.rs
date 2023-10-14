@@ -130,6 +130,11 @@ async fn test_dl_cea608_captions() {
         .worst_quality()
         .verbosity(2)
         .without_content_type_checks()
+        .with_ffmpeg("/usr/bin/ffmpeg")
+        .with_vlc("/usr/bin/vlc")
+        .with_mkvmerge("/usr/bin/mkvmerge")
+        .with_mp4box("/usr/bin/mp4box")
+        .with_mp4decrypt("/usr/bin/my4decrypt")
         .download_to(out.clone()).await
         .unwrap();
     // Downloaded file size on this is variable.

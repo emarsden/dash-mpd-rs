@@ -140,9 +140,8 @@ async fn test_mpd_location() -> Result<()> {
         .context("fetching status")?;
     assert!(txt.eq("0"));
 
-    let mpd_url = "http://localhost:6666/mpd";
     let r = env::temp_dir().join("relocated.mp4");
-    DashDownloader::new(mpd_url)
+    DashDownloader::new("http://localhost:6666/mpd")
         .best_quality()
         .verbosity(3)
         .with_http_client(client.clone())
@@ -157,7 +156,7 @@ async fn test_mpd_location() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("2"), "Expecting status=2, got {}", txt);
+    assert!(txt.eq("2"), "Expecting status=2, got {txt}");
 
     Ok(())
 }
