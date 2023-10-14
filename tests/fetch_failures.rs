@@ -207,6 +207,9 @@ async fn test_error_xlink_gone() {
 }
 
 
+// Other live streams that could be checked:
+//   https://demo.unified-streaming.com/k8s/live/trunk/scte35.isml/.mpd
+//   https://tv.nknews.org/tvdash/stream.mpd
 #[tokio::test]
 #[should_panic(expected = "download dynamic MPD")]
 async fn test_error_dynamic_mpd() {
@@ -255,6 +258,15 @@ async fn test_error_tls_too_large() {
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_wrong_name() {
     DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "requesting DASH manifest")]
+async fn test_error_tls_pinning() {
+    DashDownloader::new("https://pinning-test.badssl.com/ignored.mpd")
         .download().await
         .unwrap();
 }
