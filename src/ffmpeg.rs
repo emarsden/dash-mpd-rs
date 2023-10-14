@@ -225,7 +225,10 @@ fn mux_audio_video_vlc(
                "vlc://quit"])
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
-    if vlc.status.success() {
+    // VLC is erroneously returning a 0 (success) return code even when it fails to mux, so we need
+    // to look for a specific error message to check for failure.
+    let msg = String::from_utf8_lossy(&vlc.stderr);
+    if vlc.status.success() && (!msg.contains("mp4 mux error")) {
         {
             let tmpfile = File::open(tmppath)
                 .map_err(|e| DashMpdError::Io(e, String::from("opening VLC output")))?;
