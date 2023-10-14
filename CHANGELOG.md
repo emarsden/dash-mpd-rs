@@ -7,6 +7,8 @@
 - Implement `std::fmt::Display` on `MPD` structs, which makes it possible to serialize them easily
   using `.to_string()` (thanks to @Yesterday17).
 
+- Add attribute `presentationTimeOffset` to `EventStream` elements (thanks to @sbuzzard).
+
 
 ## [0.14.1] - 2023-09-30
 - Downloading: enable support for Bearer authentication of network requests to retrieve the manifest
