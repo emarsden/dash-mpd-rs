@@ -1,4 +1,8 @@
 // Tests for the parsing support
+//
+// To run this test while enabling printing to stdout/stderr
+//
+//    cargo test --test parsing -- --show-output
 
 
 // Currently a nightly-only feature
@@ -63,6 +67,28 @@ fn test_mpd_parser () {
     assert_eq!(a1.representations.len(), 1);
     let r1 = &a1.representations[0];
     assert_eq!(r1.bandwidth.unwrap(), 42);
+
+    // This example using single quotes instead of double quotes in XML formatting.
+    let case6 = r#"<?xml version='1.0' encoding='UTF-8'?><MPD
+       minBufferTime='PT10.00S'
+       mediaPresentationDuration='PT3256S'
+       type='static' availabilityStartTime='2001-12-17T09:40:57Z'
+       profiles='urn:mpeg:dash:profile:isoff-main:2011'>
+     <Period start='PT0S' id='1'>
+       <AdaptationSet group='1'>
+         <Representation mimeType='video/mp4' codecs='avc1.644028, svc1' width='320' height='240' 
+           frameRate='15' id='tag0' bandwidth='128000'>
+           <SegmentList duration='10'>
+             <Initialization sourceURL='seg-s-init.mp4'/>
+             <SegmentURL media='seg-s1-128k-1.mp4'/>
+             <SegmentURL media='seg-s1-128k-2.mp4'/>
+             <SegmentURL media='seg-s1-128k-3.mp4'/>
+           </SegmentList>
+         </Representation>
+       </AdaptationSet>
+     </Period></MPD>"#;
+    let c6 = parse(case6).unwrap();
+    assert_eq!(c6.periods.len(), 1);
 }
 
 // These tests check that we are able to parse DASH manifests that contain XML elements for which we
@@ -106,6 +132,52 @@ fn test_unknown_elements () {
     assert!(pi.Title.is_some());
     let title = pi.Title.unwrap();
     assert_eq!(title.content.unwrap(), "Foobles");
+}
+
+#[test]
+fn test_url_parsing () {
+    let err1 = r#"<MPD><Period id="1">
+       <AdaptationSet group="1">
+         <Representation mimeType='video/mp4' width="320" height="240">
+           <SegmentList duration="10">
+             <Initialization sourceURL="httpunexist://example.com/segment.mp4"/>
+             <SegmentURL media="seg1.mp4"/>
+           </SegmentList>
+         </Representation>
+       </AdaptationSet>
+     </Period></MPD>"#;
+    assert!(parse(err1).is_err());
+
+    let err2 = r#"<MPD><Period id="1">
+       <AdaptationSet group="1">
+         <Representation mimeType="video/mp4" width="320" height="240">
+           <SegmentList duration="10">
+             <SegmentURL media="https://example.com:-1/segment.mp4"/>
+           </SegmentList>
+         </Representation>
+       </AdaptationSet>
+     </Period></MPD>"#;
+    assert!(parse(err2).is_err());
+
+    let err3 = r#"<MPD><ProgramInformation moreInformationURL="https://192.168.1.2.3/segment.mp4" /></MPD>"#;
+    assert!(parse(err3).is_err());
+
+    // Yes, this path component is really accepted even if containing characters that are not
+    // recommended for use in URLs.
+    let err4 = r#"<MPD><Period id="1">
+       <AdaptationSet group="1">
+         <Representation mimeType="video/mp4">
+           <SegmentList duration="10">
+             <SegmentURL media="/segment'-??-$$i-<\r-\n-%T%Ae-❌.mp4"/>
+           </SegmentList>
+         </Representation>
+       </AdaptationSet>
+     </Period></MPD>"#;
+    assert!(parse(err4).is_ok());
+
+    // Check that IPv6 addresses are accepted.
+    let ok1 = r#"<MPD><ProgramInformation moreInformationURL="http://[2001:db8::1]/info/" /></MPD>"#;
+    parse(ok1).unwrap();
 }
 
 #[test]
@@ -246,8 +318,7 @@ async fn test_parsing_online() {
             .expect("requesting MPD content")
             .text().await
             .expect("fetching MPD content");
-        let p = parse(&xml);
-        assert!(p.is_ok());
+        parse(&xml).unwrap();
     }
 
     let client = reqwest::Client::builder()
@@ -261,6 +332,8 @@ async fn test_parsing_online() {
               "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G4.mpd").await;
     check_mpd(client.clone(),
               "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G22.mpd").await;
+    check_mpd(client.clone(),
+              "https://cph-msl.akamaized.net/dash/live/2003285/test/manifest.mpd").await;
 }
 
 

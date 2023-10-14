@@ -47,7 +47,7 @@ async fn test_multiperiod_helio() {
     // media files should be been explicitly deleted.
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {}", count);
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
 }
 
 
@@ -62,12 +62,13 @@ async fn test_multiperiod_nomor5a() {
     let out = tmpd.path().join("multiperiod-5a.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .concatenate_periods(true)
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 95_623_359);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {}", count);
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
 }
 
 
@@ -92,7 +93,7 @@ async fn test_multiperiod_nomor5b() {
     check_file_size_approx(&p3, 31_215_605);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
-    assert_eq!(count, 3, "Expecting 3 output files, got {}", count);
+    assert_eq!(count, 3, "Expecting 3 output files, got {count}");
 }
 
 #[tokio::test]
@@ -112,7 +113,7 @@ async fn test_multiperiod_withsubs() {
     check_file_size_approx(&out, 98_716_475);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {}", count);
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
 }
 
 // This manifest has two periods, each only containing audio content.
@@ -131,7 +132,7 @@ async fn test_multiperiod_audio() {
     check_file_size_approx(&out, 23_868_589);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {}", count);
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
 }
 
 
