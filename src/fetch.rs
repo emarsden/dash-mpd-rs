@@ -315,7 +315,7 @@ impl DashDownloader {
     }
 
     /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
-`    /// the Adaptation whose height is closest to the specified `height.
+    /// the Adaptation whose height is closest to the specified `height`.
     pub fn prefer_video_height(mut self, height: u64) -> DashDownloader {
         self.video_height_preference = Some(height);
         self
