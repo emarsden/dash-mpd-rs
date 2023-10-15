@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.14.2] - Unreleased
+## [0.14.2] - 2023-10-15
 - Add preliminary support for some simple conformity checks on DASH manifests during parsing.
 
 - Implement `std::fmt::Display` on `MPD` structs, which makes it possible to serialize them easily
