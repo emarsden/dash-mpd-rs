@@ -207,7 +207,7 @@ impl DashDownloader {
 	    vlc_location: if cfg!(target_os = "windows") {
                 // The official VideoLan Windows installer doesn't seem to place its installation
                 // directory in the PATH, so we try with the default full path.
-                String::from("c:\Program Files\VideoLAN\VLC\vlc.exe")
+                String::from("c:/Program Files/VideoLAN/VLC/vlc.exe")
             } else {
                 String::from("vlc")
             },
