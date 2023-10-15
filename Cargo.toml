@@ -21,7 +21,7 @@ url = "2.4.1"
 chrono = { version = "0.4.31", features = ["serde"] }
 num-traits = "0.2.16"
 iso8601 = "0.6.1"
-regex = "1.10.0"
+regex = "1.10.1"
 thiserror = "1.0.48"
 fs-err = "2.9.0"
 log = "0.4.20"

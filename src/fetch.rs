@@ -69,8 +69,9 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 /// involves fetching the manifest file, parsing it, identifying the relevant audio and video
 /// representations, downloading all the segments, concatenating them then muxing the audio and
 /// video streams to produce a single video file including audio. This should work with both
-/// MPEG-DASH MPD manifests (where the media segments are typically placed in MPEG-2 TS containers)
-/// and for [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
+/// MPEG-DASH MPD manifests (where the media segments are typically placed in fragmented MP4 or
+/// MPEG-2 TS containers) and for
+/// [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     pub mpd_url: String,
     auth_username: Option<String>,
@@ -152,7 +153,8 @@ struct PeriodOutputs {
 /// the download of DASH media content (preferences concerning bitrate/quality, specifying an HTTP
 /// proxy, etc.).
 ///
-/// Example
+/// # Example
+///
 /// ```rust
 /// use dash_mpd::fetch::DashDownloader;
 ///
@@ -231,7 +233,8 @@ impl DashDownloader {
     /// media content. Allows you to specify a proxy, the user agent, custom request headers,
     /// request timeouts, additional root certificates to trust, client identity certificates, etc.
     ///
-    /// Example
+    /// # Example
+    ///
     /// ```rust
     /// use dash_mpd::fetch::DashDownloader;
     ///
@@ -295,23 +298,24 @@ impl DashDownloader {
         self
     }
 
-    /// Preferred language when multiple audio streams with different languages are available. Must
-    /// be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not specified and multiple
-    /// audio streams are present, the first one listed in the DASH manifest will be downloaded.
+    /// Specify the preferred language when multiple audio streams with different languages are
+    /// available. Must be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not
+    /// specified and multiple audio streams are present, the first one listed in the DASH manifest
+    /// will be downloaded.
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
         self
     }
 
     /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
-    /// the Adaptation whose width is closest to the specified width.
+    /// the Adaptation whose width is closest to the specified `width`.
     pub fn prefer_video_width(mut self, width: u64) -> DashDownloader {
         self.video_width_preference = Some(width);
         self
     }
 
     /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
-    /// the Adaptation whose height is closest to the specified width.
+`    /// the Adaptation whose height is closest to the specified `height.
     pub fn prefer_video_height(mut self, height: u64) -> DashDownloader {
         self.video_height_preference = Some(height);
         self
@@ -367,21 +371,29 @@ impl DashDownloader {
         self
     }
 
-    /// Parameter `value` determines whether audio content is downloaded.
+    /// Parameter `value` determines whether audio content is downloaded. If disabled, the output
+    /// media file will either contain only a video track (if fetch_video is true and the manifest
+    /// includes a video stream), or will be empty.
     pub fn fetch_audio(mut self, value: bool) -> DashDownloader {
         self.fetch_audio = value;
         self
     }
 
-    /// Parameter `value` determines whether video content is downloaded.
+    /// Parameter `value` determines whether video content is downloaded. If disabled, the output
+    /// media file will either contain only an audio track (if fetch_audio is true and the manifest
+    /// includes an audio stream which is separate from the video stream), or will be empty.
     pub fn fetch_video(mut self, value: bool) -> DashDownloader {
         self.fetch_video = value;
         self
     }
 
-    /// Fetch subtitles if they are available. If subtitles are available, download them to a file
-    /// named with the same name as the media output and an appropriate extension (".vtt", ".ttml",
-    /// ".srt", etc.).
+    /// Specify whether subtitles should be fetched, if they are available. If subtitles are
+    /// requested and available, they will be downloaded to a file named with the same name as the
+    /// media output and an appropriate extension (".vtt", ".ttml", ".srt", etc.).
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: enable or disable the retrieval of subtitles.
     pub fn fetch_subtitles(mut self, value: bool) -> DashDownloader {
         self.fetch_subtitles = value;
         self
@@ -469,7 +481,9 @@ impl DashDownloader {
     }
 
     /// When muxing audio and video streams to a container of type `container`, try muxing
-    /// applications following the order given by `ordering`.
+    /// applications following the order given by `ordering`. This function may be called multiple
+    /// times to specify the ordering for different container types. If called more than once for
+    /// the same container type, the ordering specified in the last call is retained.
     ///
     /// # Arguments
     ///
@@ -483,7 +497,14 @@ impl DashDownloader {
 
     /// Specify the location of the `ffmpeg` application, if not located in PATH.
     ///
-    /// Example
+    /// # Arguments
+    ///
+    /// * `ffmpeg_path`: the path to the ffmpeg application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
+    ///
+    /// # Example
+    ///
     /// ```rust
     /// #[cfg(target_os = "unix")]
     /// let ddl = ddl.with_ffmpeg("/opt/ffmpeg-next/bin/ffmpeg");
@@ -495,7 +516,14 @@ impl DashDownloader {
 
     /// Specify the location of the VLC application, if not located in PATH.
     ///
+    /// # Arguments
+    ///
+    /// * `vlc_path`: the path to the VLC application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
+    ///
     /// # Example
+    ///
     /// ```rust
     /// #[cfg(target_os = "windows")]
     /// let ddl = ddl.with_vlc("C:/Program Files/VideoLAN/VLC/vlc.exe");
@@ -507,9 +535,11 @@ impl DashDownloader {
 
     /// Specify the location of the mkvmerge application, if not located in PATH.
     ///
-    /// # Argument
+    /// # Arguments
     ///
-    /// `path` - the full path to the mkvmerge application, including the application name.
+    /// * `path`: the path to the mkvmerge application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
     pub fn with_mkvmerge(mut self, path: &str) -> DashDownloader {
         self.mkvmerge_location = path.to_string();
         self
@@ -517,9 +547,11 @@ impl DashDownloader {
 
     /// Specify the location of the MP4Box application, if not located in PATH.
     ///
-    /// # Argument
+    /// # Arguments
     ///
-    /// `path` - the full path to the MP4Box application, including the application name.
+    /// * `path`: the path to the MP4Box application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
     pub fn with_mp4box(mut self, path: &str) -> DashDownloader {
         self.mp4box_location = path.to_string();
         self
@@ -527,9 +559,11 @@ impl DashDownloader {
 
     /// Specify the location of the Bento4 mp4decrypt application, if not located in PATH.
     ///
-    /// # Argument
+    /// # Arguments
     ///
-    /// `path` - the full path to the mp4decrypt application, including the application name.
+    /// * `path`: the path to the mp4decrypt application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
     pub fn with_mp4decrypt(mut self, path: &str) -> DashDownloader {
         self.mp4decrypt_location = path.to_string();
         self
@@ -538,11 +572,11 @@ impl DashDownloader {
     /// Download DASH streaming media content to the file named by `out`. If the output file `out`
     /// already exists, its content will be overwritten.
     ///
-    /// Note that the media container format used when muxing audio and video streams depends on
-    /// the filename extension of the path `out`. If the filename extension is `.mp4`, an MPEG-4
-    /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise
-    /// the heuristics implemented by ffmpeg will apply (e.g. an `.avi` extension will generate
-    /// an AVI container).
+    /// Note that the media container format used when muxing audio and video streams depends on the
+    /// filename extension of the path `out`. If the filename extension is `.mp4`, an MPEG-4
+    /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise the
+    /// heuristics implemented by the selected muxer (by default ffmpeg) will apply (e.g. an `.avi`
+    /// extension will generate an AVI container).
     pub async fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
@@ -1529,7 +1563,7 @@ async fn do_period_audio(
                 // download and parse these (for example using the sidx crate) then download
                 // the referenced content segments. In practice, it seems that the
                 // indexRange information is mostly provided by DASH encoders to allow
-                // clients to rewind and fast-foward a stream, and is not necessary if we
+                // clients to rewind and fast-forward a stream, and is not necessary if we
                 // download the full content specified by BaseURL.
                 //
                 // Our strategy: if there is a SegmentBase > Initialization > SourceURL
@@ -2089,8 +2123,9 @@ async fn do_period_subtitles(
                         {
                             let mut out = subs_path.clone();
                             out.set_extension("srt");
-                            // We can convert this to SRT format, which is more widely supported, using
-                            // MP4Box. However, it's not a fatal error if MP4Box is not installed.
+                            // We try to convert this to SRT format, which is more widely supported,
+                            // using MP4Box. However, it's not a fatal error if MP4Box is not
+                            // installed or the conversion fails.
                             if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                                 .args(["-srt", "1", "-out", &out.to_string_lossy(),
                                        &subs_path.to_string_lossy()])
