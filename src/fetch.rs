@@ -3111,8 +3111,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
-            // return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
-            ()
+            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
         }
     }
     let mut toplevel_base_url = redirected_url.clone();
