@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::cmp::min;
 use std::num::NonZeroU32;
 use log::{info, warn, error};
+use colored::*;
 use regex::Regex;
 use url::Url;
 use data_url::DataUrl;
@@ -161,8 +162,7 @@ struct PeriodOutputs {
 /// let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
 /// match DashDownloader::new(url)
 ///        .worst_quality()
-///        .download()
-///        .await
+///        .download().await
 /// {
 ///    Ok(path) => println!("Downloaded to {path:?}"),
 ///    Err(e) => eprintln!("Download failed: {e}"),
@@ -1301,7 +1301,7 @@ async fn do_period_audio(
                 // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
                 // with Representation>SegmentList addressing mode)
                 if downloader.verbosity > 1 {
-                    println!("  Using AdaptationSet>SegmentList addressing mode for audio representation");
+                    println!("  {}", "Using AdaptationSet>SegmentList addressing mode for audio representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -1355,7 +1355,7 @@ async fn do_period_audio(
             if let Some(sl) = &audio_repr.SegmentList {
                 // (1) Representation>SegmentList addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using Representation>SegmentList addressing mode for audio representation");
+                    println!("  {}", "Using Representation>SegmentList addressing mode for audio representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -1434,7 +1434,7 @@ async fn do_period_audio(
                     // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                     // "explicit addressing" in certain DASH-IF documents)
                     if downloader.verbosity > 1 {
-                        println!("  Using SegmentTemplate+SegmentTimeline addressing mode for audio representation");
+                        println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for audio representation".italic());
                     }
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
@@ -1508,7 +1508,7 @@ async fn do_period_audio(
                     // SegmentTemplate@index addressing mode (also called "simple
                     // addressing" in certain DASH-IF documents)
                     if downloader.verbosity > 1 {
-                        println!("  Using SegmentTemplate addressing mode for audio representation");
+                        println!("  {}", "Using SegmentTemplate addressing mode for audio representation".italic());
                     }
                     let mut total_number = 0i64;
                     if let Some(init) = opt_init {
@@ -1557,7 +1557,7 @@ async fn do_period_audio(
             } else if let Some(sb) = &audio_repr.SegmentBase {
                 // (5) SegmentBase@indexRange addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using SegmentBase@indexRange addressing mode for audio representation");
+                    println!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
                 }
                 // The SegmentBase@indexRange attribute points to a byte range in the media
                 // file that contains index information (an sidx box for MPEG files, or a
@@ -1602,7 +1602,7 @@ async fn do_period_audio(
             } else if fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
                 // (6) plain BaseURL addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using BaseURL addressing mode for audio representation");
+                    println!("  {}", "Using BaseURL addressing mode for audio representation".italic());
                 }
                 let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
                 let mf = make_fragment(period_counter, u, None, None);
@@ -1733,7 +1733,7 @@ async fn do_period_video(
             if let Some(sl) = &video_adaptation.SegmentList {
                 // (1) AdaptationSet>SegmentList addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using AdaptationSet>SegmentList addressing mode for video representation");
+                    println!("  {}", "Using AdaptationSet>SegmentList addressing mode for video representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -1786,7 +1786,7 @@ async fn do_period_video(
             if let Some(sl) = &video_repr.SegmentList {
                 // (1) Representation>SegmentList addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using Representation>SegmentList addressing mode for video representation");
+                    println!("  {}", "Using Representation>SegmentList addressing mode for video representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -1863,7 +1863,7 @@ async fn do_period_video(
                 {
                     // (2) SegmentTemplate with SegmentTimeline addressing mode
                     if downloader.verbosity > 1 {
-                        println!("  Using SegmentTemplate+SegmentTimeline addressing mode for video representation");
+                        println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for video representation".italic());
                     }
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
@@ -1935,7 +1935,7 @@ async fn do_period_video(
                 } else { // no SegmentTimeline element
                     // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index addressing mode
                     if downloader.verbosity > 1 {
-                        println!("  Using SegmentTemplate addressing mode for video representation");
+                        println!("  {}", "Using SegmentTemplate addressing mode for video representation".italic());
                     }
                     let mut total_number = 0i64;
                     if let Some(init) = opt_init {
@@ -1984,7 +1984,7 @@ async fn do_period_video(
             } else if let Some(sb) = &video_repr.SegmentBase {
                 // (5) SegmentBase@indexRange addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using SegmentBase@indexRange addressing mode for video representation");
+                    println!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -2017,7 +2017,7 @@ async fn do_period_video(
             } else if fragments.is_empty() && !video_repr.BaseURL.is_empty() {
                 // (6) BaseURL addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  Using BaseURL addressing mode for video representation");
+                    println!("  {}", "Using BaseURL addressing mode for video representation".italic());
                 }
                 let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
                 let mf = make_fragment(period_counter, u, None, None);
@@ -2197,7 +2197,7 @@ async fn do_period_subtitles(
                         // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
                         // with Representation>SegmentList addressing mode)
                         if downloader.verbosity > 1 {
-                            println!("  Using AdaptationSet>SegmentList addressing mode for subtitle representation");
+                            println!("  {}", "Using AdaptationSet>SegmentList addressing mode for subtitle representation".italic());
                         }
                         let mut start_byte: Option<u64> = None;
                         let mut end_byte: Option<u64> = None;
@@ -2250,7 +2250,7 @@ async fn do_period_subtitles(
                     if let Some(sl) = &rep.SegmentList {
                         // (1) Representation>SegmentList addressing mode
                         if downloader.verbosity > 1 {
-                            println!("  Using Representation>SegmentList addressing mode for subtitle representation");
+                            println!("  {}", "Using Representation>SegmentList addressing mode for subtitle representation".italic());
                         }
                         let mut start_byte: Option<u64> = None;
                         let mut end_byte: Option<u64> = None;
@@ -2329,7 +2329,7 @@ async fn do_period_subtitles(
                                 // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                                 // "explicit addressing" in certain DASH-IF documents)
                                 if downloader.verbosity > 1 {
-                                    println!("  Using SegmentTemplate+SegmentTimeline addressing mode for subtitle representation");
+                                    println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for subtitle representation".italic());
                                 }
                                 if let Some(init) = opt_init {
                                     let path = resolve_url_template(&init, &dict);
@@ -2403,7 +2403,7 @@ async fn do_period_subtitles(
                                 // addressing mode (also called "simple addressing" in certain DASH-IF
                                 // documents)
                                 if downloader.verbosity > 0 {
-                                    println!("  Using SegmentTemplate addressing mode for stpp subtitles");
+                                    println!("  {}", "Using SegmentTemplate addressing mode for stpp subtitles".italic());
                                 }
                                 if let Some(i) = &st.initialization {
                                     opt_init = Some(i.to_string());
@@ -2617,7 +2617,7 @@ async fn fetch_period_audio(
                                 }
                                 have_audio = true;
                             } else {
-                                warn!("Ignoring segment {url} with non-audio content-type");
+                                warn!("{} {url} with non-audio content-type", "Ignoring segment".red());
                             }
                         } else {
                             failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -2627,7 +2627,7 @@ async fn fetch_period_audio(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{f} fetching audio segment {url}");
+                        eprintln!("{} fetching audio segment {url}", f.red());
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -2797,7 +2797,7 @@ async fn fetch_period_video(
                                 }
                                 have_video = true;
                             } else {
-                                warn!("Ignoring segment {} with non-video content-type", &frag.url);
+                                warn!("{} {} with non-video content-type", "Ignoring segment".red(), &frag.url);
                             }
                         } else {
                             failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -2807,7 +2807,7 @@ async fn fetch_period_video(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{f} fetching video segment {}", &frag.url);
+                        eprintln!("{} fetching video segment {}", f.red(), &frag.url);
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -2962,7 +2962,7 @@ async fn fetch_period_subtitles(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{f} fetching subtitle segment {}", &frag.url);
+                        eprintln!("{} fetching subtitle segment {}", f.red(), &frag.url);
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -2997,7 +2997,7 @@ async fn fetch_period_subtitles(
                 if let Some(fmt) = period_subtitle_formats.first() {
                     println!("  Downloaded media contains subtitles in {fmt:?} format");
                 }
-                println!("  Running MP4Box to extract subtitles in SRT format");
+                println!("  {}", "Running MP4Box to extract subtitles in SRT format".italic());
             }
             let mut out = downloader.output_path.as_ref().unwrap().clone();
             out.set_extension("srt");
@@ -3111,7 +3111,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
-            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+            // return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+            ()
         }
     }
     let mut toplevel_base_url = redirected_url.clone();
@@ -3254,7 +3255,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 observer.update(99, "Muxing audio and video");
             }
             if downloader.verbosity > 1 {
-                println!("  Muxing audio and video streams");
+                println!("  {}", "Muxing audio and video streams".italic());
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
             if subtitle_formats[ds.period_counter as usize - 1].contains(&SubtitleType::Stpp) {
@@ -3262,7 +3263,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                     if let Some(fmt) = subtitle_formats[ds.period_counter as usize - 1].first() {
                         println!("  Downloaded media contains subtitles in {fmt:?} format");
                     }
-                    println!("  Running MP4Box to merge subtitles with output file");
+                    println!("  {}", "Running MP4Box to merge subtitles with output file".italic());
                 }
                 // We can try to add the subtitles to the MP4 container, using MP4Box.
                 if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
