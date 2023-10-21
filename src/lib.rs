@@ -569,6 +569,10 @@ pub struct SegmentTemplate {
     /// Indicates a possible offset between media segment start/end points and period start/end points.
     #[serde(rename = "@eptDelta")]
     pub eptDelta: Option<i64>,
+    /// Specifies the difference between the presentation duration of this Representation and the
+    /// Period duration. Expressed in units of @timescale.
+    #[serde(rename = "@pdDelta")]
+    pub pbDelta: Option<i64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@bitstreamSwitching")]
@@ -665,6 +669,13 @@ pub struct SegmentBase {
     pub presentationDuration: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
+    /// Indicates a possible offset between media segment start/end points and period start/end points.
+    #[serde(rename = "@eptDelta")]
+    pub eptDelta: Option<i64>,
+    /// Specifies the difference between the presentation duration of this Representation and the
+    /// Period duration. Expressed in units of @timescale.
+    #[serde(rename = "@pdDelta")]
+    pub pbDelta: Option<i64>,
     #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
