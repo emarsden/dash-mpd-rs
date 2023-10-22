@@ -5,23 +5,12 @@
 //    cargo test --test content_protection -- --show-output
 
 
-use fs_err as fs;
+pub mod common;
 use std::env;
-use std::path;
 use std::process::Command;
 use std::time::Duration;
-use std::path::PathBuf;
 use dash_mpd::fetch::DashDownloader;
-
-
-// We tolerate significant differences in final output file size, because as encoder performance
-// changes in newer versions of ffmpeg, the resulting file size when reencoding may change
-// significantly.
-fn check_file_size_approx(p: &PathBuf, expected: u64) {
-    let meta = fs::metadata(p).unwrap();
-    let ratio = meta.len() as f64 / expected as f64;
-    assert!(0.9 < ratio && ratio < 1.1);
-}
+use common::{check_file_size_approx, ffmpeg_approval};
 
 
 #[tokio::test]
@@ -83,25 +72,11 @@ async fn test_content_protection_parsing() {
 }
 
 
-fn ffmpeg_approval(name: &path::Path) -> bool {
-    let ffmpeg = Command::new("ffmpeg")
-        .args(["-v", "error",
-               "-i", &name.to_string_lossy(),
-               "-f", "null", "-"])
-        .output()
-        .expect("spawning ffmpeg");
-    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
-    println!("FFMPEG stderr> {msg}");
-    msg.len() == 0
-}
-
 // Download a stream with ContentProtection and check that it generates many decoding errors when
 // "played" (to a null output device) with ffmpeg. Also check that when the same stream is
 // downloaded and decryption keys are provided, there are no playback errors.
 #[tokio::test]
 async fn test_decryption() {
-    use std::process::Command;
-
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
         return;

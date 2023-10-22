@@ -16,12 +16,9 @@
 //   process works correctly. The information concerning the quality or resolution that we are
 //   expecting is smuggled in the title metadata field (extracted using ffprobe).
 
-
-use fs_err as fs;
+pub mod common;
 use std::env;
-use std::process::Command;
 use std::time::Duration;
-use std::path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
@@ -33,6 +30,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use env_logger::Env;
+use common::{generate_minimal_mp4_ffmpeg, ffprobe_metadata_title};
 
 
 #[derive(Debug, Default)]
@@ -49,22 +47,6 @@ impl AppState {
 const QUALITY_BEST: u8 = 55;
 const QUALITY_INTERMEDIATE: u8 = 66;
 const QUALITY_WORST: u8 = 77;
-
-
-// ffprobe -loglevel error -show_entries format_tags -of json tiny.mp4
-fn ffprobe_metadata_title(mp4: &path::Path) -> Result<u8> {
-    let ffprobe = Command::new("ffprobe")
-        .args(["-loglevel", "error",
-               "-show_entries", "format_tags",
-               "-of", "json",
-               mp4.to_str().unwrap()])
-        .output()
-        .expect("spawning ffmpeg");
-    assert!(ffprobe.status.success());
-    let parsed = json::parse(&String::from_utf8_lossy(&ffprobe.stdout)).unwrap();
-    let title = parsed["format"]["tags"]["title"].as_str().unwrap();
-    title.parse().context("parsing title metadata")
-}
 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -140,19 +122,7 @@ async fn test_preference_ranking() -> Result<()> {
     // ffmpeg -y -f lavfi -i testsrc=size=10x10:rate=1 -vf hue=s=0 -t 1 -metadata title=foobles1 tiny.mp4
     async fn send_segment(Path(id): Path<u8>, State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
         state.counter.fetch_add(1, Ordering::SeqCst);
-        let tmp = env::temp_dir().join("segment.mp4");
-        let ffmpeg = Command::new("ffmpeg")
-            .args(["-f", "lavfi",
-                   "-y",  // overwrite output file if it exists
-                   "-i", "testsrc=size=10x10:rate=1",
-                   "-vf", "hue=s=0",
-                   "-t", "1",
-                   "-metadata", &format!("title={id}"),
-                   tmp.to_str().unwrap()])
-            .output()
-            .expect("spawning ffmpeg");
-        assert!(ffmpeg.status.success());
-        let bytes = fs::read(tmp).unwrap();
+        let bytes = generate_minimal_mp4_ffmpeg(&format!("title={id}"));
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")

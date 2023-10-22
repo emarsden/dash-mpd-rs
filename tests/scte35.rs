@@ -19,8 +19,7 @@ fn test_scte35_binary() {
             </Event>
           </EventStream>
      </Period></MPD>"#;
-    let res = parse(bin1);
-    assert!(res.is_ok());
+    parse(bin1).unwrap();
 
     let bin2 = r#"<MPD><Period id="2470350023" start="PT27448.333589S">
     <EventStream timescale="90000" schemeIdUri="urn:scte:scte35:2014:xml+bin">
@@ -33,8 +32,7 @@ fn test_scte35_binary() {
       </Event>
     </EventStream>
     </Period></MPD>"#;
-    let res = parse(bin2);
-    assert!(res.is_ok());
+    parse(bin2).unwrap();
 
     // from DVB spec, https://dvb.org/wp-content/uploads/2022/08/A178-3_Dynamic-substitution-of-content-in-linear-broadcast_Part3_Signalling-in-DVB-DASH_Interim_Draft-TS-103-752-3v111_Aug-2022.pdf
     let bin3 = r#"<MPD><Period id="1519" start="PT451209H39M31.000S">

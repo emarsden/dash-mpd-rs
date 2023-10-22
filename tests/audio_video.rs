@@ -7,7 +7,6 @@
 
 use fs_err as fs;
 use std::env;
-use std::path::PathBuf;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
