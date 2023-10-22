@@ -118,8 +118,6 @@ async fn test_preference_ranking() -> Result<()> {
     let shared_state = Arc::new(AppState::new());
 
 
-    // Useful ffmpeg recipes: https://github.com/videojs/http-streaming/blob/main/docs/creating-content.md
-    // ffmpeg -y -f lavfi -i testsrc=size=10x10:rate=1 -vf hue=s=0 -t 1 -metadata title=foobles1 tiny.mp4
     async fn send_segment(Path(id): Path<u8>, State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
         state.counter.fetch_add(1, Ordering::SeqCst);
         let bytes = generate_minimal_mp4_ffmpeg(&format!("title={id}"));
