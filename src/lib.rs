@@ -1949,6 +1949,10 @@ fn content_protection_type(cp: &ContentProtection) -> String {
         if uri.eq("urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb") {
             return String::from("Adobe PrimeTime");
         }
+        // Segment encryption
+        if uri.eq("urn:mpeg:dash:sea:2012") {
+            return String::from("SEA");
+        }
     }
     String::from("<unknown>")
 }
