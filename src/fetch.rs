@@ -92,6 +92,7 @@ pub struct DashDownloader {
     concatenate_periods: bool,
     fragment_path: Option<PathBuf>,
     decryption_keys: HashMap<String, String>,
+    xslt_stylesheets: Vec<PathBuf>,
     content_type_checks: bool,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
@@ -190,9 +191,10 @@ impl DashDownloader {
             concatenate_periods: true,
             fragment_path: None,
             decryption_keys: HashMap::new(),
+            xslt_stylesheets: Vec::new(),
             content_type_checks: true,
             max_error_count: 10,
-            progress_observers: vec![],
+            progress_observers: Vec::new(),
             sleep_between_requests: 0,
             rate_limit: 0,
             bw_limiter: None,
@@ -370,6 +372,19 @@ impl DashDownloader {
     /// * `key` - a 128-bit key in hexadecimal format.
     pub fn add_decryption_key(mut self, id: String, key: String) -> DashDownloader {
         self.decryption_keys.insert(id, key);
+        self
+    }
+
+    /// Register an XSLT stylesheet that will be applied to the MPD manifest after XLink processing
+    /// and before deserialization into Rust structs. The stylesheet will be applied to the manifest
+    /// using the xsltproc commandline tool. If multiple stylesheets are registered, they will be
+    /// called in sequence in the same order as their registration.
+    ///
+    /// # Arguments
+    ///
+    /// * `stylesheet`: the path to an XSLT stylesheet.
+    pub fn with_xslt_stylesheet<P: Into<PathBuf>>(mut self, stylesheet: P) -> DashDownloader {
+        self.xslt_stylesheets.push(stylesheet.into());
         self
     }
 
@@ -1178,8 +1193,25 @@ pub async fn parse_resolving_xlinks(
     let mut buf = Vec::new();
     doc.write(&mut buf)
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
+    // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
+    // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
+    for ss in &downloader.xslt_stylesheets {
+        let xslt = tmp_file_path("dashxslt")?;
+        fs::write(&xslt, &buf)
+            .map_err(|e| DashMpdError::Io(e, String::from("writing XSLT template")))?;
+        let xsltproc = Command::new("xsltproc")
+            .args([ss, &xslt])
+            .output()
+            .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
+        if !xsltproc.status.success() {
+            let msg = format!("xsltproc returned error status {}", xsltproc.status);
+            let out = String::from_utf8_lossy(&xsltproc.stderr).to_string();
+            return Err(DashMpdError::Io(std::io::Error::new(std::io::ErrorKind::Other, msg), out));
+        }
+        buf = xsltproc.stdout.clone();
+    }
     let rewritten = std::str::from_utf8(&buf)
-        .map_err(|e| parse_error("rewritten manifest as UTF-8", e))?;
+        .map_err(|e| parse_error("parsing UTF-8", e))?;
     // Here using the quick-xml serde support to deserialize into Rust structs.
     parse(rewritten)
 }
