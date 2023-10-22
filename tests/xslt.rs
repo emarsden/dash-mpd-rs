@@ -164,3 +164,36 @@ async fn test_xslt_drop_audio() {
     assert_eq!(video.width, Some(320));
 }
 
+
+// This XSLT stylesheet replaces @media and @initialization attributes to point to a beloved media
+// segment.
+#[tokio::test]
+async fn test_xslt_rick() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/akamai/test/index3-original.mpd";
+    let out = env::temp_dir().join("ricked.mp4");
+    let mut xslt = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xslt.push("tests");
+    xslt.push("fixtures");
+    xslt.push("rewrite-rickroll");
+    xslt.set_extension("xslt");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_xslt_stylesheet(xslt)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 538_262_020);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert_eq!(video.width, Some(320));
+}
+
+
+
