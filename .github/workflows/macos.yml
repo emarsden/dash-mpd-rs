@@ -32,6 +32,9 @@ jobs:
         unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
         sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
 
+    - name: install xsltproc
+      run: brew install libxslt
+
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
     - run: cargo test --verbose --no-run

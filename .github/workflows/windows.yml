@@ -44,6 +44,10 @@ jobs:
           echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           Get-ChildItem c:\tools
 
+    - name: install xsltproc
+      run: |
+         choco install --yes --limit-output xsltproc
+
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
     - run: cargo test --verbose --no-run
