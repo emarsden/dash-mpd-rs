@@ -1196,17 +1196,20 @@ pub async fn parse_resolving_xlinks(
     // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
     // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
     for ss in &downloader.xslt_stylesheets {
-        let xslt = tmp_file_path("dashxslt")?;
-        fs::write(&xslt, &buf)
-            .map_err(|e| DashMpdError::Io(e, String::from("writing XSLT template")))?;
+        let tmpmpd = tmp_file_path("dashxslt")?;
+        fs::write(&tmpmpd, &buf)
+            .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
         let xsltproc = Command::new("xsltproc")
-            .args([ss, &xslt])
+            .args([ss, &tmpmpd])
             .output()
             .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
         if !xsltproc.status.success() {
             let msg = format!("xsltproc returned error status {}", xsltproc.status);
             let out = String::from_utf8_lossy(&xsltproc.stderr).to_string();
             return Err(DashMpdError::Io(std::io::Error::new(std::io::ErrorKind::Other, msg), out));
+        }
+        if let Err(e) = fs::remove_file(&tmpmpd) {
+            warn!("Error removing temporary MPD after XSLT processing: {e:?}");
         }
         buf = xsltproc.stdout.clone();
     }
