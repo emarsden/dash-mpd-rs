@@ -7,7 +7,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 100
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: taiki-e/install-action@cargo-hack
 
