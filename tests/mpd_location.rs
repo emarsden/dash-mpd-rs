@@ -6,9 +6,8 @@
 //    cargo test --test mpd_location -- --show-output
 
 
-use fs_err as fs;
+pub mod common;
 use std::env;
-use std::process::Command;
 use std::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -21,6 +20,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate, Loca
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use env_logger::Env;
+use common::generate_minimal_mp4;
 
 
 #[derive(Debug, Default)]
@@ -85,22 +85,9 @@ async fn test_mpd_location() -> Result<()> {
     let shared_state = Arc::new(AppState::new());
 
 
-    // Useful ffmpeg recipes: https://github.com/videojs/http-streaming/blob/main/docs/creating-content.md
-    // ffmpeg -y -f lavfi -i testsrc=size=10x10:rate=1 -vf hue=s=0 -t 1 -metadata title=foobles1 tiny.mp4
     async fn send_segment(State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
         state.counter.fetch_add(1, Ordering::SeqCst);
-        let tmp = env::temp_dir().join("segment.mp4");
-        let ffmpeg = Command::new("ffmpeg")
-            .args(["-f", "lavfi",
-                   "-y",  // overwrite output file if it exists
-                   "-i", "testsrc=size=10x10:rate=1",
-                   "-vf", "hue=s=0",
-                   "-t", "1",
-                   tmp.to_str().unwrap()])
-            .output()
-            .expect("spawning ffmpeg");
-        assert!(ffmpeg.status.success());
-        let bytes = fs::read(tmp).unwrap();
+        let bytes = generate_minimal_mp4();
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")

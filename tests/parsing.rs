@@ -20,14 +20,12 @@ use dash_mpd::fetch::DashDownloader;
 fn test_mpd_parser () {
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></Period></MPD>"#;
     let res = parse(case1);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.periods.len(), 1);
     assert!(mpd.ProgramInformation.is_none());
 
     let case2 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD foo="foo"><Period></Period><foo></foo></MPD>"#;
     let res = parse(case2);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.periods.len(), 1);
     assert!(mpd.ProgramInformation.is_none());
@@ -42,7 +40,6 @@ fn test_mpd_parser () {
                      <BaseURL>http://cdn2.example.com/</BaseURL>
                    </MPD>"#;
     let res = parse(case4);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert_eq!(mpd.base_url.len(), 2);
 
@@ -53,7 +50,6 @@ fn test_mpd_parser () {
       </AdaptationSet>
     </Period></MPD>"#;
     let res = parse(case5);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.mpdtype.is_some());
     assert_eq!(mpd.mpdtype.unwrap(), "static");
@@ -98,13 +94,11 @@ fn test_mpd_parser () {
 fn test_unknown_elements () {
     let case1 = r#"<MPD><UnknownElement/></MPD>"#;
     let res = parse(case1);
-    assert!(res.is_ok());
     assert_eq!(res.unwrap().periods.len(), 0);
 
     // The same test using an unknown XML namespace prefix.
     let case2 = r#"<MPD><uprefix:UnknownElement></uprefix:UnknownElement></MPD>"#;
     let res = parse(case2);
-    assert!(res.is_ok());
     assert_eq!(res.unwrap().periods.len(), 0);
 
     // Here the same check for an XML element which is using the $text "special name" to allow
@@ -113,7 +107,6 @@ fn test_unknown_elements () {
        <Title>Foobles<UnknownElement/></Title>
      </ProgramInformation></MPD>"#;
     let res = parse(case3);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.ProgramInformation.is_some());
     let pi = mpd.ProgramInformation.unwrap();
@@ -125,7 +118,6 @@ fn test_unknown_elements () {
        <Title>Foobles<upfx:UnknownElement/></Title>
      </ProgramInformation></MPD>"#;
     let res = parse(case4);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.ProgramInformation.is_some());
     let pi = mpd.ProgramInformation.unwrap();
@@ -186,7 +178,6 @@ fn test_datetime_parsing () {
 
     let case1 = r#"<MPD minBufferTime="PT1.500S"></MPD>"#;
     let res = parse(case1);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.minBufferTime.is_some());
     let mbt = mpd.minBufferTime.unwrap();
@@ -196,7 +187,6 @@ fn test_datetime_parsing () {
     // an xs:datetime without a specified timezone
     let case2 = r#"<MPD availabilityStartTime="2022-12-06T22:27:53"></MPD>"#;
     let res = parse(case2);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.availabilityStartTime.is_some());
     let ast = mpd.availabilityStartTime.unwrap();
@@ -207,7 +197,6 @@ fn test_datetime_parsing () {
     // an xs:datetime with a timezone specified
     let case3 = r#"<MPD availabilityStartTime="2021-06-03T13:00:00Z"></MPD>"#;
     let res = parse(case3);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.availabilityStartTime.is_some());
     let ast = mpd.availabilityStartTime.unwrap();
@@ -216,7 +205,6 @@ fn test_datetime_parsing () {
 
     let case4 = r#"<MPD availabilityStartTime="2015-11-03T21:56"></MPD>"#;
     let res = parse(case4);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.availabilityStartTime.is_some());
     let ast = mpd.availabilityStartTime.unwrap();
@@ -227,7 +215,6 @@ fn test_datetime_parsing () {
     // an xs:datetime with a timezone specified parses fractional nanoseconds
     let case5 = r#"<MPD availabilityStartTime="2021-06-03T13:00:00.543343989Z"></MPD>"#;
     let res = parse(case5);
-    assert!(res.is_ok());
     let mpd = res.unwrap();
     assert!(mpd.availabilityStartTime.is_some());
     let ast = mpd.availabilityStartTime.unwrap();
@@ -416,7 +403,6 @@ async fn test_parsing_supplementalproperty() {
         .text().await
         .expect("fetching MPD content");
     let mpd = dash_mpd::parse(&xml);
-    assert!(mpd.is_ok());
     let mpd = mpd.unwrap();
     assert!(mpd.periods.iter().any(
         |p| p.adaptations.iter().any(

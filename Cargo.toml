@@ -34,6 +34,7 @@ xmltree = { version = "0.10.3", optional = true }
 async-recursion = { version = "1.0.5", optional = true }
 tempfile = { version = "3.8.0", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
+colored = { version = "2.0.4", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
 ffprobe = { version = "0.3.3", optional = true }
 file-format = { version = "0.21.0", features = ["reader"], optional = true }
@@ -58,7 +59,7 @@ image = "0.24.7"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]
-fetch = ["data-url", "reqwest", "backoff", "governor", "xmltree", "async-recursion", "tempfile", "sanitise-file-name", "ffprobe", "file-format"]
+fetch = ["data-url", "reqwest", "backoff", "governor", "xmltree", "async-recursion", "tempfile", "sanitise-file-name", "ffprobe", "file-format", "colored"]
 libav = ["ac-ffmpeg"]
 scte35 = []
 compression = ["reqwest/gzip"]

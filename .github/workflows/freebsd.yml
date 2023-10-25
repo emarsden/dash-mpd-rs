@@ -31,6 +31,7 @@ jobs:
           pkg install -y ffmpeg
           pkg install -y multimedia/gpac-mp4box
           mp4box -version
+          pkg install -y textproc/libxslt
 
         run: |
           export PATH="${HOME}/.cargo/bin:$PATH"
