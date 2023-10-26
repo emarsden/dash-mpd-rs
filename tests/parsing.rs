@@ -451,3 +451,15 @@ async fn test_parsing_invalid_maxsegmentduration() {
     let amxml = fs::read_to_string(path).unwrap();
     parse(&amxml).unwrap();
 }
+
+
+// This DASH manifest is not spec compliant: it specifies a @maxHeight attribute on an AdaptationSet
+// which is lower than the @height attribute on one of the child Representation elements.
+#[tokio::test]
+#[should_panic(expected = "invalid @maxHeight on AdaptationSet")]
+async fn test_parsing_invalid_maxheight() {
+    DashDownloader::new("https://vod.infiniteplatform.tv/dash/vod-clear/ElephantsDream/default.mpd")
+        .best_quality()
+        .download().await
+        .unwrap();
+}
