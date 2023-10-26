@@ -3032,7 +3032,7 @@ async fn fetch_period_subtitles(
                 if let Some(fmt) = period_subtitle_formats.first() {
                     println!("  Downloaded media contains subtitles in {fmt:?} format");
                 }
-                println!("  {}", "Running MP4Box to extract subtitles in SRT format".italic());
+                println!("  {}", "Running MP4Box to extract subtitles".italic());
             }
             let mut out = downloader.output_path.as_ref().unwrap().clone();
             out.set_extension("srt");
