@@ -12,7 +12,7 @@ name: freebsd
 jobs:
   test:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 70
     steps:
     - uses: actions/checkout@v4
     - name: Run tests in FreeBSD VM
