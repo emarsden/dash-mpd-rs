@@ -20,7 +20,7 @@ jobs:
       with:
         operating_system: freebsd
         version: '13.2'
-        prepare: |
+        run: |
           sudo pkg update
           sudo pkg install -y curl
           curl https://sh.rustup.rs -sSf --output rustup.sh
@@ -34,9 +34,6 @@ jobs:
           sudo pkg install -y multimedia/gpac-mp4box
           mp4box -version
           sudo pkg install -y textproc/libxslt
-
-        run: |
-          export PATH="${HOME}/.cargo/bin:$PATH"
           ls -la
           cargo build
           cargo test
