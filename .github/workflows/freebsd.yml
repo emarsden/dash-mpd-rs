@@ -20,6 +20,7 @@ jobs:
       with:
         operating_system: freebsd
         version: '13.2'
+        shell: bash
         run: |
           sudo pkg update
           sudo pkg install -y curl
