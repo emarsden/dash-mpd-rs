@@ -35,5 +35,5 @@ jobs:
           # sudo pkg_add -U -I Bento4
           # mp4decrypt || true
           ls -la
-          cargo build
-          cargo test
+          cargo build --no-default-features --features fetch,rustls-tls,compression,scte35
+          cargo test --no-default-features --features fetch,rustls-tls,compression,scte35
