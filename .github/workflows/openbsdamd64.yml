@@ -20,11 +20,10 @@ jobs:
         operating_system: openbsd
         version: '7.4'
         architecture: arm64
+        shell: bash
         run: |
           sudo pkg_add -U -I curl
-          curl https://sh.rustup.rs -sSf --output rustup.sh
-          sh rustup.sh -y --profile minimal --default-toolchain stable
-          export PATH="${HOME}/.cargo/bin:$PATH"
+          sudo pkg_add -U -I lang/rust
           echo "~~~~ rustc --version ~~~~"
           rustc --version
           sudo pkg_add -U -I graphics/ffmpeg
