@@ -65,7 +65,7 @@ async fn test_mpd_location() -> Result<()> {
         adaptations: vec!(adap),
         ..Default::default()
     };
-    let elsewhere = Location { url: "http://localhost:6666/relocated.mpd".to_string() };
+    let elsewhere = Location { url: "http://localhost:6667/relocated.mpd".to_string() };
     let orig_mpd = MPD {
         mpdtype: Some("static".to_string()),
         locations: vec!(elsewhere),
@@ -107,10 +107,12 @@ async fn test_mpd_location() -> Result<()> {
         .route("/media/:id", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
     let backend = async move {
-        axum::Server::bind(&"127.0.0.1:6666".parse().unwrap())
-            .serve(app.into_make_service())
-            .await
+        axum_server::bind("127.0.0.1:6667".parse().unwrap())
+            .handle(backend_handle)
+            .serve(app.into_make_service()).await
             .unwrap()
     };
     tokio::spawn(backend);
@@ -120,7 +122,7 @@ async fn test_mpd_location() -> Result<()> {
         .timeout(Duration::new(10, 0))
         .build()
         .context("creating HTTP client")?;
-    let txt = client.get("http://localhost:6666/status")
+    let txt = client.get("http://localhost:6667/status")
         .send().await?
         .error_for_status()?
         .text().await
@@ -128,7 +130,7 @@ async fn test_mpd_location() -> Result<()> {
     assert!(txt.eq("0"));
 
     let r = env::temp_dir().join("relocated.mp4");
-    DashDownloader::new("http://localhost:6666/mpd")
+    DashDownloader::new("http://localhost:6667/mpd")
         .best_quality()
         .verbosity(3)
         .with_http_client(client.clone())
@@ -138,12 +140,13 @@ async fn test_mpd_location() -> Result<()> {
     // Check the total number of requested media segments corresponds to what we expect. We expect
     // two requests for the init.mp4 segment because we are running in verbose mode, and the init
     // segment is fetched once just to extract and print the PSSH.
-    let txt = client.get("http://localhost:6666/status")
+    let txt = client.get("http://localhost:6667/status")
         .send().await?
         .error_for_status()?
         .text().await
         .context("fetching status")?;
     assert!(txt.eq("2"), "Expecting status=2, got {txt}");
+    server_handle.shutdown();
 
     Ok(())
 }
