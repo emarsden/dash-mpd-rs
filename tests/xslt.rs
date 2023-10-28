@@ -9,6 +9,7 @@ pub mod common;
 use fs_err as fs;
 use std::env;
 use std::time::Duration;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
@@ -16,7 +17,6 @@ use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
-use std::path::PathBuf;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
@@ -87,10 +87,12 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .route("/media/segment-:id.mp4", get(send_media))
         .route("/status", get(send_status))
         .with_state(shared_state);
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
     let backend = async move {
-        axum::Server::bind(&"127.0.0.1:6666".parse().unwrap())
-            .serve(app.into_make_service())
-            .await
+        axum_server::bind("127.0.0.1:6668".parse().unwrap())
+            .handle(backend_handle)
+            .serve(app.into_make_service()).await
             .unwrap()
     };
     tokio::spawn(backend);
@@ -100,14 +102,14 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .timeout(Duration::new(10, 0))
         .build()
         .context("creating HTTP client")?;
-    let txt = client.get("http://localhost:6666/status")
+    let txt = client.get("http://localhost:6668/status")
         .send().await?
         .error_for_status()?
         .text().await
         .context("fetching status")?;
     assert!(txt.eq("0 0"));
 
-    let mpd_url = "http://localhost:6666/mpd";
+    let mpd_url = "http://localhost:6668/mpd";
     let mut xslt = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     xslt.push("tests");
     xslt.push("fixtures");
@@ -121,12 +123,13 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .download_to(v.clone()).await
         .unwrap();
     // Check the total number of requested media segments corresponds to what we expect.
-    let txt = client.get("http://localhost:6666/status")
+    let txt = client.get("http://localhost:6668/status")
         .send().await?
         .error_for_status()?
         .text().await
         .context("fetching status")?;
     assert!(txt.eq("1 926"), "Expecting 1 926, got {txt}");
+    server_handle.shutdown();
 
     Ok(())
 }
@@ -195,5 +198,55 @@ async fn test_xslt_rick() {
     assert_eq!(video.width, Some(320));
 }
 
+
+// This XSLT stylesheet removes Periods whose content looks undesireable. 
+#[tokio::test]
+async fn test_xslt_nothx() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // Spin up a little web server to serve a local manifest
+    let mut mpd = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    mpd.push("tests");
+    mpd.push("fixtures");
+    mpd.push("telenet-mid-ad-rolls");
+    mpd.set_extension("mpd");
+    let mpd = fs::read_to_string(mpd).unwrap();
+    let app = Router::new()
+        .route("/mpd", get(
+            || async { ([(header::CONTENT_TYPE, "application/dash+xml")], mpd) }));
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
+    let backend = async move {
+        axum_server::bind("127.0.0.1:6669".parse().unwrap())
+            .handle(backend_handle)
+            .serve(app.into_make_service()).await
+            .unwrap()
+    };
+    tokio::spawn(backend);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let out = env::temp_dir().join("nothx.mp4");
+    let mut xslt = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xslt.push("tests");
+    xslt.push("fixtures");
+    xslt.push("rewrite-drop-dai");
+    xslt.set_extension("xslt");
+    DashDownloader::new("http://localhost:6669/mpd")
+        .worst_quality()
+        .with_xslt_stylesheet(xslt)
+        .with_muxer_preference("mp4", "mp4box")
+        .download_to(out.clone()).await
+        .unwrap();
+    server_handle.shutdown();
+    check_file_size_approx(&out, 256_234_645);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+}
 
 
