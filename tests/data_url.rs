@@ -141,8 +141,11 @@ async fn test_data_url() -> Result<()> {
     let xml = mpd.to_string();
     let app = Router::new()
         .route("/mpd", get(|| async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }));
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
     let backend = async move {
-        axum::Server::bind(&"127.0.0.1:6666".parse().unwrap())
+        axum_server::bind("127.0.0.1:6666".parse().unwrap())
+            .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()
     };
@@ -168,5 +171,7 @@ async fn test_data_url() -> Result<()> {
     check_frame_color(&out.clone(), "00:00:03", &[255, 0, 0]);
     check_frame_color(&out.clone(), "00:00:08", &[0, 255, 0]);
     check_frame_color(&out.clone(), "00:00:13", &[0, 0, 255]);
+    server_handle.shutdown();
+
     Ok(())
 }
