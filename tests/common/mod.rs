@@ -3,7 +3,7 @@
 
 use fs_err as fs;
 use std::env;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 use std::io::Cursor;
 use anyhow::{Context, Result};
@@ -12,14 +12,14 @@ use anyhow::{Context, Result};
 // We tolerate significant differences in final output file size, because as encoder performance
 // changes in newer versions of ffmpeg, the resulting file size when reencoding may change
 // significantly.
-pub fn check_file_size_approx(p: &PathBuf, expected: u64) {
+pub fn check_file_size_approx(p: &Path, expected: u64) {
     let meta = fs::metadata(p).unwrap();
     let ratio = meta.len() as f64 / expected as f64;
     assert!(0.9 < ratio && ratio < 1.1, "File sizes: expected {expected}, got {}", meta.len());
 }
 
 
-pub fn ffmpeg_approval(name: &PathBuf) -> bool {
+pub fn ffmpeg_approval(name: &Path) -> bool {
     let ffmpeg = Command::new("ffmpeg")
         .args(["-v", "error",
                "-i", &name.to_string_lossy(),
@@ -98,7 +98,7 @@ pub fn generate_minimal_mp4_ffmpeg(metadata: &str) -> Vec<u8> {
 
 
 // ffprobe -loglevel error -show_entries format_tags -of json tiny.mp4
-pub fn ffprobe_metadata_title(mp4: &PathBuf) -> Result<u8> {
+pub fn ffprobe_metadata_title(mp4: &Path) -> Result<u8> {
     let ffprobe = Command::new("ffprobe")
         .args(["-loglevel", "error",
                "-show_entries", "format_tags",
