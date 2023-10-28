@@ -147,6 +147,19 @@ struct PeriodOutputs {
     subtitle_formats: Vec<SubtitleType>,
 }
 
+#[derive(Debug, Default)]
+struct PeriodDownloads {
+    audio_fragments: Vec<MediaFragment>,
+    video_fragments: Vec<MediaFragment>,
+    subtitle_fragments: Vec<MediaFragment>,
+    subtitle_formats: Vec<SubtitleType>,
+}
+
+fn period_fragment_count(pd: &PeriodDownloads) -> usize {
+    pd.audio_fragments.len() +
+        pd.video_fragments.len() +
+        pd.subtitle_fragments.len()
+}
 
 // We don't want to test this code example on the CI infrastructure as it's too expensive
 // and requires network access.
@@ -2902,18 +2915,17 @@ async fn fetch_period_video(
 }
 
 
-// Retrieve the video segments for period `ds.period_counter` and concatenate them to a file at tmppath.
+// Retrieve the video segments for period `ds.period_counter` and concatenate them to a file at `tmppath`.
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
     redirected_url: &Url,
     tmppath: PathBuf,
     subtitle_fragments: &[MediaFragment],
-    subtitle_formats: &[Vec<SubtitleType>],
+    subtitle_formats: &[SubtitleType],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let client = downloader.http_client.clone().unwrap();
-    let period_subtitle_formats = &subtitle_formats[ds.period_counter as usize - 1];
-    let start_download = Instant::now();
+   let start_download = Instant::now();
     let mut have_subtitles = false;
     {
         let tmpfile_subs = File::create(tmppath.clone())
@@ -3024,12 +3036,12 @@ async fn fetch_period_subtitles(
                          mbytes / elapsed.as_secs_f64());
             }
         }
-        if period_subtitle_formats.contains(&SubtitleType::Wvtt) ||
-           period_subtitle_formats.contains(&SubtitleType::Ttxt)
+        if subtitle_formats.contains(&SubtitleType::Wvtt) ||
+           subtitle_formats.contains(&SubtitleType::Ttxt)
         {
             // We can extract these from the MP4 container in .srt format, using MP4Box.
             if downloader.verbosity > 1 {
-                if let Some(fmt) = period_subtitle_formats.first() {
+                if let Some(fmt) = subtitle_formats.first() {
                     println!("  Downloaded media contains subtitles in {fmt:?} format");
                 }
                 println!("  {}", "Running MP4Box to extract subtitles".italic());
@@ -3154,6 +3166,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     if !mpd.base_url.is_empty() {
         toplevel_base_url = merge_baseurls(&redirected_url, &mpd.base_url[0].base)?;
     }
+    /*
     let mut audio_fragments = Vec::new();
     let mut video_fragments = Vec::new();
     let mut subtitle_fragments = Vec::new();
@@ -3161,6 +3174,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let mut have_audio = false;
     let mut have_video = false;
     let mut have_subtitles = false;
+    */
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
         println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
@@ -3168,11 +3182,17 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     }
     // Analyse the content of each Period in the manifest. We need to ensure that we associate media
     // segments with the correct period, because segments in each Period may use different codecs,
-    // so they can't be concatenated together directly without reencoding.
+    // so they can't be concatenated together directly without reencoding. The main purpose for this
+    // iteration of Periods (which is then followed by an iteration over Periods where we retrieve
+    // the media segments and concatenate them) is to obtain a count of the total number of media
+    // fragments that we are going to retrieve, so that the ProgressBar shows information relevant
+    // to the total download (we don't want a per-Period ProgressBar).
+    let mut pds: Vec<PeriodDownloads> = Vec::new();
     let mut period_counter = 0;
     for mpd_period in &mpd.periods {
         let period = mpd_period.clone();
         period_counter += 1;
+        let mut pd = PeriodDownloads::default();
         // Accumulate some diagnostics information on the selected media stream
         if downloader.verbosity > 0 {
             if let Some(id) = period.id.as_ref() {
@@ -3188,44 +3208,41 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         }
         let audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
         for f in audio_outputs.fragments {
-            audio_fragments.push(f);
+            pd.audio_fragments.push(f);
         }
         let video_outputs = do_period_video(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
         for f in video_outputs.fragments {
-            video_fragments.push(f);
+            pd.video_fragments.push(f);
         }
-        // The subtitle formats seen for this period. 
-        let mut period_subtitle_formats = Vec::new();
         match do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await {
             Ok(subtitle_outputs) => {
                 for f in subtitle_outputs.fragments {
-                    subtitle_fragments.push(f);
+                    pd.subtitle_fragments.push(f);
                 }
                 for f in subtitle_outputs.subtitle_formats {
-                    period_subtitle_formats.push(f);
+                    pd.subtitle_formats.push(f);
                 }
             },
             Err(e) => warn!("Ignoring error triggered while processing subtitles: {e}"),
         }
-        subtitle_formats.push(period_subtitle_formats);
-
         // Print some diagnostics information on the selected streams
         if downloader.verbosity > 0 {
             use base64::prelude::{Engine as _, BASE64_STANDARD};
 
             print!("{}", audio_outputs.diagnostics);
-            for f in audio_fragments.iter().filter(|f| f.is_init) {
+            for f in pd.audio_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
             print!("{}", video_outputs.diagnostics);
-            for f in video_fragments.iter().filter(|f| f.is_init) {
+            for f in pd.video_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
         }
+        pds.push(pd);
     } // loop over Periods
 
     // To collect the muxed audio and video segments for each Period in the MPD, before their
@@ -3234,20 +3251,26 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let mut ds = DownloadState {
         period_counter: 0,
         // The additional +2 is for our initial .mpd fetch action and final muxing action
-        segment_count: audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2,
+        // segment_count: audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2,
+        segment_count: pds.iter().map(period_fragment_count).sum(),
         segment_counter: 0,
         download_errors: 0
     };
     for _mpd_period in &mpd.periods {
+        let mut have_audio = false;
+        let mut have_video = false;
+        let mut have_subtitles = false;
+        let pd = &pds[ds.period_counter as usize];
         ds.period_counter += 1;
         let period_output_path = output_path_for_period(output_path, ds.period_counter);
         #[allow(clippy::collapsible_if)]
         if downloader.verbosity > 0 {
             if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
-                println!("Period #{period_counter}: fetching {} audio, {} video and {} subtitle segments",
-                         audio_fragments.len(),
-                         video_fragments.len(),
-                         subtitle_fragments.len());
+                println!("Period #{}: fetching {} audio, {} video and {} subtitle segments",
+                         ds.period_counter,
+                         pd.audio_fragments.len(),
+                         pd.video_fragments.len(),
+                         pd.subtitle_fragments.len());
             }
         }
         let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
@@ -3263,12 +3286,12 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         let tmppath_subs = tmp_file_path("dashmpd-subs")?;
         if downloader.fetch_audio {
             have_audio = fetch_period_audio(downloader, &redirected_url,
-                                            tmppath_audio.clone(), &audio_fragments,
+                                            tmppath_audio.clone(), &pd.audio_fragments,
                                             &mut ds).await?;
         }
         if downloader.fetch_video {
             have_video = fetch_period_video(downloader, &redirected_url,
-                                            tmppath_video.clone(), &video_fragments,
+                                            tmppath_video.clone(), &pd.video_fragments,
                                             &mut ds).await?;
         }
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
@@ -3277,8 +3300,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if downloader.fetch_subtitles {
             have_subtitles = fetch_period_subtitles(downloader, &redirected_url,
                                                     tmppath_subs.clone(),
-                                                    &subtitle_fragments,
-                                                    &subtitle_formats,
+                                                    &pd.subtitle_fragments,
+                                                    &pd.subtitle_formats,
                                                     &mut ds).await?;
         }
 
@@ -3292,9 +3315,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 println!("  {}", "Muxing audio and video streams".italic());
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
-            if subtitle_formats[ds.period_counter as usize - 1].contains(&SubtitleType::Stpp) {
+            if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
                 if downloader.verbosity > 1 {
-                    if let Some(fmt) = subtitle_formats[ds.period_counter as usize - 1].first() {
+                    if let Some(fmt) = &pd.subtitle_formats.first() {
                         println!("  Downloaded media contains subtitles in {fmt:?} format");
                     }
                     println!("  {}", "Running MP4Box to merge subtitles with output file".italic());
@@ -3346,10 +3369,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             }
         }
         #[allow(clippy::collapsible_if)]
-        if downloader.fetch_subtitles {
-            if fs::remove_file(tmppath_subs).is_err() {
-                info!("Failed to delete temporary file for subtitles");
-            }
+        if downloader.fetch_subtitles && fs::remove_file(tmppath_subs).is_err() {
+            info!("Failed to delete temporary file for subtitles");
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
