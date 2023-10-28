@@ -220,10 +220,12 @@ async fn test_xlink_retrieval() -> Result<()> {
         .route("/media/:seg", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
     let backend = async move {
-        axum::Server::bind(&"127.0.0.1:6666".parse().unwrap())
-            .serve(app.into_make_service())
-            .await
+        axum_server::bind("127.0.0.1:6666".parse().unwrap())
+            .handle(backend_handle)
+            .serve(app.into_make_service()).await
             .unwrap()
     };
     tokio::spawn(backend);
@@ -279,6 +281,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         .text().await
         .context("fetching status")?;
     assert!(txt.eq("4"));
+    server_handle.shutdown();
 
     Ok(())
 }
