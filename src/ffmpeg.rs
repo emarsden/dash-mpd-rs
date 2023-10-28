@@ -187,6 +187,7 @@ fn mux_stream_ffmpeg(
         }
         Ok(())
     } else {
+        println!("   unmuxed stream: {input}");
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
@@ -582,6 +583,8 @@ pub fn mux_audio_video(
         }
     }
     warn!("All muxers failed");
+    println!("   unmuxed audio stream: {}", audio_path.display());
+    println!("   unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all muxers failed")))
 }
 
@@ -644,6 +647,7 @@ pub fn copy_video_to_container(
         }
     }
     warn!("All available muxers failed");
+    println!("   unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
@@ -706,6 +710,7 @@ pub fn copy_audio_to_container(
         }
     }
     warn!("All available muxers failed");
+    println!("   unmuxed audio stream: {}", audio_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
@@ -823,6 +828,10 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     if ffmpeg.status.success() {
         Ok(())
     } else {
+        println!("   unconcatenated input files:");
+        for p in paths {
+            println!("      {}", p.display());
+        }
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
