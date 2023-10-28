@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:stylesheet version="1.0"
+                xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                xmlns:mpd="urn:mpeg:dash:schema:mpd:2011">
   <xsl:output method="xml" indent="yes"/>
 
+  <!-- Default action (unless a template below matches): copy -->
   <xsl:template match="@*|node()">
     <xsl:copy>
       <xsl:apply-templates select="@*|node()"/>
@@ -19,21 +22,21 @@
 
       xsltproc rewrite-init-media-segments.xslt input.mpd
   -->
-  <xsl:template match="/node()[local-name()='MPD']/node()[local-name()='BaseURL']">
-    <BaseURL>http://localhost:6666/</BaseURL>
+  <xsl:template match="/mpd:MPD/mpd:BaseURL">
+    <BaseURL>http://localhost:6668/</BaseURL>
   </xsl:template>
 
-  <xsl:template match="//node()[local-name()='AdaptationSet' and @contentType='video']/node()[local-name()='SegmentTemplate']/@initialization">
+  <xsl:template match="//mpd:AdaptationSet[@contentType='video']/mpd:SegmentTemplate/@initialization">
     <xsl:attribute name="initialization">
       <xsl:value-of select="'/media/init.mp4'"/>
     </xsl:attribute>
   </xsl:template>
 
-  <xsl:template match="//node()[local-name()='AdaptationSet' and @contentType='video']/node()[local-name()='SegmentTemplate']/@media">
+  <xsl:template match="//mpd:AdaptationSet[@contentType='video']/mpd:SegmentTemplate/@media">
     <xsl:attribute name="media">
       <xsl:value-of select="'/media/segment-$Number$.mp4'"/>
     </xsl:attribute>
   </xsl:template>
 
-  <xsl:template match="//node()[local-name()='AdaptationSet' and @contentType='audio']"/>
+  <xsl:template match="//mpd:AdaptationSet[@contentType='audio']"/>
 </xsl:stylesheet>
