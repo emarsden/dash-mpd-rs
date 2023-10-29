@@ -1,5 +1,4 @@
-# Run cargo tests in a FreeBSD VM. This needs to run on one of the GitHub macos runners, because
-# they are currently the only ones to support virtualization.
+# Run cargo tests in a FreeBSD VM.
 #
 # See https://github.com/cross-platform-actions/action
 # (previously using https://github.com/vmactions/freebsd-vm which was causing infloops on boot)
@@ -12,7 +11,8 @@ name: freebsd
 jobs:
   test:
     runs-on: macos-latest
-    timeout-minutes: 120
+    # these tests are extremely slow to run
+    timeout-minutes: 220
     steps:
     - uses: actions/checkout@v4
     - name: Run tests in FreeBSD VM
