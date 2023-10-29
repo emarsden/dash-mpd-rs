@@ -36,8 +36,28 @@ async fn test_dl_mp4() {
     check_file_size_approx(&out, 60_939);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    println!("DASH content saved to MP4 container at {}", out.to_string_lossy());
 }
+
+#[tokio::test]
+async fn test_dl_segmentbase_baseurl() {
+    let mpd_url = "https://v.redd.it/p5rowtg41iub1/DASHPlaylist.mpd?a=1701104071";
+    let out = env::temp_dir().join("reddit.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .max_error_count(5)
+        .record_metainformation(false)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 62_177);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+}
+
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
