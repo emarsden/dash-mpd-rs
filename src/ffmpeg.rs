@@ -59,6 +59,7 @@ fn mux_audio_video_ffmpeg(
                "-nostats",
                "-loglevel", "error",  // or "warning", "info"
                "-y",  // overwrite output file if it exists
+               "-nostdin",
                "-i", audio_str,
                "-i", video_str,
                "-c:v", "copy",
@@ -105,6 +106,7 @@ fn mux_audio_video_ffmpeg(
 fn ffmpeg_container_name(extension: &str) -> Option<String> {
     match extension {
         "mkv" => Some(String::from("matroska")),
+        "webm" => Some(String::from("webm")),
         "avi" => Some(String::from("avi")),
         "mov" => Some(String::from("mov")),
         "mp4" => Some(String::from("mp4")),
@@ -145,11 +147,12 @@ fn mux_stream_ffmpeg(
             String::from("")))?;
     let cn: String;
     let mut args = vec!("-hide_banner",
-                    "-nostats",
-                    "-loglevel", "error",  // or "warning", "info"
-                    "-y",  // overwrite output file if it exists
-                    "-i", input,
-                    "-movflags", "+faststart", "-preset", "veryfast");
+                        "-nostats",
+                        "-loglevel", "error",  // or "warning", "info"
+                        "-y",  // overwrite output file if it exists
+                        "-nostdin",
+                        "-i", input,
+                        "-movflags", "+faststart", "-preset", "veryfast");
     // We can select the muxer explicitly (otherwise it is determined using heuristics based in the
     // filename extension).
     if let Some(container_name) = ffmpeg_container_name(container) {
@@ -371,7 +374,6 @@ fn mux_stream_mp4box(
     }
 }
 
-
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
 // create the temporary file in the current directory.
 #[cfg(target_os = "windows")]
@@ -533,6 +535,12 @@ pub fn mux_audio_video(
         muxer_preference.push("mkvmerge");
         muxer_preference.push("ffmpeg");
         muxer_preference.push("mp4box");
+    } else if container.eq("webm") {
+        // VLC is a better default than ffmpeg, because ffmpeg (with the options we supply) doesn't
+        // automatically reencode the vidoe and audio streams when they are incompatible with the
+        // container format requested, whereas VLC does do so.
+        muxer_preference.push("vlc");
+        muxer_preference.push("ffmpeg");
     } else if container.eq("mp4") {
         muxer_preference.push("ffmpeg");
         muxer_preference.push("vlc");
@@ -799,6 +807,7 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     let mut args = vec!["-hide_banner", "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
                         "-y",
+                        "-nostdin",
                         "-i", tmppath];
     for p in &paths[1..] {
         args.push("-i");
