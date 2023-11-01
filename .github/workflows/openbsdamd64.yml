@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     # these tests are extremely slow to run
-    timeout-minutes: 220
+    timeout-minutes: 320
     steps:
     - uses: actions/checkout@v4
     - name: Run tests in an OpenBSD VM

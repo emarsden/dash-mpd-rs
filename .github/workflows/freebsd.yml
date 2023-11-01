@@ -12,7 +12,7 @@ jobs:
   test:
     runs-on: macos-latest
     # these tests are extremely slow to run
-    timeout-minutes: 220
+    timeout-minutes: 320
     steps:
     - uses: actions/checkout@v4
     - name: Run tests in FreeBSD VM
