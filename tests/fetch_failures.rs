@@ -45,6 +45,33 @@ async fn test_error_invalidxml() {
         .unwrap();
 }
 
+
+#[tokio::test]
+#[should_panic(expected = "parsing DASH XML")]
+async fn test_error_bad_closing_tag() {
+    // This content response is not valid XML because </BaseURl> closes <BaseURL>.
+    // Full error from xmltree is Unexpected closing tag: {urn:mpeg:dash:schema:mpd:2011}BaseURl !=
+    // {urn:mpeg:dash:schema:mpd:2011}BaseURL
+    let url = "https://dash.akamaized.net/akamai/test/isptest.mpd";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+#[tokio::test]
+#[should_panic(expected = "parsing BaseURL: InvalidPort")]
+async fn test_error_bad_baseurl() {
+    // This DASH manifest contains invalid BaseURLs.
+    //   <BaseURL>http://2018-01-30T14:35:19_aa2101c7-b230-4b63-a199-e40886842654</BaseURL>
+    let url = "https://dash.akamaized.net/akamai/test/test.mpd";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+
 #[tokio::test]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_smoothstreaming() {
