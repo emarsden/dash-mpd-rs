@@ -33,44 +33,6 @@ async fn test_error_group_attribute() {
         .unwrap();
 }
 
-
-#[tokio::test]
-#[should_panic(expected = "no audio or video streams found")]
-async fn test_error_empty_period() {
-    // This manifest contains an empty Period. Periods should have at least one AdaptationSet.
-    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_empty_period.mpd")
-        .download().await
-        .unwrap();
-}
-
-
-#[tokio::test]
-#[should_panic(expected = "invalid @maxHeight on AdaptationSet")]
-async fn test_error_invalid_maxheight() {
-    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_maxHeight.mpd")
-        .download().await
-        .unwrap();
-}
-
-
-#[tokio::test]
-#[should_panic(expected = "invalid @maxWidth on AdaptationSet")]
-async fn test_error_invalid_maxwidth() {
-    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_maxWidth.mpd")
-        .download().await
-        .unwrap();
-}
-
-
-#[tokio::test]
-#[should_panic(expected = "segment@d > @maxSegmentDuration")]
-async fn test_error_invalid_segment_duration() {
-    DashDownloader::new("http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/advanced/invalid_segmenttimeline_maxsegduration.mpd")
-        .download().await
-        .unwrap();
-}
-
-
 #[tokio::test]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_invalidxml() {

@@ -24,6 +24,7 @@ use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
+use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
 #[allow(unused_imports)]
@@ -94,6 +95,7 @@ pub struct DashDownloader {
     decryption_keys: HashMap<String, String>,
     xslt_stylesheets: Vec<PathBuf>,
     content_type_checks: bool,
+    conformity_checks: bool,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
@@ -206,6 +208,7 @@ impl DashDownloader {
             decryption_keys: HashMap::new(),
             xslt_stylesheets: Vec::new(),
             content_type_checks: true,
+            conformity_checks: true,
             max_error_count: 10,
             progress_observers: Vec::new(),
             sleep_between_requests: 0,
@@ -441,6 +444,20 @@ impl DashDownloader {
     /// content (may be necessary with poorly configured HTTP servers).
     pub fn without_content_type_checks(mut self) -> DashDownloader {
         self.content_type_checks = false;
+        self
+    }
+
+    /// Specify whether to check that the content-type of downloaded segments corresponds to audio
+    /// or video content (this may need to be set to false with poorly configured HTTP servers).
+    pub fn content_type_checks(mut self, value: bool) -> DashDownloader {
+        self.content_type_checks = value;
+        self
+    }
+
+    /// Specify whether to run various conformity checks on the content of the DASH manifest before
+    /// downloading media segments.
+    pub fn conformity_checks(mut self, value: bool) -> DashDownloader {
+        self.conformity_checks = value;
         self
     }
 
@@ -1195,7 +1212,7 @@ pub async fn parse_resolving_xlinks(
     let mut doc = xmltree::Element::parse(xml)
         .map_err(|e| parse_error("xmltree parsing", e))?;
     if !doc.name.eq("MPD") {
-        return Err(DashMpdError::Parsing(format!("root element {} is not MPD", doc.name)));
+        return Err(DashMpdError::Parsing(format!("expecting root element of MPD, got {}", doc.name)));
     }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
@@ -1229,7 +1246,13 @@ pub async fn parse_resolving_xlinks(
     let rewritten = std::str::from_utf8(&buf)
         .map_err(|e| parse_error("parsing UTF-8", e))?;
     // Here using the quick-xml serde support to deserialize into Rust structs.
-    parse(rewritten)
+    let mpd = parse(rewritten)?;
+    if downloader.conformity_checks {
+        for emsg in check_conformity(&mpd) {
+            warn!("DASH conformity error in manifest: {emsg}");
+        }
+    }
+    Ok(mpd)
 }
 
 
@@ -2574,7 +2597,7 @@ async fn fetch_period_audio(
         for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
             // Update any ProgressObservers
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
+            let progress_percent = (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching audio segments");
             }
@@ -3166,15 +3189,6 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     if !mpd.base_url.is_empty() {
         toplevel_base_url = merge_baseurls(&redirected_url, &mpd.base_url[0].base)?;
     }
-    /*
-    let mut audio_fragments = Vec::new();
-    let mut video_fragments = Vec::new();
-    let mut subtitle_fragments = Vec::new();
-    let mut subtitle_formats = Vec::new();
-    let mut have_audio = false;
-    let mut have_video = false;
-    let mut have_subtitles = false;
-    */
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
         println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
@@ -3251,7 +3265,6 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     let mut ds = DownloadState {
         period_counter: 0,
         // The additional +2 is for our initial .mpd fetch action and final muxing action
-        // segment_count: audio_fragments.len() + video_fragments.len() + subtitle_fragments.len() + 2,
         segment_count: pds.iter().map(period_fragment_count).sum(),
         segment_counter: 0,
         download_errors: 0
@@ -3377,13 +3390,14 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 println!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
             }
         }
-        period_output_paths.push(period_output_path);
+        if have_audio || have_video {
+            period_output_paths.push(period_output_path);
+        }
     } // Period iterator
-
     if period_output_paths.len() == 1 {
         // We already arranged to write directly to the requested output_path.
         maybe_record_metainformation(output_path, downloader, &mpd);
-    } else {
+    } else if period_output_paths.len() > 1 {
         // If the streams for the different periods are all of the same resolution, we can
         // concatenate them (with reencoding) into a single media file. Otherwise, we can't
         // concatenate without rescaling and loss of quality, so we leave them in separate files.
