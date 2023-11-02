@@ -23,6 +23,21 @@ use common::check_file_size_approx;
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
+async fn test_dl_none() {
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let out = env::temp_dir().join("cfnone.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .fetch_audio(false)
+        .fetch_video(false)
+        .fetch_subtitles(false)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 0);
+}
+
+#[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_dl_mp4() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cf.mp4");
