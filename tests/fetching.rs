@@ -74,6 +74,26 @@ async fn test_dl_segmentbase_baseurl() {
 
 
 #[tokio::test]
+async fn test_dl_segmenttemplate_tiny() {
+    let mpd_url = "https://github.com/bbc/exoplayer-testing-samples/raw/master/app/src/androidTest/assets/streams/files/redGreenVideo/redGreenOnlyVideo.mpd";
+    let out = env::temp_dir().join("red-green.mp4");
+    DashDownloader::new(mpd_url)
+        .intermediate_quality()
+        .record_metainformation(false)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 4_546);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+}
+
+
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_mp4a() {
     if env::var("CI").is_ok() {
