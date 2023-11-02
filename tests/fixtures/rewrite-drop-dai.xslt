@@ -12,9 +12,14 @@
   </xsl:template>
 
   <!--
-      Drop Periods served from dai.google.com (dynamic ad insertion service).
+      Drop Periods served from dai.google.com or from AWS MediaTailor or from Unified Streaming
+      (dynamic ad insertion services).
 
       Test: xsltproc rewrite-drop-dai.xslt with-dai.mpd
   -->
   <xsl:template match="//mpd:Period[mpd:BaseURL[starts-with(text(),'https://dai.google.com')]]" />
+
+  <xsl:template match="//mpd:Period[mpd:BaseURL[contains(text(),'mediatailor.eu-west-1.amazonaws.com')]]" />
+
+  <xsl:template match="//mpd:Period[mpd:BaseURL[contains(text(),'unified-streaming.com')]]" />
 </xsl:stylesheet>
