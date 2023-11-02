@@ -1693,7 +1693,7 @@ impl std::fmt::Display for MPD {
 pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
     let mpd: MPD = quick_xml::de::from_str(xml)
         .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
-    check_conformity(mpd)
+    Ok(mpd)
 }
 
 
@@ -1961,52 +1961,54 @@ fn content_protection_type(cp: &ContentProtection) -> String {
 fn check_segment_template_conformity(
     st: &SegmentTemplate,
     max_seg_duration: &Duration,
-    outer_timescale: u64) -> Result<(), DashMpdError>
+    outer_timescale: u64) -> Vec<String>
 {
+    let mut errors = Vec::new();
     if let Some(timeline) = &st.SegmentTimeline {
         for s in &timeline.segments {
             let sd = s.d as u64 / st.timescale.unwrap_or(outer_timescale);
             if sd > max_seg_duration.as_secs() {
-                return Err(DashMpdError::Parsing(
-                    String::from("SegmentTimeline has segment@d > @maxSegmentDuration")));
+                errors.push(String::from("SegmentTimeline has segment@d > @maxSegmentDuration"));
             }
         }
     }
-    Ok(())
+    errors
 }
 
 // Check the URL or URL path u for conformity. This is a very relaxed check because the Url crate is
 // very tolerant, in particular concerning the syntax accepted for the path component of an URL.
-fn check_url(u: &str) -> Result<(), DashMpdError> {
+fn valid_url_p(u: &str) -> bool {
     use url::ParseError;
 
     match Url::parse(u) {
         Ok(url) => {
-            if url.scheme() == "https" ||
+            url.scheme() == "https" ||
                 url.scheme() == "http" ||
                 url.scheme() == "ftp" ||
                 url.scheme() == "file" ||
                 url.scheme() == "data"
-            {
-                Ok(())
-            } else {
-                Err(DashMpdError::Parsing(String::from("invalid URL")))
-            }
         },
-        Err(ParseError::RelativeUrlWithoutBase) => Ok(()),
-        Err(_) => Err(DashMpdError::Parsing(String::from("invalid URL"))),
+        Err(ParseError::RelativeUrlWithoutBase) => true,
+        Err(_) => false,
     }
 }
 
-pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
+/// Returns a list of DASH conformity errors in the DASH manifest mpd.
+pub fn check_conformity(mpd: &MPD) -> Vec<String> {
+    let mut errors = Vec::new();
+
     // @maxHeight on the AdaptationSet should give the maximum value of the @height values of its
     // Representation elements.
     for p in &mpd.periods {
+        if p.adaptations.is_empty() {
+            errors.push(format!("Period with @id {} contains no AdaptationSet elements",
+                                p.id.clone().unwrap_or(String::from("<unspecified>"))));
+        }
         for a in &p.adaptations {
             if let Some(mh) = a.maxHeight {
                 if let Some(mr) = a.representations.iter().max_by_key(|r| r.height.unwrap_or(0)) {
                     if mr.height.unwrap_or(0) > mh {
-                        return Err(DashMpdError::Parsing(String::from("invalid @maxHeight on AdaptationSet")));
+                        errors.push(String::from("invalid @maxHeight on AdaptationSet"));
                     }
                 }
             }
@@ -2019,7 +2021,7 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
             if let Some(mw) = a.maxWidth {
                 if let Some(mr) = a.representations.iter().max_by_key(|r| r.width.unwrap_or(0)) {
                     if mr.width.unwrap_or(0) > mw {
-                        return Err(DashMpdError::Parsing(String::from("invalid @maxWidth on AdaptationSet")));
+                        errors.push(String::from("invalid @maxWidth on AdaptationSet"));
                     }
                 }
             }
@@ -2032,14 +2034,14 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
             if let Some(mb) = a.maxBandwidth {
                 if let Some(mr) = a.representations.iter().max_by_key(|r| r.bandwidth.unwrap_or(0)) {
                     if mr.bandwidth.unwrap_or(0) > mb {
-                        return Err(DashMpdError::Parsing(String::from("invalid @maxBandwidth on AdaptationSet")));
+                        errors.push(String::from("invalid @maxBandwidth on AdaptationSet"));
                     }
                 }
             }
         }
     }
     // No @d of a segment should be greater than @maxSegmentDuration.
-    if let Some(max_seg_duration) = &mpd.maxSegmentDuration {
+    if let Some(max_seg_duration) = mpd.maxSegmentDuration {
         for p in &mpd.periods {
             for a in &p.adaptations {
                 // We need to keep track of outer_timescale for situations with a nested SegmentTemplate.
@@ -2054,14 +2056,18 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
                 // ...
                 let mut outer_timescale = 1;
                 if let Some(st) = &a.SegmentTemplate {
-                    check_segment_template_conformity(st, max_seg_duration, outer_timescale)?;
+                    check_segment_template_conformity(st, &max_seg_duration, outer_timescale)
+                        .into_iter()
+                        .for_each(|msg| errors.push(msg));
                     if let Some(ots) = st.timescale {
                         outer_timescale = ots;
                     }
                 }
                 for r in &a.representations {
                     if let Some(st) = &r.SegmentTemplate {
-                        check_segment_template_conformity(st, max_seg_duration, outer_timescale)?;
+                        check_segment_template_conformity(st, &max_seg_duration, outer_timescale)
+                            .into_iter()
+                            .for_each(|msg| errors.push(msg));
                     }
                 }
             }
@@ -2069,47 +2075,67 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
     }
 
     for bu in &mpd.base_url {
-        check_url(&bu.base)?;
+        if !valid_url_p(&bu.base) {
+            errors.push(format!("invalid URL {}", &bu.base));
+        }
     }
     for p in &mpd.periods {
         for bu in &p.BaseURL {
-            check_url(&bu.base)?;
+            if !valid_url_p(&bu.base) {
+                errors.push(format!("invalid URL {}", &bu.base));
+            }
         }
         for a in &p.adaptations {
             for bu in &a.BaseURL {
-                check_url(&bu.base)?;
+                if !valid_url_p(&bu.base) {
+                    errors.push(format!("invalid URL {}", &bu.base));
+                }
             }
             for r in &a.representations {
                 for bu in &r.BaseURL {
-                    check_url(&bu.base)?;
+                    if !valid_url_p(&bu.base) {
+                        errors.push(format!("invalid URL {}", &bu.base));
+                    }
                 }
                 if let Some(sb) = &r.SegmentBase {
                     if let Some(init) = &sb.initialization {
                         if let Some(su) = &init.sourceURL {
-                            check_url(su)?;
+                            if !valid_url_p(su) {
+                                errors.push(format!("invalid URL {su}"));
+                            }
                         }
                     }
                     if let Some(ri) = &sb.RepresentationIndex {
                         if let Some(su) = &ri.sourceURL {
-                            check_url(su)?;
+                            if !valid_url_p(su) {
+                                errors.push(format!("invalid URL {su}"));
+                            }
                         }
                     }
                 }
                 if let Some(sl) = &r.SegmentList {
                     if let Some(hr) = &sl.href {
-                        check_url(hr)?;
+                        if !valid_url_p(hr) {
+                            errors.push(format!("invalid URL {hr}"));
+                        }
                     }
                     if let Some(init) = &sl.Initialization {
                         if let Some(su) = &init.sourceURL {
-                            check_url(su)?;
+                            if !valid_url_p(su) {
+                                errors.push(format!("invalid URL {su}"));
+                            }
                         }
                     }
                     for su in &sl.segment_urls {
                         if let Some(md) = &su.media {
-                            check_url(md)?;
+                            if !valid_url_p(md) {
+                                errors.push(format!("invalid URL {md}"));
+                            }
                         }
                         if let Some(ix) = &su.index {
-                            check_url(ix)?;
+                            if !valid_url_p(ix) {
+                                errors.push(format!("invalid URL {ix}"));
+                            }
                         }
                     }
                 }
@@ -2118,11 +2144,12 @@ pub fn check_conformity(mpd: MPD) -> Result<MPD, DashMpdError> {
     }
     if let Some(pi) = &mpd.ProgramInformation {
         if let Some(u) = &pi.moreInformationURL {
-            check_url(u)?;
+            if !valid_url_p(u) {
+                errors.push(format!("invalid URL {u}"));
+            }
         }
     }
-
-    Ok(mpd)
+    errors
 }
 
 #[cfg(test)]
