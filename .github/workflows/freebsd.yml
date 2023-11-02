@@ -21,6 +21,7 @@ jobs:
         operating_system: freebsd
         version: '13.2'
         shell: bash
+        environment_variables: CI
         run: |
           sudo pkg update
           sudo pkg install -y --quiet curl

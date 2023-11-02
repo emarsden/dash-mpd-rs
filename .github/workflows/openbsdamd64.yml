@@ -21,6 +21,7 @@ jobs:
         version: '7.4'
         architecture: arm64
         shell: bash
+        environment_variables: CI
         run: |
           sudo pkg_add -U -I curl
           sudo pkg_add -U -I lang/rust
