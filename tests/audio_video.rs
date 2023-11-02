@@ -11,15 +11,36 @@ use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
 
-
+// This test is too slow to run; disable it.
+#[ignore]
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_video_only() {
+async fn test_dl_video_only_slow() {
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "http://nimbuspm.origin.mediaservices.windows.net/aed33834-ec2d-4788-88b5-a4505b3d032c/Microsoft's HoloLens Live Demonstration.ism/manifest(format=mpd-time-csf)";
     let out = env::temp_dir().join("hololens-video.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .video_only()
+        .download_to(out.clone()).await
+        .unwrap();
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert!(stream.width.is_some());
+}
+
+#[tokio::test]
+async fn test_dl_video_only() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
+    let out = env::temp_dir().join("envivio-video.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .video_only()
@@ -107,9 +128,9 @@ async fn test_dl_keep_segments() {
     assert!(video_entries.count() > 3);
 }
 
-
+#[ignore]
 #[tokio::test]
-async fn test_dl_cea608_captions() {
+async fn test_dl_cea608_captions_slow() {
     if env::var("CI").is_ok() {
         return;
     }

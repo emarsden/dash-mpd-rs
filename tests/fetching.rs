@@ -20,7 +20,6 @@ use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
 
-
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_none() {
@@ -33,7 +32,7 @@ async fn test_dl_none() {
         .fetch_subtitles(false)
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 0);
+    assert!(!out.exists());
 }
 
 #[tokio::test]
