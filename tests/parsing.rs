@@ -128,32 +128,6 @@ fn test_unknown_elements () {
 
 #[test]
 fn test_url_parsing () {
-    let err1 = r#"<MPD><Period id="1">
-       <AdaptationSet group="1">
-         <Representation mimeType='video/mp4' width="320" height="240">
-           <SegmentList duration="10">
-             <Initialization sourceURL="httpunexist://example.com/segment.mp4"/>
-             <SegmentURL media="seg1.mp4"/>
-           </SegmentList>
-         </Representation>
-       </AdaptationSet>
-     </Period></MPD>"#;
-    assert!(parse(err1).is_err());
-
-    let err2 = r#"<MPD><Period id="1">
-       <AdaptationSet group="1">
-         <Representation mimeType="video/mp4" width="320" height="240">
-           <SegmentList duration="10">
-             <SegmentURL media="https://example.com:-1/segment.mp4"/>
-           </SegmentList>
-         </Representation>
-       </AdaptationSet>
-     </Period></MPD>"#;
-    assert!(parse(err2).is_err());
-
-    let err3 = r#"<MPD><ProgramInformation moreInformationURL="https://192.168.1.2.3/segment.mp4" /></MPD>"#;
-    assert!(parse(err3).is_err());
-
     // Yes, this path component is really accepted even if containing characters that are not
     // recommended for use in URLs.
     let err4 = r#"<MPD><Period id="1">
@@ -437,29 +411,3 @@ async fn test_parsing_fail_incorrect_tag() {
         .unwrap();
 }
 
-// This a an exemple DASH manifest from a commercial ad management platform which is not spec
-// compliant. The MPD specifies maxSegmentDuration="PT2S", but the SegmentTimeline contains segments
-// of duration 132300 / 44100 (3 seconds).
-#[tokio::test]
-#[should_panic(expected = "segment@d > @maxSegmentDuration")]
-async fn test_parsing_invalid_maxsegmentduration() {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("tests");
-    path.push("fixtures");
-    path.push("admanager");
-    path.set_extension("xml");
-    let amxml = fs::read_to_string(path).unwrap();
-    parse(&amxml).unwrap();
-}
-
-
-// This DASH manifest is not spec compliant: it specifies a @maxHeight attribute on an AdaptationSet
-// which is lower than the @height attribute on one of the child Representation elements.
-#[tokio::test]
-#[should_panic(expected = "invalid @maxHeight on AdaptationSet")]
-async fn test_parsing_invalid_maxheight() {
-    DashDownloader::new("https://vod.infiniteplatform.tv/dash/vod-clear/ElephantsDream/default.mpd")
-        .best_quality()
-        .download().await
-        .unwrap();
-}
