@@ -36,6 +36,7 @@ use fs_err as fs;
 use std::env;
 use std::time::Duration;
 use std::str::FromStr;
+use std::sync::Once;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use url::Url;
@@ -51,6 +52,8 @@ use anyhow::{Context, Result};
 use env_logger::Env;
 use common::generate_minimal_mp4;
 
+
+static INIT: Once = Once::new();
 
 #[derive(Debug, Default)]
 struct AppState {
@@ -104,6 +107,8 @@ fn make_segment_list(urls: Vec<&str>) -> SegmentList {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xlink_retrieval() -> Result<()> {
+    INIT.call_once(|| env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init());
+
     let segment_template1 = SegmentTemplate {
         initialization: Some("/media/f1.mp4".to_string()),
         ..Default::default()
@@ -209,7 +214,6 @@ async fn test_xlink_retrieval() -> Result<()> {
         ([(header::CONTENT_TYPE, "text/plain")], format!("{}", state.counter.load(Ordering::Relaxed)))
     }
 
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
@@ -283,5 +287,60 @@ async fn test_xlink_retrieval() -> Result<()> {
     assert!(txt.eq("4"));
     server_handle.shutdown();
 
+    Ok(())
+}
+
+
+
+// Test behaviour when xlinked resources are unavailable.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_xlink_errors() -> Result<()> {
+    INIT.call_once(|| env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init());
+
+    // This XLinked Period that resolves to a success.
+    let period1 = Period {
+        id: Some("2".to_string()),
+        href: Some("/remote/period.xml".to_string()),
+        actuate: Some("onLoad".to_string()),
+        ..Default::default()
+    };
+    let remote_period = Period {
+        id: Some("r1".to_string()),
+        href: Some("/remote/failure.xml".to_string()),
+        actuate: Some("onLoad".to_string()),
+        ..Default::default()
+    };
+    let mpd = MPD {
+        mpdtype: Some("static".to_string()),
+        xlink: Some("http://www.w3.org/1999/xlink".to_string()),
+        periods: vec!(period1),
+        ..Default::default()
+    };
+    let xml = mpd.to_string();
+    let xml = add_xml_namespaces(&xml)?;
+    let remote_period_xml = quick_xml::se::to_string(&remote_period)?;
+    let remote_period_xml = add_xml_namespaces(&remote_period_xml)?;
+
+    let app = Router::new()
+        .route("/mpd", get(
+            || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
+        .route("/remote/period.xml", get(
+            || async { ([(header::CONTENT_TYPE, "application/dash+xml")], remote_period_xml) }));
+    let server_handle = axum_server::Handle::new();
+    let backend_handle = server_handle.clone();
+    let backend = async move {
+        axum_server::bind("127.0.0.1:6669".parse().unwrap())
+            .handle(backend_handle)
+            .serve(app.into_make_service()).await
+            .unwrap()
+    };
+    tokio::spawn(backend);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    // Now fetch the manifest and check that we fail due to the non-existent remote Period. 
+    let outpath = env::temp_dir().join("nonexistent.mp4");
+    assert!(DashDownloader::new("http://localhost:6669/mpd")
+            .download_to(outpath.clone()).await
+            .is_err());
+    server_handle.shutdown();
     Ok(())
 }
