@@ -393,8 +393,11 @@ impl DashDownloader {
 
     /// Register an XSLT stylesheet that will be applied to the MPD manifest after XLink processing
     /// and before deserialization into Rust structs. The stylesheet will be applied to the manifest
-    /// using the xsltproc commandline tool. If multiple stylesheets are registered, they will be
-    /// called in sequence in the same order as their registration.
+    /// using the xsltproc commandline tool, which supports XSLT 1.0. If multiple stylesheets are
+    /// registered, they will be called in sequence in the same order as their registration. If the
+    /// application of a stylesheet fails, the download will be aborted.
+    ///
+    /// This is an experimental API which may change in future versions of the library.
     ///
     /// # Arguments
     ///
@@ -1234,7 +1237,7 @@ pub async fn parse_resolving_xlinks(
             .output()
             .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
         if !xsltproc.status.success() {
-            let msg = format!("xsltproc returned error status {}", xsltproc.status);
+            let msg = format!("xsltproc returned {}", xsltproc.status);
             let out = String::from_utf8_lossy(&xsltproc.stderr).to_string();
             return Err(DashMpdError::Io(std::io::Error::new(std::io::ErrorKind::Other, msg), out));
         }
