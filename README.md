@@ -50,33 +50,43 @@ The choice of external muxer depends on the filename extension of the path suppl
 
 - `.mkv`: call mkvmerge first, then if that isn't installed or fails call ffmpeg, then try MP4Box
 - `.mp4`: call ffmpeg first, then if that fails call vlc, then try MP4Box
+- `.webm`: call vlc, then if that fails ffmpeg
 - other: try ffmpeg, which supports many container formats, then try MP4Box
+
+You can specify a different order of preference for muxing applications using the
+`with_muxer_preference` method on DashDownloader. For example, `with_muxer_preference("avi",
+"vlc,ffmpeg")` means that for an AVI media container the external muxer vlc will be tried first,
+then ffmpeg in case of failure. This method option can be used multiple times to specify options for
+different container types.
 
 
 ## DASH features supported
 
-- VOD (static) stream manifests
+- VOD (static) stream manifests.
 
-- Multi-period content
+- Multi-period content. The media in the different streams will be saved in a single media container
+  if the formats are compatible (same resolution, codecs, bitrate and so on) and
+  `concatenate_periods(false)` has not been called on DashDownloader, and otherwise in separate
+  media containers.
 
-- XLink elements (only with actuate=onLoad semantics), including resolve-to-zero
+- XLink elements (only with actuate=onLoad semantics), including resolve-to-zero.
 
 - All forms of segment index info: SegmentBase@indexRange, SegmentTimeline,
   SegmentTemplate@duration, SegmentTemplate@index, SegmentList.
 
 - Media containers of types supported by mkvmerge, ffmpeg, VLC or MP4Box (this includes Matroska,
-  ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS).
+  ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS), and all codecs supported by these applications.
 
-- WebVTT/wvtt, TTML, STPP and SMIL subtitles, either provided as a single media stream or as a
-  fragmented MP4 stream. Subtitles that are distributed as a single media stream will be saved to a
-  file with the same base name as the requested output file, but with an extension corresponding to
-  the subtitle type (e.g. ".srt", ".vtt"). Subtitles distributed in WebVTT/wvtt format (either as a
-  single media stream or a fragmented MP4 stream) will be converted to the more standard SRT format
-  using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/) project), if it is
-  installed. STPP subtitles (which according to the DASH specifications should be formatted as
-  EBU-TT) will be muxed into the output media container as a "subt:stpp" stream using MP4Box. Note
-  that common media players such as mplayer and VLC don't currently support this subtitle type; you
-  can try using the GPAC media player (available with "gpac -gui").
+- WebVTT/wvtt, TTML, STPP, SRT, tx3g and SMIL subtitles, either provided as a single media stream or
+  as a fragmented MP4 stream. Subtitles that are distributed as a single media stream will be saved
+  to a file with the same base name as the requested output file, but with an extension
+  corresponding to the subtitle type (e.g. ".srt", ".vtt"). Subtitles distributed in WebVTT/wvtt
+  format (either as a single media stream or a fragmented MP4 stream) will be converted to the more
+  standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/)
+  project), if it is installed. STPP subtitles (which according to the DASH specifications should be
+  formatted as EBU-TT) will be muxed into the output media container as a "subt:stpp" stream using
+  MP4Box. Note that common media players such as mplayer and VLC don't currently support this
+  subtitle type; you can try using the GPAC media player (available with "gpac -gui").
 
 - Support for decrypting media streams that use MPEG Common Encryption (cenc) ContentProtection.
   This requires the `mp4decrypt` commandline application from the [Bento4
@@ -171,8 +181,7 @@ use dash_mpd::fetch::DashDownloader;
 let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
 match DashDownloader::new(url)
        .worst_quality()
-       .download()
-       .await
+       .download().await
 {
    Ok(path) => println!("Downloaded to {path:?}"),
    Err(e) => eprintln!("Download failed: {e:?}"),
@@ -192,14 +201,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.14.1"
+dash-mpd = "0.14.2"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.14.1", default-features = false }
+dash-mpd = { version = "0.14.2", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -214,7 +223,9 @@ The following additive [Cargo
 features](https://doc.rust-lang.org/stable/cargo/reference/features.html#the-features-section) can
 be enabled:
 
-- `fetch` *(enabled by default)*: enables support for downloading stream content
+- `fetch` *(enabled by default)*: enables support for downloading stream content. This accounts for
+  most of the code size of the library, so disable it if you only need the struct definitions for
+  serializing and deserializing MPDs.
 
 - `socks` *(enabled by default)*: enables the `socks` feature on our `reqwest` dependency, which
   provides SOCKS5 proxy support for HTTP/HTTPS requests.
@@ -230,7 +241,7 @@ be enabled:
   with the musl-libc target on Linux.
 
 - `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
-  mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate
+  mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate.
 
 - `trust-dns`: enable the `trust-dns` feature on our `reqwest` dependency, to use the trust-dns DNS
   resolver library instead of the system resolver.
