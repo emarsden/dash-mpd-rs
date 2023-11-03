@@ -234,8 +234,9 @@ async fn test_xslt_multiple_stylesheets() {
 }
 
 
+// Note that the error message is structured differently on Unix and Microsoft Windows platforms.
 #[tokio::test]
-#[should_panic(expected = "xsltproc returned exit status")]
+#[should_panic(expected = "xsltproc returned exit")]
 async fn test_xslt_stylesheet_error() {
     let mpd_url = "https://dash.akamaized.net/akamai/test/index3-original.mpd";
     let out = env::temp_dir().join("unexist.mp4");
