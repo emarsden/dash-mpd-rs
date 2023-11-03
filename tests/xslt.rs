@@ -198,3 +198,56 @@ async fn test_xslt_rick() {
     assert_eq!(video.width, Some(320));
 }
 
+
+#[tokio::test]
+async fn test_xslt_multiple_stylesheets() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
+    let out = env::temp_dir().join("ricked-cleaned.mp4");
+    let mut xslt_rick = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xslt_rick.push("tests");
+    xslt_rick.push("fixtures");
+    xslt_rick.push("rewrite-rickroll");
+    xslt_rick.set_extension("xslt");
+    let mut xslt_clean = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xslt_clean.push("tests");
+    xslt_clean.push("fixtures");
+    xslt_clean.push("rewrite-drop-dai");
+    xslt_clean.set_extension("xslt");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_xslt_stylesheet(xslt_rick)
+        .with_xslt_stylesheet(xslt_clean)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 12_975_377);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert_eq!(video.width, Some(320));
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "xsltproc returned exit status")]
+async fn test_xslt_stylesheet_error() {
+    let mpd_url = "https://dash.akamaized.net/akamai/test/index3-original.mpd";
+    let out = env::temp_dir().join("unexist.mp4");
+    let mut xslt = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xslt.push("tests");
+    xslt.push("fixtures");
+    xslt.push("rewrite-stylesheet-error");
+    xslt.set_extension("xslt");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_xslt_stylesheet(xslt)
+        .download_to(out.clone()).await
+        .unwrap();
+}
+
