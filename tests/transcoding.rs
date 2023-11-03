@@ -138,6 +138,7 @@ async fn test_dl_audio_multiperiod_mp3() {
 // warnings printed to stderr "Ignoring unknown muxer preference unavailable", but can't currently
 // test for that.
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 #[should_panic(expected = "all muxers failed")]
 async fn test_muxing_unavailable() {
     let mpd_url = "https://m.dtv.fi/dash/dasherh264/manifest.mpd";
