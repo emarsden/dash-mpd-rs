@@ -4,17 +4,21 @@
 //
 //
 // Some streaming services and OTT television providers use server-side ad insertion (SSAI) or
-// dynamic ad insertion (DAI) to serve customized advertising to viewers. Whereas traditional
-// television showed the same ads to all viewers, this technology can increase advertising revenue
-// by targeting based on tracking your viewing habits, in the same way as advertising on the web
-// works.
+// dynamic ad insertion (DAI) to serve customized (“more relevant”) advertising to viewers. Whereas
+// traditional television showed the same ads to all viewers, this technology can increase
+// advertising revenue by “microtargeting” based on tracking your viewing habits, your location and
+// viewing device, in the same way as advertising on the web works.
 //
 // These ads are additional Periods that are inserted in the MPD manifest, in pre-roll, mid-roll or
-// post-roll position. This example shows how to use an XSLT stylesheet to rewrite the XML manifest
-// before starting the download, removing Period elements that look like advertising we would prefer
-// not to consume. We can detect advertising Periods by looking at the location they are served from
-// (which is "https://dai.google.com/" in this example), or for example their low duration
-// (generally around 30 seconds), or perhaps by some recognizable name given to their @id attribute.
+// post-roll position. This example shows how to use an XSLT stylesheet to rewrite (or
+// “decondition”, because the ad-insertion process is refered to as “conditioning” the manifest) the
+// XML manifest before starting the download, removing Period elements that look like advertising we
+// would prefer not to consume. We can detect advertising Periods by looking at the location they
+// are served from (which is "https://dai.google.com/" in this example), or for example their low
+// duration (generally around 30 seconds), or perhaps by some recognizable name given to their @id
+// attribute. Advertising segments are often also delivered using a different resolution, codec,
+// bandwidth or language attribute, which is the reason you may see TV/VOD playback issues when ads
+// are inserted, and which offers further opportunities for identifying the unwanted content.
 //
 // We are currently executing XSLT spreadsheets using the venerable (but widely ported/distributed)
 // xsltproc commandline application. This only implements XSLT v1.0, which is considerably less
