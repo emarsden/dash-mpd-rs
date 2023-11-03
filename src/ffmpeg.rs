@@ -837,7 +837,7 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     if ffmpeg.status.success() {
         Ok(())
     } else {
-        println!("   unconcatenated input files:");
+        println!("  unconcatenated input files:");
         for p in paths {
             println!("      {}", p.display());
         }
