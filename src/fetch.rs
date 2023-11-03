@@ -3429,6 +3429,15 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             }
         }
     }
+    let have_content_protection = mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |a| (!a.ContentProtection.is_empty()) ||
+                a.representations.iter().any(
+                    |r| !r.ContentProtection.is_empty())));
+    if have_content_protection && downloader.decryption_keys.is_empty() {
+        println!("{}: manifest seems to use ContentProtection (DRM) and you didn't specify decryption keys.",
+                 "Warning".bold().red());
+    }
     for observer in &downloader.progress_observers {
         observer.update(100, "Done");
     }
