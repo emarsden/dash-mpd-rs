@@ -3300,12 +3300,12 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             tmp_file_path("dashmpd-video")?
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs")?;
-        if downloader.fetch_audio {
+        if downloader.fetch_audio && !pd.audio_fragments.is_empty() {
             have_audio = fetch_period_audio(downloader, &redirected_url,
                                             tmppath_audio.clone(), &pd.audio_fragments,
                                             &mut ds).await?;
         }
-        if downloader.fetch_video {
+        if downloader.fetch_video && !pd.video_fragments.is_empty() {
             have_video = fetch_period_video(downloader, &redirected_url,
                                             tmppath_video.clone(), &pd.video_fragments,
                                             &mut ds).await?;
@@ -3313,7 +3313,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
         // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
         // formatted as EBU-TT for DASH media) formats.
-        if downloader.fetch_subtitles {
+        if downloader.fetch_subtitles && !pd.subtitle_fragments.is_empty() {
             have_subtitles = fetch_period_subtitles(downloader, &redirected_url,
                                                     tmppath_subs.clone(),
                                                     &pd.subtitle_fragments,
@@ -3374,18 +3374,18 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_audio.is_none() && downloader.fetch_audio {
-            if fs::remove_file(tmppath_audio).is_err() {
+            if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
                 info!("Failed to delete temporary file for audio stream");
             }
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_video.is_none() && downloader.fetch_video {
-            if fs::remove_file(tmppath_video).is_err() {
+            if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
                 info!("Failed to delete temporary file for video stream");
             }
         }
         #[allow(clippy::collapsible_if)]
-        if downloader.fetch_subtitles && fs::remove_file(tmppath_subs).is_err() {
+        if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
             info!("Failed to delete temporary file for subtitles");
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
@@ -3428,6 +3428,15 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 maybe_record_metainformation(&p, downloader, &mpd);
             }
         }
+    }
+    let have_content_protection = mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |a| (!a.ContentProtection.is_empty()) ||
+                a.representations.iter().any(
+                    |r| !r.ContentProtection.is_empty())));
+    if have_content_protection && downloader.decryption_keys.is_empty() {
+        println!("{}: manifest seems to use ContentProtection (DRM) and you didn't specify decryption keys.",
+                 "Warning".bold().red());
     }
     for observer in &downloader.progress_observers {
         observer.update(100, "Done");

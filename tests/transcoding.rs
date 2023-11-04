@@ -27,7 +27,6 @@ async fn test_dl_mkv() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
-    println!("DASH content saved to MKV container at {}", out.to_string_lossy());
 }
 
 #[tokio::test]
