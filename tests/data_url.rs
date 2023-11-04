@@ -41,6 +41,10 @@ fn check_frame_color(video: &Path, timestamp: &str, expected_rgb: &[u8; 3]) {
                out.path().to_str().unwrap()])
         .output()
         .expect("spawning ffmpeg");
+    if !ffmpeg.status.success() {
+        let stderr = String::from_utf8_lossy(&ffmpeg.stderr);
+        eprintln!("ffmpeg stderr: {stderr}");
+    }
     assert!(ffmpeg.status.success());
     let img = image::io::Reader::open(out.path())
         .unwrap().decode().unwrap();
@@ -80,6 +84,10 @@ async fn test_data_url() -> Result<()> {
                "-map", "[outv]", "concat.mp4"])
         .output()
         .expect("spawning ffmpeg");
+    if !ffmpeg.status.success() {
+        let stderr = String::from_utf8_lossy(&ffmpeg.stderr);
+        eprintln!("ffmpeg stderr: {stderr}");
+    }
     assert!(ffmpeg.status.success());
     let ffmpeg = Command::new("ffmpeg")
         .current_dir(tmpdp)
@@ -92,6 +100,10 @@ async fn test_data_url() -> Result<()> {
                "-f", "dash", "manifest.mpd"])
         .output()
         .expect("spawning ffmpeg");
+    if !ffmpeg.status.success() {
+        let stderr = String::from_utf8_lossy(&ffmpeg.stderr);
+        eprintln!("ffmpeg stderr: {stderr}");
+    }
     assert!(ffmpeg.status.success());
     let init_bytes = tmpdp.join("init.mp4");
     let frag1_bytes = tmpdp.join("fragment-1.mp4");
@@ -172,6 +184,5 @@ async fn test_data_url() -> Result<()> {
     check_frame_color(&out.clone(), "00:00:08", &[0, 255, 0]);
     check_frame_color(&out.clone(), "00:00:13", &[0, 0, 255]);
     server_handle.shutdown();
-
     Ok(())
 }
