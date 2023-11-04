@@ -4,8 +4,10 @@
 // Cueing Message" concerns the messages that specify points in a content stream where alternate
 // content (typically advertising or local programming) can be inserted. It is used for example for
 // the digital broadcast of TV content or "replay" (VOD) media, and allows the content provider to
-// choose the advertising that is inserted based on the viewer's location, account, preferences
-// guessed from prior viewing, viewing time, etc. The advertising content can come from a third party.
+// specify timestamps where advertising can be inserted dynamically. The advertising content
+// typically comes from a third party ad distributor (Google, Amazon for example) and can be
+// customized based on the viewer's location, account, preferences guessed from prior viewing,
+// viewing time, etc.
 //
 //      https://en.wikipedia.org/wiki/SCTE-35
 //
