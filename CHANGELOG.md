@@ -1,13 +1,14 @@
 # Changelog
 
-## [0.14.3] - Unreleased
+## [0.14.3] - 2023-11-04
 
 - Add `@pdDelta` attribute on `SegmentTemplate` and `SegmentBase` elements.
 
 - Add preliminary support for applying rewrite rules to the MPD manifest before downloading media
   segments. Rewrite rules are expressed as XSLT stylesheets that are applied to the manifest using
   the `xsltproc` commandline tool (which supports XSLT v1.0). This allows complex rewrite rules to
-  be expressed using a standard (if a little finicky) stylesheet language.
+  be expressed using a standard (if a little finicky) stylesheet language. See the
+  `with_xslt_stylesheet()` method on `DashDownloader`.
   
   This functionality and API are experimental, and may evolve to use a different XSLT processor, such as
   Saxon-HE (https://github.com/Saxonica/Saxon-HE/) which has support for XSLT v3.0, but is
