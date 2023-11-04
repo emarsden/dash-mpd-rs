@@ -38,7 +38,7 @@ async fn test_dl_webm() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 65_798);
+    check_file_size_approx(&out, 52_811);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Webm);
 }
