@@ -82,7 +82,7 @@ async fn test_data_url() -> Result<()> {
                "-f", "lavfi", "-i", "color=c=0x0000ff:size=100x100:r=10:duration=5",
                // This option seems necessary on the Android/termux build of ffmpeg, which uses
                // Android's MediaCodec API and has limitations on keyframe intervals.
-               "-x264opts" "keyint=10:min-keyint=10",
+               "-x264opts", "keyint=10:min-keyint=10",
                "-filter_complex", "[0:v:0][1:v:0][2:v:0]concat=n=3:v=1:a=0[outv]",
                "-map", "[outv]", "concat.mp4"])
         .output()
