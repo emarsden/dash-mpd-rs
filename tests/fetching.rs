@@ -21,7 +21,6 @@ use common::check_file_size_approx;
 
 
 #[tokio::test]
-#[cfg(not(feature = "libav"))]
 async fn test_dl_none() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cfnone.mp4");
@@ -47,7 +46,8 @@ async fn test_dl_mp4() {
         .with_authentication("user".to_string(), "dummy".to_string())
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 60_939);
+    // Curious: this download size changed abruptly from 60_939 to this size early Nov. 2023.
+    check_file_size_approx(&out, 325_334);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
@@ -517,7 +517,7 @@ async fn test_progress_observer() {
         .add_progress_observer(Arc::new(DownloadProgressionTest{}))
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 60_939);
+    check_file_size_approx(&out, 325_334);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
@@ -623,7 +623,7 @@ async fn test_follow_redirect() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 60_939);
+    check_file_size_approx(&out, 325_334);
 }
 
 
