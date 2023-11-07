@@ -624,9 +624,10 @@ impl DashDownloader {
     ///
     /// Note that the media container format used when muxing audio and video streams depends on the
     /// filename extension of the path `out`. If the filename extension is `.mp4`, an MPEG-4
-    /// container will be used; if it is `.mkv` a Matroska container will be used, and otherwise the
-    /// heuristics implemented by the selected muxer (by default ffmpeg) will apply (e.g. an `.avi`
-    /// extension will generate an AVI container).
+    /// container will be used; if it is `.mkv` a Matroska container will be used, for `.webm` a
+    /// WebM container (specific type of Matroska) will be used, and otherwise the heuristics
+    /// implemented by the selected muxer (by default ffmpeg) will apply (e.g. an `.avi` extension
+    /// will generate an AVI container).
     pub async fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
@@ -817,20 +818,12 @@ fn select_stream_quality_preference(
             QualityPreference::Highest =>
                 representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0)),
             QualityPreference::Intermediate => {
-                let count = representations.len();
-                match count {
-                    0 => None,
-                    1 => Some(&representations[0]),
-                    _ => {
-                        let mut ranking: Vec<u8> = representations.iter()
-                            .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
-                            .collect();
-                        ranking.sort_unstable();
-                        let want_ranking = ranking.get(count / 2).unwrap();
-                        representations.iter()
-                            .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
-                    },
-                }
+                let mut ranking: Vec<u8> = representations.iter()
+                    .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
+                    .collect();
+                ranking.sort_unstable();
+                let want_ranking = ranking.get(ranking.len() / 2).unwrap();
+                representations.iter().find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
             },
         }
     } else {
@@ -841,20 +834,13 @@ fn select_stream_quality_preference(
             QualityPreference::Highest => representations.iter()
                 .max_by_key(|r| r.bandwidth.unwrap_or(0)),
             QualityPreference::Intermediate => {
-                let count = representations.len();
-                match count {
-                    0 => None,
-                    1 => Some(&representations[0]),
-                    _ => {
-                        let mut ranking: Vec<u64> = representations.iter()
-                            .map(|r| r.bandwidth.unwrap_or(100_000_000))
-                            .collect();
-                        ranking.sort_unstable();
-                        let want_ranking = ranking.get(count / 2).unwrap();
-                        representations.iter()
-                            .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
-                    },
-                }
+                let mut ranking: Vec<u64> = representations.iter()
+                    .map(|r| r.bandwidth.unwrap_or(100_000_000))
+                    .collect();
+                ranking.sort_unstable();
+                let want_ranking = ranking.get(ranking.len() / 2).unwrap();
+                representations.iter()
+                    .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
             },
         }
     }
@@ -1280,412 +1266,420 @@ async fn do_period_audio(
     }
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
-    let maybe_audio_adaptation = if let Some(ref lang) = downloader.language_preference {
-        period.adaptations.iter().filter(is_audio_adaptation)
+    let audio_adaptations = period.adaptations.iter()
+        .filter(is_audio_adaptation);
+    let representations = if let Some(ref lang) = downloader.language_preference {
+        audio_adaptations
             .min_by_key(|a| adaptation_lang_distance(a, lang))
+            .map_or_else(|| Vec::new(), |a| a.representations.clone())
+
     } else {
-        // returns the first audio adaptation found
-        period.adaptations.iter().find(is_audio_adaptation)
+        audio_adaptations
+            .flat_map(|a| a.representations.clone())
+            .collect()
     };
-    if let Some(audio_adaptation) = maybe_audio_adaptation {
-        let audio = audio_adaptation.clone();
-        // The AdaptationSet may have a BaseURL (eg the test BBC streams). We use a local variable
+    if let Some(audio_repr) = select_stream_quality_preference(&representations, downloader.quality_preference) {
+        // Find the AdaptationSet that is the parent of the selected Representation. This may be
+        // needed for certain Representation attributes whose value can be located higher in the XML
+        // tree.
+        let audio_adaptation = period.adaptations.iter()
+            .find(|a| a.representations.iter().any(|r| r.eq(&audio_repr)))
+            .unwrap();
+        // The AdaptationSet may have a BaseURL (e.g. the test BBC streams). We use a local variable
         // to make sure we don't "corrupt" the base_url for the video segments.
         let mut base_url = base_url.clone();
-        if !audio.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &audio.BaseURL[0].base)?;
+        if !audio_adaptation.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
         }
-        if let Some(audio_repr) = select_stream_quality_preference(&audio.representations, downloader.quality_preference) {
-            if downloader.verbosity > 0 {
-                let bw = if let Some(bw) = audio_repr.bandwidth {
-                    format!("bw={} Kbps ", bw / 1024)
-                } else {
-                    String::from("")
-                };
-                let unknown = String::from("?");
-                let lang = audio_repr.lang.as_ref()
-                    .unwrap_or(audio.lang.as_ref()
-                               .unwrap_or(&unknown));
-                let codec = audio_repr.codecs.as_ref()
-                    .unwrap_or(audio.codecs.as_ref()
-                               .unwrap_or(&unknown));
-                diagnostics += &format!("  Audio stream selected: {bw}lang={lang} codec={codec}\n");
-                // Check for ContentProtection on the selected Representation/Adaptation
-                for cp in audio_repr.ContentProtection.iter()
-                    .chain(audio.ContentProtection.iter())
-                {
-                    diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
-                    if let Some(kid) = &cp.default_KID {
-                        diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
+        if downloader.verbosity > 0 {
+            let bw = if let Some(bw) = audio_repr.bandwidth {
+                format!("bw={} Kbps ", bw / 1024)
+            } else {
+                String::from("")
+            };
+            let unknown = String::from("?");
+            let lang = audio_repr.lang.as_ref()
+                .unwrap_or(audio_adaptation.lang.as_ref()
+                           .unwrap_or(&unknown));
+            let codec = audio_repr.codecs.as_ref()
+                .unwrap_or(audio_adaptation.codecs.as_ref()
+                           .unwrap_or(&unknown));
+            diagnostics += &format!("  Audio stream selected: {bw}lang={lang} codec={codec}\n");
+            // Check for ContentProtection on the selected Representation/Adaptation
+            for cp in audio_repr.ContentProtection.iter()
+                .chain(audio_adaptation.ContentProtection.iter())
+            {
+                diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
+                if let Some(kid) = &cp.default_KID {
+                    diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
+                }
+                for pssh in cp.cenc_pssh.iter() {
+                    if let Some(pc) = &pssh.content {
+                        diagnostics += &format!("    PSSH (from manifest): {pc}\n");
                     }
-                    for pssh in cp.cenc_pssh.iter() {
-                        if let Some(pc) = &pssh.content {
-                            diagnostics += &format!("    PSSH (from manifest): {pc}\n");
+                }
+            }
+        }
+        // the Representation may have a BaseURL
+        let mut base_url = base_url;
+        if !audio_repr.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+        }
+        let mut opt_init: Option<String> = None;
+        let mut opt_media: Option<String> = None;
+        let mut opt_duration: Option<f64> = None;
+        let mut timescale = 1;
+        let mut start_number = 1;
+        // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
+        // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
+        // nodes in an enclosed Representation node. Don't download media segments here, only
+        // download for SegmentTemplate nodes that are children of a Representation node.
+        if let Some(st) = &audio_adaptation.SegmentTemplate {
+            if let Some(i) = &st.initialization {
+                opt_init = Some(i.to_string());
+            }
+            if let Some(m) = &st.media {
+                opt_media = Some(m.to_string());
+            }
+            if let Some(d) = st.duration {
+                opt_duration = Some(d);
+            }
+            if let Some(ts) = st.timescale {
+                timescale = ts;
+            }
+            if let Some(s) = st.startNumber {
+                start_number = s;
+            }
+        }
+        let mut dict = HashMap::new();
+        if let Some(rid) = &audio_repr.id {
+            dict.insert("RepresentationID", rid.to_string());
+        }
+        if let Some(b) = &audio_repr.bandwidth {
+            dict.insert("Bandwidth", b.to_string());
+        }
+        // Now the 6 possible addressing modes: (1) SegmentList,
+        // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
+        // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
+        
+        // Though SegmentBase and SegmentList addressing modes are supposed to be
+        // mutually exclusive, some manifests in the wild use both. So we try to work
+        // around the brokenness.
+        // Example: http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
+        if let Some(sl) = &audio_adaptation.SegmentList {
+            // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
+            // with Representation>SegmentList addressing mode)
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using AdaptationSet>SegmentList addressing mode for audio representation".italic());
+            }
+            let mut start_byte: Option<u64> = None;
+            let mut end_byte: Option<u64> = None;
+            if let Some(init) = &sl.Initialization {
+                if let Some(range) = &init.range {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(su) = &init.sourceURL {
+                    let path = resolve_url_template(su, &dict);
+                    let init_url = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: init_url,
+                        start_byte, end_byte,
+                        is_init: true
+                    };
+                    fragments.push(mf);
+                } else {
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: base_url.clone(),
+                        start_byte, end_byte,
+                        is_init: true
+                    };
+                    fragments.push(mf);
+                }
+            }
+            for su in sl.segment_urls.iter() {
+                start_byte = None;
+                end_byte = None;
+                // we are ignoring SegmentURL@indexRange
+                if let Some(range) = &su.mediaRange {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(m) = &su.media {
+                    let u = base_url.join(m)
+                        .map_err(|e| parse_error("joining media with baseURL", e))?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                } else if !audio_adaptation.BaseURL.is_empty() {
+                    let u = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                }
+            }
+        }
+        if let Some(sl) = &audio_repr.SegmentList {
+            // (1) Representation>SegmentList addressing mode
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using Representation>SegmentList addressing mode for audio representation".italic());
+            }
+            let mut start_byte: Option<u64> = None;
+            let mut end_byte: Option<u64> = None;
+            if let Some(init) = &sl.Initialization {
+                if let Some(range) = &init.range {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(su) = &init.sourceURL {
+                    let path = resolve_url_template(su, &dict);
+                    let init_url = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: init_url,
+                        start_byte, end_byte,
+                        is_init: true,
+                    };
+                    fragments.push(mf);
+                } else {
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: base_url.clone(),
+                        start_byte, end_byte,
+                        is_init: true,
+                    };
+                    fragments.push(mf);
+                }
+            }
+            for su in sl.segment_urls.iter() {
+                start_byte = None;
+                end_byte = None;
+                // we are ignoring SegmentURL@indexRange
+                if let Some(range) = &su.mediaRange {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(m) = &su.media {
+                    let u = base_url.join(m)
+                        .map_err(|e| parse_error("joining media with baseURL", e))?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                } else if !audio_repr.BaseURL.is_empty() {
+                    let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                }
+            }
+        } else if audio_repr.SegmentTemplate.is_some() ||
+            audio_adaptation.SegmentTemplate.is_some() {
+            // Here we are either looking at a Representation.SegmentTemplate, or a
+            // higher-level AdaptationSet.SegmentTemplate
+            let st;
+            if let Some(it) = &audio_repr.SegmentTemplate {
+                st = it;
+            } else if let Some(it) = &audio_adaptation.SegmentTemplate {
+                st = it;
+            } else {
+                panic!("unreachable");
+            }
+            if let Some(i) = &st.initialization {
+                opt_init = Some(i.to_string());
+            }
+            if let Some(m) = &st.media {
+                opt_media = Some(m.to_string());
+            }
+            if let Some(ts) = st.timescale {
+                timescale = ts;
+            }
+            if let Some(sn) = st.startNumber {
+                start_number = sn;
+            }
+            if let Some(stl) = &audio_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
+                .or(audio_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+            {
+                // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
+                // "explicit addressing" in certain DASH-IF documents)
+                if downloader.verbosity > 1 {
+                    println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for audio representation".italic());
+                }
+                if let Some(init) = opt_init {
+                    let path = resolve_url_template(&init, &dict);
+                    let u = base_url.join(&path)
+                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: u,
+                        start_byte: None,
+                        end_byte: None,
+                        is_init: true
+                    };
+                    fragments.push(mf);
+                }
+                if let Some(media) = opt_media {
+                    let audio_path = resolve_url_template(&media, &dict);
+                    let mut segment_time = 0;
+                    let mut segment_duration;
+                    let mut number = start_number;
+                    for s in &stl.segments {
+                        if let Some(t) = s.t {
+                            segment_time = t;
                         }
-                    }
-                }
-            }
-            // the Representation may have a BaseURL
-            let mut base_url = base_url;
-            if !audio_repr.BaseURL.is_empty() {
-                base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
-            }
-            let mut opt_init: Option<String> = None;
-            let mut opt_media: Option<String> = None;
-            let mut opt_duration: Option<f64> = None;
-            let mut timescale = 1;
-            let mut start_number = 1;
-            // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
-            // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
-            // nodes in an enclosed Representation node. Don't download media segments here, only
-            // download for SegmentTemplate nodes that are children of a Representation node.
-            if let Some(st) = &audio.SegmentTemplate {
-                if let Some(i) = &st.initialization {
-                    opt_init = Some(i.to_string());
-                }
-                if let Some(m) = &st.media {
-                    opt_media = Some(m.to_string());
-                }
-                if let Some(d) = st.duration {
-                    opt_duration = Some(d);
-                }
-                if let Some(ts) = st.timescale {
-                    timescale = ts;
-                }
-                if let Some(s) = st.startNumber {
-                    start_number = s;
-                }
-            }
-            let mut dict = HashMap::new();
-            if let Some(rid) = &audio_repr.id {
-                dict.insert("RepresentationID", rid.to_string());
-            }
-            if let Some(b) = &audio_repr.bandwidth {
-                dict.insert("Bandwidth", b.to_string());
-            }
-            // Now the 6 possible addressing modes: (1) SegmentList,
-            // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
-            // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
-            
-            // Though SegmentBase and SegmentList addressing modes are supposed to be
-            // mutually exclusive, some manifests in the wild use both. So we try to work
-            // around the brokenness.
-            // Example: http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
-            if let Some(sl) = &audio_adaptation.SegmentList {
-                // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
-                // with Representation>SegmentList addressing mode)
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using AdaptationSet>SegmentList addressing mode for audio representation".italic());
-                }
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sl.Initialization {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let init_url = merge_baseurls(&base_url, &path)?;
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: init_url,
-                            start_byte, end_byte,
-                            is_init: true
-                        };
-                        fragments.push(mf);
-                    } else {
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: base_url.clone(),
-                            start_byte, end_byte,
-                            is_init: true
-                        };
-                        fragments.push(mf);
-                    }
-                }
-                for su in sl.segment_urls.iter() {
-                    start_byte = None;
-                    end_byte = None;
-                    // we are ignoring SegmentURL@indexRange
-                    if let Some(range) = &su.mediaRange {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(m) = &su.media {
-                        let u = base_url.join(m)
-                            .map_err(|e| parse_error("joining media with baseURL", e))?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    } else if !audio_adaptation.BaseURL.is_empty() {
-                        let u = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    }
-                }
-            }
-            if let Some(sl) = &audio_repr.SegmentList {
-                // (1) Representation>SegmentList addressing mode
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using Representation>SegmentList addressing mode for audio representation".italic());
-                }
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sl.Initialization {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let init_url = merge_baseurls(&base_url, &path)?;
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: init_url,
-                            start_byte, end_byte,
-                            is_init: true,
-                        };
-                        fragments.push(mf);
-                    } else {
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: base_url.clone(),
-                            start_byte, end_byte,
-                            is_init: true,
-                        };
-                        fragments.push(mf);
-                    }
-                }
-                for su in sl.segment_urls.iter() {
-                    start_byte = None;
-                    end_byte = None;
-                    // we are ignoring SegmentURL@indexRange
-                    if let Some(range) = &su.mediaRange {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(m) = &su.media {
-                        let u = base_url.join(m)
-                            .map_err(|e| parse_error("joining media with baseURL", e))?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    } else if !audio_repr.BaseURL.is_empty() {
-                        let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    }
-                }
-            } else if audio_repr.SegmentTemplate.is_some() || audio.SegmentTemplate.is_some() {
-                // Here we are either looking at a Representation.SegmentTemplate, or a
-                // higher-level AdaptationSet.SegmentTemplate
-                let st;
-                if let Some(it) = &audio_repr.SegmentTemplate {
-                    st = it;
-                } else if let Some(it) = &audio.SegmentTemplate {
-                    st = it;
-                } else {
-                    panic!("unreachable");
-                }
-                if let Some(i) = &st.initialization {
-                    opt_init = Some(i.to_string());
-                }
-                if let Some(m) = &st.media {
-                    opt_media = Some(m.to_string());
-                }
-                if let Some(ts) = st.timescale {
-                    timescale = ts;
-                }
-                if let Some(sn) = st.startNumber {
-                    start_number = sn;
-                }
-                if let Some(stl) = &audio_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
-                    .or(audio.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
-                {
-                    // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
-                    // "explicit addressing" in certain DASH-IF documents)
-                    if downloader.verbosity > 1 {
-                        println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for audio representation".italic());
-                    }
-                    if let Some(init) = opt_init {
-                        let path = resolve_url_template(&init, &dict);
+                        segment_duration = s.d;
+                        // the URLTemplate may be based on $Time$, or on $Number$
+                        let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                  ("Number", number.to_string())]);
+                        let path = resolve_url_template(&audio_path, &dict);
                         let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: u,
-                            start_byte: None,
-                            end_byte: None,
-                            is_init: true
-                        };
+                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                        let mf = make_fragment(period_counter, u, None, None);
                         fragments.push(mf);
-                    }
-                    if let Some(media) = opt_media {
-                        let audio_path = resolve_url_template(&media, &dict);
-                        let mut segment_time = 0;
-                        let mut segment_duration;
-                        let mut number = start_number;
-                        for s in &stl.segments {
-                            if let Some(t) = s.t {
-                                segment_time = t;
-                            }
-                            segment_duration = s.d;
-                            // the URLTemplate may be based on $Time$, or on $Number$
-                            let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                      ("Number", number.to_string())]);
-                            let path = resolve_url_template(&audio_path, &dict);
-                            let u = base_url.join(&path)
-                                .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                            let mf = make_fragment(period_counter, u, None, None);
-                            fragments.push(mf);
-                            number += 1;
-                            if let Some(r) = s.r {
-                                let mut count = 0i64;
-                                // FIXME perhaps we also need to account for startTime?
-                                let end_time = period_duration_secs * timescale as f64;
-                                loop {
-                                    count += 1;
-                                    // Exit from the loop after @r iterations (if @r is
-                                    // positive). A negative value of the @r attribute indicates
-                                    // that the duration indicated in @d attribute repeats until
-                                    // the start of the next S element, the end of the Period or
-                                    // until the next MPD update.
-                                    if r >= 0 {
-                                        if count > r {
-                                            break;
-                                        }
-                                    } else if segment_time as f64 > end_time {
+                        number += 1;
+                        if let Some(r) = s.r {
+                            let mut count = 0i64;
+                            // FIXME perhaps we also need to account for startTime?
+                            let end_time = period_duration_secs * timescale as f64;
+                            loop {
+                                count += 1;
+                                // Exit from the loop after @r iterations (if @r is
+                                // positive). A negative value of the @r attribute indicates
+                                // that the duration indicated in @d attribute repeats until
+                                // the start of the next S element, the end of the Period or
+                                // until the next MPD update.
+                                if r >= 0 {
+                                    if count > r {
                                         break;
                                     }
-                                    segment_time += segment_duration;
-                                    let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                              ("Number", number.to_string())]);
-                                    let path = resolve_url_template(&audio_path, &dict);
-                                    let u = base_url.join(&path)
-                                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                                    let mf = make_fragment(period_counter, u, None, None);
-                                    fragments.push(mf);
-                                    number += 1;
+                                } else if segment_time as f64 > end_time {
+                                    break;
                                 }
+                                segment_time += segment_duration;
+                                let dict = HashMap::from([("Time", segment_time.to_string()),
+                                                          ("Number", number.to_string())]);
+                                let path = resolve_url_template(&audio_path, &dict);
+                                let u = base_url.join(&path)
+                                    .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                let mf = make_fragment(period_counter, u, None, None);
+                                fragments.push(mf);
+                                number += 1;
                             }
-                            segment_time += segment_duration;
                         }
-                    } else {
+                        segment_time += segment_duration;
+                    }
+                } else {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "SegmentTimeline without a media attribute".to_string()));
+                }
+            } else { // no SegmentTimeline element
+                // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index
+                // addressing mode (also called "simple addressing" in certain DASH-IF
+                // documents)
+                if downloader.verbosity > 1 {
+                    println!("  {}", "Using SegmentTemplate addressing mode for audio representation".italic());
+                }
+                let mut total_number = 0i64;
+                if let Some(init) = opt_init {
+                    // The initialization segment counts as one of the $Number$
+                    total_number -= 1;
+                    let path = resolve_url_template(&init, &dict);
+                    let u = base_url.join(&path)
+                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
+                    let mf = MediaFragment{
+                        period: period_counter,
+                        url: u,
+                        start_byte: None,
+                        end_byte: None,
+                        is_init: true
+                    };
+                    fragments.push(mf);
+                }
+                if let Some(media) = opt_media {
+                    let audio_path = resolve_url_template(&media, &dict);
+                    let timescale = st.timescale.unwrap_or(timescale);
+                    let mut segment_duration: f64 = -1.0;
+                    if let Some(d) = opt_duration {
+                        // it was set on the Period.SegmentTemplate node
+                        segment_duration = d;
+                    }
+                    if let Some(std) = st.duration {
+                        segment_duration = std / timescale as f64;
+                    }
+                    if segment_duration < 0.0 {
                         return Err(DashMpdError::UnhandledMediaStream(
-                            "SegmentTimeline without a media attribute".to_string()));
+                            "Audio representation is missing SegmentTemplate@duration attribute".to_string()));
                     }
-                } else { // no SegmentTimeline element
-                    // (3) SegmentTemplate@duration addressing mode or (4)
-                    // SegmentTemplate@index addressing mode (also called "simple
-                    // addressing" in certain DASH-IF documents)
-                    if downloader.verbosity > 1 {
-                        println!("  {}", "Using SegmentTemplate addressing mode for audio representation".italic());
-                    }
-                    let mut total_number = 0i64;
-                    if let Some(init) = opt_init {
-                        // The initialization segment counts as one of the $Number$
-                        total_number -= 1;
-                        let path = resolve_url_template(&init, &dict);
+                    total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                    let mut number = start_number;
+                    for _ in 1..=total_number {
+                        let dict = HashMap::from([("Number", number.to_string())]);
+                        let path = resolve_url_template(&audio_path, &dict);
                         let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining init with BaseURL", e))?;
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: u,
-                            start_byte: None,
-                            end_byte: None,
-                            is_init: true
-                        };
+                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                        let mf = make_fragment(period_counter, u, None, None);
                         fragments.push(mf);
-                    }
-                    if let Some(media) = opt_media {
-                        let audio_path = resolve_url_template(&media, &dict);
-                        let timescale = st.timescale.unwrap_or(timescale);
-                        let mut segment_duration: f64 = -1.0;
-                        if let Some(d) = opt_duration {
-                            // it was set on the Period.SegmentTemplate node
-                            segment_duration = d;
-                        }
-                        if let Some(std) = st.duration {
-                            segment_duration = std / timescale as f64;
-                        }
-                        if segment_duration < 0.0 {
-                            return Err(DashMpdError::UnhandledMediaStream(
-                                "Audio representation is missing SegmentTemplate@duration attribute".to_string()));
-                        }
-                        total_number += (period_duration_secs / segment_duration).ceil() as i64;
-                        let mut number = start_number;
-                        for _ in 1..=total_number {
-                            let dict = HashMap::from([("Number", number.to_string())]);
-                            let path = resolve_url_template(&audio_path, &dict);
-                            let u = base_url.join(&path)
-                                .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                            let mf = make_fragment(period_counter, u, None, None);
-                            fragments.push(mf);
-                            number += 1;
-                        }
+                        number += 1;
                     }
                 }
-            } else if let Some(sb) = &audio_repr.SegmentBase {
-                // (5) SegmentBase@indexRange addressing mode
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
-                }
-                // The SegmentBase@indexRange attribute points to a byte range in the media
-                // file that contains index information (an sidx box for MPEG files, or a
-                // Cues entry for a DASH-WebM stream). To be fully compliant, we should
-                // download and parse these (for example using the sidx crate) then download
-                // the referenced content segments. In practice, it seems that the
-                // indexRange information is mostly provided by DASH encoders to allow
-                // clients to rewind and fast-forward a stream, and is not necessary if we
-                // download the full content specified by BaseURL.
-                //
-                // Our strategy: if there is a SegmentBase > Initialization > SourceURL
-                // node, download that first, respecting the byte range if it is specified.
-                // Otherwise, download the full content specified by the BaseURL for this
-                // segment (ignoring any indexRange attributes).
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sb.initialization {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let mf = MediaFragment {
-                            period: period_counter,
-                            url: merge_baseurls(&base_url, &path)?,
-                            start_byte, end_byte,
-                            is_init: true,
-                        };
-                        fragments.push(mf);
-                    }
-                }
-                let mf = MediaFragment {
-                    period: period_counter,
-                    url: base_url.clone(),
-                    start_byte: None,
-                    end_byte: None,
-                    is_init: true,
-                };
-                fragments.push(mf);
-            } else if fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
-                // (6) plain BaseURL addressing mode
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using BaseURL addressing mode for audio representation".italic());
-                }
-                let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
-                let mf = make_fragment(period_counter, u, None, None);
-                fragments.push(mf);
             }
-            if fragments.is_empty() {
-                return Err(DashMpdError::UnhandledMediaStream(
-                    "no usable addressing mode identified for audio representation".to_string()));
+        } else if let Some(sb) = &audio_repr.SegmentBase {
+            // (5) SegmentBase@indexRange addressing mode
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
             }
+            // The SegmentBase@indexRange attribute points to a byte range in the media file
+            // that contains index information (an sidx box for MPEG files, or a Cues entry for
+            // a DASH-WebM stream). To be fully compliant, we should download and parse these
+            // (for example using the sidx crate) then download the referenced content segments.
+            // In practice, it seems that the indexRange information is mostly provided by DASH
+            // encoders to allow clients to rewind and fast-forward a stream, and is not
+            // necessary if we download the full content specified by BaseURL.
+            //
+            // Our strategy: if there is a SegmentBase > Initialization > SourceURL node,
+            // download that first, respecting the byte range if it is specified. Otherwise,
+            // download the full content specified by the BaseURL for this segment (ignoring any
+            // indexRange attributes).
+            let mut start_byte: Option<u64> = None;
+            let mut end_byte: Option<u64> = None;
+            if let Some(init) = &sb.initialization {
+                if let Some(range) = &init.range {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(su) = &init.sourceURL {
+                    let path = resolve_url_template(su, &dict);
+                    let mf = MediaFragment {
+                        period: period_counter,
+                        url: merge_baseurls(&base_url, &path)?,
+                        start_byte, end_byte,
+                        is_init: true,
+                    };
+                    fragments.push(mf);
+                }
+            }
+            let mf = MediaFragment {
+                period: period_counter,
+                url: base_url.clone(),
+                start_byte: None,
+                end_byte: None,
+                is_init: true,
+            };
+            fragments.push(mf);
+        } else if fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
+            // (6) plain BaseURL addressing mode
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using BaseURL addressing mode for audio representation".italic());
+            }
+            let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+            let mf = make_fragment(period_counter, u, None, None);
+            fragments.push(mf);
+        }
+        if fragments.is_empty() {
+            return Err(DashMpdError::UnhandledMediaStream(
+                "no usable addressing mode identified for audio representation".to_string()));
         }
     }
     Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
@@ -1709,126 +1703,186 @@ async fn do_period_video(
     if let Some(d) = period.duration {
         period_duration_secs = d.as_secs_f64();
     }
-    // Handle the AdaptationSet which contains video content
-    let maybe_video_adaptation = period.adaptations.iter().find(is_video_adaptation);
-    if let Some(video_adaptation) = maybe_video_adaptation {
-        let video = video_adaptation.clone();
+    // A manifest may contain multiple AdaptationSets with video content (in particular, when
+    // different codecs are offered). Each AdaptationSet often contains multiple video
+    // Representations with different bandwidths and video resolutions. We select the Representation
+    // to download by ranking the available streams according to the preferred width specified by
+    // the user, or by the preferred height specified by the user, or by the user's specified
+    // quality preference.
+    let representations: Vec<Representation> = period.adaptations.iter()
+        .filter(is_video_adaptation)
+        .flat_map(|a| a.representations.clone())
+        .collect();
+    let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
+        representations.iter()
+            .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+    }  else if let Some(want) = downloader.video_height_preference {
+        representations.iter()
+            .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
+    } else {
+        select_stream_quality_preference(&representations, downloader.quality_preference)
+    };
+    if let Some(video_repr) = maybe_video_repr {
+        // Find the AdaptationSet that is the parent of the selected Representation. This may be
+        // needed for certain Representation attributes whose value can be located higher in the XML
+        // tree.
+        let video_adaptation = period.adaptations.iter()
+            .find(|a| a.representations.iter().any(|r| r.eq(&video_repr)))
+            .unwrap();
         // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
-        if !video.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &video.BaseURL[0].base)?;
+        if !video_adaptation.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
         }
-        // A manifest often contains multiple video Representations with different bandwidths and
-        // video resolutions. We select the Representation to download by ranking the available
-        // streams according to the preferred width specified by the user, or by the preferred
-        // height specified by the user, or by the user's specified quality preference.
-        let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
-            video.representations.iter()
-                .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
-        }  else if let Some(want) = downloader.video_height_preference {
-            video.representations.iter()
-                .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
-        } else {
-            select_stream_quality_preference(&video.representations, downloader.quality_preference)
-        };
-        if let Some(video_repr) = maybe_video_repr {
-            if downloader.verbosity > 0 {
-                let bw = if let Some(bw) = video_repr.bandwidth.or(video.maxBandwidth) {
-                    format!("bw={} Kbps ", bw / 1024)
-                } else {
-                    String::from("")
-                };
-                let unknown = String::from("?");
-                let w = video_repr.width.unwrap_or(video.width.unwrap_or(0));
-                let h = video_repr.height.unwrap_or(video.height.unwrap_or(0));
-                let fmt = if w == 0 || h == 0 {
-                    String::from("")
-                } else {
-                    format!("resolution={w}x{h} ")
-                };
-                let codec = video_repr.codecs.as_ref()
-                    .unwrap_or(video.codecs.as_ref().unwrap_or(&unknown));
-                diagnostics += &format!("  Video stream selected: {bw}{fmt}codec={codec}\n");
-                // Check for ContentProtection on the selected Representation/Adaptation
-                for cp in video_repr.ContentProtection.iter()
-                    .chain(video.ContentProtection.iter())
-                {
-                    diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
-                    if let Some(kid) = &cp.default_KID {
-                        diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
-                    }
-                    for pssh in cp.cenc_pssh.iter() {
-                        if let Some(pc) = &pssh.content {
-                            diagnostics += &format!("    PSSH (from manifest): {pc}\n");
-                        }
+        if downloader.verbosity > 0 {
+            let bw = if let Some(bw) = video_repr.bandwidth.or(video_adaptation.maxBandwidth) {
+                format!("bw={} Kbps ", bw / 1024)
+            } else {
+                String::from("")
+            };
+            let unknown = String::from("?");
+            let w = video_repr.width.unwrap_or(video_adaptation.width.unwrap_or(0));
+            let h = video_repr.height.unwrap_or(video_adaptation.height.unwrap_or(0));
+            let fmt = if w == 0 || h == 0 {
+                String::from("")
+            } else {
+                format!("resolution={w}x{h} ")
+            };
+            let codec = video_repr.codecs.as_ref()
+                .unwrap_or(video_adaptation.codecs.as_ref().unwrap_or(&unknown));
+            diagnostics += &format!("  Video stream selected: {bw}{fmt}codec={codec}\n");
+            // Check for ContentProtection on the selected Representation/Adaptation
+            for cp in video_repr.ContentProtection.iter()
+                .chain(video_adaptation.ContentProtection.iter())
+            {
+                diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
+                if let Some(kid) = &cp.default_KID {
+                    diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
+                }
+                for pssh in cp.cenc_pssh.iter() {
+                    if let Some(pc) = &pssh.content {
+                        diagnostics += &format!("    PSSH (from manifest): {pc}\n");
                     }
                 }
             }
-            if !video_repr.BaseURL.is_empty() {
-                base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+        }
+        if !video_repr.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+        }
+        let mut dict = HashMap::new();
+        if let Some(rid) = &video_repr.id {
+            dict.insert("RepresentationID", rid.to_string());
+        }
+        if let Some(b) = &video_repr.bandwidth {
+            dict.insert("Bandwidth", b.to_string());
+        }
+        let mut opt_init: Option<String> = None;
+        let mut opt_media: Option<String> = None;
+        let mut opt_duration: Option<f64> = None;
+        let mut timescale = 1;
+        let mut start_number = 1;
+        // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
+        // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
+        // nodes in an enclosed Representation node. Don't download media segments here, only
+        // download for SegmentTemplate nodes that are children of a Representation node.
+        if let Some(st) = &video_adaptation.SegmentTemplate {
+            if let Some(i) = &st.initialization {
+                opt_init = Some(i.to_string());
             }
-            let mut dict = HashMap::new();
-            if let Some(rid) = &video_repr.id {
-                dict.insert("RepresentationID", rid.to_string());
+            if let Some(m) = &st.media {
+                opt_media = Some(m.to_string());
             }
-            if let Some(b) = &video_repr.bandwidth {
-                dict.insert("Bandwidth", b.to_string());
+            if let Some(d) = st.duration {
+                opt_duration = Some(d);
             }
-            let mut opt_init: Option<String> = None;
-            let mut opt_media: Option<String> = None;
-            let mut opt_duration: Option<f64> = None;
-            let mut timescale = 1;
-            let mut start_number = 1;
-            // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
-            // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
-            // nodes in an enclosed Representation node. Don't download media segments here, only
-            // download for SegmentTemplate nodes that are children of a Representation node.
-            if let Some(st) = &video.SegmentTemplate {
-                if let Some(i) = &st.initialization {
-                    opt_init = Some(i.to_string());
-                }
-                if let Some(m) = &st.media {
-                    opt_media = Some(m.to_string());
-                }
-                if let Some(d) = st.duration {
-                    opt_duration = Some(d);
-                }
-                if let Some(ts) = st.timescale {
-                    timescale = ts;
-                }
-                if let Some(s) = st.startNumber {
-                    start_number = s;
-                }
+            if let Some(ts) = st.timescale {
+                timescale = ts;
             }
-            // Now the 6 possible addressing modes: (1) SegmentList,
-            // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
-            // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
-            if let Some(sl) = &video_adaptation.SegmentList {
-                // (1) AdaptationSet>SegmentList addressing mode
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using AdaptationSet>SegmentList addressing mode for video representation".italic());
+            if let Some(s) = st.startNumber {
+                start_number = s;
+            }
+        }
+        // Now the 6 possible addressing modes: (1) SegmentList,
+        // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
+        // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
+        if let Some(sl) = &video_adaptation.SegmentList {
+            // (1) AdaptationSet>SegmentList addressing mode
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using AdaptationSet>SegmentList addressing mode for video representation".italic());
+            }
+            let mut start_byte: Option<u64> = None;
+            let mut end_byte: Option<u64> = None;
+            if let Some(init) = &sl.Initialization {
+                if let Some(range) = &init.range {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
                 }
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sl.Initialization {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let mf = MediaFragment {
-                            period: period_counter,
-                            url: merge_baseurls(&base_url, &path)?,
-                            start_byte, end_byte,
-                            is_init: true,
-                        };
-                        fragments.push(mf);
-                    }
-                } else {
+                if let Some(su) = &init.sourceURL {
+                    let path = resolve_url_template(su, &dict);
                     let mf = MediaFragment {
+                        period: period_counter,
+                        url: merge_baseurls(&base_url, &path)?,
+                        start_byte, end_byte,
+                        is_init: true,
+                    };
+                    fragments.push(mf);
+                }
+            } else {
+                let mf = MediaFragment {
+                    period: period_counter,
+                    url: base_url.clone(),
+                    start_byte, end_byte,
+                    is_init: true
+                };
+                fragments.push(mf);
+            }
+            for su in sl.segment_urls.iter() {
+                start_byte = None;
+                end_byte = None;
+                // we are ignoring @indexRange
+                if let Some(range) = &su.mediaRange {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(m) = &su.media {
+                    let u = base_url.join(m)
+                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                } else if !video_adaptation.BaseURL.is_empty() {
+                    let u = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                }
+            }
+        }
+        if let Some(sl) = &video_repr.SegmentList {
+            // (1) Representation>SegmentList addressing mode
+            if downloader.verbosity > 1 {
+                println!("  {}", "Using Representation>SegmentList addressing mode for video representation".italic());
+            }
+            let mut start_byte: Option<u64> = None;
+            let mut end_byte: Option<u64> = None;
+            if let Some(init) = &sl.Initialization {
+                if let Some(range) = &init.range {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(su) = &init.sourceURL {
+                    let path = resolve_url_template(su, &dict);
+                    let mf = MediaFragment {
+                        period: period_counter,
+                        url: merge_baseurls(&base_url, &path)?,
+                        start_byte, end_byte,
+                        is_init: true,
+                    };
+                    fragments.push(mf);
+                } else {
+                    let mf = MediaFragment{
                         period: period_counter,
                         url: base_url.clone(),
                         start_byte, end_byte,
@@ -1836,86 +1890,35 @@ async fn do_period_video(
                     };
                     fragments.push(mf);
                 }
-                for su in sl.segment_urls.iter() {
-                    start_byte = None;
-                    end_byte = None;
-                    // we are ignoring @indexRange
-                    if let Some(range) = &su.mediaRange {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(m) = &su.media {
-                        let u = base_url.join(m)
-                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    } else if !video_adaptation.BaseURL.is_empty() {
-                        let u = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    }
+            }
+            for su in sl.segment_urls.iter() {
+                start_byte = None;
+                end_byte = None;
+                // we are ignoring @indexRange
+                if let Some(range) = &su.mediaRange {
+                    let (s, e) = parse_range(range)?;
+                    start_byte = Some(s);
+                    end_byte = Some(e);
+                }
+                if let Some(m) = &su.media {
+                    let u = base_url.join(m)
+                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
+                } else if !video_repr.BaseURL.is_empty() {
+                    let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    fragments.push(mf);
                 }
             }
-            if let Some(sl) = &video_repr.SegmentList {
-                // (1) Representation>SegmentList addressing mode
-                if downloader.verbosity > 1 {
-                    println!("  {}", "Using Representation>SegmentList addressing mode for video representation".italic());
-                }
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sl.Initialization {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let mf = MediaFragment {
-                            period: period_counter,
-                            url: merge_baseurls(&base_url, &path)?,
-                            start_byte, end_byte,
-                            is_init: true,
-                        };
-                        fragments.push(mf);
-                    } else {
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: base_url.clone(),
-                            start_byte, end_byte,
-                            is_init: true
-                        };
-                        fragments.push(mf);
-                    }
-                }
-                for su in sl.segment_urls.iter() {
-                    start_byte = None;
-                    end_byte = None;
-                    // we are ignoring @indexRange
-                    if let Some(range) = &su.mediaRange {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(m) = &su.media {
-                        let u = base_url.join(m)
-                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    } else if !video_repr.BaseURL.is_empty() {
-                        let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
-                        let mf = make_fragment(period_counter, u, start_byte, end_byte);
-                        fragments.push(mf);
-                    }
-                }
-            } else if video_repr.SegmentTemplate.is_some() || video.SegmentTemplate.is_some() {
+        } else if video_repr.SegmentTemplate.is_some() ||
+            video_adaptation.SegmentTemplate.is_some() {
                 // Here we are either looking at a Representation.SegmentTemplate, or a
                 // higher-level AdaptationSet.SegmentTemplate
                 let st;
                 if let Some(it) = &video_repr.SegmentTemplate {
                     st = it;
-                } else if let Some(it) = &video.SegmentTemplate {
+                } else if let Some(it) = &video_adaptation.SegmentTemplate {
                     st = it;
                 } else {
                     panic!("impossible");
@@ -1933,7 +1936,7 @@ async fn do_period_video(
                     start_number = sn;
                 }
                 if let Some(stl) = &video_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
-                    .or(video.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+                    .or(video_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
                 {
                     // (2) SegmentTemplate with SegmentTimeline addressing mode
                     if downloader.verbosity > 1 {
@@ -2097,17 +2100,13 @@ async fn do_period_video(
                 let mf = make_fragment(period_counter, u, None, None);
                 fragments.push(mf);
             }
-            if fragments.is_empty() {
-                return Err(DashMpdError::UnhandledMediaStream(
-                    "no usable addressing mode identified for video representation".to_string()));
-            }
-        } else {
-            // FIXME we aren't correctly handling manifests without a Representation node
-            // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
+        if fragments.is_empty() {
             return Err(DashMpdError::UnhandledMediaStream(
-                "Couldn't find lowest bandwidth video stream in DASH manifest".to_string()));
+                "no usable addressing mode identified for video representation".to_string()));
         }
     }
+    // FIXME we aren't correctly handling manifests without a Representation node
+    // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
     Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
 }
 
@@ -2721,7 +2720,12 @@ async fn fetch_period_audio(
     } // end local scope for the FileHandle
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            println!("  Attempting to decrypt audio stream");
+            if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+                let kbytes = metadata.len() / 1024;
+                println!("  Attempting to decrypt audio stream ({kbytes} kB)");
+            } else {
+                warn!("Can't obtain size of file with encrypted audio.");
+            }
         }
         let mut args = Vec::new();
         for (k, v) in downloader.decryption_keys.iter() {
@@ -2735,6 +2739,14 @@ async fn fetch_period_audio(
             .args(args)
             .output()
             .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+        if downloader.verbosity > 0 {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                let kbytes = metadata.len() / 1024;
+                println!("  Decrypted audio stream of size {kbytes} kB.");
+            } else {
+                warn!("Can't obtain size of file with decrypted audio.");
+            }
+        }
         if !out.status.success() {
             warn!("mp4decrypt subprocess failed");
             let msg = String::from_utf8_lossy(&out.stdout);
@@ -2901,7 +2913,12 @@ async fn fetch_period_video(
     } // end local scope for tmpfile_video File
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            println!("  Attempting to decrypt video stream");
+            if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+                let kbytes = metadata.len() / 1024;
+                println!("  Attempting to decrypt video stream ({kbytes} kB)");
+            } else {
+                warn!("Can't obtain size of file with encrypted video");
+            }
         }
         let mut args = Vec::new();
         for (k, v) in downloader.decryption_keys.iter() {
@@ -2915,6 +2932,14 @@ async fn fetch_period_video(
             .args(args)
             .output()
             .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+        if downloader.verbosity > 0 {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                let kbytes = metadata.len() / 1024;
+                println!("  Decrypted video stream of size {kbytes} kB.");
+            } else {
+                warn!("Can't obtain size of file with decrypted video.");
+            }
+        }
         if ! out.status.success() {
             warn!("mp4decrypt subprocess failed");
             let msg = String::from_utf8_lossy(&out.stdout);
