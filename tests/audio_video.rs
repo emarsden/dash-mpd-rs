@@ -4,12 +4,14 @@
 //
 //    cargo test --test audio_video -- --show-output
 
-
+pub mod common;
 use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
+use common::check_file_size_approx;
+
 
 // This test is too slow to run; disable it.
 #[ignore]
@@ -147,6 +149,38 @@ async fn test_dl_cea608_captions_slow() {
     // The closed captions are embedded in the video stream.
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+}
+
+
+
+// This manifest contains three AdaptationSets with video content, with different codecs. We want to
+// check that when selecting the video stream to download (criterion = lowest bandwidth), we are
+// analyzing all Representation elements in the manifest, and not just the Representations in the
+// first AdaptationSet.
+#[tokio::test]
+async fn test_dl_video_stream_selection() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://quick.vidalytics.com/video/InPR2EKH/LuZkcIBwHO1N1Pk_/57721/48948/stream.mpd";
+    let out = env::temp_dir().join("vidalytics-multiple-video-adaptations.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 105_187_936);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    // This manifest contains a video AdaptationSet with codec of hevc and another with codec vp9
+    // with exactly the same bandwidth, so we could chose either one.
+    assert!(video.codec_name.eq(&Some(String::from("hevc"))) ||
+            video.codec_name.eq(&Some(String::from("vp9"))));
+    assert_eq!(video.width, Some(480));
 }
 
 
