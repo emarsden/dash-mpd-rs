@@ -844,12 +844,20 @@ fn select_stream_quality_preference(
             QualityPreference::Highest =>
                 representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0)),
             QualityPreference::Intermediate => {
-                let mut ranking: Vec<u8> = representations.iter()
-                    .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
-                    .collect();
-                ranking.sort_unstable();
-                let want_ranking = ranking.get(ranking.len() / 2).unwrap();
-                representations.iter().find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                let count = representations.len();
+                match count {
+                    0 => None,
+                    1 => Some(&representations[0]),
+                    _ => {
+                        let mut ranking: Vec<u8> = representations.iter()
+                            .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
+                            .collect();
+                        ranking.sort_unstable();
+                        let want_ranking = ranking.get(count / 2).unwrap();
+                        representations.iter()
+                            .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                    },
+                }
             },
         }
     } else {
@@ -860,13 +868,20 @@ fn select_stream_quality_preference(
             QualityPreference::Highest => representations.iter()
                 .max_by_key(|r| r.bandwidth.unwrap_or(0)),
             QualityPreference::Intermediate => {
-                let mut ranking: Vec<u64> = representations.iter()
-                    .map(|r| r.bandwidth.unwrap_or(100_000_000))
-                    .collect();
-                ranking.sort_unstable();
-                let want_ranking = ranking.get(ranking.len() / 2).unwrap();
-                representations.iter()
-                    .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                let count = representations.len();
+                match count {
+                    0 => None,
+                    1 => Some(&representations[0]),
+                    _ => {
+                        let mut ranking: Vec<u64> = representations.iter()
+                            .map(|r| r.bandwidth.unwrap_or(100_000_000))
+                            .collect();
+                        ranking.sort_unstable();
+                        let want_ranking = ranking.get(count / 2).unwrap();
+                        representations.iter()
+                            .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                    },
+                }
             },
         }
     }
