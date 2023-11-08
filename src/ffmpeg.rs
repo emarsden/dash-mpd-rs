@@ -203,6 +203,17 @@ fn mux_audio_video_vlc(
     output_path: &Path,
     audio_path: &Path,
     video_path: &Path) -> Result<(), DashMpdError> {
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    let muxer = match container {
+        "ogg" => "ogg",
+        "web" => "mkv",
+        "mp3" => "raw",
+        "mpg" => "mpeg1",
+        _ => container,
+    };
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(".mp4")
@@ -231,7 +242,7 @@ fn mux_audio_video_vlc(
                video_str,
                "--input-slave", audio_str,
                "--sout-mp4-faststart",
-               &format!("--sout=#std{{access=file,mux=mp4,dst={tmppath}}}"),
+               &format!("--sout=#std{{access=file,mux={muxer},dst={tmppath}}}"),
                "--sout-keep",
                "vlc://quit"])
         .output()
@@ -295,7 +306,8 @@ fn mux_audio_video_mp4box(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
     let cmd = Command::new(&downloader.mp4box_location)
-        .args(["-add", video_str,
+        .args(["-flat",
+               "-add", video_str,
                "-add", audio_str,
                "-new", tmppath])
         .output()
