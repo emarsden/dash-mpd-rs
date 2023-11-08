@@ -62,7 +62,8 @@ different container types.
 
 ## DASH features supported
 
-- VOD (static) stream manifests.
+- VOD (static) stream manifests. See the comment below concerning manifests that are published as
+  dyanmic but which are in fact static, and which we are able to download.
 
 - Multi-period content. The media in the different streams will be saved in a single media container
   if the formats are compatible (same resolution, codecs, bitrate and so on) and
@@ -89,19 +90,27 @@ different container types.
   subtitle type; you can try using the GPAC media player (available with "gpac -gui").
 
 - Support for decrypting media streams that use MPEG Common Encryption (cenc) ContentProtection.
-  This requires the `mp4decrypt` commandline application from the [Bento4
+  This requires either the `mp4decrypt` commandline application from the [Bento4
   suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
-  available](https://www.bento4.com/downloads/) for common platforms). See the
-  `add_decryption_key` function on `DashDownloader`, and the
+  available](https://www.bento4.com/downloads/) for common platforms), or the [Shaka
+  packager](https://github.com/shaka-project/shaka-packager) application (binaries for common
+  platforms are available as GitHub releases). See the `add_decryption_key` function on
+  `DashDownloader`, the `with_decryptor_preference` function on `DashDownloader`, and the
   [decrypt.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/decrypt.rs) example.
 
 
 
 ## Limitations / unsupported features
 
-- We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV
+- We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV.
+  This is because we don't implement the clock functionality needed to know when new media segments
+  become available nor the bandwidth management functionality that allows adaptive streaming. Note
+  however that some OTT providers public dynamic manifests for content that is not live (i.e. all
+  media segments are already available), and which we can download in dumb “fast-as-possible” mode.
+  You can use the XSLT stylesheet `tests/fixtures/rewrite-drop-dynamic.xslt` to change the `dynamic`
+  attribute to `static` before downloading, which should allow you to download this type of content.
 
-- No support for XLink with actuate=onRequest semantics
+- No support for XLink with actuate=onRequest semantics.
 
 
 ## Usage
@@ -264,7 +273,9 @@ This crate is tested on the following platforms:
 - Android 12 on Aarch64 via [termux](https://termux.dev/), without the libav feature (you'll need to
   install the rust, binutils and ffmpeg packages)
 
-- FreeBSD/AMD64 and OpenBSD/AMD64, without the libav feature
+- FreeBSD/AMD64 and OpenBSD/AMD64, without the libav feature. Note however that some of the external
+  utility applications we use for muxing or decrypting media content are poorly supported on
+  these platforms.
 
 
 ## License
