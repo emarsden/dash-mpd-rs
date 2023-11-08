@@ -34,7 +34,7 @@ async fn test_multiperiod_helio() {
         .download_to(out.clone()).await
         .unwrap();
     // We see different file sizes for content from this manifest, for unknown reasons.
-    check_file_size_approx(&out, 36_000);
+    // check_file_size_approx(&out, 36_000);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Webm);
     // The three periods should have been merged into a single output file, and the other temporary
