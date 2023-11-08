@@ -43,25 +43,24 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
 fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdError> {
-    use std::os::unix::ffi::OsStrExt;
-
-    let ext_bytes = extension.as_bytes();
-    // suffix should include the "." separator
-    let fmt = format!(".{}", extension.to_string_lossy());
-    let suffix = if ext_bytes.starts_with(b".") {
-        extension
+    if let Some(ext) = extension.to_str() {
+        // suffix should include the "." separator
+        let fmt = format!(".{}", extension.to_string_lossy());
+        let suffix = if ext.starts_with('.') {
+            extension
+        } else {
+            OsStr::new(&fmt)
+        };
+        let file = tempfile::Builder::new()
+            .prefix(prefix)
+            .suffix(suffix)
+            .rand_bytes(7)
+            .tempfile()
+            .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
+        Ok(file.path().to_path_buf())
     } else {
-        OsStr::new(&fmt)
-    };
-    let file = tempfile::Builder::new()
-        .prefix(prefix)
-        .suffix(suffix)
-        .rand_bytes(7)
-        .tempfile()
-        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
-    let s = file.path().to_path_buf();
-
-    Ok(s)
+        Err(DashMpdError::Other(String::from("converting filename extension")))
+    }
 }
 
 
