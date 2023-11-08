@@ -14,7 +14,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.21.5"
 base64-serde = "0.7.0"
-serde = { version = "1.0.190", features = ["derive"] }
+serde = { version = "1.0.192", features = ["derive"] }
 serde_with = { version = "3.4.0", features = ["base64"] }
 quick-xml = { version = "0.31.0", features = ["serialize", "overlapped-lists"] }
 url = "2.4.1"
