@@ -35,6 +35,10 @@ jobs:
           sudo pkg install -y --quiet ffmpeg
           sudo pkg install -y --quiet multimedia/gpac-mp4box
           mp4box -version
+          # we are depending here on FreeBSD's Linux binary compatibility layer
+          curl https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-linux-x64 --output /tmp/shaka-packager
+          sudo mv /tmp/shaka-packager /usr/local/bin
+          sudo chmod +x /usr/local/bin/shaka-packager
           sudo pkg install -y --quiet textproc/libxslt
           ls -la
           cargo build --jobs 1

@@ -32,6 +32,14 @@ jobs:
         unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
         sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
 
+    # Shaka packager is not available via homebrew. Alternatively, could use docker
+    # google/shaka-packager. Here we are depending on the macos runner being an AMD64 machine.
+    - name: Install shaka-packager
+      run: |
+        wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
+        mv /tmp/shaka-packager /usr/local/bin
+        chmod +x /usr/local/bin/shaka-packager
+
     - name: install xsltproc
       run: brew install libxslt
 
