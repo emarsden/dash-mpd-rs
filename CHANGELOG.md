@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.4] - Unreleased
+
+- Add possibility to use Shaka packager application for decryption of media Content Protection, as
+  an alternative to mp4decrypt. The shaka-packager application is able to handle more media formats
+  (e.g. WebM/Matroska containers) and is better maintained than mp4decrypt. See method
+  `with_decryptor_preference` method on `DashDownloader`.
+
+- Fix the selection of the desired Representation (according to the user's quality/resolution
+  preferences) for DASH manifests that include multiple AdaptationSets. This is the case on some
+  manifests that offer media streams using different codecs. We were previously only examining
+  Representation elements in the first AdaptationSet present in the manifest.
+
+
 ## [0.14.3] - 2023-11-04
 
 - Add `@pdDelta` attribute on `SegmentTemplate` and `SegmentBase` elements.

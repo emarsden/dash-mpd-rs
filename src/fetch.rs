@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::cmp::min;
+use std::ffi::OsStr;
 use std::num::NonZeroU32;
 use log::{info, warn, error};
 use colored::*;
@@ -41,10 +42,21 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str) -> Result<PathBuf, DashMpdError> {
+fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdError> {
+    use std::os::unix::ffi::OsStrExt;
+
+    let ext_bytes = extension.as_bytes();
+    // suffix should include the "." separator
+    let fmt = format!(".{}", extension.to_string_lossy());
+    let suffix = if ext_bytes.starts_with(b".") {
+        extension
+    } else {
+        OsStr::new(&fmt)
+    };
     let file = tempfile::Builder::new()
         .prefix(prefix)
-        .rand_bytes(5)
+        .suffix(suffix)
+        .rand_bytes(7)
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
     let s = file.path().to_path_buf();
@@ -104,11 +116,13 @@ pub struct DashDownloader {
     verbosity: u8,
     record_metainformation: bool,
     pub muxer_preference: HashMap<String, String>,
+    pub decryptor_preference: String,
     pub ffmpeg_location: String,
     pub vlc_location: String,
     pub mkvmerge_location: String,
     pub mp4box_location: String,
     pub mp4decrypt_location: String,
+    pub shaka_packager_location: String,
 }
 
 
@@ -217,11 +231,8 @@ impl DashDownloader {
             verbosity: 0,
             record_metainformation: true,
             muxer_preference: HashMap::new(),
-            ffmpeg_location: if cfg!(target_os = "windows") {
-                String::from("ffmpeg.exe")
-            } else {
-                String::from("ffmpeg")
-            },
+            decryptor_preference: String::from("mp4decrypt"),
+            ffmpeg_location: String::from("ffmpeg"),
 	    vlc_location: if cfg!(target_os = "windows") {
                 // The official VideoLan Windows installer doesn't seem to place its installation
                 // directory in the PATH, so we try with the default full path.
@@ -229,11 +240,7 @@ impl DashDownloader {
             } else {
                 String::from("vlc")
             },
-	    mkvmerge_location: if cfg!(target_os = "windows") {
-                String::from("mkvmerge.exe")
-            } else {
-                String::from("mkvmerge")
-            },
+	    mkvmerge_location: String::from("mkvmerge"),
 	    mp4box_location: if cfg!(target_os = "windows") {
                 String::from("MP4Box.exe")
             } else if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
@@ -241,11 +248,8 @@ impl DashDownloader {
             } else {
                 String::from("mp4box")
             },
-            mp4decrypt_location: if cfg!(target_os = "windows") {
-                String::from("mp4decrypt.exe")
-            } else {
-                String::from("mp4decrypt")
-            },
+            mp4decrypt_location: String::from("mp4decrypt"),
+            shaka_packager_location: String::from("shaka-packager"),
         }
     }
 
@@ -378,7 +382,8 @@ impl DashDownloader {
 
     /// Add a key to be used to decrypt MPEG media streams that use Common Encryption (cenc). This
     /// function may be called several times to specify multiple kid/key pairs. Decryption uses the
-    /// Bento4 commandline application mp4decrypt, run as a subprocess.
+    /// external commandline application specified by `with_decryptor_preference` (either mp4decrypt
+    /// from Bento4 or shaka-packager, defaulting to mp4decrypt), run as a subprocess.
     ///
     /// # Arguments
     ///
@@ -545,6 +550,14 @@ impl DashDownloader {
         self
     }
 
+    /// # Arguments
+    ///
+    /// * `decryption_tool`: either "mp4decrypt" or "shaka"
+    pub fn with_decryptor_preference(mut self, decryption_tool: &str) -> DashDownloader {
+        self.decryptor_preference = decryption_tool.to_string();
+        self
+    }
+
     /// Specify the location of the `ffmpeg` application, if not located in PATH.
     ///
     /// # Arguments
@@ -616,6 +629,18 @@ impl DashDownloader {
     ///   (implemented in `std::process::Command`).
     pub fn with_mp4decrypt(mut self, path: &str) -> DashDownloader {
         self.mp4decrypt_location = path.to_string();
+        self
+    }
+
+    /// Specify the location of the shaka-packager application, if not located in PATH.
+    ///
+    /// # Arguments
+    ///
+    /// * `path`: the path to the shaka-packager application. If it does not specify an absolute
+    ///   path, the `PATH` environment variable will be searched in a platform-specific way
+    ///   (implemented in `std::process::Command`).
+    pub fn with_shaka_packager(mut self, path: &str) -> DashDownloader {
+        self.shaka_packager_location = path.to_string();
         self
     }
 
@@ -733,7 +758,8 @@ fn output_path_for_period(base: &Path, period: u8) -> PathBuf {
             }
         }
         let p = format!("dashmpd-p{period}");
-        tmp_file_path(&p).unwrap_or_else(|_| p.into())
+        tmp_file_path(&p, base.extension().unwrap_or(OsStr::new("mp4")))
+            .unwrap_or_else(|_| p.into())
     }
 }
 
@@ -1215,7 +1241,7 @@ pub async fn parse_resolving_xlinks(
     // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
     // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
     for ss in &downloader.xslt_stylesheets {
-        let tmpmpd = tmp_file_path("dashxslt")?;
+        let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
         fs::write(&tmpmpd, &buf)
             .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
         let xsltproc = Command::new("xsltproc")
@@ -1271,7 +1297,7 @@ async fn do_period_audio(
     let representations = if let Some(ref lang) = downloader.language_preference {
         audio_adaptations
             .min_by_key(|a| adaptation_lang_distance(a, lang))
-            .map_or_else(|| Vec::new(), |a| a.representations.clone())
+            .map_or_else(Vec::new, |a| a.representations.clone())
 
     } else {
         audio_adaptations
@@ -1283,13 +1309,16 @@ async fn do_period_audio(
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
         let audio_adaptation = period.adaptations.iter()
-            .find(|a| a.representations.iter().any(|r| r.eq(&audio_repr)))
+            .find(|a| a.representations.iter().any(|r| r.eq(audio_repr)))
             .unwrap();
         // The AdaptationSet may have a BaseURL (e.g. the test BBC streams). We use a local variable
         // to make sure we don't "corrupt" the base_url for the video segments.
         let mut base_url = base_url.clone();
         if !audio_adaptation.BaseURL.is_empty() {
             base_url = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
+        }
+        if !audio_repr.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
         }
         if downloader.verbosity > 0 {
             let bw = if let Some(bw) = audio_repr.bandwidth {
@@ -1319,11 +1348,6 @@ async fn do_period_audio(
                     }
                 }
             }
-        }
-        // the Representation may have a BaseURL
-        let mut base_url = base_url;
-        if !audio_repr.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
         }
         let mut opt_init: Option<String> = None;
         let mut opt_media: Option<String> = None;
@@ -1727,13 +1751,16 @@ async fn do_period_video(
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
         let video_adaptation = period.adaptations.iter()
-            .find(|a| a.representations.iter().any(|r| r.eq(&video_repr)))
+            .find(|a| a.representations.iter().any(|r| r.eq(video_repr)))
             .unwrap();
         // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
         if !video_adaptation.BaseURL.is_empty() {
             base_url = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
+        }
+        if !video_repr.BaseURL.is_empty() {
+            base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
         }
         if downloader.verbosity > 0 {
             let bw = if let Some(bw) = video_repr.bandwidth.or(video_adaptation.maxBandwidth) {
@@ -2580,8 +2607,8 @@ async fn fetch_period_audio(
     let mut have_audio = false;
     {
         // We need a local scope for our temporary File, so that the file is closed when we later
-        // optionally call mp4decrypt (which requires exclusive access to its input file on
-        // Windows).
+        // optionally call the decryption application (which requires exclusive access to its input
+        // file on Windows).
         let tmpfile_audio = File::create(tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
@@ -2720,43 +2747,102 @@ async fn fetch_period_audio(
     } // end local scope for the FileHandle
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            if let Ok(metadata) = fs::metadata(tmppath.clone()) {
-                let kbytes = metadata.len() / 1024;
-                println!("  Attempting to decrypt audio stream ({kbytes} kB)");
-            } else {
-                warn!("Can't obtain size of file with encrypted audio.");
+            let metadata = fs::metadata(tmppath.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted audio metadata")))?;
+            println!("  Attempting to decrypt audio stream ({} kB) with {}",
+                     metadata.len() / 1024,
+                     downloader.decryptor_preference);
+        }
+        let out_ext = downloader.output_path.as_ref().unwrap()
+            .extension()
+            .unwrap_or(OsStr::new("mp4"));
+        let decrypted = tmp_file_path("dashmpd-decrypted-audio", out_ext)?;
+        if downloader.decryptor_preference.eq("mp4decrypt") {
+            let mut args = Vec::new();
+            for (k, v) in downloader.decryption_keys.iter() {
+                args.push("--key".to_string());
+                args.push(format!("{k}:{v}"));
             }
-        }
-        let mut args = Vec::new();
-        for (k, v) in downloader.decryption_keys.iter() {
-            args.push("--key".to_string());
-            args.push(format!("{k}:{v}"));
-        }
-        args.push(String::from(tmppath.to_string_lossy()));
-        let decrypted = tmp_file_path("dashmpd-decrypted-audio")?;
-        args.push(String::from(decrypted.to_string_lossy()));
-        let out = Command::new(downloader.mp4decrypt_location.clone())
-            .args(args)
-            .output()
-            .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-        if downloader.verbosity > 0 {
+            args.push(String::from(tmppath.to_string_lossy()));
+            args.push(String::from(decrypted.to_string_lossy()));
+            let out = Command::new(downloader.mp4decrypt_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+            let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
-                let kbytes = metadata.len() / 1024;
-                println!("  Decrypted audio stream of size {kbytes} kB.");
+                if downloader.verbosity > 0 {
+                    println!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
             } else {
-                warn!("Can't obtain size of file with decrypted audio.");
+                no_output = true;
             }
-        }
-        if !out.status.success() {
-            warn!("mp4decrypt subprocess failed");
-            let msg = String::from_utf8_lossy(&out.stdout);
-            if msg.len() > 0 {
-                warn!("mp4decrypt stdout: {msg}");
+            if !out.status.success() {
+                warn!("mp4decrypt subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    warn!("mp4decrypt stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&out.stderr);
+                if msg.len() > 0 {
+                    warn!("mp4decrypt stderr: {msg}");
+                }
             }
-            let msg = String::from_utf8_lossy(&out.stderr);
-            if msg.len() > 0 {
-                warn!("mp4decrypt stderr: {msg}");
+            if no_output {
+                eprintln!("{}", "Failed to decrypt audio stream".red());
+                println!("Unencrypted audio left in {}", tmppath.display());
+                return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
+        } else if downloader.decryptor_preference.eq("shaka") {
+            let mut args = Vec::new();
+            let mut keys = Vec::new();
+            // TODO could add --quiet
+            args.push(format!("in={},stream=audio,output={}", tmppath.display(), decrypted.display()));
+            let mut drm_label = 0;
+            #[allow(clippy::explicit_counter_loop)]
+            for (k, v) in downloader.decryption_keys.iter() {
+                keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
+                drm_label += 1;
+            }
+            args.push("--enable_raw_key_decryption".to_string());
+            args.push("--keys".to_string());
+            args.push(keys.join(","));
+            let out = Command::new(downloader.shaka_packager_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
+            let mut no_output = false;
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                if downloader.verbosity > 0 {
+                    println!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
+            } else {
+                no_output = true;
+            }
+            if !out.status.success() {
+                warn!("shaka-packager subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    warn!("shaka-packager stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&out.stderr);
+                if msg.len() > 0 {
+                    warn!("shaka-packager stderr: {msg}");
+                }
+            }
+            if no_output {
+                println!("Undecrypted audio stream left in {}", tmppath.display());
+                eprintln!("{}", "Failed to decrypt audio stream".red());
+                return Err(DashMpdError::Decrypting(String::from("audio stream")));
+            }
+        } else {
+            return Err(DashMpdError::Other(String::from("unknown decryption application")));
         }
         fs::rename(decrypted, tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
@@ -2913,43 +2999,102 @@ async fn fetch_period_video(
     } // end local scope for tmpfile_video File
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            if let Ok(metadata) = fs::metadata(tmppath.clone()) {
-                let kbytes = metadata.len() / 1024;
-                println!("  Attempting to decrypt video stream ({kbytes} kB)");
-            } else {
-                warn!("Can't obtain size of file with encrypted video");
+            let metadata = fs::metadata(tmppath.clone())
+                .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
+            println!("  Attempting to decrypt video stream ({} kB) with {}",
+                     metadata.len() / 1024,
+                     downloader.decryptor_preference);
+        }
+        let out_ext = downloader.output_path.as_ref().unwrap()
+            .extension()
+            .unwrap_or(OsStr::new("mp4"));
+        let decrypted = tmp_file_path("dashmpd-decrypted-video", out_ext)?;
+        if downloader.decryptor_preference.eq("mp4decrypt") {
+            let mut args = Vec::new();
+            for (k, v) in downloader.decryption_keys.iter() {
+                args.push("--key".to_string());
+                args.push(format!("{k}:{v}"));
             }
-        }
-        let mut args = Vec::new();
-        for (k, v) in downloader.decryption_keys.iter() {
-            args.push("--key".to_string());
-            args.push(format!("{k}:{v}"));
-        }
-        args.push(String::from(tmppath.to_string_lossy()));
-        let decrypted = tmp_file_path("dashmpd-decrypted-video")?;
-        args.push(String::from(decrypted.to_string_lossy()));
-        let out = Command::new(downloader.mp4decrypt_location.clone())
-            .args(args)
-            .output()
-            .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-        if downloader.verbosity > 0 {
+            args.push(String::from(tmppath.to_string_lossy()));
+            args.push(String::from(decrypted.to_string_lossy()));
+            let out = Command::new(downloader.mp4decrypt_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+            let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
-                let kbytes = metadata.len() / 1024;
-                println!("  Decrypted video stream of size {kbytes} kB.");
+                if downloader.verbosity > 0 {
+                    println!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
             } else {
-                warn!("Can't obtain size of file with decrypted video.");
+                no_output = true;
             }
-        }
-        if ! out.status.success() {
-            warn!("mp4decrypt subprocess failed");
-            let msg = String::from_utf8_lossy(&out.stdout);
-            if msg.len() > 0 {
-                warn!("mp4decrypt stdout: {msg}");
+            if !out.status.success() {
+                warn!("mp4decrypt subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    warn!("mp4decrypt stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&out.stderr);
+                if msg.len() > 0 {
+                    warn!("mp4decrypt stderr: {msg}");
+                }
             }
-            let msg = String::from_utf8_lossy(&out.stderr);
-            if msg.len() > 0 {
-                warn!("mp4decrypt stderr: {msg}");
+            if no_output {
+                eprintln!("{}", "Failed to decrypt video stream".red());
+                println!("Undecrypted video stream left in {}", tmppath.display());
+                return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
+        } else if downloader.decryptor_preference.eq("shaka") {
+            let mut args = Vec::new();
+            let mut keys = Vec::new();
+            // TODO could add --quiet
+            args.push(format!("in={},stream=video,output={}", tmppath.display(), decrypted.display()));
+            let mut drm_label = 0;
+            #[allow(clippy::explicit_counter_loop)]
+            for (k, v) in downloader.decryption_keys.iter() {
+                keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
+                drm_label += 1;
+            }
+            args.push("--enable_raw_key_decryption".to_string());
+            args.push("--keys".to_string());
+            args.push(keys.join(","));
+            let out = Command::new(downloader.shaka_packager_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
+            let mut no_output = false;
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                if downloader.verbosity > 0 {
+                    println!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
+            } else {
+                no_output = true;
+            }
+            if !out.status.success() {
+                warn!("shaka-packager subprocess failed");
+                let msg = String::from_utf8_lossy(&out.stdout);
+                if msg.len() > 0 {
+                    warn!("shaka-packager stdout: {msg}");
+                }
+                let msg = String::from_utf8_lossy(&out.stderr);
+                if msg.len() > 0 {
+                    warn!("shaka-packager stderr: {msg}");
+                }
+            }
+            if no_output {
+                println!("Undecrypted video left in {}", tmppath.display());
+                eprintln!("{}", "Failed to decrypt video stream".red());
+                return Err(DashMpdError::Decrypting(String::from("video stream")));
+            }
+        } else {
+            return Err(DashMpdError::Other(String::from("unknown decryption application")));
         }
         fs::rename(decrypted, tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
@@ -3314,17 +3459,20 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                          pd.subtitle_fragments.len());
             }
         }
+        let output_ext = downloader.output_path.as_ref().unwrap()
+            .extension()
+            .unwrap_or(OsStr::new("mp4"));
         let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
             path.clone()
         } else {
-            tmp_file_path("dashmpd-audio")?
+            tmp_file_path("dashmpd-audio", output_ext)?
         };
         let tmppath_video = if let Some(ref path) = downloader.keep_video {
             path.clone()
         } else {
-            tmp_file_path("dashmpd-video")?
+            tmp_file_path("dashmpd-video", output_ext)?
         };
-        let tmppath_subs = tmp_file_path("dashmpd-subs")?;
+        let tmppath_subs = tmp_file_path("dashmpd-subs", OsStr::new("sub"))?;
         if downloader.fetch_audio && !pd.audio_fragments.is_empty() {
             have_audio = fetch_period_audio(downloader, &redirected_url,
                                             tmppath_audio.clone(), &pd.audio_fragments,
@@ -3422,6 +3570,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             period_output_paths.push(period_output_path);
         }
     } // Period iterator
+    #[allow(clippy::comparison_chain)]
     if period_output_paths.len() == 1 {
         // We already arranged to write directly to the requested output_path.
         maybe_record_metainformation(output_path, downloader, &mpd);
