@@ -46,7 +46,7 @@ jobs:
 
     - name: Install shaka-packager
       run: |
-        wget -q -O c:\tools\shaka-packager.exe https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe
+        Invoke-WebRequest -Uri "https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe" -OutFile c:\tools\shaka-packager.exe
 
     - name: install xsltproc
       run: |
