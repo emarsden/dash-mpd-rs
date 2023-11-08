@@ -100,12 +100,12 @@ async fn test_decryption_webm() {
     let meta = ffprobe(out.clone()).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("opus")));
+    let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("vp9")));
     assert!(stream.width.is_some());
-    let stream = &meta.streams[1];
-    assert_eq!(stream.codec_type, Some(String::from("audio")));
-    assert_eq!(stream.codec_name, Some(String::from("opus")));
     let ffmpeg = Command::new("ffmpeg")
         .args(["-v", "error",
                "-i", &out.to_string_lossy(),
