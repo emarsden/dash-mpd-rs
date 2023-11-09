@@ -83,13 +83,21 @@ pub fn generate_minimal_mp4() -> Vec<u8> {
 
 
 // Useful ffmpeg recipes: https://github.com/videojs/http-streaming/blob/main/docs/creating-content.md
+//
 // ffmpeg -y -f lavfi -i testsrc=size=10x10:rate=1 -vf hue=s=0 -t 1 -metadata title=foobles1 tiny.mp4
 pub fn generate_minimal_mp4_ffmpeg(metadata: &str) -> Vec<u8> {
     let tmp = env::temp_dir().join("segment.mp4");
     let ffmpeg = Command::new("ffmpeg")
         .args(["-f", "lavfi",
                "-y",  // overwrite output file if it exists
+               "-nostdin",
                "-i", "testsrc=size=10x10:rate=1",
+               // Force the use of the libx264 encoder. ffmpeg defaults to platform-specific
+               // encoders (which may allow hardware encoding) on certain builds, which may have
+               // stronger restrictions on acceptable frame rates and so on. For example, the
+               // h264_mediacodec encoder on Android has more constraints than libx264 regarding the
+               // number of keyframes.
+               "-c:v", "libx264",
                "-vf", "hue=s=0",
                "-t", "1",
                "-metadata", metadata,

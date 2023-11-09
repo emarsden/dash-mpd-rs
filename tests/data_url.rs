@@ -34,7 +34,9 @@ fn check_frame_color(video: &Path, timestamp: &str, expected_rgb: &[u8; 3]) {
     
     let out = Builder::new().suffix(".png").tempfile().unwrap();
     let ffmpeg = Command::new("ffmpeg")
-        .args(["-y", "-ss", timestamp,
+        .args(["-y",
+               "-nostdin",
+               "-ss", timestamp,
                "-i", &video.to_string_lossy(),
                "-frames:v", "1",
                "-update", "1",
@@ -77,12 +79,16 @@ async fn test_data_url() -> Result<()> {
     let ffmpeg = Command::new("ffmpeg")
         .current_dir(tmpdp)
         .args(["-y",
+               "-nostdin",
                "-f", "lavfi", "-i", "color=c=0xff0000:size=100x100:r=10:duration=5",
                "-f", "lavfi", "-i", "color=c=0x00ff00:size=100x100:r=10:duration=5",
                "-f", "lavfi", "-i", "color=c=0x0000ff:size=100x100:r=10:duration=5",
-               // This option seems necessary on the Android/termux build of ffmpeg, which uses
-               // Android's MediaCodec API and has limitations on keyframe intervals.
-               "-x264opts", "keyint=10:min-keyint=10",
+               // Force the use of the libx264 encoder. ffmpeg defaults to platform-specific
+               // encoders (which may allow hardware encoding) on certain builds, which may have
+               // stronger restrictions on acceptable frame rates and so on. For example, the
+               // h264_mediacodec encoder on Android has more constraints than libx264 regarding the
+               // number of keyframes.
+               "-c:v", "libx264",
                "-filter_complex", "[0:v:0][1:v:0][2:v:0]concat=n=3:v=1:a=0[outv]",
                "-map", "[outv]", "concat.mp4"])
         .output()
@@ -95,6 +101,7 @@ async fn test_data_url() -> Result<()> {
     let ffmpeg = Command::new("ffmpeg")
         .current_dir(tmpdp)
         .args(["-y",
+               "-nostdin",
                "-i", "concat.mp4",
                "-single_file", "0",
                "-init_seg_name", "init.mp4",
