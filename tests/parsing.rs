@@ -226,6 +226,37 @@ fn test_timeoffset_inf() {
 }
 
 
+// This test manifest from https://livesim2.dashif.org/livesim2/chunkdur_1/ato_7/testpic4_8s/Manifest300.mpd
+// Includes features of the DASH Low Latency specification.
+#[test]
+fn test_parse_low_latency() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("dashif-low-latency");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    let mpd = res.unwrap();
+    assert_eq!(mpd.mpdtype, Some(String::from("dynamic")));
+    assert!(mpd.ServiceDescription.as_ref().is_some_and(
+        |sd| sd.Latency.as_ref().is_some_and(
+            |l| l.max.is_some_and(
+                |m| 6999.9 < m && m < 7000.1))));
+    assert!(mpd.ServiceDescription.as_ref().is_some_and(
+        |sd| sd.PlaybackRate.as_ref().is_some_and(
+            |pbr| 0.95 < pbr.min && pbr.min < 0.97)));
+    assert!(mpd.UTCTiming.iter().all(
+        |utc| utc.value.as_ref().is_some_and(
+            |v| v.contains("time.akamai.com"))));
+    assert!(mpd.periods.iter().all(
+        |p| p.adaptations.iter().all(
+            |a| a.SegmentTemplate.as_ref().is_some_and(
+                |st| st.availabilityTimeComplete.is_some_and(
+                    |atc| atc == false)))));
+}
+
+
 #[test]
 fn test_file_parsing() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
