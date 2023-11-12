@@ -402,6 +402,59 @@ async fn test_decryption_mlcbcs_shaka () {
 }
 
 
+// Test vectors from https://github.com/Axinom/public-test-vectors
+#[tokio::test]
+async fn test_decryption_axinom_cmaf_h265_multikey () {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.mpd";
+    let outpath = env::temp_dir().join("axinom-h264-multikey.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .add_decryption_key(String::from("53dc3eaa5164410a8f4ee15113b43040"),
+                            String::from("620045a34e839061ee2e9b7798fdf89b"))
+        .add_decryption_key(String::from("9dbace9e41034c5296aa63227dc5f773"),
+                            String::from("a776f83276a107a3c322f9dbd6d4f48c"))
+        .add_decryption_key(String::from("a76f0ca68e7d40d08a37906f3e24dde2"),
+                            String::from("2a99b42f08005ab4b57af20f4da3cc05"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 48_233_447);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+}
+
+
+#[tokio::test]
+async fn test_decryption_axinom_cbcs () {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://media.axprod.net/TestVectors/v9-MultiFormat/Encrypted_Cbcs/Manifest_1080p.mpd";
+    let outpath = env::temp_dir().join("axinom-cbcs.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
+                            String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
+        // For an unknown reason, mp4decrypt is not able to decrypt the audio stream for this
+        // manifest (though the video works fine).
+        .with_decryptor_preference("shaka")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 41_614_809);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+}
+
 
 // A small decryption test case that we can run on the CI infrastructure.
 #[tokio::test]
