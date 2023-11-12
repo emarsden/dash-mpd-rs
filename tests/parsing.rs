@@ -201,6 +201,30 @@ fn test_datetime_parsing () {
 }
 
 
+// This test manifest from https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd It
+// includes an attribute @availabilityTimeOffset="INF" for floating point infinity, which we want to
+// check is correctly deserialized into our Option<f64> field.
+#[test]
+fn test_timeoffset_inf() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("dashif-live-atoinf");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    let mpd = res.unwrap();
+    assert_eq!(mpd.mpdtype, Some(String::from("dynamic")));
+    assert!(mpd.UTCTiming.iter().all(
+        |utc| utc.value.as_ref().is_some_and(
+            |v| v.contains("time.akamai.com"))));
+    assert!(mpd.periods.iter().all(
+        |p| p.adaptations.iter().all(
+            |a| a.SegmentTemplate.as_ref().is_some_and(
+                |st| st.availabilityTimeOffset.is_some_and(
+                    |ato| ato.is_infinite())))));
+}
+
 
 #[test]
 fn test_file_parsing() {
