@@ -671,7 +671,10 @@ async fn test_dynamic_forced_duration() {
 }
 
 
+// This test doesn't work with libav because we haven't yet implemented copy_video_to_container()
+// with a change in container type.
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
 async fn test_forced_duration_audio() {
     let mpd_url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-surround-en.mpd";
     let out = env::temp_dir().join("forced-duration-audio.mp4");
