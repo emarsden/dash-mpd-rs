@@ -62,9 +62,6 @@ different container types.
 
 ## DASH features supported
 
-- VOD (static) stream manifests. See the comment below concerning manifests that are published as
-  dyanmic but which are in fact static, and which we are able to download.
-
 - Multi-period content. The media in the different streams will be saved in a single media container
   if the formats are compatible (same resolution, codecs, bitrate and so on) and
   `concatenate_periods(false)` has not been called on DashDownloader, and otherwise in separate
@@ -102,13 +99,18 @@ different container types.
 
 ## Limitations / unsupported features
 
-- We can't download content from dynamic MPD manifests, that are used for live streaming/OTT TV.
+- We can’t download content from **dynamic MPD manifests**, that are used for live streaming/OTT TV.
   This is because we don't implement the clock functionality needed to know when new media segments
   become available nor the bandwidth management functionality that allows adaptive streaming. Note
   however that some OTT providers public dynamic manifests for content that is not live (i.e. all
   media segments are already available), and which we can download in dumb “fast-as-possible” mode.
-  You can use the XSLT stylesheet `tests/fixtures/rewrite-drop-dynamic.xslt` to change the `dynamic`
-  attribute to `static` before downloading, which should allow you to download this type of content.
+  You can use the method `allow_live_streams()` on `DashDownloader` to attempt to download from
+  these “**pseudo-live**” streams. It may also be useful to specify `force_duration(secs)` and to use
+  `sleep_between_requests()` to ensure downloading is not faster than real time.
+
+  An alternative technique is to use the XSLT stylesheet `tests/fixtures/rewrite-drop-dynamic.xslt`
+  to change the `dynamic` attribute to `static` before downloading, which should allow you to
+  download this type of content.
 
 - No support for XLink with actuate=onRequest semantics.
 
