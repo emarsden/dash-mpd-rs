@@ -199,6 +199,10 @@ async fn test_error_xlink_gone() {
 // Other live streams that could be checked:
 //   https://demo.unified-streaming.com/k8s/live/trunk/scte35.isml/.mpd
 //   https://tv.nknews.org/tvdash/stream.mpd
+//   https://cph-msl.akamaized.net/dash/live/2003285/test/manifest.mpd
+//   https://cdn-vos-ppp-01.vos360.video/Content/DASH_DASHCLEAR2/Live/channel(PPP-LL-2DASH)/master.mpd
+//   https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd
+//   https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd
 #[tokio::test]
 #[should_panic(expected = "download dynamic MPD")]
 async fn test_error_dynamic_mpd() {

@@ -606,9 +606,93 @@ async fn test_h265() {
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format.extension(), "mp4");
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 48_352_569);
 }
+
+// This is a "pseudo-live" stream, a dynamic MPD manifest for which all media segments are already
+// available at the time of download. Though we are not able to correctly download a genuinely live
+// stream (we don't implement the clock functionality needed to wait until segments become
+// progressively available), we are able to download pseudo-live stream if the
+// allow_live_streaming() method is enabled.
+#[tokio::test]
+async fn test_dynamic_stream() {
+    // Don't run download tests on CI infrastructure
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd";
+    let out = env::temp_dir().join("dynamic-manifest.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 1_591_916);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+}
+
+
+// This is a really live stream, for which we only download a certain number of seconds.
+// Only a small download, so we can run it on CI infrastructure.
+#[tokio::test]
+async fn test_dynamic_forced_duration() {
+    let mpd_url = "https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd";
+    let out = env::temp_dir().join("dynamic-6s.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .force_duration(6.5)
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 141_675);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert_eq!(stream.width, Some(640));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(5.0 < duration && duration < 7.0);
+}
+
+
+#[tokio::test]
+async fn test_forced_duration_audio() {
+    let mpd_url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-surround-en.mpd";
+    let out = env::temp_dir().join("forced-duration-audio.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .force_duration(8.0)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 281_686);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Audio);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(7.1 < duration && duration < 8.5);
+}
+
 
 #[tokio::test]
 async fn test_follow_redirect() {
@@ -623,6 +707,8 @@ async fn test_follow_redirect() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 325_334);
 }
 
