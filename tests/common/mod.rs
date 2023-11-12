@@ -21,7 +21,8 @@ pub fn check_file_size_approx(p: &Path, expected: u64) {
 
 pub fn ffmpeg_approval(name: &Path) -> bool {
     let ffmpeg = Command::new("ffmpeg")
-        .args(["-v", "error",
+        .args(["-nostdin",
+               "-v", "error",
                "-i", &name.to_string_lossy(),
                "-f", "null", "-"])
         .output()
@@ -29,9 +30,9 @@ pub fn ffmpeg_approval(name: &Path) -> bool {
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
     if msg.len() > 0 {
         println!("ffmpeg stderr: {msg}");
-        return false;
+        false
     } else {
-        return true;
+        true
     }
 }
 
