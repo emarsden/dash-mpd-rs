@@ -253,7 +253,7 @@ fn test_parse_low_latency() {
         |p| p.adaptations.iter().all(
             |a| a.SegmentTemplate.as_ref().is_some_and(
                 |st| st.availabilityTimeComplete.is_some_and(
-                    |atc| atc == false)))));
+                    |atc| !atc)))));
 }
 
 
