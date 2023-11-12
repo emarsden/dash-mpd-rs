@@ -2,10 +2,24 @@
 
 ## [0.14.4] - Unreleased
 
-- Add possibility to use Shaka packager application for decryption of media Content Protection, as
-  an alternative to mp4decrypt. The shaka-packager application is able to handle more media formats
-  (e.g. WebM/Matroska containers) and is better maintained than mp4decrypt. See method
+- Add possibility to use Shaka packager application for decryption of media with Content Protection,
+  as an alternative to mp4decrypt. The shaka-packager application is able to handle more media
+  formats (e.g. WebM/Matroska containers) and is better maintained than mp4decrypt. See method
   `with_decryptor_preference` method on `DashDownloader`.
+
+- New method `allow_live_streams()` on DashDownloader that makes it possible to attempt to download
+  from a live (dynamic) manifest. Downloading from a genuinely live stream won't work well, because
+  we don't implement the clock-related throttling needed to only download media segments when they
+  become available. However, some media sources publish pseudo-live streams where all media segments
+  are in fact available (they don't update the manifest once the live is complete), which we will be
+  able to download. You might also have some success in combination with the
+  `sleep_between_requests()` method.
+
+- New method `force_duration(secs)` on `DashDownloader` to specify the number of seconds to capture
+  from the media stream, overriding the duration specified in the DASH manifest. This is mostly
+  useful for live streams, for which the duration is often not specified. It can also be used to
+  capture only the first part of certain normal (static/on-demand) media streams, though this
+  functionality is not fully implemented for all segment description types.
 
 - Fix the selection of the desired Representation (according to the user's quality/resolution
   preferences) for DASH manifests that include multiple AdaptationSets. This is the case on some

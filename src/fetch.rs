@@ -110,6 +110,8 @@ pub struct DashDownloader {
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
+    allow_live_streams: bool,
+    force_duration: Option<f64>,
     rate_limit: u64,
     bw_limiter: Option<DirectRateLimiter>,
     verbosity: u8,
@@ -225,6 +227,8 @@ impl DashDownloader {
             max_error_count: 10,
             progress_observers: Vec::new(),
             sleep_between_requests: 0,
+            allow_live_streams: false,
+            force_duration: None,
             rate_limit: 0,
             bw_limiter: None,
             verbosity: 0,
@@ -483,6 +487,31 @@ impl DashDownloader {
         self
     }
 
+    /// Specify whether to attempt to download from a "live" stream, or dynamic DASH manifest.
+    /// Default is false.
+    ///
+    /// Downloading from a genuinely live stream won't work well, because this library doesn't
+    /// implement the clock-related throttling needed to only download media segments when they
+    /// become available. However, some media sources publish pseudo-live streams where all media
+    /// segments are in fact available, which we will be able to download. You might also have some
+    /// success in combination with the sleep_between_requests() method.
+    ///
+    /// You may also need to force a duration for the live stream using method
+    /// force_duration(), because live streams often don't specify a duration.
+    pub fn allow_live_streams(mut self, value: bool) -> DashDownloader {
+        self.allow_live_streams = value;
+        self
+    }
+
+    /// Specify the number of seconds to capture from the media stream, overriding the duration
+    /// specified in the DASH manifest. This is mostly useful for live streams, for which the
+    /// duration is often not specified. It can also be used to capture only the first part of a
+    /// normal (static/on-demand) media stream.
+    pub fn force_duration(mut self, seconds: f64) -> DashDownloader {
+        self.force_duration = Some(seconds);
+        self
+    }
+
     /// A maximal limit on the network bandwidth consumed to download media segments, expressed in
     /// octets (bytes) per second. No limit on bandwidth if set to zero (the default value).
     /// Limiting bandwidth below 50kB/s is not recommended, as the downloader may fail to respect
@@ -549,6 +578,9 @@ impl DashDownloader {
         self
     }
 
+    /// Specify the commandline application to be used to decrypt media which has been enriched with
+    /// ContentProtection (DRM).
+    ///
     /// # Arguments
     ///
     /// * `decryption_tool`: either "mp4decrypt" or "shaka"
@@ -699,7 +731,6 @@ async fn throttle_download_rate(downloader: &DashDownloader, size: u32) -> Resul
     }
     Ok(())
 }
-
 
 
 fn generate_filename_from_url(url: &str) -> PathBuf {
@@ -1304,6 +1335,9 @@ async fn do_period_audio(
     if let Some(d) = period.duration {
         period_duration_secs = d.as_secs_f64();
     }
+    if let Some(s) = downloader.force_duration {
+        period_duration_secs = s;
+    }
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
     let audio_adaptations = period.adaptations.iter()
@@ -1741,6 +1775,9 @@ async fn do_period_video(
     if let Some(d) = period.duration {
         period_duration_secs = d.as_secs_f64();
     }
+    if let Some(s) = downloader.force_duration {
+        period_duration_secs = s;
+    }
     // A manifest may contain multiple AdaptationSets with video content (in particular, when
     // different codecs are offered). Each AdaptationSet often contains multiple video
     // Representations with different bandwidths and video resolutions. We select the Representation
@@ -2001,6 +2038,9 @@ async fn do_period_video(
                         let mut segment_time = 0;
                         let mut segment_duration;
                         let mut number = start_number;
+                        // FIXME for a live manifest, need to look at the time elapsed since now and
+                        // the mpd.availabilityStartTime to determine the correct value for
+                        // startNumber, based on duration and timescale.
                         for s in &stl.segments {
                             if let Some(t) = s.t {
                                 segment_time = t;
@@ -2029,6 +2069,11 @@ async fn do_period_video(
                                     if r >= 0 {
                                         if count > r {
                                             break;
+                                        }
+                                        if downloader.force_duration.is_some() {
+                                            if segment_time as f64 > end_time {
+                                                break;
+                                            }
                                         }
                                     } else if segment_time as f64 > end_time {
                                         break;
@@ -2492,6 +2537,11 @@ async fn do_period_subtitles(
                                                     if count > r {
                                                         break;
                                                     }
+                                                    if downloader.force_duration.is_some() {
+                                                        if segment_time as f64 > end_time {
+                                                            break;
+                                                        }
+                                                    }
                                                 } else if segment_time as f64 > end_time {
                                                     break;
                                                 }
@@ -2807,7 +2857,7 @@ async fn fetch_period_audio(
             }
             if no_output {
                 eprintln!("{}", "Failed to decrypt audio stream".red());
-                println!("Unencrypted audio left in {}", tmppath.display());
+                println!("Undecrypted audio left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
@@ -3310,6 +3360,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         observer.update(1, "Fetching DASH manifest");
     }
     if downloader.verbosity > 0 {
+        if !downloader.fetch_audio && !downloader.fetch_video && !downloader.fetch_subtitles {
+            println!("Only simulating media downloads");
+        }
         println!("Fetching the DASH manifest");
     }
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
@@ -3368,7 +3421,13 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if mpdtype.eq("dynamic") {
             // TODO: look at algorithm used in function segment_numbers at
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
-            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+            if downloader.allow_live_streams {
+                if downloader.verbosity > 0 {
+                    println!("Attempting to download from live stream (this may not work).");
+                }
+            } else {
+                return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+            }
         }
     }
     let mut toplevel_base_url = redirected_url.clone();
