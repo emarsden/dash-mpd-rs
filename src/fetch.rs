@@ -2070,10 +2070,8 @@ async fn do_period_video(
                                         if count > r {
                                             break;
                                         }
-                                        if downloader.force_duration.is_some() {
-                                            if segment_time as f64 > end_time {
-                                                break;
-                                            }
+                                        if downloader.force_duration.is_some() && segment_time as f64 > end_time {
+                                            break;
                                         }
                                     } else if segment_time as f64 > end_time {
                                         break;
@@ -2537,10 +2535,10 @@ async fn do_period_subtitles(
                                                     if count > r {
                                                         break;
                                                     }
-                                                    if downloader.force_duration.is_some() {
-                                                        if segment_time as f64 > end_time {
-                                                            break;
-                                                        }
+                                                    if downloader.force_duration.is_some() &&
+                                                        segment_time as f64 > end_time
+                                                    {
+                                                        break;
                                                     }
                                                 } else if segment_time as f64 > end_time {
                                                     break;
