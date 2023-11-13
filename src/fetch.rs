@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
@@ -38,6 +39,14 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
                                      governor::state::InMemoryState,
                                      governor::clock::DefaultClock,
                                      governor::middleware::NoOpMiddleware>;
+
+
+// When reading stdout or stderr from an external commandline application to display for the user,
+// this is the maximum number of octets read.
+pub fn partial_process_output(output: &Vec<u8>) -> Cow<'_, str> {
+    let len = min(output.len(), 4096);
+    String::from_utf8_lossy(&output[0..len])
+}
 
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
@@ -1017,15 +1026,28 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
     if let Some(token) = &downloader.auth_bearer_token {
         req = req.bearer_auth(token);
     }
-    if let Ok(resp) = req.send().await {
-        if let Ok(bytes) = resp.bytes().await {
-            let needle = b"pssh";
-            if let Some(offset) = bytes.windows(needle.len()).position(|window| window == needle) {
-                let start = offset - 4;
-                let end = start + bytes[offset-1] as usize;
-                let pssh = bytes.slice(start..end);
-                return Some(pssh.to_vec());
+    if let Ok(mut resp) = req.send().await {
+        // We only download the first bytes of the init segment, because it may be very large in the
+        // case of indexRange adressing, and we don't want to fill up RAM.
+        let mut chunk_counter = 0;
+        let mut segment_first_bytes = Vec::<u8>::new();
+        while let Ok(Some(chunk)) = resp.chunk().await {
+            let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+            if let Err(_) = throttle_download_rate(downloader, size).await {
+                return None;
             }
+            segment_first_bytes.append(&mut chunk.to_vec());
+            chunk_counter += 1;
+            if chunk_counter > 10 {
+                break;
+            }
+        }
+        let needle = b"pssh";
+        if let Some(offset) = segment_first_bytes.windows(needle.len()).position(|window| window == needle) {
+            let start = offset - 4;
+            let end = start + segment_first_bytes[offset-1] as usize;
+            let pssh = &segment_first_bytes[start..end];
+            return Some(pssh.to_vec());
         }
     }
     None
@@ -1295,7 +1317,7 @@ pub async fn parse_resolving_xlinks(
             .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
         if !xsltproc.status.success() {
             let msg = format!("xsltproc returned {}", xsltproc.status);
-            let out = String::from_utf8_lossy(&xsltproc.stderr).to_string();
+            let out = partial_process_output(&xsltproc.stderr).to_string();
             return Err(DashMpdError::Io(std::io::Error::new(std::io::ErrorKind::Other, msg), out));
         }
         if let Err(e) = fs::remove_file(&tmpmpd) {
@@ -2290,11 +2312,11 @@ async fn do_period_subtitles(
                                        &subs_path.to_string_lossy()])
                                 .output()
                             {
-                                let msg = String::from_utf8_lossy(&mp4box.stdout);
+                                let msg = partial_process_output(&mp4box.stdout);
                                 if msg.len() > 0 {
                                     info!("MP4Box stdout: {msg}");
                                 }
-                                let msg = String::from_utf8_lossy(&mp4box.stderr);
+                                let msg = partial_process_output(&mp4box.stderr);
                                 if msg.len() > 0 {
                                     info!("MP4Box stderr: {msg}");
                                 }
@@ -2744,37 +2766,50 @@ async fn fetch_period_audio(
                 };
                 let mut failure = None;
                 match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(response) => {
+                    Ok(mut response) => {
                         if response.status().is_success() {
                             if !downloader.content_type_checks || content_type_audio_p(&response) {
-                                let dash_bytes = response.bytes().await
-                                    .map_err(|e| network_error("fetching DASH audio segment bytes", e))?;
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            println!("  Audio segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, dash_bytes.len());
-                                        }
-                                    } else {
-                                        println!("  Audio segment {url} -> {} octets", dash_bytes.len());
-                                    }
-                                }
-                                let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
-                                throttle_download_rate(downloader, size).await?;
-                                if let Err(e) = tmpfile_audio.write_all(&dash_bytes) {
-                                    error!("Unable to write DASH audio data: {e:?}");
-                                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                                }
+                                let mut fragment_out: Option<File> = None;
                                 if let Some(ref fragment_path) = downloader.fragment_path {
                                     if let Some(path) = frag.url.path_segments()
                                         .unwrap_or_else(|| "".split(' '))
                                         .last()
                                     {
-                                        let af_file = fragment_path.clone().join("audio").join(path);
-                                        let mut out = File::create(af_file)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment file")))?;
-                                        out.write_all(&dash_bytes)
+                                        let vf_file = fragment_path.clone().join("audio").join(path);
+                                        if let Ok(f) = File::create(vf_file) {
+                                            fragment_out = Some(f)
+                                        }
+                                    }
+                                }
+                                let mut segment_size = 0;
+                                // Download in chunked format instead of using reqwest's .bytes()
+                                // API, in order to avoid saturating RAM with a large media segment.
+                                // This is important for DASH manifests that use indexRange
+                                // addressing, which we don't download using byte range requests as
+                                // a normal DASH client would do, but rather download using a single
+                                // network request.
+                                while let Some(chunk) = response.chunk().await
+                                    .map_err(|e| network_error("fetching DASH audio segment", e))?
+                                {
+                                    segment_size += chunk.len();
+                                    let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                                    throttle_download_rate(downloader, size).await?;
+                                    if let Err(e) = tmpfile_audio.write_all(&chunk) {
+                                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                                    }
+                                    if let Some(ref mut fout) = fragment_out {
+                                        fout.write_all(&chunk)
                                             .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
+                                    }
+                                }
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("  Audio segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, segment_size);
+                                        }
+                                    } else {
+                                        println!("  Audio segment {} -> {} octets", &frag.url, segment_size);
                                     }
                                 }
                                 have_audio = true;
@@ -2842,13 +2877,13 @@ async fn fetch_period_audio(
             } else {
                 no_output = true;
             }
-            if !out.status.success() {
+            if !out.status.success() || no_output {
                 warn!("mp4decrypt subprocess failed");
-                let msg = String::from_utf8_lossy(&out.stdout);
+                let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
                     warn!("mp4decrypt stdout: {msg}");
                 }
-                let msg = String::from_utf8_lossy(&out.stderr);
+                let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
                     warn!("mp4decrypt stderr: {msg}");
                 }
@@ -2887,13 +2922,13 @@ async fn fetch_period_audio(
             } else {
                 no_output = true;
             }
-            if !out.status.success() {
+            if !out.status.success() || no_output {
                 warn!("shaka-packager subprocess failed");
-                let msg = String::from_utf8_lossy(&out.stdout);
+                let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
                     warn!("shaka-packager stdout: {msg}");
                 }
-                let msg = String::from_utf8_lossy(&out.stderr);
+                let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
                     warn!("shaka-packager stderr: {msg}");
                 }
@@ -2997,36 +3032,50 @@ async fn fetch_period_video(
                 };
                 let mut failure = None;
                 match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(response) => {
+                    Ok(mut response) => {
                         if response.status().is_success() {
                             if !downloader.content_type_checks || content_type_video_p(&response) {
-                                let dash_bytes = response.bytes().await
-                                    .map_err(|e| network_error("fetching DASH video segment", e))?;
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            println!("  Video segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, dash_bytes.len());
-                                        }
-                                    } else {
-                                        println!("  Video segment {} -> {} octets", &frag.url, dash_bytes.len());
-                                    }
-                                }
-                                let size = min((dash_bytes.len()/1024+1) as u32, u32::MAX);
-                                throttle_download_rate(downloader, size).await?;
-                                if let Err(e) = tmpfile_video.write_all(&dash_bytes) {
-                                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                                }
+                                let mut fragment_out: Option<File> = None;
                                 if let Some(ref fragment_path) = downloader.fragment_path {
                                     if let Some(path) = frag.url.path_segments()
                                         .unwrap_or_else(|| "".split(' '))
                                         .last()
                                     {
                                         let vf_file = fragment_path.clone().join("video").join(path);
-                                        let mut out = File::create(vf_file)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment file")))?;
-                                        out.write_all(&dash_bytes)
+                                        if let Ok(f) = File::create(vf_file) {
+                                            fragment_out = Some(f)
+                                        }
+                                    }
+                                }
+                                let mut segment_size = 0;
+                                // Download in chunked format instead of using reqwest's .bytes()
+                                // API, in order to avoid saturating RAM with a large media segment.
+                                // This is important for DASH manifests that use indexRange
+                                // addressing, which we don't download using byte range requests as
+                                // a normal DASH client would do, but rather download using a single
+                                // network request.
+                                while let Some(chunk) = response.chunk().await
+                                    .map_err(|e| network_error("fetching DASH video segment", e))?
+                                {
+                                    segment_size += chunk.len();
+                                    let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                                    throttle_download_rate(downloader, size).await?;
+                                    if let Err(e) = tmpfile_video.write_all(&chunk) {
+                                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                    }
+                                    if let Some(ref mut fout) = fragment_out {
+                                        fout.write_all(&chunk)
                                             .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
+                                    }
+                                }
+                                if downloader.verbosity > 2 {
+                                    if let Some(sb) = &frag.start_byte {
+                                        if let Some(eb) = &frag.end_byte {
+                                            println!("  Video segment {} range {sb}-{eb} -> {} octets",
+                                                     &frag.url, segment_size);
+                                        }
+                                    } else {
+                                        println!("  Video segment {} -> {} octets", &frag.url, segment_size);
                                     }
                                 }
                                 have_video = true;
@@ -3094,13 +3143,13 @@ async fn fetch_period_video(
             } else {
                 no_output = true;
             }
-            if !out.status.success() {
+            if !out.status.success() || no_output {
                 warn!("mp4decrypt subprocess failed");
-                let msg = String::from_utf8_lossy(&out.stdout);
+                let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
                     warn!("mp4decrypt stdout: {msg}");
                 }
-                let msg = String::from_utf8_lossy(&out.stderr);
+                let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
                     warn!("mp4decrypt stderr: {msg}");
                 }
@@ -3139,13 +3188,13 @@ async fn fetch_period_video(
             } else {
                 no_output = true;
             }
-            if !out.status.success() {
+            if !out.status.success() || no_output {
                 warn!("shaka-packager subprocess failed");
-                let msg = String::from_utf8_lossy(&out.stdout);
+                let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
                     warn!("shaka-packager stdout: {msg}");
                 }
-                let msg = String::from_utf8_lossy(&out.stderr);
+                let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
                     warn!("shaka-packager stderr: {msg}");
                 }
@@ -3310,11 +3359,11 @@ async fn fetch_period_subtitles(
                 .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath.to_string_lossy()])
                 .output()
             {
-                let msg = String::from_utf8_lossy(&mp4box.stdout);
+                let msg = partial_process_output(&mp4box.stdout);
                 if msg.len() > 0 {
                     info!("MP4Box stdout: {msg}");
                 }
-                let msg = String::from_utf8_lossy(&mp4box.stderr);
+                let msg = partial_process_output(&mp4box.stderr);
                 if msg.len() > 0 {
                     info!("MP4Box stderr: {msg}");
                 }
@@ -3588,11 +3637,11 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                            &period_output_path.clone().to_string_lossy()])
                     .output()
                 {
-                    let msg = String::from_utf8_lossy(&mp4box.stdout);
+                    let msg = partial_process_output(&mp4box.stdout);
                     if msg.len() > 0 {
                         info!("MP4Box stdout: {msg}");
                     }
-                    let msg = String::from_utf8_lossy(&mp4box.stderr);
+                    let msg = partial_process_output(&mp4box.stderr);
                     if msg.len() > 0 {
                         info!("MP4Box stderr: {msg}");
                     }

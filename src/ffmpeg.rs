@@ -12,8 +12,10 @@ use fs_err as fs;
 use fs::File;
 use log::{trace, info, warn};
 use crate::DashMpdError;
-use crate::fetch::DashDownloader;
+use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
+
+
 
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
@@ -71,11 +73,11 @@ fn mux_audio_video_ffmpeg(
                tmppath])
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
-    let msg = String::from_utf8_lossy(&ffmpeg.stdout);
+    let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
         info!("ffmpeg stdout: {msg}");
     }
-    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
         info!("ffmpeg stderr: {msg}");
     }
@@ -165,11 +167,11 @@ fn mux_stream_ffmpeg(
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
-    let msg = String::from_utf8_lossy(&ffmpeg.stdout);
+    let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
         info!("ffmpeg stdout: {msg}");
     }
-    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
         info!("ffmpeg stderr: {msg}");
     }
@@ -249,7 +251,7 @@ fn mux_audio_video_vlc(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
     // VLC is erroneously returning a 0 (success) return code even when it fails to mux, so we need
     // to look for a specific error message to check for failure.
-    let msg = String::from_utf8_lossy(&vlc.stderr);
+    let msg = partial_process_output(&vlc.stderr);
     if vlc.status.success() && (!msg.contains("mp4 mux error")) {
         {
             let tmpfile = File::open(tmppath)
@@ -266,7 +268,7 @@ fn mux_audio_video_vlc(
         }
         Ok(())
     } else {
-        let msg = String::from_utf8_lossy(&vlc.stderr);
+        let msg = partial_process_output(&vlc.stderr);
         Err(DashMpdError::Muxing(format!("running VLC: {msg}")))
     }
 }
@@ -328,7 +330,7 @@ fn mux_audio_video_mp4box(
         }
         Ok(())
     } else {
-        let msg = String::from_utf8_lossy(&cmd.stderr);
+        let msg = partial_process_output(&cmd.stderr);
         Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
@@ -381,7 +383,7 @@ fn mux_stream_mp4box(
         }
         Ok(())
     } else {
-        let msg = String::from_utf8_lossy(&cmd.stderr);
+        let msg = partial_process_output(&cmd.stderr);
         Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
@@ -838,11 +840,11 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
-    let msg = String::from_utf8_lossy(&ffmpeg.stdout);
+    let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
         info!("ffmpeg stdout: {msg}");
     }
-    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
         info!("ffmpeg stderr: {msg}");
     }

@@ -26,6 +26,11 @@
   manifests that offer media streams using different codecs. We were previously only examining
   Representation elements in the first AdaptationSet present in the manifest.
 
+- Reduce memory usage when downloading media segments by using the reqwest crate's chunk API,
+  instead of reading all content using bytes(). This is important for DASH manifests that use
+  indexRange addressing, which we don't download using byte range requests as a normal DASH client
+  would do, but rather download using a single network request.
+
 
 ## [0.14.3] - 2023-11-04
 
