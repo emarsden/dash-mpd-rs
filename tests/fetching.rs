@@ -671,6 +671,36 @@ async fn test_dynamic_forced_duration() {
 }
 
 
+#[tokio::test]
+async fn test_lowlatency_forced_duration() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd";
+    let out = env::temp_dir().join("dynamic-11s-ll.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .force_duration(11.0)
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 2_633_341);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    assert_eq!(stream.width, Some(640));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(9.5 < duration && duration < 13.0);
+}
+
+
 // This test doesn't work with libav because we haven't yet implemented copy_video_to_container()
 // with a change in container type.
 #[tokio::test]
