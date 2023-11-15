@@ -1308,6 +1308,9 @@ pub async fn parse_resolving_xlinks(
     // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
     // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
     for ss in &downloader.xslt_stylesheets {
+        if downloader.verbosity > 0 {
+            println!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
+        }
         let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
         fs::write(&tmpmpd, &buf)
             .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
