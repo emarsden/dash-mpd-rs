@@ -1,25 +1,25 @@
 # Changelog
 
-## [0.14.4] - Unreleased
+## [0.14.4] - 2023-11-18
 
 - Add possibility to use Shaka packager application for decryption of media with Content Protection,
   as an alternative to mp4decrypt. The shaka-packager application is able to handle more media
   formats (e.g. WebM/Matroska containers) and is better maintained than mp4decrypt. See method
-  `with_decryptor_preference` method on `DashDownloader`.
+  `with_decryptor_preference` on `DashDownloader`.
 
-- New method `allow_live_streams()` on DashDownloader that makes it possible to attempt to download
+- New method `allow_live_streams` on DashDownloader that makes it possible to attempt to download
   from a live (dynamic) manifest. Downloading from a genuinely live stream won't work well, because
   we don't implement the clock-related throttling needed to only download media segments when they
-  become available. However, some media sources publish pseudo-live streams where all media segments
+  become available. However, some media sources publish “pseudo-live” streams where all media segments
   are in fact available (they don't update the manifest once the live is complete), which we will be
   able to download. You might also have some success in combination with the
-  `sleep_between_requests()` method.
+  `sleep_between_requests` method.
 
 - New method `force_duration(secs)` on `DashDownloader` to specify the number of seconds to capture
   from the media stream, overriding the duration specified in the DASH manifest. This is mostly
-  useful for live streams, for which the duration is often not specified. It can also be used to
-  capture only the first part of certain normal (static/on-demand) media streams, though this
-  functionality is not fully implemented for all segment description types.
+  useful for live streams, whose duration is often not specified. It can also be used to capture
+  only the first part of certain normal (static/on-demand) media streams, though this functionality
+  is not currently fully implemented for all segment description types.
 
 - Fix the selection of the desired Representation (according to the user's quality/resolution
   preferences) for DASH manifests that include multiple AdaptationSets. This is the case on some
@@ -27,9 +27,9 @@
   Representation elements in the first AdaptationSet present in the manifest.
 
 - Reduce memory usage when downloading media segments by using the reqwest crate's chunk API,
-  instead of reading all content using bytes(). This is important for DASH manifests that use
-  indexRange addressing, which we don't download using byte range requests as a normal DASH client
-  would do, but rather download using a single network request.
+  instead of reading all content using the `bytes()` method. This is important for DASH manifests
+  that use indexRange addressing, which we don't download using byte range requests as a normal DASH
+  client would do, but rather download using a single network request.
 
 
 ## [0.14.3] - 2023-11-04
