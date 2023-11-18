@@ -692,7 +692,7 @@ async fn test_lowlatency_forced_duration() {
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("h264")));
-    assert_eq!(stream.width, Some(640));
+    assert_eq!(stream.width, Some(1280));
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
@@ -729,7 +729,6 @@ async fn test_forced_duration_audio() {
 
 #[tokio::test]
 async fn test_follow_redirect() {
-    // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
         return;
     }
