@@ -35,17 +35,11 @@ selecting the alternative with the most appropriate encoding (in terms of bitrat
 fetching segments of the content using HTTP or HTTPS requests (this functionality depends on the
 `reqwest` crate) and muxing audio and video segments together.
 
-If the library feature `libav` is enabled, muxing support (combining audio and video streams, which
-are often separated out in DASH streams) is provided by ffmpeg’s libav library, via the `ac_ffmpeg`
-crate. Otherwise, muxing is implemented by calling an external muxer, mkvmerge (from the
+Muxing (merging audio and video streams, which are often published separately in DASH media streams)
+is implemented by calling an external commandline application, either mkvmerge (from the
 [MkvToolnix](https://mkvtoolnix.download/) suite), [ffmpeg](https://ffmpeg.org/),
-[vlc](https://www.videolan.org/vlc/) or [MP4Box](https://github.com/gpac/gpac/wiki/MP4Box) as a
-subprocess. Note that these commandline applications implement a number of checks and workarounds to
-fix invalid input streams that tend to exist in the wild. Some of these workarounds are implemented
-here when using libav as a library, but not all of them, so download support tends to be more robust
-with the default configuration (using an external application as a subprocess).
-
-The choice of external muxer depends on the filename extension of the path supplied to `download_to()`
+[vlc](https://www.videolan.org/vlc/) or [MP4Box](https://github.com/gpac/gpac/wiki/MP4Box). The
+choice of external muxer depends on the filename extension of the path supplied to `download_to()`
 (will be `.mp4` if you call `download()`):
 
 - `.mkv`: call mkvmerge first, then if that isn't installed or fails call ffmpeg, then try MP4Box
@@ -58,6 +52,13 @@ You can specify a different order of preference for muxing applications using th
 "vlc,ffmpeg")` means that for an AVI media container the external muxer vlc will be tried first,
 then ffmpeg in case of failure. This method option can be used multiple times to specify options for
 different container types.
+
+If the library feature `libav` is enabled, muxing is implemented using ffmpeg’s libav library, via
+the `ac_ffmpeg` crate. This allows the library to work with fewer runtime dependencies. However,
+these commandline applications implement a number of checks and workarounds to fix invalid input
+streams that tend to exist in the wild. Some of these workarounds are implemented here when using
+libav as a library, but not all of them, so download support tends to be more robust with the
+default configuration (using an external application as a subprocess).
 
 
 ## DASH features supported
@@ -99,14 +100,15 @@ different container types.
 
 ## Limitations / unsupported features
 
-- We can’t download content from **dynamic MPD manifests**, that are used for live streaming/OTT TV.
-  This is because we don't implement the clock functionality needed to know when new media segments
-  become available nor the bandwidth management functionality that allows adaptive streaming. Note
-  however that some OTT providers public dynamic manifests for content that is not live (i.e. all
-  media segments are already available), and which we can download in dumb “fast-as-possible” mode.
-  You can use the method `allow_live_streams()` on `DashDownloader` to attempt to download from
-  these “**pseudo-live**” streams. It may also be useful to specify `force_duration(secs)` and to use
-  `sleep_between_requests()` to ensure downloading is not faster than real time.
+- We can’t really download content from **dynamic MPD manifests**, that are used for live
+  streaming/OTT TV. This is because we don't implement the clock functionality needed to know when
+  new media segments become available nor the bandwidth management functionality that allows
+  adaptive streaming. Note however that some OTT providers public dynamic manifests for content that
+  is not live (i.e. all media segments are already available), and which we can download in dumb
+  “fast-as-possible” mode. You can use the method `allow_live_streams()` on `DashDownloader` to
+  attempt to download from these “**pseudo-live**” streams. It may also be useful to specify
+  `force_duration(secs)` and to use `sleep_between_requests()` to ensure downloading is not faster
+  than real time.
 
   An alternative technique is to use the XSLT stylesheet `tests/fixtures/rewrite-drop-dynamic.xslt`
   to change the `dynamic` attribute to `static` before downloading, which should allow you to
@@ -212,14 +214,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.14.3"
+dash-mpd = "0.14.4"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.14.3", default-features = false }
+dash-mpd = { version = "0.14.4", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -278,6 +280,18 @@ This crate is tested on the following platforms:
 - FreeBSD/AMD64 and OpenBSD/AMD64, without the libav feature. Note however that some of the external
   utility applications we use for muxing or decrypting media content are poorly supported on
   these platforms.
+
+
+## Why?
+
+This library was developed to allow the author to watch a news programme produced by a public media
+broadcaster whilst at the gym. The programme is published as a DASH stream on the broadcaster’s
+“replay” service, but network service at the gym is sometimes poor. First world problems!
+
+The author is not the morality police nor a lawyer, but please note that redistributing media
+content that you have not produced may, depending on the publication licence, be a breach of
+intellectual property laws. Also, circumventing DRM may be prohibited in some countries.
+
 
 
 ## License
