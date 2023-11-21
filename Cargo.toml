@@ -51,7 +51,7 @@ axum = "0.6.20"
 axum-server = { version = "0.5.1" }
 axum-auth = "0.4.1"
 anyhow = "1.0.75"
-roxmltree = "0.18.1"
+roxmltree = "0.19.0"
 xmlem = "0.2.3"
 json = "0.12.4"
 mp4 = "0.14.0"
