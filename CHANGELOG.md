@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.14.5] - Unreleased
+
+- Display current download bandwidth in the progress bar, if it is activated.
+
+
 ## [0.14.4] - 2023-11-18
 
 - Add possibility to use Shaka packager application for decryption of media with Content Protection,

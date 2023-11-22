@@ -6,7 +6,8 @@ use fs::File;
 use std::io::{Write, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tokio::time::Instant;
 use std::sync::Arc;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -530,7 +531,7 @@ impl DashDownloader {
             warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
         }
         if self.verbosity > 1 {
-            info!("Limiting bandwidth to {}kB/s", bps/1024);
+            info!("Limiting bandwidth to {} kB/s", bps/1024);
         }
         self.rate_limit = bps;
         // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
@@ -2710,13 +2711,11 @@ async fn fetch_period_audio(
         // FIXME: in DASH, the init segment contains headers that are necessary to generate a valid MP4
         // file, so we should always abort if the first segment cannot be fetched. However, we could
         // tolerate loss of subsequent segments.
+        let mut bw_estimator_started = Instant::now();
+        let mut bw_estimator_bytes = 0;
         for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
-            // Update any ProgressObservers
             ds.segment_counter += 1;
             let progress_percent = (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32;
-            for observer in &downloader.progress_observers {
-                observer.update(progress_percent, "Fetching audio segments");
-            }
             let url = &frag.url;
             // A manifest may use a data URL (RFC 2397) to embed media content such as the
             // initialization segment directly in the manifest (recommended by YouTube for live
@@ -2795,6 +2794,7 @@ async fn fetch_period_audio(
                                     .map_err(|e| network_error("fetching DASH audio segment", e))?
                                 {
                                     segment_size += chunk.len();
+                                    bw_estimator_bytes += chunk.len();
                                     let size = min((chunk.len()/1024+1) as u32, u32::MAX);
                                     throttle_download_rate(downloader, size).await?;
                                     if let Err(e) = tmpfile_audio.write_all(&chunk) {
@@ -2803,6 +2803,21 @@ async fn fetch_period_audio(
                                     if let Some(ref mut fout) = fragment_out {
                                         fout.write_all(&chunk)
                                             .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
+                                    }
+                                    let elapsed = bw_estimator_started.elapsed().as_secs_f64();
+                                    if elapsed > 1.5 {
+                                        let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
+                                        let msg = if bw > 0.5 {
+                                            format!("Fetching audio segments ({bw:.1} MB/s)")
+                                        } else {
+                                            let kbs = (bw * 1000.0).round() as u64;
+                                            format!("Fetching audio segments ({kbs:3} kB/s)")
+                                        };
+                                        for observer in &downloader.progress_observers {
+                                            observer.update(progress_percent, &msg);
+                                        }
+                                        bw_estimator_started = Instant::now();
+                                        bw_estimator_bytes = 0;
                                     }
                                 }
                                 if downloader.verbosity > 2 {
@@ -2951,7 +2966,7 @@ async fn fetch_period_audio(
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            println!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1}MB/s)",
+            println!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1} MB/s)",
                      mbytes / elapsed.as_secs_f64());
         }
     }
@@ -2984,13 +2999,11 @@ async fn fetch_period_video(
                     .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
             }
         }
+        let mut bw_estimator_started = Instant::now();
+        let mut bw_estimator_bytes = 0;
         for frag in video_fragments.iter().filter(|f| f.period == ds.period_counter) {
-            // Update any ProgressObservers
             ds.segment_counter += 1;
             let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
-            for observer in &downloader.progress_observers {
-                observer.update(progress_percent, "Fetching video segments");
-            }
             if frag.url.scheme() == "data" {
                 let us = &frag.url.to_string();
                 let du = DataUrl::process(us)
@@ -3061,6 +3074,7 @@ async fn fetch_period_video(
                                     .map_err(|e| network_error("fetching DASH video segment", e))?
                                 {
                                     segment_size += chunk.len();
+                                    bw_estimator_bytes += chunk.len();
                                     let size = min((chunk.len()/1024+1) as u32, u32::MAX);
                                     throttle_download_rate(downloader, size).await?;
                                     if let Err(e) = tmpfile_video.write_all(&chunk) {
@@ -3069,6 +3083,21 @@ async fn fetch_period_video(
                                     if let Some(ref mut fout) = fragment_out {
                                         fout.write_all(&chunk)
                                             .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
+                                    }
+                                    let elapsed = bw_estimator_started.elapsed().as_secs_f64();
+                                    if elapsed > 1.5 {
+                                        let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
+                                        let msg = if bw > 0.5 {
+                                            format!("Fetching video segments ({bw:.1} MB/s)")
+                                        } else {
+                                            let kbs = (bw * 1000.0).round() as u64;
+                                            format!("Fetching video segments ({kbs:3} kB/s)")
+                                        };
+                                        for observer in &downloader.progress_observers {
+                                            observer.update(progress_percent, &msg);
+                                        }
+                                        bw_estimator_started = Instant::now();
+                                        bw_estimator_bytes = 0;
                                     }
                                 }
                                 if downloader.verbosity > 2 {
@@ -3217,7 +3246,7 @@ async fn fetch_period_video(
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            println!("  Wrote {mbytes:.1}MB to DASH video file ({:.1}MB/s)",
+            println!("  Wrote {mbytes:.1}MB to DASH video file ({:.1} MB/s)",
                      mbytes / elapsed.as_secs_f64());
         }
     }
@@ -3342,7 +3371,7 @@ async fn fetch_period_subtitles(
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
                 let elapsed = start_download.elapsed();
-                println!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1}MB/s)",
+                println!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1} MB/s)",
                          mbytes / elapsed.as_secs_f64());
             }
         }
