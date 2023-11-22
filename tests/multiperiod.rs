@@ -29,6 +29,9 @@ async fn test_multiperiod_helio() {
     let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("heliocentrism-multiperiod.webm");
+    if out.exists() {
+        let _ = fs::remove_file(out.clone());
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -54,6 +57,9 @@ async fn test_multiperiod_nomor5a() {
     let mpd_url = "https://dash.akamaized.net/dash264/TestCases/5a/nomor/1.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-5a.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(out.clone());
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .concatenate_periods(true)
@@ -100,6 +106,9 @@ async fn test_multiperiod_withsubs() {
     let mpd_url = "http://media.axprod.net/TestVectors/v6-Clear/MultiPeriod_Manifest_1080p.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-withsubs.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(out.clone());
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -119,6 +128,9 @@ async fn test_multiperiod_audio() {
     let mpd_url = "https://media.axprod.net/TestVectors/v7-Clear/Manifest_MultiPeriod_AudioOnly.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-audio.mp3");
+    if out.exists() {
+        let _ = fs::remove_file(out.clone());
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -142,6 +154,9 @@ async fn test_multiperiod_diffbase() {
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesIOP33/multiplePeriods/3/manifest_multiple_Periods_Content_Offering_CDN.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-diffbase.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(out.clone());
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
