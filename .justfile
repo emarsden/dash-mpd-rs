@@ -20,12 +20,16 @@ coverage-tarpaulin:
   cargo tarpaulin --engine llvm --line --out html --output-dir /tmp/tarpaulin
 
 
-
 setup-coverage-tools:
   rustup component add llvm-tools-preview
   cargo install grcov
   cargo install cargo-tarpaulin
     
+
+# Builds with the mold linker are faster (for Linux/AMD64)
+moldy-build:
+    mold -run cargo build
+
 
 # Compiling the openssl crate on Android is complicated so we use the rustls-tls feature. Avoid some
 # typing on tiny keyboards.
