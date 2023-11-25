@@ -2,7 +2,15 @@
 
 ## [0.14.5] - Unreleased
 
-- Display current download bandwidth in the progress bar, if it is activated.
+- Downloading: Display current download bandwidth in the progress bar, if it is activated.
+
+- Parsing: the path to the unparsable element is now shown, which greatly facilitates debugging!
+  Uses the `serde_path_to_error` crate. The output is something like
+
+     "Period[0].EventStream[0].Event[0].Signal[0].Binary.$value[0]: invalid digit found in string"
+
+- Parsing: we no longer attempt to decode SCTE-35 Cue messages as Base64. Their format is more
+  complicated than Base64 and attempting to decode them naively can generate spurious parse errors.
 
 
 ## [0.14.4] - 2023-11-18
