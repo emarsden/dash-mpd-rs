@@ -25,12 +25,8 @@
 
 
 #![allow(non_snake_case)]
-use base64_serde::base64_serde_type;
 use serde::{Serialize, Deserialize};
 use serde_with::skip_serializing_none;
-
-
-base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 
 pub fn serialize_scte35_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
@@ -41,7 +37,6 @@ where S: serde::Serializer {
         serializer.serialize_str("http://www.scte.org/schemas/35/2016")
     }
 }
-
 
 
 #[skip_serializing_none]
@@ -290,15 +285,20 @@ pub struct SpliceInfoSection {
     pub time_descriptor: Option<TimeDescriptor>,
 }
 
-/// A base64 representation of a SCTE 35 message.
+/// A binary representation of a SCTE 35 cue message. We don't attempt to decode these, but the
+/// `scte35-reader` crate is able to parse a subset of the standard, and the `threefive` Python
+/// library provides a full parser.
+///
+/// Basic messages may just be '/' + base64-encoded string
+///   e.g. "/TWFpbiBDb250ZW50" -> "Main Content"
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Binary {
     #[serde(rename = "@signalType")]
     pub signal_type: Option<String>,
-    #[serde(rename = "$value", with = "Base64Standard")]
-    pub content: Vec<u8>,
+    #[serde(rename = "$value")]
+    pub content: String,
 }
 
 #[skip_serializing_none]
