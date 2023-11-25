@@ -80,7 +80,6 @@ use crate::scte35::{Signal, SpliceInfoSection};
 use crate::libav::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
-use base64_serde::base64_serde_type;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
 use serde_with::skip_serializing_none;
@@ -89,7 +88,6 @@ use std::time::Duration;
 use chrono::DateTime;
 use url::Url;
 
-base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 /// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
 // Something like 2021-06-03T13:00:00Z or 2022-12-06T22:27:53
@@ -1693,7 +1691,8 @@ impl std::fmt::Display for MPD {
 
 /// Parse an MPD manifest, provided as an XML string, returning an `MPD` node.
 pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
-    let mpd: MPD = quick_xml::de::from_str(xml)
+    let xd = &mut quick_xml::de::Deserializer::from_str(xml);
+    let mpd: MPD = serde_path_to_error::deserialize(xd)
         .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
     Ok(mpd)
 }
@@ -1771,6 +1770,9 @@ fn is_subtitle_mimetype(mt: &str) -> bool {
     mt.eq("text/vtt") ||
     mt.eq("application/ttml+xml") ||
     mt.eq("application/x-sami")
+
+    // Some manifests use a @mimeType of "application/mp4" together with @contentType="text"; we'll
+    // classify these only based on their contentType.
 }
 
 fn is_subtitle_codec(c: &str) -> bool {
