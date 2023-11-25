@@ -17,9 +17,15 @@
 
       Test: xsltproc rewrite-drop-dai.xslt with-dai.mpd
   -->
-  <xsl:template match="//mpd:Period[mpd:BaseURL[starts-with(text(),'https://dai.google.com')]]" />
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[starts-with(text(),'https://dai.google.com')]]" />
 
-  <xsl:template match="//mpd:Period[mpd:BaseURL[contains(text(),'mediatailor.eu-west-1.amazonaws.com')]]" />
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[contains(text(),'mediatailor.eu-west-1.amazonaws.com')]]" />
 
-  <xsl:template match="//mpd:Period[mpd:BaseURL[contains(text(),'unified-streaming.com')]]" />
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[contains(text(),'unified-streaming.com')]]" />
+
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[contains(text(),'/adverts/')]]" />
+
+  <xsl:template match="//mpd:Period[duration='PT5.000S']" />
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[contains(text(),'/creative/')]]" />
+  <xsl:template match="//mpd:Period[.//mpd:BaseURL[contains(text(),'Ad_Bumper')]]" />
 </xsl:stylesheet>
