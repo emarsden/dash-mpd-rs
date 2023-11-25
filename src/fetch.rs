@@ -1034,6 +1034,7 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
         let mut segment_first_bytes = Vec::<u8>::new();
         while let Ok(Some(chunk)) = resp.chunk().await {
             let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+            #[allow(clippy::redundant_pattern_matching)]
             if let Err(_) = throttle_download_rate(downloader, size).await {
                 return None;
             }
