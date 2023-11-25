@@ -15,7 +15,8 @@ edition = "2021"
 base64 = "0.21.5"
 base64-serde = "0.7.0"
 serde = { version = "1.0.193", features = ["derive"] }
-serde_path_to_error = "0.1"
+serde_path_to_error = "0.1.14"
+serde_ignored = { version = "0.1.9", optional = true }
 serde_with = { version = "3.4.0", features = ["base64"] }
 quick-xml = { version = "0.31.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.0"
@@ -63,6 +64,7 @@ default = ["fetch", "native-tls", "compression", "socks", "scte35"]
 fetch = ["data-url", "reqwest", "backoff", "governor", "xmltree", "async-recursion", "tempfile", "sanitise-file-name", "ffprobe", "file-format", "colored"]
 libav = ["ac-ffmpeg"]
 scte35 = []
+warn_ignored_elements = ["serde_ignored"]
 compression = ["reqwest/gzip"]
 socks = ["reqwest/socks"]
 native-tls = ["reqwest/native-tls"]

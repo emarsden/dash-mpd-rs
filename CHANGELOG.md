@@ -9,6 +9,11 @@
 
      "Period[0].EventStream[0].Event[0].Signal[0].Binary.$value[0]: invalid digit found in string"
 
+- Parsing: when the `warn_ignored_elements` build feature is enabled, a warning will be issued when
+  an XML element present in the manifest is not deserialized into a Rust struct. The default
+  behaviour is to ignore elements for which we have not defined serde deserialization instructions.
+  This feature is implemented with the `serde_ignored` crate.
+
 - Parsing: we no longer attempt to decode SCTE-35 Cue messages as Base64. Their format is more
   complicated than Base64 and attempting to decode them naively can generate spurious parse errors.
 
