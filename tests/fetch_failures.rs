@@ -168,10 +168,6 @@ async fn test_error_ratelimit() {
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_missing_mpd() {
-    // Don't run download tests on CI infrastructure
-    if env::var("CI").is_ok() {
-        panic!("requesting DASH manifest");
-    }
     let out = env::temp_dir().join("failure1.mkv");
     DashDownloader::new("http://httpbin.org/status/404")
         .worst_quality()
@@ -184,10 +180,6 @@ async fn test_error_missing_mpd() {
 #[tokio::test]
 #[should_panic(expected = "fetching XLink")]
 async fn test_error_xlink_gone() {
-    // Don't run download tests on CI infrastructure
-    if env::var("CI").is_ok() {
-        panic!("fetching XLink");
-    }
     let out = env::temp_dir().join("failure_xlink.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
         .worst_quality()
