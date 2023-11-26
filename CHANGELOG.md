@@ -17,6 +17,9 @@
 - Parsing: we no longer attempt to decode SCTE-35 Cue messages as Base64. Their format is more
   complicated than Base64 and attempting to decode them naively can generate spurious parse errors.
 
+- Downloading: fix the calculation of audio segments to be downloaded for a live stream for which
+  `force_duration` has been specified.
+
 
 ## [0.14.4] - 2023-11-18
 

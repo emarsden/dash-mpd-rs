@@ -483,7 +483,7 @@ impl DashDownloader {
     }
 
     /// The upper limit on the number of non-transient network errors encountered for this download
-    /// before we abort the download. Transient network errors such as an HTTP 408 "request timeout"
+    /// before we abort the download. Transient network errors such as an HTTP 408 “request timeout”
     /// are retried automatically with an exponential backoff mechanism, and do not count towards
     /// this upper limit. The default is to fail after 10 non-transient network errors.
     pub fn max_error_count(mut self, count: u32) -> DashDownloader {
@@ -497,17 +497,17 @@ impl DashDownloader {
         self
     }
 
-    /// Specify whether to attempt to download from a "live" stream, or dynamic DASH manifest.
+    /// Specify whether to attempt to download from a “live” stream, or dynamic DASH manifest.
     /// Default is false.
     ///
-    /// Downloading from a genuinely live stream won't work well, because this library doesn't
+    /// Downloading from a genuinely live stream won’t work well, because this library doesn’t
     /// implement the clock-related throttling needed to only download media segments when they
     /// become available. However, some media sources publish pseudo-live streams where all media
     /// segments are in fact available, which we will be able to download. You might also have some
-    /// success in combination with the sleep_between_requests() method.
+    /// success in combination with the `sleep_between_requests()` method.
     ///
     /// You may also need to force a duration for the live stream using method
-    /// force_duration(), because live streams often don't specify a duration.
+    /// `force_duration()`, because live streams often don’t specify a duration.
     pub fn allow_live_streams(mut self, value: bool) -> DashDownloader {
         self.allow_live_streams = value;
         self
@@ -565,9 +565,9 @@ impl DashDownloader {
         self
     }
 
-    /// If `record` is true, record metainformation concerning the media content (origin URL, title,
-    /// source and copyright metainformation) if present in the manifest as extended attributes in the
-    /// output file.
+    /// Specify whether to record metainformation concerning the media content (origin URL, title,
+    /// source and copyright metainformation) as extended attributes in the output file, assuming
+    /// this information is present in the DASH manifest.
     pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
         self.record_metainformation = record;
         self
@@ -1650,6 +1650,9 @@ async fn do_period_audio(
                                 // until the next MPD update.
                                 if r >= 0 {
                                     if count > r {
+                                        break;
+                                    }
+                                    if downloader.force_duration.is_some() && segment_time as f64 > end_time {
                                         break;
                                     }
                                 } else if segment_time as f64 > end_time {
