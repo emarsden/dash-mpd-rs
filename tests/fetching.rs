@@ -223,9 +223,10 @@ async fn test_dl_dolby_dtsc() {
     check_file_size_approx(&out, 35_408_884);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[1];
-    assert_eq!(stream.codec_type, Some(String::from("audio")));
-    assert_eq!(stream.codec_name, Some(String::from("dts")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("dts")));
 }
 
 // Here a test manifest using MPEG H 3D audio format (mha1 codec), which is not supported by ffmpeg
@@ -323,12 +324,12 @@ async fn test_dl_vvc() {
         .unwrap();
     check_file_size_approx(&out, 9_311_029);
     let meta = ffprobe(out).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[0];
-    assert_eq!(stream.codec_type, Some(String::from("video")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
     // This codec is not recognized by ffprobe v6.0
-    // assert_eq!(stream.codec_name, Some(String::from("vvc1")));
-    assert_eq!(stream.width, Some(384));
+    // assert_eq!(video.codec_name, Some(String::from("vvc1")));
+    assert_eq!(video.width, Some(384));
 }
 
 // MPEG2 TS codec (mostly historical interest).
