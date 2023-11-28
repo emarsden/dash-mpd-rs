@@ -506,6 +506,7 @@
 - Downloading: muxing using VLC should now work correctly.
 - Downloading: improve handling of transient and permanent HTTP errors.
 
+
 ## [0.4.3] - 2022-05-16
 ### Changed
 - An `AdaptationSet` node may contain multiple `ContentComponent` nodes.
@@ -517,12 +518,14 @@
   be an unsigned int, but some manifests in the wild use a floating point value (e.g.
   https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd). 
 
+
 ## [0.4.2] - 2022-03-19
 ### New
 - Function `with_ffmpeg` on DashDownloader allows the user to specify the location of the ffmpeg
   binary to use for muxing (useful if it's not in the PATH).
 - Optional field `ContentProtection` added to the `AdaptationSet` node type.
 - Add optional field `cenc_pssh` to `ContentProtection` nodes.
+
 
 ## [0.4.1] - 2022-01-24
 ### New
@@ -536,17 +539,20 @@
 ### Changed
 - fetch_mpd() function now takes only a single DashDownloader argument.
 
+
 ## [0.4.0] - 2022-01-13
 ### Changed
 - Downloading: move to a builder pattern with DashDownloader API. The function `fetch_mpd` should
   now be considered internal.
 - Downloading: preference for quality/bitrate can be specified.
 
+
 ## [0.3.1] - 2022-01-08
 ### Fixed
 - Downloading: fix use of SegmentTemplate `@startNumber` attribute.
 - Downloading: fix regression concerning streams that use a SegmentTimeline.
 - Path fixes to allow tests and examples to run on Windows.
+
 
 ## [0.3.0] - 2021-12-28
 ### Changed
@@ -578,6 +584,7 @@ support).
   rights}.
 - Downloading: improve handling of transient HTTP errors.
 - Downloading: improve support for certain stream types.
+
 
 ## [0.1.0] - 2021-12-01
 

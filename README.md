@@ -214,14 +214,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.14.4"
+dash-mpd = "0.14.5"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.14.4", default-features = false }
+dash-mpd = { version = "0.14.5", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -261,6 +261,11 @@ be enabled:
 
 - `scte35` *(enabled by default)*: enable support for XML elements corresponding to the SCTE-35
   standard for insertion of alternate content (mostly used for dynamic insertion of advertising).
+
+- `warn_ignored_elements`: if this feature is enabled, a warning will be issued when an XML element
+  present in the DASH manifest is not deserialized into a Rust struct, while parsing the manifest.
+  The default behaviour is to ignore elements for which we have not defined serde deserialization
+  instructions. This feature is implemented with the `serde_ignored` crate.
 
 
 ## Platforms
