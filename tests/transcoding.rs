@@ -17,7 +17,7 @@ use common::check_file_size_approx;
 // the output file size varies quite a lot.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_mkv() {
+async fn test_transcode_mkv() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cf.mkv");
     DashDownloader::new(mpd_url)
@@ -31,7 +31,7 @@ async fn test_dl_mkv() {
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_webm() {
+async fn test_transcode_webm() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cf.webm");
     DashDownloader::new(mpd_url)
@@ -45,7 +45,7 @@ async fn test_dl_webm() {
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_avi() {
+async fn test_transcode_avi() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -62,7 +62,7 @@ async fn test_dl_avi() {
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_av1() {
+async fn test_transcode_av1() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -92,7 +92,7 @@ async fn test_dl_av1() {
 // Test transcoding audio from mp4a/aac to Ogg Vorbis
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_audio_vorbis() {
+async fn test_transcode_audio_vorbis() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -115,7 +115,7 @@ async fn test_dl_audio_vorbis() {
 // Test transcoding multiperiod audio from mp4a/aac to MP3
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_dl_audio_multiperiod_mp3() {
+async fn test_transcode_audio_multiperiod_mp3() {
     if env::var("CI").is_ok() {
         return;
     }
