@@ -815,8 +815,24 @@ fn merge_baseurls(current: &Url, new: &str) -> Result<Url, DashMpdError> {
         Url::parse(new)
             .map_err(|e| parse_error("parsing BaseURL", e))
     } else {
-        current.join(new)
-            .map_err(|e| parse_error("joining base with BaseURL", e))
+        // We are careful to merge the query portion of the current URL (which is either the
+        // original manifest URL, or the URL that it redirected to, or the value of a BaseURL
+        // element in the manifest) with the new URL. But if the new URL already has a query string,
+        // it takes precedence.
+        //
+        // Examples
+        //
+        // merge_baseurls(https://example.com/manifest.mpd?auth=secret, /video42.mp4) =>
+        //   https://example.com/video42.mp4?auth=secret
+        //
+        // merge_baseurls(https://example.com/manifest.mpd?auth=old, /video42.mp4?auth=new) =>
+        //   https://example.com/video42.mp4?auth=new
+        let mut merged = current.join(new)
+            .map_err(|e| parse_error("joining base with BaseURL", e))?;
+        if merged.query().is_none() {
+            merged.set_query(current.query());
+        }
+        Ok(merged)
     }
 }
 
@@ -1228,8 +1244,10 @@ async fn resolve_xlink_references_recurse(
             } else {
                 // Note that we are joining against the original/redirected URL for the MPD, and
                 // not against the currently scoped BaseURL
-                redirected_url.join(href)
-                    .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?
+                let mut merged = redirected_url.join(href)
+                    .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?;
+                merged.set_query(redirected_url.query());
+                merged
             };
             let client = downloader.http_client.as_ref().unwrap();
             let mut req = client.get(xlink_url.clone())
@@ -1509,8 +1527,7 @@ async fn do_period_audio(
                     end_byte = Some(e);
                 }
                 if let Some(m) = &su.media {
-                    let u = base_url.join(m)
-                        .map_err(|e| parse_error("joining media with baseURL", e))?;
+                    let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 } else if !audio_adaptation.BaseURL.is_empty() {
@@ -1563,8 +1580,7 @@ async fn do_period_audio(
                     end_byte = Some(e);
                 }
                 if let Some(m) = &su.media {
-                    let u = base_url.join(m)
-                        .map_err(|e| parse_error("joining media with baseURL", e))?;
+                    let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 } else if !audio_repr.BaseURL.is_empty() {
@@ -1607,11 +1623,9 @@ async fn do_period_audio(
                 }
                 if let Some(init) = opt_init {
                     let path = resolve_url_template(&init, &dict);
-                    let u = base_url.join(&path)
-                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
                     let mf = MediaFragment{
                         period: period_counter,
-                        url: u,
+                        url: merge_baseurls(&base_url, &path)?,
                         start_byte: None,
                         end_byte: None,
                         is_init: true
@@ -1632,8 +1646,7 @@ async fn do_period_audio(
                         let dict = HashMap::from([("Time", segment_time.to_string()),
                                                   ("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
-                        let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                        let u = merge_baseurls(&base_url, &path)?;
                         let mf = make_fragment(period_counter, u, None, None);
                         fragments.push(mf);
                         number += 1;
@@ -1662,8 +1675,7 @@ async fn do_period_audio(
                                 let dict = HashMap::from([("Time", segment_time.to_string()),
                                                           ("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
-                                let u = base_url.join(&path)
-                                    .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                let u = merge_baseurls(&base_url, &path)?;
                                 let mf = make_fragment(period_counter, u, None, None);
                                 fragments.push(mf);
                                 number += 1;
@@ -1687,11 +1699,9 @@ async fn do_period_audio(
                     // The initialization segment counts as one of the $Number$
                     total_number -= 1;
                     let path = resolve_url_template(&init, &dict);
-                    let u = base_url.join(&path)
-                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
                     let mf = MediaFragment{
                         period: period_counter,
-                        url: u,
+                        url: merge_baseurls(&base_url, &path)?,
                         start_byte: None,
                         end_byte: None,
                         is_init: true
@@ -1718,8 +1728,7 @@ async fn do_period_audio(
                     for _ in 1..=total_number {
                         let dict = HashMap::from([("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
-                        let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                        let u = merge_baseurls(&base_url, &path)?;
                         let mf = make_fragment(period_counter, u, None, None);
                         fragments.push(mf);
                         number += 1;
@@ -1956,8 +1965,7 @@ async fn do_period_video(
                     end_byte = Some(e);
                 }
                 if let Some(m) = &su.media {
-                    let u = base_url.join(m)
-                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                    let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 } else if !video_adaptation.BaseURL.is_empty() {
@@ -2009,8 +2017,7 @@ async fn do_period_video(
                     end_byte = Some(e);
                 }
                 if let Some(m) = &su.media {
-                    let u = base_url.join(m)
-                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                    let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 } else if !video_repr.BaseURL.is_empty() {
@@ -2052,8 +2059,7 @@ async fn do_period_video(
                     }
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
-                        let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining init with BaseURL", e))?;
+                        let u = merge_baseurls(&base_url, &path)?;
                         let mf = MediaFragment{
                             period: period_counter,
                             url: u,
@@ -2080,8 +2086,7 @@ async fn do_period_video(
                             let dict = HashMap::from([("Time", segment_time.to_string()),
                                                       ("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
-                            let u = base_url.join(&path)
-                                .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                            let u = merge_baseurls(&base_url, &path)?;
                             let mf = make_fragment(period_counter, u, None, None);
                             fragments.push(mf);
                             number += 1;
@@ -2110,8 +2115,7 @@ async fn do_period_video(
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);
-                                    let u = base_url.join(&path)
-                                        .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                    let u = merge_baseurls(&base_url, &path)?;
                                     let mf = make_fragment(period_counter, u, None, None);
                                     fragments.push(mf);
                                     number += 1;
@@ -2133,11 +2137,9 @@ async fn do_period_video(
                         // The initialization segment counts as one of the $Number$
                         total_number -= 1;
                         let path = resolve_url_template(&init, &dict);
-                        let u = base_url.join(&path)
-                            .map_err(|e| parse_error("joining init with BaseURL", e))?;
                         let mf = MediaFragment{
                             period: period_counter,
-                            url: u,
+                            url: merge_baseurls(&base_url, &path)?,
                             start_byte: None,
                             end_byte: None,
                             is_init: true
@@ -2164,8 +2166,7 @@ async fn do_period_video(
                         for _ in 1..=total_number {
                             let dict = HashMap::from([("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
-                            let u = base_url.join(&path)
-                                .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                            let u = merge_baseurls(&base_url, &path)?;
                             let mf = make_fragment(period_counter, u, None, None);
                             fragments.push(mf);
                             number += 1;
@@ -2423,8 +2424,7 @@ async fn do_period_subtitles(
                                 end_byte = Some(e);
                             }
                             if let Some(m) = &su.media {
-                                let u = base_url.join(m)
-                                    .map_err(|e| parse_error("joining media with baseURL", e))?;
+                                let u = merge_baseurls(&base_url, m)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
                             } else if !subtitle_adaptation.BaseURL.is_empty() {
@@ -2476,8 +2476,7 @@ async fn do_period_subtitles(
                                 end_byte = Some(e);
                             }
                             if let Some(m) = &su.media {
-                                let u = base_url.join(m)
-                                    .map_err(|e| parse_error("joining media with baseURL", e))?;
+                                let u = merge_baseurls(&base_url, m)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
                             } else if !rep.BaseURL.is_empty() {
@@ -2520,11 +2519,9 @@ async fn do_period_subtitles(
                                 }
                                 if let Some(init) = opt_init {
                                     let path = resolve_url_template(&init, &dict);
-                                    let u = base_url.join(&path)
-                                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
                                     let mf = MediaFragment{
                                         period: period_counter,
-                                        url: u,
+                                        url: merge_baseurls(&base_url, &path)?,
                                         start_byte: None,
                                         end_byte: None,
                                         is_init: true
@@ -2545,8 +2542,7 @@ async fn do_period_subtitles(
                                         let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                   ("Number", number.to_string())]);
                                         let path = resolve_url_template(&sub_path, &dict);
-                                        let u = base_url.join(&path)
-                                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                        let u = merge_baseurls(&base_url, &path)?;
                                         let mf = make_fragment(period_counter, u, None, None);
                                         fragments.push(mf);
                                         number += 1;
@@ -2577,8 +2573,7 @@ async fn do_period_subtitles(
                                                 let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                           ("Number", number.to_string())]);
                                                 let path = resolve_url_template(&sub_path, &dict);
-                                                let u = base_url.join(&path)
-                                                    .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                                let u = merge_baseurls(&base_url, &path)?;
                                                 let mf = make_fragment(period_counter, u, None, None);
                                                 fragments.push(mf);
                                                 number += 1;
@@ -2627,11 +2622,9 @@ async fn do_period_subtitles(
                                     // The initialization segment counts as one of the $Number$
                                     total_number -= 1;
                                     let path = resolve_url_template(&init, &dict);
-                                    let u = base_url.join(&path)
-                                        .map_err(|e| parse_error("joining init with BaseURL", e))?;
                                     let mf = MediaFragment{
                                         period: period_counter,
-                                        url: u,
+                                        url: merge_baseurls(&base_url, &path)?,
                                         start_byte: None,
                                         end_byte: None,
                                         is_init: true
@@ -2657,8 +2650,7 @@ async fn do_period_subtitles(
                                     for _ in 1..=total_number {
                                         let dict = HashMap::from([("Number", number.to_string())]);
                                         let path = resolve_url_template(&sub_path, &dict);
-                                        let u = base_url.join(&path)
-                                            .map_err(|e| parse_error("joining media with BaseURL", e))?;
+                                        let u = merge_baseurls(&base_url, &path)?;
                                         let mf = make_fragment(period_counter, u, None, None);
                                         fragments.push(mf);
                                         number += 1;

@@ -1,6 +1,15 @@
 # Changelog
 
-## [0.14.5] - Unreleased
+## [0.14.6] - Unreleased
+
+- Downloading: include the query component of the MPD URL in requests for media segments, to support
+  the token-based authentication used by some streaming services. If the manifest URL is
+  `https://example.com/manifest.mpd?token=foo`, requests to segments will look like
+  `/segment/42.m4v?token=foo`, unless the manifest includes an explicit query component in the
+  segment URLs.
+
+
+## [0.14.5] - 2023-11-28
 
 - Downloading: Display current download bandwidth in the progress bar, if it is activated.
 
