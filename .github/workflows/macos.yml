@@ -18,6 +18,7 @@ jobs:
         brew update
         brew upgrade || true
         HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install gpac
+        MP4Box -version
 
     - name: install ffmpeg
       run: brew install ffmpeg
