@@ -104,7 +104,7 @@ async fn test_decryption_webm() {
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
-    assert_eq!(audio.codec_name, Some(String::from("opus")));
+    assert_eq!(audio.codec_name, Some(String::from("vorbis")));
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
