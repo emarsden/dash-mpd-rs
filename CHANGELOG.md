@@ -8,6 +8,8 @@
   `/segment/42.m4v?token=foo`, unless the manifest includes an explicit query component in the
   segment URLs.
 
+- Muxing to a WebM container using the VLC external muxer should be fixed.
+
 
 ## [0.14.5] - 2023-11-28
 

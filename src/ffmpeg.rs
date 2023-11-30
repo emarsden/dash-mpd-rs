@@ -1,4 +1,4 @@
-/// Muxing support using mkvmerge/ffmpeg/vlc as a subprocess.
+/// Muxing support using mkvmerge/ffmpeg/vlc/mp4box as a subprocess.
 ///
 /// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
 /// in file "libav.rs".
@@ -256,7 +256,7 @@ fn mux_audio_video_vlc(
     };
     let muxer = match container {
         "ogg" => "ogg",
-        "web" => "mkv",
+        "webm" => "mkv",
         "mp3" => "raw",
         "mpg" => "mpeg1",
         _ => container,
@@ -283,13 +283,18 @@ fn mux_audio_video_vlc(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    let transcode = if container.eq("webm") {
+        "transcode{vcodec=VP90,acodec=vorb}:"
+    } else {
+        ""
+    };
     let vlc = Command::new(&downloader.vlc_location)
         .args(["-I", "dummy",
                "--no-repeat", "--no-loop",
                video_str,
                "--input-slave", audio_str,
                "--sout-mp4-faststart",
-               &format!("--sout=#std{{access=file,mux={muxer},dst={tmppath}}}"),
+               &format!("--sout=#{transcode}std{{access=file,mux={muxer},dst={tmppath}}}"),
                "--sout-keep",
                "vlc://quit"])
         .output()
