@@ -13,6 +13,7 @@
 
 
 pub mod common;
+use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
@@ -38,7 +39,8 @@ async fn test_dl_none() {
 #[cfg(not(feature = "libav"))]
 async fn test_dl_mp4() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("cf.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("cf.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .max_error_count(5)
@@ -50,12 +52,17 @@ async fn test_dl_mp4() {
     check_file_size_approx(&out, 325_334);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
 async fn test_dl_segmentbase_baseurl() {
     let mpd_url = "https://v.redd.it/p5rowtg41iub1/DASHPlaylist.mpd?a=1701104071";
-    let out = env::temp_dir().join("reddit.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("reddit.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .max_error_count(5)
@@ -70,13 +77,18 @@ async fn test_dl_segmentbase_baseurl() {
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
     assert_eq!(video.codec_name, Some(String::from("h264")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
 #[tokio::test]
 async fn test_dl_segmenttemplate_tiny() {
     let mpd_url = "https://github.com/bbc/exoplayer-testing-samples/raw/master/app/src/androidTest/assets/streams/files/redGreenVideo/redGreenOnlyVideo.mpd";
-    let out = env::temp_dir().join("red-green.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("red-green.mp4");
     DashDownloader::new(mpd_url)
         .intermediate_quality()
         .record_metainformation(false)
@@ -90,6 +102,10 @@ async fn test_dl_segmenttemplate_tiny() {
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
     assert_eq!(video.codec_name, Some(String::from("h264")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -100,7 +116,8 @@ async fn test_dl_audio_mp4a() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCases/3a/fraunhofer/aac-lc_stereo_without_video/Sintel/sintel_audio_only_aaclc_stereo_sidx.mpd";
-    let out = env::temp_dir().join("sintel-audio.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("sintel-audio.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -112,6 +129,10 @@ async fn test_dl_audio_mp4a() {
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("aac")));
     assert!(audio.width.is_none());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -122,7 +143,8 @@ async fn test_dl_audio_flac() {
     }
     // See http://rdmedia.bbc.co.uk/testcard/vod/
     let mpd_url = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-flac-en.mpd";
-    let out = env::temp_dir().join("bbcradio-flac.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("bbcradio-flac.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -134,6 +156,10 @@ async fn test_dl_audio_flac() {
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("flac")));
     assert!(audio.width.is_none());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -142,7 +168,8 @@ async fn test_dl_dolby_eac3() {
     // E-AC-3 is the same as Dolby Digital Plus; it's an improved version of the AC-3 codec that
     // allows higher bitrates.
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dolby/3/1/ChID_voices_20_128_ddp.mpd";
-    let out = env::temp_dir().join("dolby-eac3.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dolby-eac3.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -154,6 +181,10 @@ async fn test_dl_dolby_eac3() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("eac3")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // As of 2023-09, ffmpeg v6.0 and VLC v3.0.18 are unable to mux this Dolby AC-4 audio stream into an
@@ -165,7 +196,8 @@ async fn test_dl_dolby_ac4_mkv() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesDolby/2/Living_Room_1080p_20_96k_2997fps.mpd";
-    let out = env::temp_dir().join("dolby-ac4.mkv");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dolby-ac4.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -178,6 +210,10 @@ async fn test_dl_dolby_ac4_mkv() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     // This codec is not currently recogized by ffprobe
     // assert_eq!(stream.codec_name, Some(String::from("ac-4")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -191,7 +227,8 @@ async fn test_dl_dolby_ac4_mp4() {
         return;
     }
     let mpd_url = "https://ott.dolby.com/OnDelKits/AC-4/Dolby_AC-4_Online_Delivery_Kit_1.5/Test_Signals/muxed_streams/DASH/Live/MPD/Multi_Codec_720p_2997fps_h264.mpd";
-    let out = env::temp_dir().join("dolby-ac4.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dolby-ac4.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
@@ -201,6 +238,10 @@ async fn test_dl_dolby_ac4_mp4() {
     check_file_size_approx(&out, 8_416_451);
     // Don't attempt to ffprobe, because it generates an error ("no decoder could be found for codec
     // none").
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -213,10 +254,12 @@ async fn test_dl_dolby_dtsc() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dts/1/Paint_dtsc_testA.mpd";
-    let out = env::temp_dir().join("dolby-dtsc.mkv");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dolby-dtsc.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .without_content_type_checks()
+        .content_type_checks(false)
+        .conformity_checks(false)
         .verbosity(2)
         .download_to(out.clone()).await
         .unwrap();
@@ -227,6 +270,10 @@ async fn test_dl_dolby_dtsc() {
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("dts")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // Here a test manifest using MPEG H 3D audio format (mha1 codec), which is not supported by ffmpeg
@@ -241,7 +288,8 @@ async fn test_dl_hevc_hdr() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesHDR/3a/3/MultiRate.mpd";
-    let out = env::temp_dir().join("hevc-hdr.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("hevc-hdr.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
@@ -255,6 +303,10 @@ async fn test_dl_hevc_hdr() {
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("hevc")));
     assert!(stream.width.is_some());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -264,7 +316,8 @@ async fn test_dl_hvc1() {
         return;
     }
     let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
-    let out = env::temp_dir().join("hvc1.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("hvc1.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -281,6 +334,10 @@ async fn test_dl_hvc1() {
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("aac")));
     assert!(audio.width.is_none());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -290,7 +347,8 @@ async fn test_dl_vp9_uhd() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesVP9/vp9-uhd/sintel-vp9-uhd.mpd";
-    let out = env::temp_dir().join("vp9-uhd.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("vp9-uhd.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
@@ -304,6 +362,10 @@ async fn test_dl_vp9_uhd() {
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("vp9")));
     assert_eq!(stream.width, Some(3840));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // H.266/VVC codec. ffmpeg v6.0 is not able to place this video stream in an MP4 container, but
@@ -315,7 +377,8 @@ async fn test_dl_vvc() {
         return;
     }
     let mpd_url = "http://ftp.itec.aau.at/datasets/mmsys22/Skateboarding/8sec/vvc/manifest.mpd";
-    let out = env::temp_dir().join("vvc.mkv");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("vvc.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
@@ -330,6 +393,10 @@ async fn test_dl_vvc() {
     // This codec is not recognized by ffprobe v6.0
     // assert_eq!(video.codec_name, Some(String::from("vvc1")));
     assert_eq!(video.width, Some(384));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // MPEG2 TS codec (mostly historical interest).
@@ -340,7 +407,8 @@ async fn test_dl_mp2t() {
         return;
     }
     let mpd_url = "http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mpeg2-simple/mpeg2-simple-mpd.mpd";
-    let out = env::temp_dir().join("mp2ts.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("mp2ts.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
@@ -354,6 +422,10 @@ async fn test_dl_mp2t() {
     assert_eq!(stream.codec_type, Some(String::from("video")));
     assert_eq!(stream.codec_name, Some(String::from("h264")));
     assert_eq!(stream.width, Some(320));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for SegmentTemplate+SegmentTimeline addressing. Also a test of manifests created with the
@@ -364,7 +436,8 @@ async fn test_dl_segment_timeline() {
         return;
     }
     let mpd_url = "https://origin.broadpeak.io/bpk-vod/voddemo/default/5min/tearsofsteel/manifest.mpd";
-    let out = env::temp_dir().join("broadpeak-tos.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("broadpeak-tos.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -372,6 +445,10 @@ async fn test_dl_segment_timeline() {
     check_file_size_approx(&out, 23_823_326);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for SegmentList addressing
@@ -379,7 +456,8 @@ async fn test_dl_segment_timeline() {
 #[cfg(not(feature = "libav"))]
 async fn test_dl_segment_list() {
     let mpd_url = "https://res.cloudinary.com/demo/video/upload/sp_full_hd/handshake.mpd";
-    let out = env::temp_dir().join("handshake.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("handshake.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -387,6 +465,10 @@ async fn test_dl_segment_list() {
     check_file_size_approx(&out, 273_629);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for SegmentBase@indexRange addressing with a single audio and video fragment that
@@ -398,7 +480,8 @@ async fn test_dl_segment_base_indexrange() {
         return;
     }
     let mpd_url = "https://turtle-tube.appspot.com/t/t2/dash.mpd";
-    let out = env::temp_dir().join("turtle.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("turtle.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(3)
@@ -408,6 +491,10 @@ async fn test_dl_segment_base_indexrange() {
     check_file_size_approx(&out, 9_687_251);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // This manifest is built using a difficult structure, rarely seen in the wild. To retrieve segments
@@ -420,7 +507,8 @@ async fn test_dl_segment_template_multilevel() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/akamai/test/bbb_enc/BigBuckBunny_320x180_enc_dash.mpd";
-    let out = env::temp_dir().join("bbb-segment-template.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("bbb-segment-template.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(3)
@@ -429,6 +517,10 @@ async fn test_dl_segment_template_multilevel() {
     check_file_size_approx(&out, 52_758_303);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for BaseURL addressing mode.
@@ -439,7 +531,8 @@ async fn test_dl_baseurl() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCases/1a/sony/SNE_DASH_SD_CASE1A_REVISED.mpd";
-    let out = env::temp_dir().join("sony.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("sony.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -448,6 +541,10 @@ async fn test_dl_baseurl() {
     check_file_size_approx(&out, 38_710_852);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for AdaptationSet>SegmentList + Representation>SegmentList addressing modes.
@@ -457,7 +554,8 @@ async fn test_dl_adaptation_segment_list() {
         return;
     }
     let mpd_url = "http://ftp.itec.aau.at/datasets/mmsys13/redbull_4sec.mpd";
-    let out = env::temp_dir().join("redbull.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("redbull.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -467,6 +565,10 @@ async fn test_dl_adaptation_segment_list() {
     check_file_size_approx(&out, 110_010_161);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // This manifest has video streams with different codecs (avc1 and hev1) in different AdaptationSets.
@@ -476,7 +578,8 @@ async fn test_dl_adaptation_set_variants() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesIOP33/adapatationSetSwitching/2/manifest.mpd";
-    let out = env::temp_dir().join("adaptation-set-switch.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("adaptation-set-switch.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
@@ -495,6 +598,10 @@ async fn test_dl_adaptation_set_variants() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // A test for the progress observer functionality.
@@ -537,7 +644,6 @@ async fn test_downloader() {
     use ffprobe::ffprobe;
     use colored::*;
 
-    // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
         return;
     }
@@ -595,13 +701,14 @@ async fn test_downloader() {
 
 // Content that uses the HVC1 H265 codec in a CMAF container.
 #[tokio::test]
-async fn test_h265() {
+async fn test_dl_h265() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd";
-    let out = env::temp_dir().join("h265.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("h265.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -609,6 +716,10 @@ async fn test_h265() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 48_352_569);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // This is a "pseudo-live" stream, a dynamic MPD manifest for which all media segments are already
@@ -617,13 +728,13 @@ async fn test_h265() {
 // progressively available), we are able to download pseudo-live stream if the
 // allow_live_streaming() method is enabled.
 #[tokio::test]
-async fn test_dynamic_stream() {
-    // Don't run download tests on CI infrastructure
+async fn test_dl_dynamic_stream() {
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd";
-    let out = env::temp_dir().join("dynamic-manifest.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-manifest.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
@@ -640,15 +751,20 @@ async fn test_dynamic_stream() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
 // This is a really live stream, for which we only download a certain number of seconds.
 // Only a small download, so we can run it on CI infrastructure.
 #[tokio::test]
-async fn test_dynamic_forced_duration() {
+async fn test_dl_dynamic_forced_duration() {
     let mpd_url = "https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd";
-    let out = env::temp_dir().join("dynamic-6s.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-6s.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
@@ -669,16 +785,21 @@ async fn test_dynamic_forced_duration() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
     assert!(5.0 < duration && duration < 7.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
 #[tokio::test]
-async fn test_lowlatency_forced_duration() {
+async fn test_dl_lowlatency_forced_duration() {
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd";
-    let out = env::temp_dir().join("dynamic-11s-ll.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-11s-ll.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
@@ -699,6 +820,10 @@ async fn test_lowlatency_forced_duration() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
     assert!(9.5 < duration && duration < 13.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -706,9 +831,10 @@ async fn test_lowlatency_forced_duration() {
 // with a change in container type.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
-async fn test_forced_duration_audio() {
+async fn test_dl_forced_duration_audio() {
     let mpd_url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-surround-en.mpd";
-    let out = env::temp_dir().join("forced-duration-audio.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("forced-duration-audio.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
@@ -725,17 +851,22 @@ async fn test_forced_duration_audio() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
     assert!(7.1 < duration && duration < 8.5);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
 #[tokio::test]
-async fn test_follow_redirect() {
+async fn test_dl_follow_redirect() {
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let redirector = format!("http://httpbin.org/redirect-to?url={mpd_url}");
-    let out = env::temp_dir().join("itec-redirected.mp4");
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("itec-redirected.mp4");
     DashDownloader::new(&redirector)
         .worst_quality()
         .download_to(out.clone()).await
@@ -743,6 +874,10 @@ async fn test_follow_redirect() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 325_334);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
