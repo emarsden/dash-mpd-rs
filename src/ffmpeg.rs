@@ -96,12 +96,57 @@ fn mux_audio_video_ffmpeg(
 	if let Err(e) = fs::remove_file(tmppath) {
             warn!("Error deleting temporary ffmpeg output: {e}");
         }
+        return Ok(());
+    }
+    // The muxing may have failed only due to the "-c:v copy -c:a copy" argument to ffmpeg, which
+    // instructs it to copy the audio and video streams without any reencoding. That is not possible
+    // for certain output containers; for instance a WebM container must contain video using VP8,
+    // VP9 or AV1 codecs and Vorbis or Opus audio codecs. (Unfortunately, ffmpeg doesn't seem to
+    // return a recognizable error message in this specific case.)  So we try invoking ffmpeg again,
+    // this time allowing reencoding.
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
+        .args(["-hide_banner",
+               "-nostats",
+               "-loglevel", "error",  // or "warning", "info"
+               "-y", // overwrite output file if it exists
+               "-nostdin",
+               "-i", audio_str,
+               "-i", video_str,
+               "-movflags", "+faststart", "-preset", "veryfast",
+               // select the muxer explicitly (debatable whether this is better than ffmpeg's
+               // heuristics based on output filename)
+               "-f", muxer,
+               tmppath])
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
+    let msg = partial_process_output(&ffmpeg.stdout);
+    if msg.len() > 0 {
+        info!("ffmpeg stdout: {msg}");
+    }
+    let msg = partial_process_output(&ffmpeg.stderr);
+    if msg.len() > 0 {
+        info!("ffmpeg stderr: {msg}");
+    }
+    if ffmpeg.status.success() {
+        // local scope so that tmppath is not busy on Windows and can be deleted
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+        }
+	if let Err(e) = fs::remove_file(tmppath) {
+            warn!("Error deleting temporary ffmpeg output: {e}");
+        }
         Ok(())
     } else {
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
-
 
 
 // See "ffmpeg -formats"
