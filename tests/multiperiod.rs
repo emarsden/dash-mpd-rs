@@ -40,8 +40,9 @@ async fn test_multiperiod_helio() {
     // The three periods should have been merged into a single output file, and the other temporary
     // media files should be been explicitly deleted.
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -61,8 +62,9 @@ async fn test_multiperiod_nomor5a() {
         .unwrap();
     check_file_size_approx(&out, 95_623_359);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -86,8 +88,9 @@ async fn test_multiperiod_nomor5b() {
     check_file_size_approx(&p2, 4_383_256);
     check_file_size_approx(&p3, 31_215_605);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 3, "Expecting 3 output files, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 3, "Expecting 3 output files, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -106,8 +109,9 @@ async fn test_multiperiod_withsubs() {
         .unwrap();
     check_file_size_approx(&out, 98_716_475);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 // This manifest has two periods, each only containing audio content.
@@ -127,8 +131,9 @@ async fn test_multiperiod_audio() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -150,8 +155,9 @@ async fn test_multiperiod_diffbase() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
-    fs::remove_dir_all(tmpd);
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
