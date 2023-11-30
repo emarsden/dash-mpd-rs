@@ -2,6 +2,11 @@
 
 export LLVM_PROFILE_FILE := 'coverage/cargo-test-%p-%m.profraw'
 
+default:
+  @just --list
+
+
+
 grcov:
   @echo 'Running tests for coverage with grcov'
   rm -rf ${CARGO_TARGET_DIR}/coverage
