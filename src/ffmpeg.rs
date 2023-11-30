@@ -683,7 +683,6 @@ pub fn copy_video_to_container(
             .map_err(|e| DashMpdError::Io(e, String::from("copying video stream to output file")))?;
         return Ok(());
     }
-    // TODO: should allow the user to specify this ordering preference
     let mut muxer_preference = vec![];
     if container.eq("mkv") {
         muxer_preference.push("mkvmerge");
@@ -693,6 +692,13 @@ pub fn copy_video_to_container(
         muxer_preference.push("ffmpeg");
         muxer_preference.push("mp4box");
     }
+    if let Some(ordering) = downloader.muxer_preference.get(container) {
+        muxer_preference.clear();
+        for m in ordering.split(',') {
+            muxer_preference.push(m);
+        }
+    }
+    info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
         info!("Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
@@ -746,7 +752,6 @@ pub fn copy_audio_to_container(
             .map_err(|e| DashMpdError::Io(e, String::from("copying audio stream to output file")))?;
         return Ok(());
     }
-    // TODO: should allow the user to specify this ordering preference
     let mut muxer_preference = vec![];
     if container.eq("mkv") {
         muxer_preference.push("mkvmerge");
@@ -756,6 +761,13 @@ pub fn copy_audio_to_container(
         muxer_preference.push("ffmpeg");
         muxer_preference.push("mp4box");
     }
+    if let Some(ordering) = downloader.muxer_preference.get(container) {
+        muxer_preference.clear();
+        for m in ordering.split(',') {
+            muxer_preference.push(m);
+        }
+    }
+    info!("Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
         info!("Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
