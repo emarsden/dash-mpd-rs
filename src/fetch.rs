@@ -167,7 +167,7 @@ fn make_fragment(period: u8, url: Url, start_byte: Option<u64>, end_byte: Option
 // This struct is used to share information concerning the media fragments identified while parsing
 // a Period as being wanted for download, alongside any diagnostics information that we collected
 // while parsing the Period (in particular, any ContentProtection details).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct PeriodOutputs {
     fragments: Vec<MediaFragment>,
     diagnostics: String,
@@ -3541,13 +3541,19 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if !period.BaseURL.is_empty() {
             base_url = merge_baseurls(&base_url, &period.BaseURL[0].base)?;
         }
-        let audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
-        for f in audio_outputs.fragments {
-            pd.audio_fragments.push(f);
+        let mut audio_outputs = PeriodOutputs::default();
+        if downloader.fetch_audio {
+            audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            for f in audio_outputs.fragments {
+                pd.audio_fragments.push(f);
+            }
         }
-        let video_outputs = do_period_video(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
-        for f in video_outputs.fragments {
-            pd.video_fragments.push(f);
+        let mut video_outputs = PeriodOutputs::default();
+        if downloader.fetch_video {
+            video_outputs = do_period_video(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            for f in video_outputs.fragments {
+                pd.video_fragments.push(f);
+            }
         }
         match do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await {
             Ok(subtitle_outputs) => {
