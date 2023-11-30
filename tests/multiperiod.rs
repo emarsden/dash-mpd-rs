@@ -29,9 +29,6 @@ async fn test_multiperiod_helio() {
     let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("heliocentrism-multiperiod.webm");
-    if out.exists() {
-        let _ = fs::remove_file(out.clone());
-    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -43,8 +40,8 @@ async fn test_multiperiod_helio() {
     // The three periods should have been merged into a single output file, and the other temporary
     // media files should be been explicitly deleted.
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 
@@ -56,10 +53,7 @@ async fn test_multiperiod_nomor5a() {
     // This manifest is a 92MB file with 2 periods, identical video resolution and codecs in the two periods.
     let mpd_url = "https://dash.akamaized.net/dash264/TestCases/5a/nomor/1.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("multiperiod-5a.mp4");
-    if out.exists() {
-        let _ = fs::remove_file(out.clone());
-    }
+    let out = tmpd.path().join("nomor.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .concatenate_periods(true)
@@ -67,8 +61,8 @@ async fn test_multiperiod_nomor5a() {
         .unwrap();
     check_file_size_approx(&out, 95_623_359);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 
@@ -92,8 +86,8 @@ async fn test_multiperiod_nomor5b() {
     check_file_size_approx(&p2, 4_383_256);
     check_file_size_approx(&p3, 31_215_605);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 3, "Expecting 3 output files, got {count}");
+    assert_eq!(entries.count(), 3, "Expecting 3 output files, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 #[tokio::test]
@@ -106,17 +100,14 @@ async fn test_multiperiod_withsubs() {
     let mpd_url = "http://media.axprod.net/TestVectors/v6-Clear/MultiPeriod_Manifest_1080p.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-withsubs.mp4");
-    if out.exists() {
-        let _ = fs::remove_file(out.clone());
-    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 98_716_475);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 // This manifest has two periods, each only containing audio content.
@@ -128,9 +119,6 @@ async fn test_multiperiod_audio() {
     let mpd_url = "https://media.axprod.net/TestVectors/v7-Clear/Manifest_MultiPeriod_AudioOnly.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-audio.mp3");
-    if out.exists() {
-        let _ = fs::remove_file(out.clone());
-    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -139,8 +127,8 @@ async fn test_multiperiod_audio() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 
@@ -154,9 +142,6 @@ async fn test_multiperiod_diffbase() {
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesIOP33/multiplePeriods/3/manifest_multiple_Periods_Content_Offering_CDN.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-diffbase.mp4");
-    if out.exists() {
-        let _ = fs::remove_file(out.clone());
-    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
@@ -165,8 +150,8 @@ async fn test_multiperiod_diffbase() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    assert_eq!(entries.count(), 1, "Expecting a single output file, got {count}");
+    fs::remove_dir_all(tmpd);
 }
 
 
