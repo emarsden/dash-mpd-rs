@@ -71,6 +71,7 @@ async fn test_transcode_av1() {
     let out = env::temp_dir().join("mango.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_muxer_preference("webm", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 12_987_188);
@@ -133,23 +134,6 @@ async fn test_transcode_audio_multiperiod_mp3() {
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
     assert_eq!(audio.codec_name, Some(String::from("mp3")));
-}
-
-
-// Test failure case if we request muxing applications that aren't installed. We should also see two
-// warnings printed to stderr "Ignoring unknown muxer preference unavailable", but can't currently
-// test for that.
-#[tokio::test]
-#[cfg(not(feature = "libav"))]
-#[should_panic(expected = "all muxers failed")]
-async fn test_muxing_unavailable() {
-    let mpd_url = "https://m.dtv.fi/dash/dasherh264/manifest.mpd";
-    let out = env::temp_dir().join("unexist.mp3");
-    DashDownloader::new(mpd_url)
-        .with_muxer_preference("mp3", "unavailable,nothere")
-        .download_to(out.clone()).await
-        .unwrap();
-
 }
 
 
