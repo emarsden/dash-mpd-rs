@@ -104,7 +104,9 @@ async fn test_decryption_webm() {
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
-    assert_eq!(audio.codec_name, Some(String::from("vorbis")));
+    // Whether opus or vorbis codec is chosen seems to depend on the version of the muxer used.
+    assert!(audio.codec_name.eq(&Some(String::from("vorbis"))) ||
+            audio.codec_name.eq(&Some(String::from("opus"))));
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
