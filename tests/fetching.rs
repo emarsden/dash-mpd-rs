@@ -178,9 +178,10 @@ async fn test_dl_dolby_eac3() {
     check_file_size_approx(&out, 2_436_607);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[1];
-    assert_eq!(stream.codec_type, Some(String::from("audio")));
-    assert_eq!(stream.codec_name, Some(String::from("eac3")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("eac3")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -206,8 +207,9 @@ async fn test_dl_dolby_ac4_mkv() {
     check_file_size_approx(&out, 11_668_955);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[1];
-    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
     // This codec is not currently recogized by ffprobe
     // assert_eq!(stream.codec_name, Some(String::from("ac-4")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -326,12 +328,14 @@ async fn test_dl_hvc1() {
     check_file_size_approx(&out, 6_652_846);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let video = &meta.streams[0];
-    assert_eq!(video.codec_type, Some(String::from("video")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
     assert_eq!(video.codec_name, Some(String::from("hevc")));
     assert_eq!(video.width, Some(640));
-    let audio = &meta.streams[1];
-    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
     assert!(audio.width.is_none());
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -418,10 +422,11 @@ async fn test_dl_mp2t() {
     check_file_size_approx(&out, 9_019_006);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[0];
-    assert_eq!(stream.codec_type, Some(String::from("video")));
-    assert_eq!(stream.codec_name, Some(String::from("h264")));
-    assert_eq!(stream.width, Some(320));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert_eq!(video.width, Some(320));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -591,13 +596,15 @@ async fn test_dl_adaptation_set_variants() {
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let stream = &meta.streams[0];
-    assert_eq!(stream.codec_type, Some(String::from("video")));
-    assert_eq!(stream.codec_name, Some(String::from("h264")));
-    assert_eq!(stream.width, Some(1920));
-    let stream = &meta.streams[1];
-    assert_eq!(stream.codec_type, Some(String::from("audio")));
-    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert_eq!(video.width, Some(1920));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");

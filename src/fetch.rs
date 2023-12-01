@@ -583,6 +583,15 @@ impl DashDownloader {
     /// * `container`: the container type (e.g. "mp4", "mkv", "avi")
     /// * `ordering`: the comma-separated order of preference for trying muxing applications (e.g.
     ///   "ffmpeg,vlc,mp4box")
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let out = DashDownloader::new(url)
+    ///      .with_muxer_preference("mkv", "ffmpeg")
+    ///      .download_to("wonderful.mkv")
+    ///      .await?;
+    /// ```
     pub fn with_muxer_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
         self.muxer_preference.insert(container.to_string(), ordering.to_string());
         self
@@ -766,7 +775,7 @@ fn generate_filename_from_url(url: &str) -> PathBuf {
     let mut sanitize_opts = Options::DEFAULT;
     sanitize_opts.length_limit = 150;
     // We currently default to an MP4 container (could default to Matroska which is more flexible,
-    // but perhaps less commonly supported).
+    // and less patent-encumbered, but perhaps less commonly supported).
     PathBuf::from(sanitise_with_options(path, &sanitize_opts) + ".mp4")
 }
 
