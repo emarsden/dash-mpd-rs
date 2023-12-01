@@ -434,6 +434,8 @@ fn mux_stream_mp4box(
         Ok(())
     } else {
         let msg = partial_process_output(&cmd.stderr);
+        warn!("MP4Box mux_stream failure: stdout {}", partial_process_output(&cmd.stdout));
+        warn!("MP4Box stderr: {msg}");
         Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }

@@ -210,6 +210,7 @@ async fn test_dl_dolby_ac4_mkv() {
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
+    assert!(audio.is_ok());
     // This codec is not currently recogized by ffprobe
     // assert_eq!(stream.codec_name, Some(String::from("ac-4")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
