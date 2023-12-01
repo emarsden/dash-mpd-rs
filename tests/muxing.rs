@@ -351,9 +351,16 @@ async fn test_muxing_mp4box() {
 }
 
 
+// This test succeeds with MP4Box version 2.2, but fails with version 2.0, which is the one
+// currently available in ubuntu-latest and MacOS Homebrew. Version 2.2 adds improvements concerning
+// MKV containers. We currently disable this test on CI until a more recent version of MP4Box is easily
+// available for the GitHub actions CI machines.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mp4box_audio() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     // This manifest has segments in fragmented WebM and fragmented MP4 formats, in different
     // representations using different encodings. The audio Representation with the lowest bandwidth
     // uses vorbis codec and a WebM container, so it's the one which is selected here. This means
