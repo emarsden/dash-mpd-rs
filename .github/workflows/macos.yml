@@ -46,5 +46,6 @@ jobs:
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
+    - run: cargo run --example debug_mp4box_muxing
     - run: RUST_LOG=info cargo test --jobs 1 --verbose --no-run
     - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output

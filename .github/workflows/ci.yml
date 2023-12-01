@@ -50,6 +50,7 @@ jobs:
       - name: Install xsltproc
         run: sudo apt install xsltproc
 
+      - run: cargo run --example debug_mp4box_muxing
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
       - run: RUST_LOG=info cargo test --jobs 1
       - run: cargo test --jobs 1 --all-features
