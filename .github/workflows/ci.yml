@@ -50,8 +50,8 @@ jobs:
       - name: Install xsltproc
         run: sudo apt install xsltproc
 
-      - run: cargo test -- test muxing -- --show-output
-      - run: cargo test
-      - run: cargo test --all-features
+      - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
+      - run: RUST_LOG=info cargo test --jobs 1
+      - run: cargo test --jobs 1 --all-features
       - run: cargo run --example serialize
       - run: cargo run --example pprint_bbc_adaptive
