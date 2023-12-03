@@ -808,7 +808,7 @@ pub fn copy_audio_to_container(
 //
 // Example for n=2 with only audio:
 //   -i /tmp/audio1 -i /tmp/audio2 -filter_complex "[0:a][1:a] concat=n=2:v=0:a=1 [outa]" -map "[outa]" 
-fn make_ffmpeg_concat_filter_args(paths: &Vec<PathBuf>) -> Vec<String> {
+fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let n = paths.len();
     let mut filter = String::new();
     let mut have_audio = false;
