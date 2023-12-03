@@ -1042,6 +1042,9 @@ fn print_available_streams(mpd: &MPD) {
 }
 
 async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option<Vec<u8>> {
+    use bstr::ByteSlice;
+    use hex_literal::hex;
+
     let client = downloader.http_client.as_ref().unwrap();
     let mut req = client.get(init_url);
     if let Some(username) = &downloader.auth_username {
@@ -1065,12 +1068,30 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
             }
             segment_first_bytes.append(&mut chunk.to_vec());
             chunk_counter += 1;
-            if chunk_counter > 10 {
+            if chunk_counter > 20 {
                 break;
             }
         }
         let needle = b"pssh";
-        if let Some(offset) = segment_first_bytes.windows(needle.len()).position(|window| window == needle) {
+        for offset in segment_first_bytes.find_iter(needle) {
+            for i in offset-4..offset+2 {
+                if segment_first_bytes[i] != 0 {
+                    continue;
+                }
+            }
+            for i in offset+4..offset+8 {
+                if segment_first_bytes[i] != 0 {
+                    continue;
+                }
+            }
+            if offset+24 > segment_first_bytes.len() {
+                continue;
+            }
+            // const PLAYREADY_SYSID: [u8; 16] = hex!("9a04f07998404286ab92e65be0885f95");
+            const WIDEVINE_SYSID: [u8; 16] = hex!("edef8ba979d64acea3c827dcd51d21ed");
+            if !segment_first_bytes[(offset+8)..(offset+24)].eq(&WIDEVINE_SYSID) {
+                continue;
+            }
             let start = offset - 4;
             let end = start + segment_first_bytes[offset-1] as usize;
             let pssh = &segment_first_bytes[start..end];
