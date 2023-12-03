@@ -129,7 +129,7 @@ pub(crate) fn container_has_video(path: &PathBuf) -> bool {
 // (concatenated, possibly reencoding if the codecs used are different)? They can if:
 //   - they have identical resolutions, frame rate and aspect ratio
 //   - they all only contain audio content
-pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &Vec<PathBuf>) -> bool {
+pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &[PathBuf]) -> bool {
     if paths.is_empty() {
         return false;
     }
