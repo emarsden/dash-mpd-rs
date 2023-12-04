@@ -88,7 +88,7 @@ async fn test_error_smoothstreaming() {
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_html() {
     // Check that we fail to parse an HTML response.
-    let url = "https://httpbun.org/html";
+    let url = "https://httpbun.com/html";
     DashDownloader::new(url)
         .best_quality()
         .download().await
