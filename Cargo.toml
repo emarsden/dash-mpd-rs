@@ -53,7 +53,7 @@ clap = "4.3.24"
 tokio = { version = "1.33.0", features = ["rt-multi-thread", "time", "macros"] }
 axum = "0.6.20"
 axum-server = { version = "0.5.1" }
-axum-auth = "0.4.1"
+axum-auth = "0.7.0"
 anyhow = "1.0.75"
 roxmltree = "0.19.0"
 xmlem = "0.2.3"
