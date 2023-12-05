@@ -44,7 +44,7 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
 
 // When reading stdout or stderr from an external commandline application to display for the user,
 // this is the maximum number of octets read.
-pub fn partial_process_output(output: &Vec<u8>) -> Cow<'_, str> {
+pub fn partial_process_output(output: &[u8]) -> Cow<'_, str> {
     let len = min(output.len(), 4096);
     String::from_utf8_lossy(&output[0..len])
 }
@@ -1074,11 +1074,13 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
         }
         let needle = b"pssh";
         for offset in segment_first_bytes.find_iter(needle) {
+            #[allow(clippy::needless_range_loop)]
             for i in offset-4..offset+2 {
                 if segment_first_bytes[i] != 0 {
                     continue;
                 }
             }
+            #[allow(clippy::needless_range_loop)]
             for i in offset+4..offset+8 {
                 if segment_first_bytes[i] != 0 {
                     continue;
