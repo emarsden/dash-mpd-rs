@@ -63,10 +63,30 @@ default configuration (using an external application as a subprocess).
 
 ## DASH features supported
 
-- Multi-period content. The media in the different streams will be saved in a single media container
+- **Multi-period** content. The media in the different streams will be saved in a single media container
   if the formats are compatible (same resolution, codecs, bitrate and so on) and
   `concatenate_periods(false)` has not been called on DashDownloader, and otherwise in separate
   media containers.
+
+- WebVTT/wvtt, TTML, STPP, SRT, tx3g and SMIL **subtitles**, either provided as a single media
+  stream or as a fragmented MP4 stream. Subtitles that are distributed as a single media stream will
+  be saved to a file with the same base name as the requested output file, but with an extension
+  corresponding to the subtitle type (e.g. `.srt`, `.vtt`). Subtitles distributed in WebVTT/wvtt
+  format (either as a single media stream or a fragmented MP4 stream) will be converted to the more
+  standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/)
+  project), if it is installed. STPP subtitles (which according to the DASH specifications should be
+  formatted as EBU-TT) will be muxed into the output media container as a `subt:stpp` stream using
+  MP4Box. Note that common media players such as mplayer and VLC don't currently support this
+  subtitle type; you can try using the GPAC media player (available with `gpac -gui`).
+
+- Support for **decrypting** media streams that use MPEG Common Encryption (cenc) ContentProtection.
+  This requires either the `mp4decrypt` commandline application from the [Bento4
+  suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
+  available](https://www.bento4.com/downloads/) for common platforms), or the [Shaka
+  packager](https://github.com/shaka-project/shaka-packager) application (binaries for common
+  platforms are available as GitHub releases). See the `add_decryption_key` function on
+  `DashDownloader`, the `with_decryptor_preference` function on `DashDownloader`, and the
+  [decrypt.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/decrypt.rs) example.
 
 - XLink elements (only with actuate=onLoad semantics), including resolve-to-zero.
 
@@ -75,26 +95,6 @@ default configuration (using an external application as a subprocess).
 
 - Media containers of types supported by mkvmerge, ffmpeg, VLC or MP4Box (this includes Matroska,
   ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS), and all codecs supported by these applications.
-
-- WebVTT/wvtt, TTML, STPP, SRT, tx3g and SMIL subtitles, either provided as a single media stream or
-  as a fragmented MP4 stream. Subtitles that are distributed as a single media stream will be saved
-  to a file with the same base name as the requested output file, but with an extension
-  corresponding to the subtitle type (e.g. ".srt", ".vtt"). Subtitles distributed in WebVTT/wvtt
-  format (either as a single media stream or a fragmented MP4 stream) will be converted to the more
-  standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/)
-  project), if it is installed. STPP subtitles (which according to the DASH specifications should be
-  formatted as EBU-TT) will be muxed into the output media container as a "subt:stpp" stream using
-  MP4Box. Note that common media players such as mplayer and VLC don't currently support this
-  subtitle type; you can try using the GPAC media player (available with "gpac -gui").
-
-- Support for decrypting media streams that use MPEG Common Encryption (cenc) ContentProtection.
-  This requires either the `mp4decrypt` commandline application from the [Bento4
-  suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
-  available](https://www.bento4.com/downloads/) for common platforms), or the [Shaka
-  packager](https://github.com/shaka-project/shaka-packager) application (binaries for common
-  platforms are available as GitHub releases). See the `add_decryption_key` function on
-  `DashDownloader`, the `with_decryptor_preference` function on `DashDownloader`, and the
-  [decrypt.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/decrypt.rs) example.
 
 
 
@@ -214,14 +214,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.14.5"
+dash-mpd = "0.14.6"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.14.5", default-features = false }
+dash-mpd = { version = "0.14.6", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
