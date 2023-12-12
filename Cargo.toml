@@ -74,4 +74,4 @@ rustls-tls = ["reqwest/rustls-tls"]
 trust-dns = ["reqwest/trust-dns"]
 
 [target.'cfg(unix)'.dependencies]
-xattr = "1.1.2"
+xattr = "1.1.3"
