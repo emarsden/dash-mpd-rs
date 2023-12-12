@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.6] - Unreleased
+## [0.14.6] - 2023-12-09
 
 - Downloading: include the query component of the MPD URL in requests for media segments, to support
   the token-based authentication used by some streaming services. If the manifest URL is
