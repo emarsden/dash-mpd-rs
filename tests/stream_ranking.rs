@@ -26,10 +26,10 @@ use axum::extract::{State, Path};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
+use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use env_logger::Env;
 use common::{generate_minimal_mp4_ffmpeg, ffprobe_metadata_title};
 
 
@@ -49,10 +49,8 @@ const QUALITY_INTERMEDIATE: u8 = 66;
 const QUALITY_WORST: u8 = 77;
 
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_preference_ranking() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
     let segment_template1 = SegmentTemplate {
         initialization: Some(format!("/media/{QUALITY_BEST}")),
         ..Default::default()

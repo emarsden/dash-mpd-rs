@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use fs_err as fs;
 use fs::File;
-use log::{trace, info, warn};
+use tracing::{trace, info, warn};
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
@@ -19,6 +19,7 @@ use crate::media::{audio_container_type, video_container_type, container_has_vid
 
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_audio_video_ffmpeg(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -166,6 +167,7 @@ fn ffmpeg_container_name(extension: &str) -> Option<String> {
 
 // This can be used to package either an audio stream or a video stream into the container format
 // that is determined by the extension of output_path.
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_stream_ffmpeg(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -237,7 +239,7 @@ fn mux_stream_ffmpeg(
         }
         Ok(())
     } else {
-        println!("  unmuxed stream: {input}");
+        warn!("  unmuxed stream: {input}");
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
@@ -245,6 +247,7 @@ fn mux_stream_ffmpeg(
 
 // See https://wiki.videolan.org/Transcode/
 // VLC could also mux to an mkv container if needed
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_audio_video_vlc(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -326,6 +329,7 @@ fn mux_audio_video_vlc(
 
 // MP4Box from the GPAC suite for muxing audio and video streams
 // https://github.com/gpac/gpac/wiki/MP4Box
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_audio_video_mp4box(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -387,6 +391,7 @@ fn mux_audio_video_mp4box(
 
 // This can be used to package either an audio stream or a video stream into the container format
 // that is determined by the extension of output_path.
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_stream_mp4box(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -461,6 +466,7 @@ fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
     }
 }
 
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_audio_video_mkvmerge(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -506,6 +512,7 @@ fn mux_audio_video_mkvmerge(
 }
 
 // Copy video stream at video_path into Matroska container at output_path.
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_video_mkvmerge(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -545,6 +552,7 @@ fn mux_video_mkvmerge(
 
 
 // Copy audio stream at video_path into Matroska container at output_path.
+#[tracing::instrument(level="trace", skip(downloader))]
 fn mux_audio_mkvmerge(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -586,6 +594,7 @@ fn mux_audio_mkvmerge(
 // Mux (merge) audio and video using an external tool, selecting the tool based on the output
 // container format and on the user-specified muxer preference ordering (e.g. "ffmpeg,vlc,mp4box")
 // or our hardcoded container-dependent preference ordering.
+#[tracing::instrument(level="trace", skip(downloader))]
 pub fn mux_audio_video(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -657,12 +666,13 @@ pub fn mux_audio_video(
         }
     }
     warn!("All muxers failed");
-    println!("  unmuxed audio stream: {}", audio_path.display());
-    println!("  unmuxed video stream: {}", video_path.display());
+    warn!("  unmuxed audio stream: {}", audio_path.display());
+    warn!("  unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all muxers failed")))
 }
 
 
+#[tracing::instrument(level="trace", skip(downloader))]
 pub fn copy_video_to_container(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -727,11 +737,12 @@ pub fn copy_video_to_container(
         }
     }
     warn!("All available muxers failed");
-    println!("  unmuxed video stream: {}", video_path.display());
+    warn!("  unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
 
+#[tracing::instrument(level="trace", skip(downloader))]
 pub fn copy_audio_to_container(
     downloader: &DashDownloader,
     output_path: &Path,
@@ -796,7 +807,7 @@ pub fn copy_audio_to_container(
         }
     }
     warn!("All available muxers failed");
-    println!("  unmuxed audio stream: {}", audio_path.display());
+    warn!("  unmuxed audio stream: {}", audio_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
@@ -808,6 +819,7 @@ pub fn copy_audio_to_container(
 //
 // Example for n=2 with only audio:
 //   -i /tmp/audio1 -i /tmp/audio2 -filter_complex "[0:a][1:a] concat=n=2:v=0:a=1 [outa]" -map "[outa]" 
+#[tracing::instrument(level="trace")]
 fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let n = paths.len();
     let mut filter = String::new();
@@ -854,7 +866,10 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
 
 // Merge all media files named by paths into the file named by the first element of the vector.
 // Currently only attempt ffmpeg, with reencoding in case the codecs in the input files are different.
-pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathBuf>) -> Result<(), DashMpdError> {
+#[tracing::instrument(level="trace", skip(downloader))]
+pub(crate) fn concat_output_files(
+    downloader: &DashDownloader,
+    paths: &Vec<PathBuf>) -> Result<(), DashMpdError> {
     if paths.len() < 2 {
         return Ok(());
     }
@@ -915,9 +930,9 @@ pub(crate) fn concat_output_files(downloader: &DashDownloader, paths: &Vec<PathB
     if ffmpeg.status.success() {
         Ok(())
     } else {
-        println!("  unconcatenated input files:");
+        warn!("  unconcatenated input files:");
         for p in paths {
-            println!("      {}", p.display());
+            warn!("      {}", p.display());
         }
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }

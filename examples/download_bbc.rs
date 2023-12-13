@@ -6,12 +6,22 @@
 // with "xattr -l <output-path>"
 
 use std::process;
-use env_logger::Env;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use dash_mpd::fetch::DashDownloader;
 
 #[tokio::main]
 async fn main () {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     // this is a 442MB file
     let url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd";
     let ddl = DashDownloader::new(url)

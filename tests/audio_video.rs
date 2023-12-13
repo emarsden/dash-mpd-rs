@@ -9,13 +9,14 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
 
 // This test is too slow to run; disable it.
 #[ignore]
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_video_only_slow() {
     if env::var("CI").is_ok() {
@@ -36,7 +37,7 @@ async fn test_dl_video_only_slow() {
     assert!(stream.width.is_some());
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_dl_video_only() {
     if env::var("CI").is_ok() {
         return;
@@ -56,7 +57,7 @@ async fn test_dl_video_only() {
     assert!(stream.width.is_some());
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_only() {
     if env::var("CI").is_ok() {
@@ -77,7 +78,7 @@ async fn test_dl_audio_only() {
     assert!(stream.width.is_none());
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_dl_keep_audio_video() {
     if env::var("CI").is_ok() {
         return;
@@ -108,7 +109,7 @@ async fn test_dl_keep_audio_video() {
     assert!(stream.width.is_some());
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_dl_keep_segments() {
     if env::var("CI").is_ok() {
         return;
@@ -131,7 +132,7 @@ async fn test_dl_keep_segments() {
 }
 
 #[ignore]
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_dl_cea608_captions_slow() {
     if env::var("CI").is_ok() {
         return;
@@ -157,7 +158,7 @@ async fn test_dl_cea608_captions_slow() {
 // check that when selecting the video stream to download (criterion = lowest bandwidth), we are
 // analyzing all Representation elements in the manifest, and not just the Representations in the
 // first AdaptationSet.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_dl_video_stream_selection() {
     if env::var("CI").is_ok() {
         return;

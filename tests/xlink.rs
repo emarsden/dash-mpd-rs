@@ -36,7 +36,6 @@ use fs_err as fs;
 use std::env;
 use std::time::Duration;
 use std::str::FromStr;
-use std::sync::Once;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use url::Url;
@@ -45,15 +44,14 @@ use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
+use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
 use dash_mpd::{SegmentTemplate, SegmentURL};
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 use anyhow::{Context, Result};
-use env_logger::Env;
 use common::generate_minimal_mp4;
 
 
-static INIT: Once = Once::new();
 
 #[derive(Debug, Default)]
 struct AppState {
@@ -105,10 +103,8 @@ fn make_segment_list(urls: Vec<&str>) -> SegmentList {
 }
 
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_xlink_retrieval() -> Result<()> {
-    INIT.call_once(|| env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init());
-
     let segment_template1 = SegmentTemplate {
         initialization: Some("/media/f1.mp4".to_string()),
         ..Default::default()
@@ -293,10 +289,8 @@ async fn test_xlink_retrieval() -> Result<()> {
 
 
 // Test behaviour when xlinked resources are unavailable.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_xlink_errors() -> Result<()> {
-    INIT.call_once(|| env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init());
-
     // This XLinked Period that resolves to a success.
     let period1 = Period {
         id: Some("2".to_string()),

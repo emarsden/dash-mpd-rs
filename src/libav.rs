@@ -24,7 +24,7 @@ use fs_err as fs;
 use fs::File;
 use std::path::Path;
 use std::io::{BufReader, BufWriter};
-use log::{info, trace};
+use tracing::{info, trace};
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;

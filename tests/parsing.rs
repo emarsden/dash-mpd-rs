@@ -12,6 +12,7 @@ use std::fs;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
+use test_log::test;
 use dash_mpd::parse;
 use dash_mpd::fetch::DashDownloader;
 
@@ -320,7 +321,7 @@ fn test_file_parsing() {
 
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_parsing_online() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
@@ -353,7 +354,7 @@ async fn test_parsing_online() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_parsing_subrepresentations() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
@@ -382,7 +383,7 @@ async fn test_parsing_subrepresentations() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_parsing_eventstream() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
@@ -413,7 +414,7 @@ async fn test_parsing_eventstream() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_parsing_supplementalproperty() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
@@ -447,7 +448,7 @@ async fn test_parsing_supplementalproperty() {
 // This manifest is invalid because it contains a subsegmentStartsWithSAP="true", whereas the DASH
 // specification states that this should be an SAPType, an integer (checked with
 // https://conformance.dashif.org/).
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_parsing_fail_invalid_int() {
     DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd")
@@ -457,7 +458,7 @@ async fn test_parsing_fail_invalid_int() {
 }
 
 // This manifest has <BaseURL> closed by <BaseURl>
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_parsing_fail_incorrect_tag() {
     DashDownloader::new("https://dash.akamaized.net/akamai/test/isptest.mpd")

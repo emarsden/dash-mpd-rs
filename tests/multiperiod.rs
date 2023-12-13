@@ -8,12 +8,13 @@ pub mod common;
 use fs_err as fs;
 use std::env;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_helio() {
     // This test generates large CPU usage by reencoding a multiperiod media file, so don't run it
     // on CI infrastructure.
@@ -46,7 +47,7 @@ async fn test_multiperiod_helio() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_nomor5a() {
     if env::var("CI").is_ok() {
         return;
@@ -68,7 +69,7 @@ async fn test_multiperiod_nomor5a() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_nomor5b() {
     if env::var("CI").is_ok() {
         return;
@@ -93,7 +94,7 @@ async fn test_multiperiod_nomor5b() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_withsubs() {
     if env::var("CI").is_ok() {
         return;
@@ -115,7 +116,7 @@ async fn test_multiperiod_withsubs() {
 }
 
 // This manifest has two periods, each only containing audio content.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_audio() {
     if env::var("CI").is_ok() {
         return;
@@ -139,7 +140,7 @@ async fn test_multiperiod_audio() {
 
 // This manifest contains three Periods, each with a different BaseURL (which could be pointing to
 // different CDNs).
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_multiperiod_diffbase() {
     if env::var("CI").is_ok() {
         return;

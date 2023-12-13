@@ -9,6 +9,7 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
@@ -16,7 +17,7 @@ use common::check_file_size_approx;
 // We can't check file size for this test, as depending on whether mkvmerge or ffmpeg or mp4box are
 // used to copy the video stream into the Matroska container (depending on which one is installed),
 // the output file size varies quite a lot.
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mkvmerge() {
     if env::var("CI").is_ok() {
@@ -57,7 +58,7 @@ async fn test_muxing_mkvmerge() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mkvmerge_audio() {
     let mpd_url = "http://yt-dash-mse-test.commondatastorage.googleapis.com/media/car-20120827-manifest.mpd";
@@ -86,7 +87,7 @@ async fn test_muxing_mkvmerge_audio() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_ffmpeg_avi() {
     if env::var("CI").is_ok() {
@@ -109,7 +110,7 @@ async fn test_muxing_ffmpeg_avi() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_ffmpeg_mkv() {
     if env::var("CI").is_ok() {
@@ -145,7 +146,7 @@ async fn test_muxing_ffmpeg_mkv() {
 // Expect this to print INFO diagnostics to stderr complaining that the audio and video codecs are
 // not compatible with a WebM container (we are running ffmpeg with "-c:v copy -c:a copy" which
 // prevents re-encoding), then the second ffmpeg run (with reencoding allowed) should succeed.
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_ffmpeg_webm() {
     if env::var("CI").is_ok() {
@@ -180,7 +181,7 @@ async fn test_muxing_ffmpeg_webm() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_ffmpeg_audio() {
     // This manifest has segments in fragmented WebM and fragmented MP4 formats, in different
@@ -214,7 +215,7 @@ async fn test_muxing_ffmpeg_audio() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_vlc_mp4() {
     if env::var("CI").is_ok() {
@@ -248,7 +249,7 @@ async fn test_muxing_vlc_mp4() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_vlc_mkv() {
     if env::var("CI").is_ok() {
@@ -282,7 +283,7 @@ async fn test_muxing_vlc_mkv() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_vlc_webm() {
     if env::var("CI").is_ok() {
@@ -317,7 +318,7 @@ async fn test_muxing_vlc_webm() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mp4box() {
     if env::var("CI").is_ok() {
@@ -355,7 +356,7 @@ async fn test_muxing_mp4box() {
 // currently available in ubuntu-latest and MacOS Homebrew. Version 2.2 adds improvements concerning
 // MKV containers. We currently disable this test on CI until a more recent version of MP4Box is easily
 // available for the GitHub actions CI machines.
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mp4box_audio() {
     if env::var("CI").is_ok() {
@@ -396,7 +397,7 @@ async fn test_muxing_mp4box_audio() {
 // Test failure case if we request muxing applications that aren't installed. We should also see two
 // warnings printed to stderr "Ignoring unknown muxer preference unavailable", but can't currently
 // test for that.
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 #[should_panic(expected = "all muxers failed")]
 async fn test_muxing_unavailable() {

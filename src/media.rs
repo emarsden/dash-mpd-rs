@@ -11,7 +11,7 @@
 
 use std::path::{Path, PathBuf};
 use file_format::FileFormat;
-use log::warn;
+use tracing::warn;
 use crate::DashMpdError;
 use crate::fetch::DashDownloader;
 

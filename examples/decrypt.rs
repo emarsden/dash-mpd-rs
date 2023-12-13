@@ -4,12 +4,22 @@
 
 
 use std::process;
-use env_logger::Env;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use dash_mpd::fetch::DashDownloader;
 
 #[tokio::main]
 async fn main () {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     let url = "https://bitmovin-a.akamaihd.net/content/art-of-motion_drm/mpds/11331.mpd";
     let ddl = DashDownloader::new(url)
         .worst_quality()

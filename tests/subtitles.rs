@@ -11,9 +11,10 @@
 use fs_err as fs;
 use std::env;
 use std::path::Path;
-use log::info;
+use tracing::info;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 
 // This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to
@@ -23,7 +24,7 @@ use dash_mpd::fetch::DashDownloader;
 //
 // Note that these tests will fail if MP4Box (from GPAC) is not installed. MP4Box is used for the
 // conversion to SRT format.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_wvtt () {
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
     let outpath = env::temp_dir().join("sintel.mp4");
@@ -75,7 +76,7 @@ async fn test_subtitles_wvtt () {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_ttml () {
     let mpd = "https://dash.akamaized.net/dash264/TestCases/4b/qualcomm/2/TearsOfSteel_onDem5secSegSubTitles.mpd";
     let outpath = env::temp_dir().join("tears-of-steel.mp4");
@@ -113,7 +114,7 @@ async fn test_subtitles_ttml () {
 
 // We can run this on CI infrastructure because it's only downloading a modest amount of subtitle
 // segments.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_vtt () {
     let mpd = "http://dash.edgesuite.net/akamai/test/caption_test/ElephantsDream/elephants_dream_480p_heaac5_1.mpd";
     let outpath = env::temp_dir().join("elephants-dream.mp4");
@@ -143,7 +144,7 @@ async fn test_subtitles_vtt () {
 
 // STPP subtitles are muxed into the output media stream, so we need to download audio and video for
 // this type. So we don't run this test on CI infrastructure.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_stpp() {
     if env::var("CI").is_ok() {
         return;
@@ -171,7 +172,7 @@ async fn test_subtitles_stpp() {
 
 
 // Image-based (IMSC1 CMAF) STPP subtitles.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_stpp_imsc1() {
     if env::var("CI").is_ok() {
         return;
@@ -201,7 +202,7 @@ async fn test_subtitles_stpp_imsc1() {
 
 
 // MPEG-4 Part 17 (Timed Text), called "mov_text" in ffmpeg.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitles_tx3g() {
     if env::var("CI").is_ok() {
         return;

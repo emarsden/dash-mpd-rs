@@ -5,10 +5,11 @@
 
 use std::process;
 use std::sync::Arc;
-use env_logger::Env;
 use clap::Arg;
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::*;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use dash_mpd::fetch::DashDownloader;
 use dash_mpd::fetch::ProgressObserver;
 
@@ -42,7 +43,16 @@ impl ProgressObserver for DownloadProgressBar {
 
 #[tokio::main]
 async fn main () {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     let matches = clap::Command::new("downloader_progressbar")
         .about("Download content from a DASH streaming media manifest")
         .arg(Arg::new("quality")

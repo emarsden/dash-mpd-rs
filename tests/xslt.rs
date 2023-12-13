@@ -19,9 +19,9 @@ use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use env_logger::Env;
 use common::{check_file_size_approx, generate_minimal_mp4};
 
 
@@ -40,10 +40,8 @@ impl AppState {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_xslt_rewrite_media() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
     // State shared between the request handlers.
     let shared_state = Arc::new(AppState::new());
 
@@ -139,7 +137,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
 // This MPD manifest includes two AdaptationSets, one for the video streams and one for the audio
 // stream. The rewrite-drop-audio.xslt stylesheet rewrites the XML manifest to remove the audio
 // AdaptationSet. We check that the resulting media container only contains a video track.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_xslt_drop_audio() {
     if env::var("CI").is_ok() {
         return;
@@ -170,7 +168,7 @@ async fn test_xslt_drop_audio() {
 
 // This XSLT stylesheet replaces @media and @initialization attributes to point to a beloved media
 // segment.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_xslt_rick() {
     if env::var("CI").is_ok() {
         return;
@@ -199,7 +197,7 @@ async fn test_xslt_rick() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_xslt_multiple_stylesheets() {
     if env::var("CI").is_ok() {
         return;
@@ -235,7 +233,7 @@ async fn test_xslt_multiple_stylesheets() {
 
 
 // Note that the error message is structured differently on Unix and Microsoft Windows platforms.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "xsltproc returned exit")]
 async fn test_xslt_stylesheet_error() {
     let mpd_url = "https://dash.akamaized.net/akamai/test/index3-original.mpd";

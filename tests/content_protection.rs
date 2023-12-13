@@ -12,11 +12,12 @@ use std::process::Command;
 use std::time::Duration;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::{check_file_size_approx, ffmpeg_approval};
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_content_protection_parsing() {
     use dash_mpd::{parse, MPD};
 
@@ -73,7 +74,7 @@ async fn test_content_protection_parsing() {
 
 // Note that mp4decrypt is not able to decrypt content in a WebM container, so we use Shaka packager
 // here.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_webm() {
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out = env::temp_dir().join("angel.webm");
@@ -130,7 +131,7 @@ async fn test_decryption_webm() {
 // These test cases are from https://refapp.hbbtv.org/videos/.
 
 // WideVine ContentProtection with CENC encryption
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_wvcenc_mp4decrypt () {
     if env::var("CI").is_ok() {
         return;
@@ -158,7 +159,7 @@ async fn test_decryption_wvcenc_mp4decrypt () {
 
 
 // Widevine ContentProtection with CBCS encryption
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_wvcbcs_mp4decrypt () {
     if env::var("CI").is_ok() {
         return;
@@ -188,7 +189,7 @@ async fn test_decryption_wvcbcs_mp4decrypt () {
 
 
 // PlayReady / CENC
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_prcenc_mp4decrypt () {
     if env::var("CI").is_ok() {
         return;
@@ -214,7 +215,7 @@ async fn test_decryption_prcenc_mp4decrypt () {
 
 
 // Marlin / CENC
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_marlincenc_mp4decrypt () {
     if env::var("CI").is_ok() {
         return;
@@ -238,7 +239,7 @@ async fn test_decryption_marlincenc_mp4decrypt () {
 }
 
 // Marlin / CBCS
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_marlincbcs_mp4decrypt () {
     if env::var("CI").is_ok() {
         return;
@@ -265,7 +266,7 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
 
 
 // WideVine ContentProtection with CENC encryption
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_wvcenc_shaka () {
     if env::var("CI").is_ok() {
         return;
@@ -294,7 +295,7 @@ async fn test_decryption_wvcenc_shaka () {
 
 
 // Widevine ContentProtection with CBCS encryption
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_wvcbcs_shaka () {
     if env::var("CI").is_ok() {
         return;
@@ -324,7 +325,7 @@ async fn test_decryption_wvcbcs_shaka () {
 }
 
 // PlayReady / CENC
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_prcenc_shaka () {
     if env::var("CI").is_ok() {
         return;
@@ -351,7 +352,7 @@ async fn test_decryption_prcenc_shaka () {
 
 
 // Marlin / CENC
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_mlcenc_shaka () {
     if env::var("CI").is_ok() {
         return;
@@ -377,7 +378,7 @@ async fn test_decryption_mlcenc_shaka () {
 
 
 // Marlin / CBCS
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_mlcbcs_shaka () {
     if env::var("CI").is_ok() {
         return;
@@ -405,7 +406,7 @@ async fn test_decryption_mlcbcs_shaka () {
 
 
 // Test vectors from https://github.com/Axinom/public-test-vectors
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_axinom_cmaf_h265_multikey () {
     if env::var("CI").is_ok() {
         return;
@@ -432,7 +433,7 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_axinom_cbcs () {
     if env::var("CI").is_ok() {
         return;
@@ -459,7 +460,7 @@ async fn test_decryption_axinom_cbcs () {
 
 
 // A small decryption test case that we can run on the CI infrastructure.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_small () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes.mp4");
@@ -477,7 +478,7 @@ async fn test_decryption_small () {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_small_shaka () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes-shaka.mp4");
@@ -497,7 +498,7 @@ async fn test_decryption_small_shaka () {
 
 // Content that isn't encrypted should be downloaded normally even if unnecessary decryption keys are
 // specified.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_unencrypted_mp4decrypt () {
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-mp4decrypt.mp4");
@@ -520,7 +521,7 @@ async fn test_decryption_unencrypted_mp4decrypt () {
 
 // Content that isn't encrypted should be downloaded normally even if unnecessary decryption keys are
 // specified.
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_decryption_unencrypted_shaka () {
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-shaka.mp4");
@@ -543,7 +544,7 @@ async fn test_decryption_unencrypted_shaka () {
 
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "unknown decryption application")]
 async fn test_decryption_invalid_decryptor () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
@@ -558,7 +559,7 @@ async fn test_decryption_invalid_decryptor () {
 
 
 // We are expecting a DashMpdError::Decrypting error.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_mp4decrypt () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
@@ -573,7 +574,7 @@ async fn test_decryption_invalid_key_mp4decrypt () {
 
 
 // We are expecting a DashMpdError::Decrypting error.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_shaka () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";

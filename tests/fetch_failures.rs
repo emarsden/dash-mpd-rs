@@ -6,10 +6,11 @@
 
 use std::env;
 use std::time::Duration;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_error_parsing() {
     // This DASH manifest is invalid because it contains a presentationDuration="25.7726666667" on a
@@ -22,7 +23,7 @@ async fn test_error_parsing() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_error_group_attribute() {
     // This DASH manifest is invalid because it contains an invalid valid "notAnInteger" for the
@@ -33,7 +34,7 @@ async fn test_error_group_attribute() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_invalidxml() {
     // This content response is not valid XML because the processing instruction ("<?xml...>") is
@@ -46,7 +47,7 @@ async fn test_error_invalidxml() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_bad_closing_tag() {
     // This content response is not valid XML because </BaseURl> closes <BaseURL>.
@@ -59,7 +60,7 @@ async fn test_error_bad_closing_tag() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing BaseURL: InvalidPort")]
 async fn test_error_bad_baseurl() {
     // This DASH manifest contains invalid BaseURLs.
@@ -72,7 +73,7 @@ async fn test_error_bad_baseurl() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_smoothstreaming() {
     // SmoothStreamingMedia manifests are an XML format, but not the same schema as DASH (root
@@ -84,7 +85,7 @@ async fn test_error_smoothstreaming() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_html() {
     // Check that we fail to parse an HTML response.
@@ -95,7 +96,7 @@ async fn test_error_html() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_img() {
     // Check that we fail to parse an image response.
@@ -106,7 +107,7 @@ async fn test_error_img() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "dns error")]
 async fn test_error_dns() {
     let url = "https://nothere.example.org/";
@@ -120,7 +121,7 @@ async fn test_error_dns() {
 // Check that timeouts on network requests are correctly signalled. This manifest specifies a single
 // large video segment (427MB) which should lead to a network timeout with our 0.5s setting, even
 // if the test is running with a very large network bandwidth.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "operation timed out")]
 async fn test_error_timeout() {
     // Don't run download tests on CI infrastructure
@@ -142,7 +143,7 @@ async fn test_error_timeout() {
 
 // Check that we generate a timeout for network request when setting a low limit on network
 // bandwidth (100 Kbps) and retrieving a large file.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "operation timed out")]
 async fn test_error_ratelimit() {
     // Don't run download tests on CI infrastructure
@@ -165,7 +166,7 @@ async fn test_error_ratelimit() {
 
 
 // Check error reporting for missing DASH manifest
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_missing_mpd() {
     let out = env::temp_dir().join("failure1.mkv");
@@ -177,7 +178,7 @@ async fn test_error_missing_mpd() {
 
 // Check error reporting when Period element contains a HTTP 404 XLink
 // (this URL from DASH test suite)
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "fetching XLink")]
 async fn test_error_xlink_gone() {
     let out = env::temp_dir().join("failure_xlink.mkv");
@@ -195,7 +196,7 @@ async fn test_error_xlink_gone() {
 //   https://cdn-vos-ppp-01.vos360.video/Content/DASH_DASHCLEAR2/Live/channel(PPP-LL-2DASH)/master.mpd
 //   https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd
 //   https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "download dynamic MPD")]
 async fn test_error_dynamic_mpd() {
     let mpd = "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd";
@@ -209,7 +210,7 @@ async fn test_error_dynamic_mpd() {
 // We could try to check that the error message contains "invalid peer certificate" (rustls) or
 // "certificate has expired" (native-tls with OpenSSL), but our tests would be platform-dependent
 // and fragile.
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_expired() {
     // Check that the reqwest client refuses to download MPD from an expired TLS certificate
@@ -220,7 +221,7 @@ async fn test_error_tls_expired() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_self_signed() {
     let mpd = "https://self-signed.badssl.com/ignored.mpd";
@@ -229,7 +230,7 @@ async fn test_error_tls_self_signed() {
         .unwrap();
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_too_large() {
     // The TLS response message is too large
@@ -239,7 +240,7 @@ async fn test_error_tls_too_large() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_wrong_name() {
     DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
@@ -248,7 +249,7 @@ async fn test_error_tls_wrong_name() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_tls_pinning() {
     DashDownloader::new("https://pinning-test.badssl.com/ignored.mpd")

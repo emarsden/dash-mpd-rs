@@ -16,10 +16,10 @@ use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
+use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate, Location};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use env_logger::Env;
 use common::generate_minimal_mp4;
 
 
@@ -35,10 +35,8 @@ impl AppState {
 }
 
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_mpd_location() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
     let segment_template1 = SegmentTemplate {
         initialization: Some("/media/init.mp4".to_string()),
         ..Default::default()

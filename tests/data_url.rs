@@ -22,10 +22,10 @@ use tempfile::Builder;
 use axum::{routing::get, Router};
 use axum::http::header;
 use ffprobe::ffprobe;
+use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, Initialization, SegmentList, SegmentURL};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::Result;
-use env_logger::Env;
 
 
 // Check that the video at timestamp has a solid color of expected_rgb.
@@ -67,10 +67,8 @@ fn as_data_url(video: &Path) -> String {
     "data:video/x-matroska;base64,".to_owned() + &BASE64_STANDARD.encode(bytes)
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
 async fn test_data_url() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
     // Use ffmpeg to create a test MP4 file with 5 seconds of solid red, 5 seconds of solid green then 5
     // seconds of solid blue. Segment this file to create an initialization segment and two fragmented
     // MP4 segments.

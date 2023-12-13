@@ -46,9 +46,10 @@ use axum::{routing::get, Router};
 use axum::http::header;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use dash_mpd::fetch::DashDownloader;
 use anyhow::Result;
-use env_logger::Env;
 
 
 fn check_file_size_approx(p: &Path, expected: u64) {
@@ -60,8 +61,15 @@ fn check_file_size_approx(p: &Path, expected: u64) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
-
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
 
     // Manifests with SSAI/DAI are generally not publically accessible on the web (they are
     // per-subscriber and only available to a network provider's customers, for example). We test

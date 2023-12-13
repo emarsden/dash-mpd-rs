@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 use chrono::prelude::*;
+use test_log::test;
 use dash_mpd::{MPD, Period};
 
 

@@ -8,6 +8,7 @@ pub mod common;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
@@ -15,7 +16,7 @@ use common::check_file_size_approx;
 // We can't check file size for this test, as depending on whether mkvmerge or ffmpeg or mp4box are
 // used to copy the video stream into the Matroska container (depending on which one is installed),
 // the output file size varies quite a lot.
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_mkv() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
@@ -29,7 +30,7 @@ async fn test_transcode_mkv() {
     assert_eq!(format, FileFormat::MatroskaVideo);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_webm() {
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
@@ -43,7 +44,7 @@ async fn test_transcode_webm() {
     assert_eq!(format, FileFormat::Webm);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_avi() {
     if env::var("CI").is_ok() {
@@ -60,7 +61,7 @@ async fn test_transcode_avi() {
     assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_av1() {
     if env::var("CI").is_ok() {
@@ -91,7 +92,7 @@ async fn test_transcode_av1() {
 
 
 // Test transcoding audio from mp4a/aac to Ogg Vorbis
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_audio_vorbis() {
     if env::var("CI").is_ok() {
@@ -114,7 +115,7 @@ async fn test_transcode_audio_vorbis() {
 }
 
 // Test transcoding multiperiod audio from mp4a/aac to MP3
-#[tokio::test]
+#[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_audio_multiperiod_mp3() {
     if env::var("CI").is_ok() {

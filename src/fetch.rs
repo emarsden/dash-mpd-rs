@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
-use log::{info, warn, error};
+use tracing::{info, warn, error};
 use colored::*;
 use regex::Regex;
 use url::Url;
@@ -970,7 +970,7 @@ fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSe
                      |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
     let label = a.Label.first()
         .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
-    println!("  subs {stype:>18} | {lang:>10} |{role}{label}");
+    info!("  subs {stype:>18} | {lang:>10} |{role}{label}");
 }
 
 fn print_available_subtitles_adaptation(a: &AdaptationSet) {
@@ -1001,7 +1001,7 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
                      |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
     let label = a.Label.first()
         .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
-    println!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}", bw / 1024);
+    info!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}", bw / 1024);
 }
 
 fn print_available_streams_adaptation(a: &AdaptationSet, typ: &str) {
@@ -1021,6 +1021,7 @@ fn print_available_streams_period(p: &Period) {
         .for_each(print_available_subtitles_adaptation);
 }
 
+#[tracing::instrument(level="trace", skip_all)]
 fn print_available_streams(mpd: &MPD) {
     let mut counter = 0;
     for p in &mpd.periods {
@@ -1033,9 +1034,9 @@ fn print_available_streams(mpd: &MPD) {
         }
         counter += 1;
         if let Some(id) = p.id.as_ref() {
-            println!("Streams in period {id} (#{counter}), duration {period_duration_secs:.3}s:");
+            info!("Streams in period {id} (#{counter}), duration {period_duration_secs:.3}s:");
         } else {
-            println!("Streams in period #{counter}, duration {period_duration_secs:.3}s:");
+            info!("Streams in period #{counter}, duration {period_duration_secs:.3}s:");
         }
         print_available_streams_period(p);
     }
@@ -1301,7 +1302,7 @@ async fn resolve_xlink_references_recurse(
                 .text().await
                 .map_err(|e| network_error(&format!("resolving XLink on {}", element.name), e))?;
             if downloader.verbosity > 2 {
-                println!("  Resolved onLoad XLink {xlink_url} on {} -> {} octets",
+                info!("  Resolved onLoad XLink {xlink_url} on {} -> {} octets",
                          element.name, xml.len());
             }
             // The difficulty here is that the XML fragment received may contain multiple elements,
@@ -1338,6 +1339,7 @@ async fn resolve_xlink_references_recurse(
     Ok(pending_insertions)
 }
 
+#[tracing::instrument(level="trace", skip_all)]
 pub async fn parse_resolving_xlinks(
     downloader: &DashDownloader,
     redirected_url: &Url,
@@ -1361,7 +1363,7 @@ pub async fn parse_resolving_xlinks(
     // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
     for ss in &downloader.xslt_stylesheets {
         if downloader.verbosity > 0 {
-            println!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
+            info!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
         }
         let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
         fs::write(&tmpmpd, &buf)
@@ -1393,6 +1395,7 @@ pub async fn parse_resolving_xlinks(
 }
 
 
+#[tracing::instrument(level="trace", skip_all)]
 async fn do_period_audio(
     downloader: &DashDownloader,
     mpd: &MPD,
@@ -1519,7 +1522,7 @@ async fn do_period_audio(
             // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
             // with Representation>SegmentList addressing mode)
             if downloader.verbosity > 1 {
-                println!("  {}", "Using AdaptationSet>SegmentList addressing mode for audio representation".italic());
+                info!("  {}", "Using AdaptationSet>SegmentList addressing mode for audio representation".italic());
             }
             let mut start_byte: Option<u64> = None;
             let mut end_byte: Option<u64> = None;
@@ -1572,7 +1575,7 @@ async fn do_period_audio(
         if let Some(sl) = &audio_repr.SegmentList {
             // (1) Representation>SegmentList addressing mode
             if downloader.verbosity > 1 {
-                println!("  {}", "Using Representation>SegmentList addressing mode for audio representation".italic());
+                info!("  {}", "Using Representation>SegmentList addressing mode for audio representation".italic());
             }
             let mut start_byte: Option<u64> = None;
             let mut end_byte: Option<u64> = None;
@@ -1651,7 +1654,7 @@ async fn do_period_audio(
                 // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                 // "explicit addressing" in certain DASH-IF documents)
                 if downloader.verbosity > 1 {
-                    println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for audio representation".italic());
+                    info!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for audio representation".italic());
                 }
                 if let Some(init) = opt_init {
                     let path = resolve_url_template(&init, &dict);
@@ -1724,7 +1727,7 @@ async fn do_period_audio(
                 // addressing mode (also called "simple addressing" in certain DASH-IF
                 // documents)
                 if downloader.verbosity > 1 {
-                    println!("  {}", "Using SegmentTemplate addressing mode for audio representation".italic());
+                    info!("  {}", "Using SegmentTemplate addressing mode for audio representation".italic());
                 }
                 let mut total_number = 0i64;
                 if let Some(init) = opt_init {
@@ -1770,7 +1773,7 @@ async fn do_period_audio(
         } else if let Some(sb) = &audio_repr.SegmentBase {
             // (5) SegmentBase@indexRange addressing mode
             if downloader.verbosity > 1 {
-                println!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
+                info!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
             }
             // The SegmentBase@indexRange attribute points to a byte range in the media file
             // that contains index information (an sidx box for MPEG files, or a Cues entry for
@@ -1814,7 +1817,7 @@ async fn do_period_audio(
         } else if fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
             // (6) plain BaseURL addressing mode
             if downloader.verbosity > 1 {
-                println!("  {}", "Using BaseURL addressing mode for audio representation".italic());
+                info!("  {}", "Using BaseURL addressing mode for audio representation".italic());
             }
             let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
             let mf = make_fragment(period_counter, u, None, None);
@@ -1829,6 +1832,7 @@ async fn do_period_audio(
 }
 
 
+#[tracing::instrument(level="trace", skip_all)]
 async fn do_period_video(
     downloader: &DashDownloader,
     mpd: &MPD,
@@ -1958,7 +1962,7 @@ async fn do_period_video(
         if let Some(sl) = &video_adaptation.SegmentList {
             // (1) AdaptationSet>SegmentList addressing mode
             if downloader.verbosity > 1 {
-                println!("  {}", "Using AdaptationSet>SegmentList addressing mode for video representation".italic());
+                info!("  {}", "Using AdaptationSet>SegmentList addressing mode for video representation".italic());
             }
             let mut start_byte: Option<u64> = None;
             let mut end_byte: Option<u64> = None;
@@ -2010,7 +2014,7 @@ async fn do_period_video(
         if let Some(sl) = &video_repr.SegmentList {
             // (1) Representation>SegmentList addressing mode
             if downloader.verbosity > 1 {
-                println!("  {}", "Using Representation>SegmentList addressing mode for video representation".italic());
+                info!("  {}", "Using Representation>SegmentList addressing mode for video representation".italic());
             }
             let mut start_byte: Option<u64> = None;
             let mut end_byte: Option<u64> = None;
@@ -2087,7 +2091,7 @@ async fn do_period_video(
                 {
                     // (2) SegmentTemplate with SegmentTimeline addressing mode
                     if downloader.verbosity > 1 {
-                        println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for video representation".italic());
+                        info!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for video representation".italic());
                     }
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
@@ -2162,7 +2166,7 @@ async fn do_period_video(
                 } else { // no SegmentTimeline element
                     // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index addressing mode
                     if downloader.verbosity > 1 {
-                        println!("  {}", "Using SegmentTemplate addressing mode for video representation".italic());
+                        info!("  {}", "Using SegmentTemplate addressing mode for video representation".italic());
                     }
                     let mut total_number = 0i64;
                     if let Some(init) = opt_init {
@@ -2208,7 +2212,7 @@ async fn do_period_video(
             } else if let Some(sb) = &video_repr.SegmentBase {
                 // (5) SegmentBase@indexRange addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
+                    info!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
                 }
                 let mut start_byte: Option<u64> = None;
                 let mut end_byte: Option<u64> = None;
@@ -2241,7 +2245,7 @@ async fn do_period_video(
             } else if fragments.is_empty() && !video_repr.BaseURL.is_empty() {
                 // (6) BaseURL addressing mode
                 if downloader.verbosity > 1 {
-                    println!("  {}", "Using BaseURL addressing mode for video representation".italic());
+                    info!("  {}", "Using BaseURL addressing mode for video representation".italic());
                 }
                 let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
                 let mf = make_fragment(period_counter, u, None, None);
@@ -2257,6 +2261,7 @@ async fn do_period_video(
     Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
 }
 
+#[tracing::instrument(level="trace", skip_all)]
 async fn do_period_subtitles(
     downloader: &DashDownloader,
     mpd: &MPD,
@@ -2289,7 +2294,7 @@ async fn do_period_subtitles(
             let subtitle_format = subtitle_type(&subtitle_adaptation);
             subtitle_formats.push(subtitle_format);
             if downloader.verbosity > 1 && downloader.fetch_subtitles {
-                println!("  Retrieving subtitles in format {subtitle_format:?}");
+                info!("  Retrieving subtitles in format {subtitle_format:?}");
             }
             // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
             // don't "corrupt" the base_url for the subtitle segments.
@@ -2326,12 +2331,12 @@ async fn do_period_subtitles(
                         let mut subs_file = File::create(subs_path.clone())
                             .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
                         if downloader.verbosity > 2 {
-                            println!("  Subtitle {st_url} -> {} octets", subs.len());
+                            info!("  Subtitle {st_url} -> {} octets", subs.len());
                         }
                         match subs_file.write_all(&subs) {
                             Ok(()) => {
                                 if downloader.verbosity > 0 {
-                                    println!("  Downloaded subtitles ({subtitle_format:?}) to {}",
+                                    info!("  Downloaded subtitles ({subtitle_format:?}) to {}",
                                              subs_path.display());
                                 }
                             },
@@ -2417,7 +2422,7 @@ async fn do_period_subtitles(
                         // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
                         // with Representation>SegmentList addressing mode)
                         if downloader.verbosity > 1 {
-                            println!("  {}", "Using AdaptationSet>SegmentList addressing mode for subtitle representation".italic());
+                            info!("  {}", "Using AdaptationSet>SegmentList addressing mode for subtitle representation".italic());
                         }
                         let mut start_byte: Option<u64> = None;
                         let mut end_byte: Option<u64> = None;
@@ -2469,7 +2474,7 @@ async fn do_period_subtitles(
                     if let Some(sl) = &rep.SegmentList {
                         // (1) Representation>SegmentList addressing mode
                         if downloader.verbosity > 1 {
-                            println!("  {}", "Using Representation>SegmentList addressing mode for subtitle representation".italic());
+                            info!("  {}", "Using Representation>SegmentList addressing mode for subtitle representation".italic());
                         }
                         let mut start_byte: Option<u64> = None;
                         let mut end_byte: Option<u64> = None;
@@ -2547,7 +2552,7 @@ async fn do_period_subtitles(
                                 // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                                 // "explicit addressing" in certain DASH-IF documents)
                                 if downloader.verbosity > 1 {
-                                    println!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for subtitle representation".italic());
+                                    info!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for subtitle representation".italic());
                                 }
                                 if let Some(init) = opt_init {
                                     let path = resolve_url_template(&init, &dict);
@@ -2622,7 +2627,7 @@ async fn do_period_subtitles(
                                 // addressing mode (also called "simple addressing" in certain DASH-IF
                                 // documents)
                                 if downloader.verbosity > 0 {
-                                    println!("  {}", "Using SegmentTemplate addressing mode for stpp subtitles".italic());
+                                    info!("  {}", "Using SegmentTemplate addressing mode for stpp subtitles".italic());
                                 }
                                 if let Some(i) = &st.initialization {
                                     opt_init = Some(i.to_string());
@@ -2711,6 +2716,7 @@ struct DownloadState {
 
 
 // Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
+#[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_audio(
     downloader: &DashDownloader,
     redirected_url: &Url,
@@ -2759,7 +2765,7 @@ async fn fetch_period_audio(
                 let (body, _fragment) = du.decode_to_vec()
                     .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
                 if downloader.verbosity > 2 {
-                    println!("  Audio segment data URL -> {} octets", body.len());
+                    info!("  Audio segment data URL -> {} octets", body.len());
                 }
                 if let Err(e) = tmpfile_audio.write_all(&body) {
                     error!("Unable to write DASH audio data: {e:?}");
@@ -2851,11 +2857,11 @@ async fn fetch_period_audio(
                                 if downloader.verbosity > 2 {
                                     if let Some(sb) = &frag.start_byte {
                                         if let Some(eb) = &frag.end_byte {
-                                            println!("  Audio segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, segment_size);
+                                            info!("  Audio segment {} range {sb}-{eb} -> {} octets",
+                                                  &frag.url, segment_size);
                                         }
                                     } else {
-                                        println!("  Audio segment {} -> {} octets", &frag.url, segment_size);
+                                        info!("  Audio segment {} -> {} octets", &frag.url, segment_size);
                                     }
                                 }
                                 have_audio = true;
@@ -2870,7 +2876,7 @@ async fn fetch_period_audio(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{} fetching audio segment {url}", f.red());
+                        error!("{} fetching audio segment {url}", f.red());
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -2892,9 +2898,9 @@ async fn fetch_period_audio(
         if downloader.verbosity > 0 {
             let metadata = fs::metadata(tmppath.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted audio metadata")))?;
-            println!("  Attempting to decrypt audio stream ({} kB) with {}",
-                     metadata.len() / 1024,
-                     downloader.decryptor_preference);
+            info!("  Attempting to decrypt audio stream ({} kB) with {}",
+                  metadata.len() / 1024,
+                  downloader.decryptor_preference);
         }
         let out_ext = downloader.output_path.as_ref().unwrap()
             .extension()
@@ -2915,7 +2921,7 @@ async fn fetch_period_audio(
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    println!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -2935,8 +2941,8 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                eprintln!("{}", "Failed to decrypt audio stream".red());
-                println!("Undecrypted audio left in {}", tmppath.display());
+                error!("{}", "Failed to decrypt audio stream".red());
+                warn!("Undecrypted audio left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
@@ -2960,7 +2966,7 @@ async fn fetch_period_audio(
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    println!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -2980,8 +2986,8 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                println!("Undecrypted audio stream left in {}", tmppath.display());
-                eprintln!("{}", "Failed to decrypt audio stream".red());
+                error!("{}", "Failed to decrypt audio stream".red());
+                warn!("Undecrypted audio stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else {
@@ -2994,7 +3000,7 @@ async fn fetch_period_audio(
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            println!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1} MB/s)",
+            info!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1} MB/s)",
                      mbytes / elapsed.as_secs_f64());
         }
     }
@@ -3003,6 +3009,7 @@ async fn fetch_period_audio(
 
 
 // Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
+#[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_video(
     downloader: &DashDownloader,
     redirected_url: &Url,
@@ -3043,7 +3050,7 @@ async fn fetch_period_video(
                 let (body, _fragment) = du.decode_to_vec()
                     .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
                 if downloader.verbosity > 2 {
-                    println!("  Video segment data URL -> {} octets", body.len());
+                    info!("  Video segment data URL -> {} octets", body.len());
                 }
                 if let Err(e) = tmpfile_video.write_all(&body) {
                     error!("Unable to write DASH video data: {e:?}");
@@ -3131,11 +3138,11 @@ async fn fetch_period_video(
                                 if downloader.verbosity > 2 {
                                     if let Some(sb) = &frag.start_byte {
                                         if let Some(eb) = &frag.end_byte {
-                                            println!("  Video segment {} range {sb}-{eb} -> {} octets",
+                                            info!("  Video segment {} range {sb}-{eb} -> {} octets",
                                                      &frag.url, segment_size);
                                         }
                                     } else {
-                                        println!("  Video segment {} -> {} octets", &frag.url, segment_size);
+                                        info!("  Video segment {} -> {} octets", &frag.url, segment_size);
                                     }
                                 }
                                 have_video = true;
@@ -3150,7 +3157,7 @@ async fn fetch_period_video(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{} fetching video segment {}", f.red(), &frag.url);
+                        error!("{} fetching video segment {}", f.red(), &frag.url);
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -3172,9 +3179,9 @@ async fn fetch_period_video(
         if downloader.verbosity > 0 {
             let metadata = fs::metadata(tmppath.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
-            println!("  Attempting to decrypt video stream ({} kB) with {}",
-                     metadata.len() / 1024,
-                     downloader.decryptor_preference);
+            error!("  Attempting to decrypt video stream ({} kB) with {}",
+                   metadata.len() / 1024,
+                   downloader.decryptor_preference);
         }
         let out_ext = downloader.output_path.as_ref().unwrap()
             .extension()
@@ -3195,7 +3202,7 @@ async fn fetch_period_video(
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    println!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3204,7 +3211,7 @@ async fn fetch_period_video(
                 no_output = true;
             }
             if !out.status.success() || no_output {
-                warn!("mp4decrypt subprocess failed");
+                error!("mp4decrypt subprocess failed");
                 let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
                     warn!("mp4decrypt stdout: {msg}");
@@ -3215,8 +3222,8 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                eprintln!("{}", "Failed to decrypt video stream".red());
-                println!("Undecrypted video stream left in {}", tmppath.display());
+                error!("{}", "Failed to decrypt video stream".red());
+                warn!("Undecrypted video stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
@@ -3240,7 +3247,7 @@ async fn fetch_period_video(
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    println!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3260,8 +3267,8 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                println!("Undecrypted video left in {}", tmppath.display());
-                eprintln!("{}", "Failed to decrypt video stream".red());
+                error!("{}", "Failed to decrypt video stream".red());
+                warn!("Undecrypted video left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else {
@@ -3274,7 +3281,7 @@ async fn fetch_period_video(
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            println!("  Wrote {mbytes:.1}MB to DASH video file ({:.1} MB/s)",
+            info!("  Wrote {mbytes:.1}MB to DASH video file ({:.1} MB/s)",
                      mbytes / elapsed.as_secs_f64());
         }
     }
@@ -3283,6 +3290,7 @@ async fn fetch_period_video(
 
 
 // Retrieve the video segments for period `ds.period_counter` and concatenate them to a file at `tmppath`.
+#[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
     redirected_url: &Url,
@@ -3316,7 +3324,7 @@ async fn fetch_period_subtitles(
                 let (body, _fragment) = du.decode_to_vec()
                     .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
                 if downloader.verbosity > 2 {
-                    println!("  Subtitle segment data URL -> {} octets", body.len());
+                    info!("  Subtitle segment data URL -> {} octets", body.len());
                 }
                 if let Err(e) = tmpfile_subs.write_all(&body) {
                     error!("Unable to write DASH subtitle data: {e:?}");
@@ -3355,11 +3363,11 @@ async fn fetch_period_subtitles(
                             if downloader.verbosity > 2 {
                                 if let Some(sb) = &frag.start_byte {
                                     if let Some(eb) = &frag.end_byte {
-                                        println!("  Subtitle segment {} range {sb}-{eb} -> {} octets",
+                                        info!("  Subtitle segment {} range {sb}-{eb} -> {} octets",
                                                  &frag.url, dash_bytes.len());
                                     }
                                 } else {
-                                    println!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    info!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
                                 }
                             }
                             let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
@@ -3376,7 +3384,7 @@ async fn fetch_period_subtitles(
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        eprintln!("{} fetching subtitle segment {}", f.red(), &frag.url);
+                        error!("{} fetching subtitle segment {}", f.red(), &frag.url);
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
@@ -3399,8 +3407,8 @@ async fn fetch_period_subtitles(
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
                 let elapsed = start_download.elapsed();
-                println!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1} MB/s)",
-                         mbytes / elapsed.as_secs_f64());
+                info!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1} MB/s)",
+                      mbytes / elapsed.as_secs_f64());
             }
         }
         if subtitle_formats.contains(&SubtitleType::Wvtt) ||
@@ -3409,9 +3417,9 @@ async fn fetch_period_subtitles(
             // We can extract these from the MP4 container in .srt format, using MP4Box.
             if downloader.verbosity > 1 {
                 if let Some(fmt) = subtitle_formats.first() {
-                    println!("  Downloaded media contains subtitles in {fmt:?} format");
+                    info!("  Downloaded media contains subtitles in {fmt:?} format");
                 }
-                println!("  {}", "Running MP4Box to extract subtitles".italic());
+                info!("  {}", "Running MP4Box to extract subtitles".italic());
             }
             let mut out = downloader.output_path.as_ref().unwrap().clone();
             out.set_extension("srt");
@@ -3441,6 +3449,7 @@ async fn fetch_period_subtitles(
 }
 
 
+#[tracing::instrument(level="trace", skip_all)]
 async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError> {
     let client = &downloader.http_client.clone().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
@@ -3468,9 +3477,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     }
     if downloader.verbosity > 0 {
         if !downloader.fetch_audio && !downloader.fetch_video && !downloader.fetch_subtitles {
-            println!("Only simulating media downloads");
+            info!("Only simulating media downloads");
         }
-        println!("Fetching the DASH manifest");
+        info!("Fetching the DASH manifest");
     }
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
@@ -3491,7 +3500,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     if !mpd.locations.is_empty() {
         let new_url = &mpd.locations[0].url;
         if downloader.verbosity > 0 {
-            println!("Redirecting to new manifest <Location> {new_url}");
+            info!("Redirecting to new manifest <Location> {new_url}");
         }
         let fetch = || async {
             let mut req = client.get(new_url)
@@ -3530,7 +3539,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
             if downloader.allow_live_streams {
                 if downloader.verbosity > 0 {
-                    println!("Attempting to download from live stream (this may not work).");
+                    warn!("Attempting to download from live stream (this may not work).");
                 }
             } else {
                 return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
@@ -3544,7 +3553,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     }
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
-        println!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
+        info!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
         print_available_streams(&mpd);
     }
     // Analyse the content of each Period in the manifest. We need to ensure that we associate media
@@ -3563,9 +3572,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         // Accumulate some diagnostics information on the selected media stream
         if downloader.verbosity > 0 {
             if let Some(id) = period.id.as_ref() {
-                println!("Preparing download for period {id} (#{period_counter})");
+                info!("Preparing download for period {id} (#{period_counter})");
             } else {
-                println!("Preparing download for period #{period_counter}");
+                info!("Preparing download for period #{period_counter}");
             }
         }
         let mut base_url = toplevel_base_url.clone();
@@ -3602,16 +3611,16 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if downloader.verbosity > 0 {
             use base64::prelude::{Engine as _, BASE64_STANDARD};
 
-            print!("{}", audio_outputs.diagnostics);
+            info!("{}", audio_outputs.diagnostics.trim());
             for f in pd.audio_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
-                    println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
+                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
-            print!("{}", video_outputs.diagnostics);
+            info!("{}", video_outputs.diagnostics.trim());
             for f in pd.video_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
-                    println!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
+                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
         }
@@ -3638,11 +3647,11 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         #[allow(clippy::collapsible_if)]
         if downloader.verbosity > 0 {
             if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
-                println!("Period #{}: fetching {} audio, {} video and {} subtitle segments",
-                         ds.period_counter,
-                         pd.audio_fragments.len(),
-                         pd.video_fragments.len(),
-                         pd.subtitle_fragments.len());
+                info!("Period #{}: fetching {} audio, {} video and {} subtitle segments",
+                      ds.period_counter,
+                      pd.audio_fragments.len(),
+                      pd.video_fragments.len(),
+                      pd.subtitle_fragments.len());
             }
         }
         let output_ext = downloader.output_path.as_ref().unwrap()
@@ -3687,15 +3696,15 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 observer.update(99, "Muxing audio and video");
             }
             if downloader.verbosity > 1 {
-                println!("  {}", "Muxing audio and video streams".italic());
+                info!("  {}", "Muxing audio and video streams".italic());
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
             if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
                 if downloader.verbosity > 1 {
                     if let Some(fmt) = &pd.subtitle_formats.first() {
-                        println!("  Downloaded media contains subtitles in {fmt:?} format");
+                        info!("  Downloaded media contains subtitles in {fmt:?} format");
                     }
-                    println!("  {}", "Running MP4Box to merge subtitles with output file".italic());
+                    info!("  {}", "Running MP4Box to merge subtitles with output file".italic());
                 }
                 // We can try to add the subtitles to the MP4 container, using MP4Box.
                 if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
@@ -3749,7 +3758,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
-                println!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
+                info!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
             }
         }
         if have_audio || have_video {
@@ -3780,11 +3789,11 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             maybe_record_metainformation(&period_output_paths[0], downloader, &mpd);
         }
         if !concatenated {
-            println!("Media content has been saved in a separate file for each period:");
+            info!("Media content has been saved in a separate file for each period:");
             period_counter = 0;
             for p in period_output_paths {
                 period_counter += 1;
-                println!("  Period #{period_counter}: {}", p.display());
+                info!("  Period #{period_counter}: {}", p.display());
                 maybe_record_metainformation(&p, downloader, &mpd);
             }
         }
@@ -3795,8 +3804,8 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 a.representations.iter().any(
                     |r| !r.ContentProtection.is_empty())));
     if have_content_protection && downloader.decryption_keys.is_empty() {
-        println!("{}: manifest seems to use ContentProtection (DRM) and you didn't specify decryption keys.",
-                 "Warning".bold().red());
+        warn!("{}: manifest seems to use ContentProtection (DRM) and you didn't specify decryption keys.",
+              "Warning".bold().red());
     }
     for observer in &downloader.progress_observers {
         observer.update(100, "Done");

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.7] - Unreleased
+
+- The library uses the `tracing` crate for all logging purposes, and will no longer print anything to
+  stdout or stderr. Users should use a `tracing_subscriber` functionality to obtain logging
+  information.
+
+
 ## [0.14.6] - 2023-12-09
 
 - Downloading: include the query component of the MPD URL in requests for media segments, to support

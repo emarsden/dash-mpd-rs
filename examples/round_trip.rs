@@ -34,16 +34,26 @@ use std::fs;
 use std::process::Command;
 use std::time::Duration;
 use anyhow::{Result, Context};
-use env_logger::Env;
 use clap::Arg;
 use url::Url;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use dash_mpd::MPD;
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     let matches = clap::Command::new("round-trip")
         .arg(Arg::new("url")
              .num_args(1)

@@ -18,14 +18,24 @@ use std::env;
 use std::process;
 use std::time::Duration;
 use anyhow::{Context, Result};
-use env_logger::Env;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 use reqwest::header;
 use dash_mpd::fetch::DashDownloader;
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info,reqwest=warn")).init();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact();
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info,reqwest=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     let mut headers = header::HeaderMap::new();
     headers.insert("X-MY-HEADER",  header::HeaderValue::from_static("foo"));
     // Look for the semi-standard environment variables that specify proxy details, or try to

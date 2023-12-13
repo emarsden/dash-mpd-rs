@@ -10,12 +10,13 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
+use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_lang_prefer_spa() {
     if env::var("CI").is_ok() {
         return;
@@ -46,7 +47,7 @@ async fn test_lang_prefer_spa() {
 }
 
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_subtitle_lang_stpp_im1t() {
     if env::var("CI").is_ok() {
         return;
