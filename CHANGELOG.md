@@ -6,6 +6,8 @@
   stdout or stderr. Users should use a `tracing_subscriber` functionality to obtain logging
   information.
 
+- Regexps used for parsing are statically allocated to avoid ongoing memory allocation overheads.
+
 
 ## [0.14.6] - 2023-12-09
 

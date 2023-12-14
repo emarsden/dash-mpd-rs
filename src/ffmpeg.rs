@@ -866,6 +866,9 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
 
 // Merge all media files named by paths into the file named by the first element of the vector.
 // Currently only attempt ffmpeg, with reencoding in case the codecs in the input files are different.
+//
+// TODO: should also try using MP4Box if the output container is MP4 (it's more tolerant than ffmpeg
+// on certain files).
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files(
     downloader: &DashDownloader,

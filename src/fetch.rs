@@ -23,6 +23,7 @@ use reqwest::header::RANGE;
 use backoff::{future::retry_notify, ExponentialBackoff};
 use governor::{Quota, RateLimiter};
 use async_recursion::async_recursion;
+use lazy_static::lazy_static;
 use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
 use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
@@ -1113,24 +1114,30 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
 // this functionality directly.
 //
 // Example template: "$RepresentationID$/$Number%06d$.m4s"
+lazy_static! {
+    static ref URL_TEMPLATE_IDS: Vec<(&'static str, String, Regex)> = {
+        vec!["RepresentationID", "Number", "Time", "Bandwidth"].into_iter()
+            .map(|k| (k, format!("${k}$"), Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap()))
+            .collect()
+    };
+}
+
 fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
     let mut result = template.to_string();
-    for k in ["RepresentationID", "Number", "Time", "Bandwidth"] {
-        // first check for simple case eg $Number$
-        let ident = format!("${k}$");
-        if result.contains(&ident) {
+    for (k, ident, rx) in URL_TEMPLATE_IDS.iter() {
+        println!("££ checking for {k} / {ident}");
+        // first check for simple cases such as $Number$
+        if result.contains(ident) {
             if let Some(value) = params.get(k as &str) {
-                result = result.replace(&ident, value);
+                result = result.replace(ident, value);
             }
         }
-        // now check for complex case eg $Number%06d$
-        let re = format!("\\${k}%0([\\d])d\\$");
-        let ident_re = Regex::new(&re).unwrap();
-        if let Some(cap) = ident_re.captures(&result) {
+        // now check for complex cases such as $Number%06d$
+        if let Some(cap) = rx.captures(&result) {
             if let Some(value) = params.get(k as &str) {
                 let width: usize = cap[1].parse::<usize>().unwrap();
                 let count = format!("{value:0>width$}");
-                let m = ident_re.find(&result).unwrap();
+                let m = rx.find(&result).unwrap();
                 result = result[..m.start()].to_owned() + &count + &result[m.end()..];
             }
         }
