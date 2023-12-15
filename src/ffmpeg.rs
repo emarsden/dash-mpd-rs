@@ -630,39 +630,39 @@ pub fn mux_audio_video(
             muxer_preference.push(m);
         }
     }
-    info!("Muxer preference for {container} is {muxer_preference:?}");
+    info!("  Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
-        info!("Trying muxer {muxer}");
+        info!("  Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
             if let Err(e) =  mux_audio_video_mkvmerge(downloader, output_path, audio_path, video_path) {
-                warn!("Muxing with mkvmerge subprocess failed: {e}");
+                warn!("  Muxing with mkvmerge subprocess failed: {e}");
             } else {
-                info!("Muxing with mkvmerge subprocess succeeded");
+                info!("  Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
             if let Err(e) = mux_audio_video_ffmpeg(downloader, output_path, audio_path, video_path) {
-                warn!("Muxing with ffmpeg subprocess failed: {e}");
+                warn!("  Muxing with ffmpeg subprocess failed: {e}");
             } else {
-                info!("Muxing with ffmpeg subprocess succeeded");
+                info!("  Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("vlc") {
             if let Err(e) = mux_audio_video_vlc(downloader, output_path, audio_path, video_path) {
-                warn!("Muxing with vlc subprocess failed: {e}");
+                warn!("  Muxing with vlc subprocess failed: {e}");
             } else {
-                info!("Muxing with vlc subprocess succeeded");
+                info!("  Muxing with vlc subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("mp4box") {
             if let Err(e) = mux_audio_video_mp4box(downloader, output_path, audio_path, video_path) {
-                warn!("Muxing with MP4Box subprocess failed: {e}");
+                warn!("  Muxing with MP4Box subprocess failed: {e}");
             } else {
-                info!("Muxing with MP4Box subprocess succeeded");
+                info!("  Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
         } else {
-            warn!("Ignoring unknown muxer preference {muxer}");
+            warn!("  Ignoring unknown muxer preference {muxer}");
         }
     }
     warn!("All muxers failed");

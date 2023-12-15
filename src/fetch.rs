@@ -171,7 +171,7 @@ fn make_fragment(period: u8, url: Url, start_byte: Option<u64>, end_byte: Option
 #[derive(Debug, Default)]
 struct PeriodOutputs {
     fragments: Vec<MediaFragment>,
-    diagnostics: String,
+    diagnostics: Vec<String>,
     subtitle_formats: Vec<SubtitleType>,
 }
 
@@ -1125,7 +1125,6 @@ lazy_static! {
 fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
     let mut result = template.to_string();
     for (k, ident, rx) in URL_TEMPLATE_IDS.iter() {
-        println!("££ checking for {k} / {ident}");
         // first check for simple cases such as $Number$
         if result.contains(ident) {
             if let Some(value) = params.get(k as &str) {
@@ -1412,7 +1411,7 @@ async fn do_period_audio(
     ) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
-    let mut diagnostics = String::new();
+    let mut diagnostics = Vec::new();
     // The period_duration is specified either by the <Period> duration attribute, or by the
     // mediaPresentationDuration of the top-level MPD node.
     let mut period_duration_secs: f64 = 0.0;
@@ -1468,18 +1467,18 @@ async fn do_period_audio(
             let codec = audio_repr.codecs.as_ref()
                 .unwrap_or(audio_adaptation.codecs.as_ref()
                            .unwrap_or(&unknown));
-            diagnostics += &format!("  Audio stream selected: {bw}lang={lang} codec={codec}\n");
+            diagnostics.push(format!("  Audio stream selected: {bw}lang={lang} codec={codec}"));
             // Check for ContentProtection on the selected Representation/Adaptation
             for cp in audio_repr.ContentProtection.iter()
                 .chain(audio_adaptation.ContentProtection.iter())
             {
-                diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
+                diagnostics.push(format!("  ContentProtection: {}", content_protection_type(cp)));
                 if let Some(kid) = &cp.default_KID {
-                    diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
+                    diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
                 for pssh in cp.cenc_pssh.iter() {
                     if let Some(pc) = &pssh.content {
-                        diagnostics += &format!("    PSSH (from manifest): {pc}\n");
+                        diagnostics.push(format!("    PSSH (from manifest): {pc}"));
                     }
                 }
             }
@@ -1849,7 +1848,7 @@ async fn do_period_video(
     ) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
-    let mut diagnostics = String::new();
+    let mut diagnostics = Vec::new();
     let mut period_duration_secs: f64 = 0.0;
     if let Some(d) = mpd.mediaPresentationDuration {
         period_duration_secs = d.as_secs_f64();
@@ -1911,18 +1910,18 @@ async fn do_period_video(
             };
             let codec = video_repr.codecs.as_ref()
                 .unwrap_or(video_adaptation.codecs.as_ref().unwrap_or(&unknown));
-            diagnostics += &format!("  Video stream selected: {bw}{fmt}codec={codec}\n");
+            diagnostics.push(format!("  Video stream selected: {bw}{fmt}codec={codec}"));
             // Check for ContentProtection on the selected Representation/Adaptation
             for cp in video_repr.ContentProtection.iter()
                 .chain(video_adaptation.ContentProtection.iter())
             {
-                diagnostics += &format!("  ContentProtection: {}\n", content_protection_type(cp));
+                diagnostics.push(format!("  ContentProtection: {}", content_protection_type(cp)));
                 if let Some(kid) = &cp.default_KID {
-                    diagnostics += &format!("    KID: {}\n", kid.replace('-', ""));
+                    diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
                 for pssh in cp.cenc_pssh.iter() {
                     if let Some(pc) = &pssh.content {
-                        diagnostics += &format!("    PSSH (from manifest): {pc}\n");
+                        diagnostics.push(format!("    PSSH (from manifest): {pc}"));
                     }
                 }
             }
@@ -2708,7 +2707,7 @@ async fn do_period_subtitles(
             }
         }
     }
-    Ok(PeriodOutputs { fragments, diagnostics: String::from(""), subtitle_formats })
+    Ok(PeriodOutputs { fragments, diagnostics: Vec::new(), subtitle_formats })
 }
 
 
@@ -3618,13 +3617,15 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if downloader.verbosity > 0 {
             use base64::prelude::{Engine as _, BASE64_STANDARD};
 
-            info!("{}", audio_outputs.diagnostics.trim());
+            audio_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
+            // info!("{}", audio_outputs.diagnostics.trim());
             for f in pd.audio_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
                 }
             }
-            info!("{}", video_outputs.diagnostics.trim());
+            video_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
+            // info!("{}", video_outputs.diagnostics.trim());
             for f in pd.video_fragments.iter().filter(|f| f.is_init) {
                 if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
                     info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
@@ -3811,8 +3812,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 a.representations.iter().any(
                     |r| !r.ContentProtection.is_empty())));
     if have_content_protection && downloader.decryption_keys.is_empty() {
-        warn!("{}: manifest seems to use ContentProtection (DRM) and you didn't specify decryption keys.",
-              "Warning".bold().red());
+        warn!("Manifest seems to use ContentProtection (DRM), but you didn't provide decryption keys.");
     }
     for observer in &downloader.progress_observers {
         observer.update(100, "Done");
