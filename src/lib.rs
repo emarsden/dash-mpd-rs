@@ -1970,7 +1970,7 @@ fn content_protection_type(cp: &ContentProtection) -> String {
 }
 
 
-fn check_segment_template_conformity(
+fn check_segment_template_duration(
     st: &SegmentTemplate,
     max_seg_duration: &Duration,
     outer_timescale: u64) -> Vec<String>
@@ -1986,6 +1986,34 @@ fn check_segment_template_conformity(
     }
     errors
 }
+
+fn check_segment_template_conformity(st: &SegmentTemplate) -> Vec<String> {
+    let mut errors = Vec::new();
+    if let Some(md) = &st.media {
+        if !valid_url_p(md) {
+            errors.push(format!("invalid URL {md}"));
+        }
+        if md.contains("$Number$") && md.contains("$Time") {
+            errors.push(String::from("both $Number$ and $Time$ are used in media template URL"));
+        }
+    }
+    if let Some(init) = &st.initialization {
+        if !valid_url_p(init) {
+            errors.push(format!("invalid URL {init}"));
+        }
+        if init.contains("$Number") {
+            errors.push(String::from("$Number$ identifier used in initialization segment URL"));
+        }
+        if init.contains("$Time") {
+            errors.push(String::from("$Time$ identifier used in initialization segment URL"));
+        }
+    }
+    if st.duration.is_some() && st.SegmentTimeline.is_some() {
+        errors.push(String::from("both SegmentTemplate.duration and SegmentTemplate.SegmentTimeline present"));
+    }
+    errors
+}
+
 
 // Check the URL or URL path u for conformity. This is a very relaxed check because the Url crate is
 // very tolerant, in particular concerning the syntax accepted for the path component of an URL.
@@ -2068,7 +2096,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                 // ...
                 let mut outer_timescale = 1;
                 if let Some(st) = &a.SegmentTemplate {
-                    check_segment_template_conformity(st, &max_seg_duration, outer_timescale)
+                    check_segment_template_duration(st, &max_seg_duration, outer_timescale)
                         .into_iter()
                         .for_each(|msg| errors.push(msg));
                     if let Some(ots) = st.timescale {
@@ -2077,7 +2105,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                 }
                 for r in &a.representations {
                     if let Some(st) = &r.SegmentTemplate {
-                        check_segment_template_conformity(st, &max_seg_duration, outer_timescale)
+                        check_segment_template_duration(st, &max_seg_duration, outer_timescale)
                             .into_iter()
                             .for_each(|msg| errors.push(msg));
                     }
@@ -2103,6 +2131,11 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                     errors.push(format!("invalid URL {}", &bu.base));
                 }
             }
+            if let Some(st) = &a.SegmentTemplate {
+                check_segment_template_conformity(st)
+                    .into_iter()
+                    .for_each(|msg| errors.push(msg));
+            }
             for r in &a.representations {
                 for bu in &r.BaseURL {
                     if !valid_url_p(&bu.base) {
@@ -2114,6 +2147,12 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                         if let Some(su) = &init.sourceURL {
                             if !valid_url_p(su) {
                                 errors.push(format!("invalid URL {su}"));
+                            }
+                            if su.contains("$Number") {
+                                errors.push(String::from("$Number$ identifier used in initialization segment URL"));
+                            }
+                            if su.contains("$Time") {
+                                errors.push(String::from("$Time$ identifier used in initialization segment URL"));
                             }
                         }
                     }
@@ -2136,6 +2175,12 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                             if !valid_url_p(su) {
                                 errors.push(format!("invalid URL {su}"));
                             }
+                            if su.contains("$Number") {
+                                errors.push(String::from("$Number$ identifier used in initialization segment URL"));
+                            }
+                            if su.contains("$Time") {
+                                errors.push(String::from("$Time$ identifier used in initialization segment URL"));
+                            }
                         }
                     }
                     for su in &sl.segment_urls {
@@ -2150,6 +2195,11 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                             }
                         }
                     }
+                }
+                if let Some(st) = &r.SegmentTemplate {
+                    check_segment_template_conformity(st)
+                        .into_iter()
+                        .for_each(|msg| errors.push(msg));
                 }
             }
         }
