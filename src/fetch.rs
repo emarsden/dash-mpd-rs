@@ -3790,7 +3790,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             concat_output_files(downloader, &period_output_paths)?;
             for p in &period_output_paths[1..] {
                 if fs::remove_file(p).is_err() {
-                    info!("Failed to delete temporary file");
+                    info!("Failed to delete temporary file {}", p.display());
                 }
             }
             concatenated = true;
