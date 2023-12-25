@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.7] - Unreleased
+## [0.14.7] - 2023-12-25
 
 - The library uses the `tracing` crate for all logging purposes, and will no longer print anything to
   stdout or stderr. Users should use a `tracing_subscriber` functionality to obtain logging
