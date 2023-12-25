@@ -864,24 +864,17 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     args
 }
 
-// Merge all media files named by paths into the file named by the first element of the vector.
-// Currently only attempt ffmpeg, with reencoding in case the codecs in the input files are different.
-//
-// TODO: should also try using MP4Box if the output container is MP4 (it's more tolerant than ffmpeg
-// on certain files).
 #[tracing::instrument(level="trace", skip(downloader))]
-pub(crate) fn concat_output_files(
+pub(crate) fn concat_output_files_ffmpeg(
     downloader: &DashDownloader,
-    paths: &Vec<PathBuf>) -> Result<(), DashMpdError> {
-    if paths.len() < 2 {
-        return Ok(());
-    }
-    // First copy the contents of the first file to a temporary file, as ffmpeg will be overwriting the
-    // contents of the first file.
+    paths: &[PathBuf]) -> Result<(), DashMpdError>
+{
     let container = match paths[0].extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
+    // First copy the contents of the first file to a temporary file, as ffmpeg will be overwriting the
+    // contents of the first file.
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
@@ -939,4 +932,71 @@ pub(crate) fn concat_output_files(
         }
         Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
+}
+
+// Merge all media files named by paths into the file named by the first element of the vector.
+#[tracing::instrument(level="trace", skip(downloader))]
+pub(crate) fn concat_output_files_mp4box(
+    downloader: &DashDownloader,
+    paths: &[PathBuf]) -> Result<(), DashMpdError>
+{
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(".mp4")
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = &tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    let mut tmpoutb = BufWriter::new(&tmpout);
+    let overwritten = File::open(paths[0].clone())
+        .map_err(|e| DashMpdError::Io(e, String::from("opening first container")))?;
+    let mut overwritten = BufReader::new(overwritten);
+    io::copy(&mut overwritten, &mut tmpoutb)
+        .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
+    // MP4Box -add file1.mp4 -cat file2.mp4 -cat file3.mp4 output.mp4"
+    let out = paths[0].to_string_lossy();
+    let mut args = vec!["-flat", "-add", &tmppath];
+    for p in &paths[1..] {
+        args.push("-cat");
+        args.push(p.to_str().unwrap());
+    }
+    args.push(&out);
+    trace!("Concatenating with MP4Box {args:?}");
+    let mp4box = Command::new(&downloader.mp4box_location)
+        .args(args)
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
+    let msg = partial_process_output(&mp4box.stdout);
+    if msg.len() > 0 {
+        info!("MP4Box stdout: {msg}");
+    }
+    let msg = partial_process_output(&mp4box.stderr);
+    if msg.len() > 0 {
+        info!("MP4Box stderr: {msg}");
+    }
+    if mp4box.status.success() {
+        Ok(())
+    } else {
+        warn!("  unconcatenated input files:");
+        for p in paths {
+            warn!("      {}", p.display());
+        }
+        Err(DashMpdError::Muxing(String::from("running MP4Box")))
+    }
+}
+
+// Merge all media files named by paths into the file named by the first element of the vector.
+#[tracing::instrument(level="trace", skip(downloader))]
+pub(crate) fn concat_output_files(
+    downloader: &DashDownloader,
+    paths: &[PathBuf]) -> Result<(), DashMpdError> {
+    if paths.len() < 2 {
+        return Ok(());
+    }
+    concat_output_files_ffmpeg(downloader, paths)
 }
