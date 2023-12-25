@@ -6,7 +6,13 @@
   stdout or stderr. Users should use a `tracing_subscriber` functionality to obtain logging
   information.
 
+- Downloading: Fix bug in the handling of toplevel `Period.SegmentTemplate` elements (rarely present
+  in the wild, but allowed by the DASH specification).
+
 - Regexps used for parsing are statically allocated to avoid ongoing memory allocation overheads.
+
+- Downloading: When deciding whether video files can be concatenated using the ffmpeg concat muxer,
+  we allow for missing sar metainformation (not always present in MP4 containers in the wild).
 
 
 ## [0.14.6] - 2023-12-09

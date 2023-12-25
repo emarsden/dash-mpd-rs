@@ -1412,6 +1412,11 @@ async fn do_period_audio(
 {
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut opt_init: Option<String> = None;
+    let mut opt_media: Option<String> = None;
+    let mut opt_duration: Option<f64> = None;
+    let mut timescale = 1;
+    let mut start_number = 1;
     // The period_duration is specified either by the <Period> duration attribute, or by the
     // mediaPresentationDuration of the top-level MPD node.
     let mut period_duration_secs: f64 = 0.0;
@@ -1423,6 +1428,26 @@ async fn do_period_audio(
     }
     if let Some(s) = downloader.force_duration {
         period_duration_secs = s;
+    }
+    // SegmentTemplate as a direct child of a Period element. This can specify some common attribute
+    // values (media, timescale, duration, startNumber) for child SegmentTemplate nodes in an
+    // enclosed AdaptationSet or Representation node.
+    if let Some(st) = &period.SegmentTemplate {
+        if let Some(i) = &st.initialization {
+            opt_init = Some(i.to_string());
+        }
+        if let Some(m) = &st.media {
+            opt_media = Some(m.to_string());
+        }
+        if let Some(d) = st.duration {
+            opt_duration = Some(d);
+        }
+        if let Some(ts) = st.timescale {
+            timescale = ts;
+        }
+        if let Some(s) = st.startNumber {
+            start_number = s;
+        }
     }
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
@@ -1483,11 +1508,6 @@ async fn do_period_audio(
                 }
             }
         }
-        let mut opt_init: Option<String> = None;
-        let mut opt_media: Option<String> = None;
-        let mut opt_duration: Option<f64> = None;
-        let mut timescale = 1;
-        let mut start_number = 1;
         // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
         // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
         // nodes in an enclosed Representation node. Don't download media segments here, only
@@ -1850,6 +1870,11 @@ async fn do_period_video(
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
     let mut period_duration_secs: f64 = 0.0;
+    let mut opt_init: Option<String> = None;
+    let mut opt_media: Option<String> = None;
+    let mut opt_duration: Option<f64> = None;
+    let mut timescale = 1;
+    let mut start_number = 1;
     if let Some(d) = mpd.mediaPresentationDuration {
         period_duration_secs = d.as_secs_f64();
     }
@@ -1858,6 +1883,26 @@ async fn do_period_video(
     }
     if let Some(s) = downloader.force_duration {
         period_duration_secs = s;
+    }
+    // SegmentTemplate as a direct child of a Period element. This can specify some common attribute
+    // values (media, timescale, duration, startNumber) for child SegmentTemplate nodes in an
+    // enclosed AdaptationSet or Representation node.
+    if let Some(st) = &period.SegmentTemplate {
+        if let Some(i) = &st.initialization {
+            opt_init = Some(i.to_string());
+        }
+        if let Some(m) = &st.media {
+            opt_media = Some(m.to_string());
+        }
+        if let Some(d) = st.duration {
+            opt_duration = Some(d);
+        }
+        if let Some(ts) = st.timescale {
+            timescale = ts;
+        }
+        if let Some(s) = st.startNumber {
+            start_number = s;
+        }
     }
     // A manifest may contain multiple AdaptationSets with video content (in particular, when
     // different codecs are offered). Each AdaptationSet often contains multiple video
@@ -1936,11 +1981,6 @@ async fn do_period_video(
         if let Some(b) = &video_repr.bandwidth {
             dict.insert("Bandwidth", b.to_string());
         }
-        let mut opt_init: Option<String> = None;
-        let mut opt_media: Option<String> = None;
-        let mut opt_duration: Option<f64> = None;
-        let mut timescale = 1;
-        let mut start_number = 1;
         // SegmentTemplate as a direct child of an Adaptation node. This can specify some common
         // attribute values (media, timescale, duration, startNumber) for child SegmentTemplate
         // nodes in an enclosed Representation node. Don't download media segments here, only
