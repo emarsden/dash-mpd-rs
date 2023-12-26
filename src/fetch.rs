@@ -3225,7 +3225,7 @@ async fn fetch_period_video(
         if downloader.verbosity > 0 {
             let metadata = fs::metadata(tmppath.clone())
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
-            error!("  Attempting to decrypt video stream ({} kB) with {}",
+            info!("  Attempting to decrypt video stream ({} kB) with {}",
                    metadata.len() / 1024,
                    downloader.decryptor_preference);
         }
