@@ -1961,6 +1961,21 @@ fn content_protection_type(cp: &ContentProtection) -> String {
         if uri.eq("urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb") {
             return String::from("Adobe PrimeTime");
         }
+        if uri.eq("urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b") {
+            return String::from("W3C Common PSSH box");
+        }
+        if uri.eq("urn:uuid:80a6be7e-1448-4c37-9e70-d5aebe04c8d2") {
+            return String::from("Irdeto Content Protection");
+        }
+        if uri.eq("urn:uuid:3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c") {
+            return String::from("ChinaDRM");
+        }
+        if uri.eq("urn:uuid:616c7469-6361-7374-2d50-726f74656374") {
+            return String::from("Alticast");
+        }
+        if uri.eq("urn:uuid:6dd8b3c3-45f4-4a68-bf3a-64168d01a4a6") {
+            return String::from("ABV DRM");
+        }
         // Segment encryption
         if uri.eq("urn:mpeg:dash:sea:2012") {
             return String::from("SEA");
