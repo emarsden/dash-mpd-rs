@@ -12,7 +12,7 @@ publish = true
 edition = "2021"
 
 [dependencies]
-base64 = "0.21.5"
+base64 = "0.21.7"
 base64-serde = "0.7.0"
 lazy_static = "1.4.0"
 serde = { version = "1.0.194", features = ["derive"] }
