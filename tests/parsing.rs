@@ -86,7 +86,33 @@ fn test_mpd_parser () {
      </Period></MPD>"#;
     let c6 = parse(case6).unwrap();
     assert_eq!(c6.periods.len(), 1);
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("multiple_supplementals");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    let mpd = res.unwrap();
+    let mut supplementals_count = 0;
+    mpd.periods.iter().for_each(
+        |p| p.adaptations.iter().for_each(|a| {
+            supplementals_count += a.supplemental_property.len();
+            a.representations.iter().for_each(
+                |r| supplementals_count += r.supplemental_property.len());
+        }));
+    assert_eq!(supplementals_count, 6);
 }
+
+#[test]
+fn test_mpd_failures () {
+    let case1 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-live:2011" type="static" mediaPresentationDuration="PT6M16S" minBufferTime="PT1.97S">"#;
+    let c1 = parse(case1);
+    assert!(c1.is_err());
+}
+
 
 // These tests check that we are able to parse DASH manifests that contain XML elements for which we
 // don't have definitions. We want to degrade gracefully and ignore these unknown elements, instead

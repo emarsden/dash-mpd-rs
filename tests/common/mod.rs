@@ -47,7 +47,7 @@ pub fn generate_minimal_mp4() -> Vec<u8> {
             str::parse("avc1").unwrap(),
             str::parse("mp41").unwrap(),
         ],
-        timescale: 1000,
+        timescale: 60,
     };
     let data = Cursor::new(Vec::<u8>::new());
     let mut writer = mp4::Mp4Writer::write_start(data, &config).unwrap();
@@ -65,19 +65,48 @@ pub fn generate_minimal_mp4() -> Vec<u8> {
     });
     let track_conf = mp4::TrackConfig {
         track_type: mp4::TrackType::Video,
-        timescale: 1000,
+        timescale: 60,
         language: "und".to_string(),
         media_conf,
     };
     writer.add_track(&track_conf).unwrap();
-    let sample = mp4::Mp4Sample {
-        start_time: 0,
-        duration: 2,
+    let mut now = 0;
+    let sample1 = mp4::Mp4Sample {
+        start_time: now,
+        duration: 512,
         rendering_offset: 0,
         is_sync: true,
         bytes: mp4::Bytes::from(vec![0x0u8; 751]),
     };
-    writer.write_sample(1, &sample).unwrap();
+    now += 512;
+    writer.write_sample(1, &sample1).unwrap();
+    let sample2 = mp4::Mp4Sample {
+        start_time: now,
+        duration: 512,
+        rendering_offset: 0,
+        is_sync: true,
+        bytes: mp4::Bytes::from(vec![0x0u8; 179]),
+    };
+    now += 512;
+    writer.write_sample(1, &sample2).unwrap();
+    let sample3 = mp4::Mp4Sample {
+        start_time: now,
+        duration: 512,
+        rendering_offset: 0,
+        is_sync: true,
+        bytes: mp4::Bytes::from(vec![0x0u8; 180]),
+    };
+    now += 512;
+    writer.write_sample(1, &sample3).unwrap();
+    let sample4 = mp4::Mp4Sample {
+        start_time: now,
+        duration: 512,
+        rendering_offset: 0,
+        is_sync: true,
+        bytes: mp4::Bytes::from(vec![0x0u8; 160]),
+    };
+    writer.write_sample(1, &sample4).unwrap();
+    // This writes a moov box
     writer.write_end().unwrap();
     writer.into_writer().into_inner()
 }

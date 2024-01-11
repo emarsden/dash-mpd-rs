@@ -44,7 +44,6 @@ use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
-use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
 use dash_mpd::{SegmentTemplate, SegmentURL};
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
@@ -103,8 +102,13 @@ fn make_segment_list(urls: Vec<&str>) -> SegmentList {
 }
 
 
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xlink_retrieval() -> Result<()> {
+    let subscriber = tracing_subscriber::fmt()
+        .compact()
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
+
     // Temporarily disable this test on CI machines, because the concatenation of our small
     // synthetic MP4 segments is failing with certain older ffmpeg versions.
     if env::var("CI").is_ok() {
@@ -269,6 +273,7 @@ async fn test_xlink_retrieval() -> Result<()> {
     // were requested.
     let outpath = env::temp_dir().join("xlinked.mp4");
     DashDownloader::new(mpd_urls)
+        .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
@@ -294,7 +299,7 @@ async fn test_xlink_retrieval() -> Result<()> {
 
 
 // Test behaviour when xlinked resources are unavailable.
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xlink_errors() -> Result<()> {
     // This XLinked Period that resolves to a success.
     let period1 = Period {
