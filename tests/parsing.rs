@@ -342,6 +342,15 @@ fn test_file_parsing() {
     path.set_extension("xml");
     let xml = fs::read_to_string(path).unwrap();
     parse(&xml).unwrap();
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("a2d-tv");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let mpd = parse(&xml).unwrap();
+    assert_eq!(mpd.periods[0].event_streams[0].event.len(), 3);
 }
 
 
