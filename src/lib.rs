@@ -1968,7 +1968,7 @@ fn content_protection_type(cp: &ContentProtection) -> String {
             return String::from("Irdeto Content Protection");
         }
         if uri.eq("urn:uuid:3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c") {
-            return String::from("ChinaDRM");
+            return String::from("WisePlay-ChinaDRM");
         }
         if uri.eq("urn:uuid:616c7469-6361-7374-2d50-726f74656374") {
             return String::from("Alticast");
