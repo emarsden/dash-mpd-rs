@@ -20,6 +20,7 @@ use axum::body::{Full, Bytes};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use test_log::test;
+use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use common::{check_file_size_approx, generate_minimal_mp4};

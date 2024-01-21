@@ -15,6 +15,7 @@ use tracing::info;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use test_log::test;
+use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
 
 // This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to

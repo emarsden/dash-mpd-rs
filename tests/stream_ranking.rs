@@ -27,6 +27,7 @@ use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::{Full, Bytes};
 use test_log::test;
+use pretty_assertions::assert_eq;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};

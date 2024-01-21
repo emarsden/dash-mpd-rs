@@ -11,6 +11,7 @@ use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use test_log::test;
+use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
 

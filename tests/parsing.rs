@@ -13,6 +13,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 use test_log::test;
+use pretty_assertions::assert_eq;
 use dash_mpd::parse;
 use dash_mpd::fetch::DashDownloader;
 

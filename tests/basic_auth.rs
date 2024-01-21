@@ -30,6 +30,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use test_log::test;
+use pretty_assertions::assert_eq;
 use tracing::info;
 use common::generate_minimal_mp4;
 
