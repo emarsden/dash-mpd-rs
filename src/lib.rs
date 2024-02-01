@@ -131,6 +131,43 @@ pub enum DashMpdError {
 }
 
 
+// Serialize an xsd:double parameter. We can't use the default serde serialization for f64 due to
+// the difference in handling INF, -INF and NaN values.
+//
+// Reference: http://www.datypic.com/sc/xsd/t-xsd_double.html
+fn serialize_xsd_double<S>(xsd: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let formatted = if xsd.is_nan() {
+        String::from("NaN")
+    } else if xsd.is_infinite() {
+        if xsd.is_sign_positive() {
+            // Here serde returns "inf", which doesn't match the XML Schema definition.
+            String::from("INF")
+        } else {
+            String::from("-INF")
+        }
+    } else {
+        xsd.to_string()
+    };
+    serializer.serialize_str(&formatted)
+}
+
+// Serialize an Option<f64> as an xsd:double.
+fn serialize_opt_xsd_double<S>(oxsd: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if let Some(xsd) = oxsd {
+        serialize_xsd_double(xsd, serializer)
+    } else {
+        // in fact this won't be called because of the #[skip_serializing_none] annotation
+        serializer.serialize_none()
+    }
+}
+
+
 // Parse an XML duration string, as per https://www.w3.org/TR/xmlschema-2/#duration
 //
 // The lexical representation for duration is the ISO 8601 extended format PnYn MnDTnH nMnS, where
@@ -581,7 +618,7 @@ pub struct SegmentTemplate {
     pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
-    #[serde(rename = "@availabilityTimeOffset")]
+    #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
@@ -612,7 +649,7 @@ pub struct BaseURL {
     pub serviceLocation: Option<String>,
     #[serde(rename = "@byteRange")]
     pub byte_range: Option<String>,
-    #[serde(rename = "@availabilityTimeOffset")]
+    #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availability_time_offset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availability_time_complete: Option<bool>,
@@ -684,7 +721,7 @@ pub struct SegmentBase {
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
-    #[serde(rename = "@availabilityTimeOffset")]
+    #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
@@ -920,7 +957,7 @@ pub struct SubRepresentation {
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
-    #[serde(rename = "@maxPlayoutRate")]
+    #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
@@ -930,7 +967,7 @@ pub struct SubRepresentation {
     pub height: Option<u64>,
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
-    #[serde(rename = "@maximumSAPPeriod")]
+    #[serde(rename = "@maximumSAPPeriod", serialize_with="serialize_opt_xsd_double")]
     pub maximumSAPPeriod: Option<f64>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
@@ -992,7 +1029,7 @@ pub struct Representation {
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<u64>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
-    #[serde(rename = "@maxPlayoutRate")]
+    #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
     #[serde(rename = "@numChannels")]
     pub numChannels: Option<u32>,
@@ -1364,9 +1401,9 @@ pub struct AdaptationSet {
     #[serde(rename = "@maxFrameRate")]
     pub maxFrameRate: Option<String>, // it can be something like "15/2"
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
-    #[serde(rename = "@maxPlayoutRate")]
+    #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
-    #[serde(rename = "@maximumSAPPeriod")]
+    #[serde(rename = "@maximumSAPPeriod", serialize_with="serialize_opt_xsd_double")]
     pub maximumSAPPeriod: Option<f64>,
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
@@ -1488,11 +1525,11 @@ pub struct Metrics {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Latency {
-    #[serde(rename = "@min")]
+    #[serde(rename = "@min", serialize_with="serialize_opt_xsd_double")]
     pub min: Option<f64>,
-    #[serde(rename = "@max")]
+    #[serde(rename = "@max", serialize_with="serialize_opt_xsd_double")]
     pub max: Option<f64>,
-    #[serde(rename = "@target")]
+    #[serde(rename = "@target", serialize_with="serialize_opt_xsd_double")]
     pub target: Option<f64>,
     #[serde(rename = "@referenceId")]
     pub referenceId: Option<String>,
@@ -1502,9 +1539,9 @@ pub struct Latency {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PlaybackRate {
-    #[serde(rename = "@min")]
+    #[serde(rename = "@min", serialize_with="serialize_xsd_double")]
     pub min: f64,
-    #[serde(rename = "@max")]
+    #[serde(rename = "@max", serialize_with="serialize_xsd_double")]
     pub max: f64,
 }
 
@@ -1576,7 +1613,7 @@ pub struct LeapSecondInformation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PatchLocation {
-    #[serde(rename = "@ttl")]
+    #[serde(rename = "@ttl", serialize_with="serialize_opt_xsd_double")]
     pub ttl: Option<f64>,
     #[serde(rename = "$text")]
     pub content: String,

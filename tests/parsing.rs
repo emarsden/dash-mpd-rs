@@ -8,6 +8,9 @@
 // Currently a nightly-only feature
 // use std::assert_matches::assert_matches;
 
+#[macro_use]
+extern crate approx;
+
 use fs_err as fs;
 use std::env;
 use std::path::PathBuf;
@@ -251,6 +254,64 @@ fn test_timeoffset_inf() {
             |a| a.SegmentTemplate.as_ref().is_some_and(
                 |st| st.availabilityTimeOffset.is_some_and(
                     |ato| ato.is_infinite())))));
+}
+
+// Check that our serialization of f64 struct elements matches the XML Schema specification for type
+// xsd:double.
+#[test]
+fn test_parse_f64() {
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="-3E5"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), -3E5));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="4268.22752E11"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), 4268.22752E11));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="+24.3e-3"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), 24.3e-3));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="12"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), 12.0));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="+3.5"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), 3.5));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="-0"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(relative_eq!(bu.availability_time_offset.unwrap(), -0.0));
+}
+
+
+#[test]
+fn test_parse_f64_infnan() {
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="INF"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(bu.availability_time_offset.is_some_and(|f| f.is_infinite()));
+    assert_eq!(bu.availability_time_offset, Some(f64::INFINITY));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="-INF"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(bu.availability_time_offset.is_some_and(|f| f.is_infinite()));
+    assert!(! bu.availability_time_offset.is_some_and(|f| f.is_nan()));
+    assert_eq!(bu.availability_time_offset, Some(f64::NEG_INFINITY));
+
+    let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="NaN"/></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let bu = &mpd.periods[0].BaseURL[0];
+    assert!(bu.availability_time_offset.is_some_and(|f| f.is_nan()));
+    assert!(! bu.availability_time_offset.is_some_and(|f| f.is_infinite()));
 }
 
 
