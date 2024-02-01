@@ -1,9 +1,11 @@
 // Basic tests for the serialization support
 
+use fs_err as fs;
+use std::path::PathBuf;
 use std::time::Duration;
 use chrono::prelude::*;
 use test_log::test;
-use dash_mpd::{MPD, Period};
+use dash_mpd::{parse, MPD, Period};
 
 
 #[test]
@@ -28,3 +30,29 @@ fn test_serialize () {
     assert!(dash_mpd::parse(&xml).is_ok());
 }
 
+
+// See https://github.com/emarsden/dash-mpd-rs/issues/49
+#[test]
+fn test_serialize_inf() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("f64-inf");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let mpd = parse(&xml).unwrap();
+    let p1 = &mpd.periods[0];
+    let a1 = &p1.adaptations[0];
+    assert_eq!(a1.contentType.as_ref().unwrap(), "video");
+    assert_eq!(a1.SegmentTemplate.as_ref().unwrap().availabilityTimeOffset, Some(f64::INFINITY));
+
+    let serialized = mpd.to_string();
+    let roundtripped = parse(&serialized).unwrap();
+    let p1 = &roundtripped.periods[0];
+    let a1 = &p1.adaptations[0];
+    assert_eq!(a1.contentType.as_ref().unwrap(), "video");
+    assert_eq!(a1.SegmentTemplate.as_ref().unwrap().availabilityTimeOffset, Some(f64::INFINITY));
+    // http://www.datypic.com/sc/xsd/t-xsd_float.html
+    assert!(serialized.contains("availabilityTimeOffset=\"INF\""));
+    println!("+Inf> {serialized}");
+}

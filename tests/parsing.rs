@@ -8,7 +8,7 @@
 // Currently a nightly-only feature
 // use std::assert_matches::assert_matches;
 
-use std::fs;
+use fs_err as fs;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;

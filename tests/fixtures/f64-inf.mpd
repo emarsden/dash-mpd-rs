@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:full:2011" type="dynamic" availabilityStartTime="1970-01-01T00:00:00Z" publishTime="1970-01-01T00:00:00Z" minimumUpdatePeriod="PT1S" minBufferTime="PT1S" timeShiftBufferDepth="PT1M" maxSegmentDuration="PT1S">
+  <Period id="P0" start="PT0S">
+    <AdaptationSet id="1" contentType="video" par="16:9" maxWidth="3840" maxHeight="2160" segmentAlignment="true">
+      <SegmentTemplate media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/init.mp4" duration="12800" startNumber="0" timescale="12800" availabilityTimeOffset="INF"></SegmentTemplate>
+      <Representation id="2160p" bandwidth="19242008" width="3840" height="2160" mimeType="video/mp4" codecs="hev1.1.6.L153.90" startWithSAP="1"></Representation>
+    </AdaptationSet>
+    <AdaptationSet id="2" lang="en" contentType="audio" segmentAlignment="true">
+      <SegmentTemplate media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/init.mp4" duration="48000" startNumber="0" timescale="48000" availabilityTimeOffset="INF"></SegmentTemplate>
+      <Representation id="audio" bandwidth="297168" audioSamplingRate="48000" mimeType="audio/mp4" codecs="mp4a.40.2" startWithSAP="1">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"></AudioChannelConfiguration>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+  <UTCTiming schemeIdUri="urn:mpeg:dash:utc:http-xsdate:2014" value="https://time.akamai.com/?iso&amp;ms"></UTCTiming>
+</MPD>
