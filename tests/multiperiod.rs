@@ -163,7 +163,75 @@ async fn test_multiperiod_diffbase() {
 
 
 
-// TODO: test http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/twoperiods.mpd
+// This manifest contains two periods that are tricky to merge: the first period has audio and video
+// whereas the second period has video but not audio.
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_multiperiod_witha_withouta() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/twoperiods.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("twoperiods.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 5_742_832);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(39.0 < duration && duration < 40.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
 
-// TODO: test with http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/threeperiods.mpd
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_multiperiod_witha_withouta_witha() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/fokus/adinsertion-samples/xlink/threeperiods.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("threeperiods.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 14_435_150);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(72.0 < duration && duration < 73.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
 

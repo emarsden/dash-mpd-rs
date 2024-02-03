@@ -813,7 +813,8 @@ pub fn copy_audio_to_container(
 
 
 // Generate an appropriate "complex" filter for the ffmpeg concat filter.
-// See https://trac.ffmpeg.org/wiki/Concatenate
+// See https://trac.ffmpeg.org/wiki/Concatenate and
+//  https://ffmpeg.org/ffmpeg-filters.html#concat
 //
 // Example for n=3: "[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]"
 //
@@ -823,18 +824,27 @@ pub fn copy_audio_to_container(
 fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let n = paths.len();
     let mut filter = String::new();
+    let mut link_labels = Vec::new();
     let mut have_audio = false;
     let mut have_video = false;
     for (i, path) in paths.iter().enumerate().take(n) {
         if container_has_video(path) {
-            filter += &format!("[{i}:v:0]");
+            filter = format!("movie={}:streams=dv[v{i}];{filter}", path.display());
             have_video = true;
+            link_labels.push(format!("[v{i}]"));
         }
         if container_has_audio(path) {
-            filter += &format!("[{i}:a:0]");
+            filter = format!("movie={}:streams=da[a{i}];{filter}", path.display());
+            have_audio = true;
+        } else {
+            // Use a null audio src. Without this null audio track the concat filter is generating
+            // errors, with ffmpeg version 6.1.1.
+            filter = format!("anullsrc=r=48000:cl=mono:d=1[a{i}];{filter}");
             have_audio = true;
         }
+        link_labels.push(format!("[a{i}]"));
     }
+    filter += &link_labels.join("");
     filter += &format!(" concat=n={n}");
     if have_video {
         filter += ":v=1";
@@ -864,6 +874,7 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     args
 }
 
+
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_ffmpeg(
     downloader: &DashDownloader,
@@ -887,22 +898,18 @@ pub(crate) fn concat_output_files_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
             String::from("")))?;
-    let mut tmpoutb = BufWriter::new(&tmpout);
-    let overwritten = File::open(paths[0].clone())
-        .map_err(|e| DashMpdError::Io(e, String::from("opening first container")))?;
-    let mut overwritten = BufReader::new(overwritten);
-    io::copy(&mut overwritten, &mut tmpoutb)
-        .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
+    fs::copy(paths[0].clone(), tmppath)
+        .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
     let mut args = vec!["-hide_banner", "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
                         "-y",
-                        "-nostdin",
-                        "-i", tmppath];
+                        "-nostdin"];
+    let mut inputs = Vec::<PathBuf>::new();
+    inputs.push(tmppath.into());
     for p in &paths[1..] {
-        args.push("-i");
-        args.push(p.to_str().unwrap());
+        inputs.push(p.to_path_buf());
     }
-    let filter_args = make_ffmpeg_concat_filter_args(paths);
+    let filter_args = make_ffmpeg_concat_filter_args(&inputs);
     filter_args.iter().for_each(|a| args.push(a));
     args.push("-movflags");
     args.push("faststart+omit_tfhd_offset");
@@ -914,7 +921,7 @@ pub(crate) fn concat_output_files_ffmpeg(
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
         .output()
-        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
         info!("ffmpeg stdout: {msg}");
