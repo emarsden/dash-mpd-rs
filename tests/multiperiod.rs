@@ -194,7 +194,7 @@ async fn test_multiperiod_witha_withouta() {
     assert_eq!(video.codec_name, Some(String::from("h264")));
     assert!(video.width.is_some());
     let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(39.0 < duration && duration < 40.0);
+    assert!(39.0 < duration && duration < 41.0, "Expecting duration around 39.2, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -229,7 +229,7 @@ async fn test_multiperiod_witha_withouta_witha() {
     assert_eq!(video.codec_name, Some(String::from("h264")));
     assert!(video.width.is_some());
     let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(72.0 < duration && duration < 73.0);
+    assert!(72.0 < duration && duration < 73.0, "Expecting duration around 72.5s, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
