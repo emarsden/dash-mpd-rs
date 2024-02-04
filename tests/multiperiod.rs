@@ -8,6 +8,7 @@ pub mod common;
 use fs_err as fs;
 use std::env;
 use file_format::FileFormat;
+use ffprobe::ffprobe;
 use test_log::test;
 use dash_mpd::fetch::DashDownloader;
 use common::check_file_size_approx;
