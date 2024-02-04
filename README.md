@@ -215,14 +215,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.14.7"
+dash-mpd = "0.14.8"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.14.7", default-features = false }
+dash-mpd = { version = "0.14.8", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -281,7 +281,7 @@ This crate is tested on the following platforms:
 - Microsoft Windows 10 and Windows 11, without the libav feature
 
 - Android 12 on Aarch64 via [termux](https://termux.dev/), without the libav feature (you'll need to
-  install the rust, binutils and ffmpeg packages)
+  install the `rust`, `binutils`, `ffmpeg` and `protobuf` packages)
 
 - FreeBSD/AMD64 and OpenBSD/AMD64, without the libav feature. Note however that some of the external
   utility applications we use for muxing or decrypting media content are poorly supported on
