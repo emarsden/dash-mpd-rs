@@ -43,6 +43,12 @@ termux:
     cargo test --no-default-features --features fetch,rustls-tls,compression,scte35 -- --show-output
 
 
+# Run a trivy vulnerability scan of this repository
+# https://github.com/aquasecurity/trivy
+trivy-repository:
+    podman run -v $PWD:/myapp docker.io/aquasec/trivy fs --scanners vuln,secret,misconfig .
+
+
 publish:
   cargo test
   cargo publish
