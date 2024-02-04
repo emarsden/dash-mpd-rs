@@ -44,6 +44,9 @@ jobs:
     - name: install xsltproc
       run: brew install libxslt
 
+    - name: install protobuf compiler
+      run: brew install protobuf
+
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
     - run: RUST_LOG=info cargo test --jobs 1 --verbose --no-run

@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.8] - Unreleased
+## [0.14.8] - 2024-02-04
 
 - Fix the serialization of various attributes that are declared as being of type `xsd:double` in the
   DASH XML Schema definition. These are represented as Rust f64 values, but need to be serialized

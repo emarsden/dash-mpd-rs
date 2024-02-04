@@ -30,6 +30,7 @@ jobs:
           sudo pkg_add -U -I graphics/ffmpeg
           sudo pkg_add -U -I vlc
           sudo pkg_add -U -I textproc/libxslt
+          sudo pkd_add -U -I devel/protobuf
           # these don't seem to be packaged in OpenBSD ports
           # sudo pkg_add -U -I multimedia/gpac-mp4box
           # mp4box -version

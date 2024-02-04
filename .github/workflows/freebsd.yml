@@ -41,6 +41,8 @@ jobs:
           echo === installing gpac/mp4box
           sudo pkg install -y --quiet multimedia/gpac-mp4box
           mp4box -version
+          echo === installing protobuf compiler
+          sudo pkg install -y --quiet devel/protobuf
           echo === installing shaka-packager
           # we are depending here on FreeBSD's Linux binary compatibility layer
           curl https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-linux-x64 --output /tmp/shaka-packager

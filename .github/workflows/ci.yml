@@ -11,10 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: taiki-e/install-action@cargo-hack
-      - name: Install ffmpeg
+      - name: Install ffmpeg + protoc
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler
       - run: cargo check
       - run: cargo hack check --feature-powerset --no-dev-deps
 
@@ -47,8 +47,8 @@ jobs:
           mv /tmp/shaka-packager /usr/local/bin
           chmod +x /usr/local/bin/shaka-packager
 
-      - name: Install xsltproc
-        run: sudo apt install xsltproc
+      - name: Install xsltproc + protoc
+        run: sudo apt install xsltproc protobuf-compiler
 
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
       - run: RUST_LOG=info cargo test --jobs 1

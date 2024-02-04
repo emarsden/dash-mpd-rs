@@ -49,8 +49,10 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe" -OutFile c:\tools\shaka-packager.exe
 
     - name: install xsltproc
-      run: |
-         choco install --yes --limit-output xsltproc
+      run: choco install --yes --limit-output xsltproc
+
+    - name: install protobuf compiler
+      run: choco install --yes --limit-output protoc
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
     - run: cargo build
