@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.14.8] - Unreleased
+
+- Fix the serialization of various attributes that are declared as being of type `xsd:double` in the
+  DASH XML Schema definition. These are represented as Rust f64 values, but need to be serialized
+  slightly differently (in particular for values +INF, -INF, NaN that were previously serialized
+  incorrectly). Bug reported by @ypo (#49).
+
+- Add some missing ContentProtection uids and rename ChinaDRM as WisePlay (they share the same
+  system ID, and WisePlay seems to be more prevalent than ChinaDRM).
+
+- Downloading: fix the handling of XLinked elements. The Shaka heliocentrism test case now works
+  correctly.
+
+- Downloading: Widevine and PlayReady initialization data will now be decoded and pretty printed,
+  alongside their Base64 representation (uses the new `pssh-box` crate).
+
+- Downloading: fix concatenation for multiperiod manifests in situations where one period has audio
+  and another has no audio track.
+
+
 ## [0.14.7] - 2023-12-25
 
 - The library uses the `tracing` crate for all logging purposes, and will no longer print anything to
