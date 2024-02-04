@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
-use tracing::{info, warn, error};
+use tracing::{trace, info, warn, error};
 use colored::*;
 use regex::Regex;
 use url::Url;
@@ -1252,10 +1252,10 @@ fn do_pending_insertions_recurse(
     element: &mut xmltree::Element,
     pending: &Vec<PendingInsertion>)
 {
-    // check whether each child needs an insertion after it
+    // check whether each child needs to be replaced by the xlinked element.
     for pi in pending {
         if let Some(idx) = element.children.iter().position(|c| *c == pi.target) {
-            element.children.insert(idx, pi.insertion.clone());
+            element.children[idx] = pi.insertion.clone();
         }
     }
     for child in element.children.iter_mut() {
@@ -1275,20 +1275,21 @@ async fn resolve_xlink_references_recurse(
     element: &mut xmltree::Element) -> Result<Vec<PendingInsertion>, DashMpdError>
 {
     let mut pending_insertions = Vec::new();
-    if let Some(href) = element.attributes.get("href") {
-        if fetchable_xlink_href(href) {
-            let xlink_url = if is_absolute_url(href) {
-                Url::parse(href)
+    if let Some(href) = element.attributes.remove("href") {
+        if fetchable_xlink_href(&href) {
+            let xlink_url = if is_absolute_url(&href) {
+                Url::parse(&href)
                     .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?
             } else {
                 // Note that we are joining against the original/redirected URL for the MPD, and
                 // not against the currently scoped BaseURL
-                let mut merged = redirected_url.join(href)
+                let mut merged = redirected_url.join(&href)
                     .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?;
                 merged.set_query(redirected_url.query());
                 merged
             };
             let client = downloader.http_client.as_ref().unwrap();
+            trace!("Fetching XLinked element {}", xlink_url.clone());
             let mut req = client.get(xlink_url.clone())
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
@@ -1501,9 +1502,12 @@ async fn do_period_audio(
                 if let Some(kid) = &cp.default_KID {
                     diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
-                for pssh in cp.cenc_pssh.iter() {
-                    if let Some(pc) = &pssh.content {
-                        diagnostics.push(format!("    PSSH (from manifest): {pc}"));
+                for pssh_element in cp.cenc_pssh.iter() {
+                    if let Some(pssh_b64) = &pssh_element.content {
+                        diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
+                        if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
+                            diagnostics.push(format!("    {pssh}"));
+                        }
                     }
                 }
             }
@@ -1964,9 +1968,12 @@ async fn do_period_video(
                 if let Some(kid) = &cp.default_KID {
                     diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
-                for pssh in cp.cenc_pssh.iter() {
-                    if let Some(pc) = &pssh.content {
-                        diagnostics.push(format!("    PSSH (from manifest): {pc}"));
+                for pssh_element in cp.cenc_pssh.iter() {
+                    if let Some(pssh_b64) = &pssh_element.content {
+                        diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
+                        if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
+                            diagnostics.push(format!("    {pssh}"));
+                        }
                     }
                 }
             }
@@ -3615,7 +3622,6 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         let period = mpd_period.clone();
         period_counter += 1;
         let mut pd = PeriodDownloads::default();
-        // Accumulate some diagnostics information on the selected media stream
         if downloader.verbosity > 0 {
             if let Some(id) = period.id.as_ref() {
                 info!("Preparing download for period {id} (#{period_counter})");
@@ -3658,17 +3664,21 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             use base64::prelude::{Engine as _, BASE64_STANDARD};
 
             audio_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
-            // info!("{}", audio_outputs.diagnostics.trim());
             for f in pd.audio_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
-                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
+                if let Some(pssh_bytes) = extract_init_pssh(downloader, f.url.clone()).await {
+                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh_bytes));
+                    if let Ok(pssh) = pssh_box::from_bytes(&pssh_bytes) {
+                        info!("    {}", pssh.to_string());
+                    }
                 }
             }
             video_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
-            // info!("{}", video_outputs.diagnostics.trim());
             for f in pd.video_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh) = extract_init_pssh(downloader, f.url.clone()).await {
-                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh));
+                if let Some(pssh_bytes) = extract_init_pssh(downloader, f.url.clone()).await {
+                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh_bytes));
+                    if let Ok(pssh) = pssh_box::from_bytes(&pssh_bytes) {
+                        info!("    {}", pssh.to_string());
+                    }
                 }
             }
         }
