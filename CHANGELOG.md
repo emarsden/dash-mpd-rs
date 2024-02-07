@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.9] - Unreleased
+
+- The tokio crate is now an optional feature, only needed when the `fetch` feature is enabled. This
+  oversight was pointed out by @pando-fredrik. 
+
+
 ## [0.14.8] - 2024-02-04
 
 - Fix the serialization of various attributes that are declared as being of type `xsd:double` in the
