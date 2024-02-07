@@ -1955,7 +1955,7 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
     SubtitleType::Unknown
 }
 
-
+#[allow(unused)]
 fn content_protection_type(cp: &ContentProtection) -> String {
     if let Some(v) = &cp.value {
         if v.eq("cenc") {
