@@ -27,7 +27,7 @@ fn test_serialize () {
     assert!(xml.contains("urn:mpeg:dash:schema"));
     assert!(xml.contains("randomcookie"));
     assert!(xml.contains("2017-05-25T11:11"));
-    assert!(dash_mpd::parse(&xml).is_ok());
+    assert!(parse(&xml).is_ok());
 }
 
 
