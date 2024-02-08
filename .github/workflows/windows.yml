@@ -8,7 +8,9 @@ jobs:
     timeout-minutes: 100
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: msys2/setup-msys2@v2
+      with:
+        install: base-devel autotools mingw-w64-x86_64-toolchain mingw-w64-x86_64-rust mingw-w64-ucrt-x86_64-gcc
     - uses: taiki-e/install-action@cargo-hack
 
     # The executables installed by choco are not available on the PATH in the current shell.
@@ -55,6 +57,13 @@ jobs:
       run: choco install --yes --limit-output protoc
 
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
+      shell: msys2 {0}
+
     - run: cargo build
+      shell: msys2 {0}
+
     - run: cargo test --verbose --no-run
+      shell: msys2 {0}
+
     - run: cargo test -- --show-output
+      shell: msys2 {0}
