@@ -413,6 +413,15 @@ fn test_file_parsing() {
     let xml = fs::read_to_string(path).unwrap();
     let mpd = parse(&xml).unwrap();
     assert_eq!(mpd.periods[0].event_streams[0].event.len(), 3);
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("st-sl");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let mpd = parse(&xml).unwrap();
+    // let sl = mpd.periods[0].adaptations[0].representation[0].SegmentList;
 }
 
 

@@ -5,6 +5,8 @@
 - The tokio crate is now an optional feature, only needed when the `fetch` feature is enabled. This
   oversight was pointed out by @pando-fredrik. 
 
+- Add `SegmentTimeline` element to `SegmentList` elements (from @erik-moqvist). 
+
 
 ## [0.14.8] - 2024-02-04
 

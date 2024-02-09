@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M49.598000000S" type="static">
+  <Period duration="PT0H0M49.598000000S">
+    <AdaptationSet maxWidth="1280" maxHeight="720" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1" >
+      <Representation frameRate="15.00" bandwidth="0" id="video1" codecs="avc1.640029" width="1280" height="720" scanType="progressive" >
+	<SegmentList timescale="1000" presentationTimeOffset="0">
+	  <Initialization sourceURL="https://foobar.com/init.mp4"/>
+	  <SegmentURL media="https://foobar.com/fie.0.m4v" />
+	  <SegmentURL media="https://foobar.com/fie.1.m4v" />
+	  <SegmentURL media="https://foobar.com/fie.2.m4v" />
+	  <SegmentTimeline>
+	    <S d="16560" t="0" />
+	    <S d="16519" />
+	    <S d="16519" />
+	  </SegmentTimeline>
+	</SegmentList>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
