@@ -774,6 +774,7 @@ pub struct SegmentList {
     pub Initialization: Option<Initialization>,
     #[serde(rename = "SegmentURL")]
     pub segment_urls: Vec<SegmentURL>,
+    pub SegmentTimeline: Option<SegmentTimeline>,
 }
 
 #[skip_serializing_none]
