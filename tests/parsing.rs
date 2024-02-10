@@ -421,7 +421,13 @@ fn test_file_parsing() {
     path.set_extension("mpd");
     let xml = fs::read_to_string(path).unwrap();
     let mpd = parse(&xml).unwrap();
-    // let sl = mpd.periods[0].adaptations[0].representation[0].SegmentList;
+    let sl = &mpd.periods[0].adaptations[0].representations[0].SegmentList.as_ref().unwrap();
+    assert!(sl.Initialization.as_ref().is_some_and(
+        |i| i.sourceURL.as_ref().is_some_and(
+            |su| su.contains("foobar"))));
+    assert_eq!(sl.segment_urls.len(), 3);
+    assert!(sl.SegmentTimeline.as_ref().is_some_and(
+        |st| st.segments[0].t.is_some_and(|t| t == 0)));
 }
 
 
