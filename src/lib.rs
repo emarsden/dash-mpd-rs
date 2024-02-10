@@ -617,7 +617,7 @@ pub struct SegmentTemplate {
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@bitstreamSwitching")]
-    pub bitstreamSwitching: Option<bool>,
+    pub bitstreamSwitching: Option<String>,
     #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]

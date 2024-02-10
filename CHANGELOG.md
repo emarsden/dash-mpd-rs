@@ -7,6 +7,9 @@
 
 - Add `SegmentTimeline` element to `SegmentList` elements (from @erik-moqvist). 
 
+- Fix type of `@bitstreamSwitching` attribute on `SegmentTemplate` elements (xs:string rather than
+  xs:bool as for all other uses of the `@bitstreamSwitching` attribute). 
+
 
 ## [0.14.8] - 2024-02-04
 

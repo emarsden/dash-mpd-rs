@@ -463,6 +463,8 @@ async fn test_parsing_online() {
               "https://raw.githubusercontent.com/MPEGGroup/DASHSchema/5th-Ed-AMD1/example_G22.mpd").await;
     check_mpd(client.clone(),
               "https://cph-msl.akamaized.net/dash/live/2003285/test/manifest.mpd").await;
+    check_mpd(client.clone(),
+              "https://raw.githubusercontent.com/Blazemeter/mpd-tools/0c7b3eabfdab6c66100c0218df09f430dc72c802/parser/src/test/resources/random.mpd").await;
 }
 
 
