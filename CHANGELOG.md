@@ -10,6 +10,8 @@
 - Fix type of `@bitstreamSwitching` attribute on `SegmentTemplate` elements (xs:string rather than
   xs:bool as for all other uses of the `@bitstreamSwitching` attribute). 
 
+- Fix type of `@audioSamplingRate` attributes on various elements (xs:string rather than u64).
+
 
 ## [0.14.8] - 2024-02-04
 

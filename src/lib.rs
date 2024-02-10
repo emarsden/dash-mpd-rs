@@ -824,7 +824,7 @@ pub struct Preselection {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@audioSamplingRate")]
-    pub audioSamplingRate: Option<u64>,
+    pub audioSamplingRate: Option<String>,
     /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
     #[serde(rename = "@codecs")]
     pub codecs: String,
@@ -956,7 +956,7 @@ pub struct SubRepresentation {
     #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
-    pub audioSamplingRate: Option<u64>,
+    pub audioSamplingRate: Option<String>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
@@ -1028,7 +1028,7 @@ pub struct Representation {
     #[serde(rename = "@sampleRate")]
     pub sampleRate: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
-    pub audioSamplingRate: Option<u64>,
+    pub audioSamplingRate: Option<String>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
@@ -1374,7 +1374,7 @@ pub struct AdaptationSet {
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
     #[serde(rename = "@audioSamplingRate")]
-    pub audioSamplingRate: Option<u64>,
+    pub audioSamplingRate: Option<String>,
     #[serde(rename = "@width")]
     pub width: Option<u64>,
     #[serde(rename = "@height")]
