@@ -558,6 +558,16 @@ pub struct SegmentTimeline {
     pub segments: Vec<S>,
 }
 
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[serde(default)]
+pub struct BitstreamSwitching {
+    #[serde(rename = "@sourceURL")]
+    pub source_url: Option<String>,
+    #[serde(rename = "@range")]
+    pub range: Option<String>,
+}
+
 /// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
 /// segment to produce a media stream.
 #[skip_serializing_none]
@@ -597,6 +607,7 @@ pub struct SegmentTemplate {
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
     pub SegmentTimeline: Option<SegmentTimeline>,
+    pub BitstreamSwitching: Option<BitstreamSwitching>,
     pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
@@ -775,6 +786,7 @@ pub struct SegmentList {
     #[serde(rename = "SegmentURL")]
     pub segment_urls: Vec<SegmentURL>,
     pub SegmentTimeline: Option<SegmentTimeline>,
+    pub BitstreamSwitching: Option<BitstreamSwitching>,
 }
 
 #[skip_serializing_none]
