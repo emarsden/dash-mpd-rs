@@ -21,11 +21,11 @@ serde_ignored = { version = "0.1.9", optional = true }
 serde_with = { version = "3.6.0", features = ["base64"] }
 quick-xml = { version = "0.31.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.0"
-chrono = { version = "0.4.33", features = ["serde"] }
+chrono = { version = "0.4.34", features = ["serde"] }
 num-traits = "0.2.18"
 iso8601 = "0.6.1"
 regex = "1.10.3"
-thiserror = "1.0.56"
+thiserror = "1.0.57"
 fs-err = "2.11.0"
 tracing = { version = "0.1.40", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
@@ -49,7 +49,7 @@ pssh-box = { version = "0.1.2", optional = true }
 sha2 = "0.10.7"
 hex-literal = "0.4.1"
 colored = "2.0.4"
-indicatif = "0.17.7"
+indicatif = "0.17.8"
 clap = "4.3.24"
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
