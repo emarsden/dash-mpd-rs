@@ -22,6 +22,10 @@
   included in all HTTP requests, for the MPD manifest, for audio and video segments, and for
   subtitle content.
 
+- Downloading: default to enabling cookie support in the reqwest Client used for network requests.
+  Cookies set while retrieving the MPD manifest will be included in requests for media segments.
+  (In practice, media servers rarely check cookies, as doing so is expensive on a CDN infrastructure.)
+
 
 ## [0.14.8] - 2024-02-04
 

@@ -719,6 +719,7 @@ impl DashDownloader {
         if self.http_client.is_none() {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
+                .cookie_store(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
@@ -741,6 +742,7 @@ impl DashDownloader {
         if self.http_client.is_none() {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
+                .cookie_store(true)
                 .build()
                 .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
