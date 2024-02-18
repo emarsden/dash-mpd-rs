@@ -158,7 +158,7 @@ async fn test_preference_ranking() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("0"));
+    assert!(txt.eq("0"), "Expecting 0 segment requests, got {txt}");
 
     let mpd_url = "http://localhost:6666/mpd";
     let wb = env::temp_dir().join("wanting-best.mp4");
@@ -207,7 +207,7 @@ async fn test_preference_ranking() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("5"));
+    assert!(txt.eq("5"), "Expecting 5 segment requests, got {txt}");
     server_handle.shutdown();
 
     Ok(())

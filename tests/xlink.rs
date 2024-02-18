@@ -249,7 +249,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("0"));
+    assert!(txt.eq("0"), "Expecting 0 segment requests, got {txt}");
 
     // Now fetch the manifest and parse with our XLink resolution semantics and count the number of
     // Period elements.
@@ -273,7 +273,7 @@ async fn test_xlink_retrieval() -> Result<()> {
     // were requested.
     let outpath = env::temp_dir().join("xlinked.mp4");
     DashDownloader::new(mpd_urls)
-        .verbosity(2)
+        .verbosity(0)
         .download_to(outpath.clone()).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
@@ -290,12 +290,11 @@ async fn test_xlink_retrieval() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("4"));
+    assert!(txt.eq("4"), "Expecting 4 segment requests, got {txt}");
     server_handle.shutdown();
 
     Ok(())
 }
-
 
 
 // Test behaviour when xlinked resources are unavailable.

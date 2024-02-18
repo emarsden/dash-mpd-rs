@@ -106,7 +106,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("0 0"));
+    assert!(txt.eq("0 0"), "Expecting status 0 0, got {txt}");
 
     let mpd_url = "http://localhost:6668/mpd";
     let mut xslt = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -129,7 +129,6 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .context("fetching status")?;
     assert!(txt.eq("1 926"), "Expecting 1 926, got {txt}");
     server_handle.shutdown();
-
     Ok(())
 }
 

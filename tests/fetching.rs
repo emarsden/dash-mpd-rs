@@ -792,7 +792,7 @@ async fn test_dl_dynamic_forced_duration() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(5.0 < duration && duration < 7.0);
+    assert!(5.0 < duration && duration < 7.0, "Expecting duration between 5 and 6, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -827,7 +827,7 @@ async fn test_dl_lowlatency_forced_duration() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(9.5 < duration && duration < 13.0);
+    assert!(9.5 < duration && duration < 13.0, "Expecting duration between 9.5 and 13, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");

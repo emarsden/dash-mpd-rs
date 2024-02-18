@@ -133,7 +133,7 @@ async fn test_bearer_auth() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("0"));
+    assert!(txt.eq("0"), "Expecting 0 segment requests, got {txt}");
 
     // Check that the manifest and media segments both require authentication
     let mpd_fail = client.get("http://localhost:6666/mpd")

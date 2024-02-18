@@ -125,7 +125,7 @@ async fn test_mpd_location() -> Result<()> {
         .error_for_status()?
         .text().await
         .context("fetching status")?;
-    assert!(txt.eq("0"));
+    assert!(txt.eq("0"), "Expecting 0 segment requests, got {txt}");
 
     let r = env::temp_dir().join("relocated.mp4");
     DashDownloader::new("http://localhost:6667/mpd")
