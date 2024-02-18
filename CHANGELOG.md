@@ -26,6 +26,8 @@
   Cookies set while retrieving the MPD manifest will be included in requests for media segments.
   (In practice, media servers rarely check cookies, as doing so is expensive on a CDN infrastructure.)
 
+- Downloading: fix handling of XLinked elements when remote XML fragment contains multiple elements.
+
 
 ## [0.14.8] - 2024-02-04
 

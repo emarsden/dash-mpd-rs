@@ -1259,7 +1259,7 @@ fn element_resolves_to_zero(element: &xmltree::Element) -> bool {
 #[derive(Debug)]
 struct PendingInsertion {
     target: xmltree::XMLNode,
-    insertion: xmltree::XMLNode,
+    insertions: Vec<xmltree::XMLNode>,
 }
 
 
@@ -1267,10 +1267,16 @@ fn do_pending_insertions_recurse(
     element: &mut xmltree::Element,
     pending: &Vec<PendingInsertion>)
 {
-    // check whether each child needs to be replaced by the xlinked element.
     for pi in pending {
         if let Some(idx) = element.children.iter().position(|c| *c == pi.target) {
-            element.children[idx] = pi.insertion.clone();
+            if pi.insertions.len() == 1 {
+                element.children[idx] = pi.insertions[0].clone();
+            } else {
+                element.children[idx] = pi.insertions[0].clone();
+                for (i, ins) in pi.insertions[1..].iter().enumerate() {
+                    element.children.insert(idx+i, ins.clone());
+                }
+            }
         }
     }
     for child in element.children.iter_mut() {
@@ -1339,16 +1345,10 @@ async fn resolve_xlink_references_recurse(
             // into the parent node directly, but need to return them to the caller for later insertion.
             let nodes = xmltree::Element::parse_all(xml.as_bytes())
                 .map_err(|e| parse_error("xmltree parsing", e))?;
-            if let Some(n) = nodes[0].as_element() {
-                *element = n.clone();
-            }
-            for n in &nodes[1..] {
-                let pending = PendingInsertion {
-                    target: xmltree::XMLNode::Element(element.clone()),
-                    insertion: n.clone(),
-                };
-                pending_insertions.push(pending);
-            }
+            pending_insertions.push(PendingInsertion {
+                target: xmltree::XMLNode::Element(element.clone()),
+                insertions: nodes,
+            });
         }
     }
     // Delete any child Elements that have XLink resolve-to-zero semantics.
@@ -1375,7 +1375,7 @@ pub async fn parse_resolving_xlinks(
     let mut doc = xmltree::Element::parse(xml)
         .map_err(|e| parse_error("xmltree parsing", e))?;
     if !doc.name.eq("MPD") {
-        return Err(DashMpdError::Parsing(format!("expecting root element of MPD, got {}", doc.name)));
+        return Err(DashMpdError::Parsing(format!("root element is {}, expecting <MPD>", doc.name)));
     }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
