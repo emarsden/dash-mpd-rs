@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.9] - Unreleased
+## [0.14.9] - 2024-02-18
 
 - The tokio crate is now an optional feature, only needed when the `fetch` feature is enabled. This
   oversight was pointed out by @pando-fredrik. 
