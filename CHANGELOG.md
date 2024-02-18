@@ -14,6 +14,14 @@
 
 - Fix type of `@audioSamplingRate` attributes on various elements (xs:string rather than u64).
 
+- Downloading: add support for specifying the Referer HTTP header explicitly, through the
+  `with_referer` method on `DashDownloader`. It was previously possible to specify the Referer by
+  adding it to the default headers in the user-provided reqwest `Client`. However, we were not able to
+  distinguish whether this had been specified by the caller or not, so were not able to add a
+  relevant Referer header only in the absence of a user-provided Referer. Referer headers are
+  included in all HTTP requests, for the MPD manifest, for audio and video segments, and for
+  subtitle content.
+
 
 ## [0.14.8] - 2024-02-04
 

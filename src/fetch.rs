@@ -98,6 +98,7 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 /// [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     pub mpd_url: String,
+    referer: Option<String>,
     auth_username: Option<String>,
     auth_password: Option<String>,
     auth_bearer_token: Option<String>,
@@ -215,6 +216,7 @@ impl DashDownloader {
     pub fn new(mpd_url: &str) -> DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
+            referer: None,
             auth_username: None,
             auth_password: None,
             auth_bearer_token: None,
@@ -290,6 +292,14 @@ impl DashDownloader {
     /// ```
     pub fn with_http_client(mut self, client: HttpClient) -> DashDownloader {
         self.http_client = Some(client);
+        self
+    }
+
+    /// Specify the value for the Referer HTTP header used in network requests. This value is used
+    /// when retrieving the MPD manifest, when retrieving video and audio media segments, and when
+    /// retrieving subtitle data.
+    pub fn with_referer(mut self, referer: String) -> DashDownloader {
+        self.referer = Some(referer);
         self
     }
 
@@ -1049,6 +1059,9 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
 
     let client = downloader.http_client.as_ref().unwrap();
     let mut req = client.get(init_url);
+    if let Some(referer) = &downloader.referer {
+        req = req.header("Referer", referer);
+    }
     if let Some(username) = &downloader.auth_username {
         if let Some(password) = &downloader.auth_password {
             req = req.basic_auth(username, Some(password));
@@ -1294,6 +1307,11 @@ async fn resolve_xlink_references_recurse(
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate");
+            if let Some(referer) = &downloader.referer {
+                req = req.header("Referer", referer);
+            } else {
+                req = req.header("Referer", redirected_url.to_string());
+            }
             if let Some(username) = &downloader.auth_username {
                 if let Some(password) = &downloader.auth_password {
                     req = req.basic_auth(username, Some(password));
@@ -2361,9 +2379,13 @@ async fn do_period_subtitles(
                 if !rep.BaseURL.is_empty() {
                     for st_bu in rep.BaseURL.iter() {
                         let st_url = merge_baseurls(&base_url, &st_bu.base)?;
-                        let subs = client.get(st_url.clone())
-                            .header("Referer", base_url.to_string())
-                            .send().await
+                        let mut req = client.get(st_url.clone());
+                        if let Some(referer) = &downloader.referer {
+                            req = req.header("Referer", referer);
+                        } else {
+                            req = req.header("Referer", base_url.to_string());
+                        }
+                        let subs = req.send().await
                             .map_err(|e| network_error("fetching subtitles", e))?
                             .error_for_status()
                             .map_err(|e| network_error("fetching subtitles", e))?
@@ -2840,6 +2862,11 @@ async fn fetch_period_audio(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(referer) = &downloader.referer {
+                        req = req.header("Referer", referer);
+                    } else {
+                        req = req.header("Referer", redirected_url.to_string());
+                    }
                     if let Some(username) = &downloader.auth_username {
                         if let Some(password) = &downloader.auth_password {
                             req = req.basic_auth(username, Some(password));
@@ -3121,6 +3148,11 @@ async fn fetch_period_video(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(referer) = &downloader.referer {
+                        req = req.header("Referer", referer);
+                    } else {
+                        req = req.header("Referer", redirected_url.to_string());
+                    }
                     if let Some(username) = &downloader.auth_username {
                         if let Some(password) = &downloader.auth_password {
                             req = req.basic_auth(username, Some(password));
@@ -3394,6 +3426,11 @@ async fn fetch_period_subtitles(
                             req = req.header(RANGE, format!("bytes={sb}-{eb}"));
                         }
                     }
+                    if let Some(referer) = &downloader.referer {
+                        req = req.header("Referer", referer);
+                    } else {
+                        req = req.header("Referer", redirected_url.to_string());
+                    }
                     if let Some(username) = &downloader.auth_username {
                         if let Some(password) = &downloader.auth_password {
                             req = req.basic_auth(username, Some(password));
@@ -3512,6 +3549,9 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             .header("Accept-Language", "en-US,en")
             .header("Upgrade-Insecure-Requests", "1")
             .header("Sec-Fetch-Mode", "navigate");
+        if let Some(referer) = &downloader.referer {
+            req = req.header("Referer", referer);
+        }
         if let Some(username) = &downloader.auth_username {
             if let Some(password) = &downloader.auth_password {
                 req = req.basic_auth(username, Some(password));
@@ -3560,6 +3600,11 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate");
+            if let Some(referer) = &downloader.referer {
+                req = req.header("Referer", referer);
+            } else {
+                req = req.header("Referer", redirected_url.to_string());
+            }
             if let Some(username) = &downloader.auth_username {
                 if let Some(password) = &downloader.auth_password {
                     req = req.basic_auth(username, Some(password));
