@@ -3419,7 +3419,6 @@ async fn fetch_period_subtitles(
             } else {
                 let fetch = || async {
                     let mut req = client.get(frag.url.clone())
-                        .header("Referer", redirected_url.to_string())
                         .header("Sec-Fetch-Mode", "navigate");
                     if let Some(sb) = &frag.start_byte {
                         if let Some(eb) = &frag.end_byte {
