@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.10] - Unreleased
+
+- Downloading: fix the support for specifying referer using the `with_referer` method on
+  `DashDownloader` (bug reported by @yoyo890121).
+
+
 ## [0.14.9] - 2024-02-18
 
 - The tokio crate is now an optional feature, only needed when the `fetch` feature is enabled. This
@@ -16,8 +22,8 @@
 
 - Downloading: add support for specifying the Referer HTTP header explicitly, through the
   `with_referer` method on `DashDownloader`. It was previously possible to specify the Referer by
-  adding it to the default headers in the user-provided reqwest `Client`. However, we were not able to
-  distinguish whether this had been specified by the caller or not, so were not able to add a
+  adding it to the default headers in the user-provided reqwest `Client`. However, we were not able
+  to distinguish whether this had been specified by the caller or not, so were not able to add a
   relevant Referer header only in the absence of a user-provided Referer. Referer headers are
   included in all HTTP requests, for the MPD manifest, for audio and video segments, and for
   subtitle content.
