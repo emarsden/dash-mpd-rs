@@ -465,6 +465,35 @@ async fn test_parsing_online() {
               "https://cph-msl.akamaized.net/dash/live/2003285/test/manifest.mpd").await;
     check_mpd(client.clone(),
               "https://raw.githubusercontent.com/Blazemeter/mpd-tools/0c7b3eabfdab6c66100c0218df09f430dc72c802/parser/src/test/resources/random.mpd").await;
+
+    // from nice collection at https://github.com/Eyevinn/dash-mpd/
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/adaptationset_switching.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/events.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/live_profile_multi_base_url.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/multiple_supplementals.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/newperiod.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/segment_list.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/segment_timeline.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/segment_timeline_multi_period.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/truncate.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/truncate_short.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/audio_channel_configuration.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/livesim/multi-drm.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/schema-mpds/example_H2.mpd").await;
+
 }
 
 
