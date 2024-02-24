@@ -439,11 +439,35 @@ fn test_parsing_patch_location() {
     path.push("patch-location");
     path.set_extension("mpd");
     let xml = fs::read_to_string(path).unwrap();
-    let res = parse(&xml);
-    let mpd = res.unwrap();
+    let mpd = parse(&xml).unwrap();
     assert_eq!(mpd.mpdtype.unwrap(), "dynamic");
     assert_eq!(mpd.PatchLocation.len(), 1);
     assert!(mpd.PatchLocation[0].content.contains("patch.mpp"));
+}
+
+// Test fixture is from https://standards.iso.org/iso-iec/23009/-1/ed-5/en/
+#[test]
+fn test_parsing_failover_content() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("example_G22");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let mpd = parse(&xml).unwrap();
+    assert_eq!(mpd.mpdtype.unwrap(), "dynamic");
+    assert_eq!(mpd.minBufferTime.unwrap(), Duration::new(4, 0));
+    assert_eq!(mpd.base_url.len(), 2);
+    assert_eq!(mpd.periods[0].adaptations[0]
+               .SegmentTemplate.as_ref().unwrap()
+               .SegmentTimeline.as_ref().unwrap()
+               .segments.len(), 3);
+    let rep = &mpd.periods[0].adaptations[0].representations.iter()
+        .find(|r| r.id.as_ref().is_some_and(|id| id == "A"))
+        .unwrap();
+    assert_eq!(rep.SegmentTemplate.as_ref().unwrap()
+               .failover_content.as_ref().unwrap()
+               .fcs_list[0].d, Some(180180));
 }
 
 

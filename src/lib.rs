@@ -40,8 +40,8 @@
 //! ## Limitations / unsupported features
 //!
 //! - Dynamic MPD manifests, that are used for live streaming/OTT TV
-//! - Encrypted content using DRM such as Encrypted Media Extensions (EME) and Media Source Extension (MSE)
 //! - XLink with actuate=onRequest semantics
+//! - Application of MPD patches
 //
 //
 //
@@ -54,6 +54,7 @@
 
 // TODO: handle dynamic MPD as per https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
 // TODO: handle indexRange attribute, as per https://dash.akamaized.net/dash264/TestCasesMCA/dolby/2/1/ChID_voices_71_768_ddp.mpd
+// TODO: implement MPD Patch support when downloading, with test cases from https://github.com/ab2022/mpddiffs/tree/main
 
 
 #![allow(non_snake_case)]
@@ -633,6 +634,11 @@ pub struct SegmentTemplate {
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
+    // The XSD included in the DASH specification only includes a FailoverContent element on the
+    // SegmentBase element, but also includes it on a SegmentTemplate element in one of the
+    // examples. Even if examples are not normative, we choose to be tolerant in parsing.
+    #[serde(rename = "FailoverContent")]
+    pub failover_content: Option<FailoverContent>,
 }
 
 /// A URI string to which a new request for an updated manifest should be made. This feature is
