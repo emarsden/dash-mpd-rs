@@ -537,16 +537,20 @@ pub struct Scte214ContentIdentifier {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct S {
-    /// time
+    /// Time
     #[serde(rename = "@t")]
-    pub t: Option<i64>,
-    /// the duration (shall not exceed the value of MPD@maxSegmentDuration)
+    pub t: Option<u64>,
+    #[serde(rename = "@n")]
+    pub n: Option<u64>,
+    /// The duration (shall not exceed the value of MPD@maxSegmentDuration).
     #[serde(rename = "@d")]
-    pub d: i64,
-    /// the repeat count (number of contiguous Segments with identical MPD duration minus one),
-    /// defaulting to zero if not present
+    pub d: u64,
+    /// The repeat count (number of contiguous Segments with identical MPD duration minus one),
+    /// defaulting to zero if not present.
     #[serde(rename = "@r")]
     pub r: Option<i64>,
+    #[serde(rename = "@k")]
+    pub k: Option<u64>,
 }
 
 /// Contains a sequence of `S` elements, each of which describes a sequence of contiguous segments of

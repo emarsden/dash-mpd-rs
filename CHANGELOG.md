@@ -4,6 +4,13 @@
 
 - Add support for `MPD.ContentProtection` element, as per the fifth edition of the DASH specification
   (ISO/IEC 23009-1:2021).
+  
+- Add support for a `FailoverContent` element in a `SegmentTemplate` element. The XSD included in
+  the DASH specification only includes a `FailoverContent` element on the `SegmentBase` element, but
+  also includes it on a `SegmentTemplate` element in one of the examples. Even if examples are
+  not normative, we choose to be tolerant in parsing.
+
+- Add support for `@n` and `@k` attributes on `SegmentTimeline.S` elements.
 
 - Downloading: fix the support for specifying referer using the `with_referer` method on
   `DashDownloader` (bug reported by @yoyo890121).
