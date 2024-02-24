@@ -431,6 +431,22 @@ fn test_file_parsing() {
 }
 
 
+#[test]
+fn test_parsing_patch_location() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("patch-location");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let res = parse(&xml);
+    let mpd = res.unwrap();
+    assert_eq!(mpd.mpdtype.unwrap(), "dynamic");
+    assert_eq!(mpd.PatchLocation.len(), 1);
+    assert!(mpd.PatchLocation[0].content.contains("patch.mpp"));
+}
+
+
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
 #[test(tokio::test)]

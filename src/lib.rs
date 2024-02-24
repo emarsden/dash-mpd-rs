@@ -1621,7 +1621,9 @@ pub struct LeapSecondInformation {
 
 /// The Patch mechanism allows the DASH client to retrieve a patch from the server that contains a
 /// set of instructions for replacing certain parts of the MPD manifest with updated information. It
-/// is a bandwidth-friendly alternative to retrieving a new version of the full MPD manifest.
+/// is a bandwidth-friendly alternative to retrieving a new version of the full MPD manifest. The
+/// MPD patch document is guaranteed to be available between MPD@publishTime and MPD@publishTime +
+/// PatchLocation@ttl.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1724,6 +1726,8 @@ pub struct MPD {
     pub periods: Vec<Period>,
     #[serde(rename = "Location", default)]
     pub locations: Vec<Location>,
+    /// Specifies the location of an MPD “patch document”, a set of instructions for replacing
+    /// certain parts of the MPD manifest with updated information.
     pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,
     pub ProgramInformation: Option<ProgramInformation>,
