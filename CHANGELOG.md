@@ -1,6 +1,9 @@
 # Changelog
 
-## [0.14.10] - 2024-02-24
+## [0.15.0] - 2024-02-24
+
+- Type of `S.@t` and `S.@d` attributes changed from `Option<i64>` to `Option<u64>`, to conform to the
+  DASH specification. This is an API-breaking change which requires a semver bump.
 
 - Add support for `MPD.ContentProtection` elements, as per the fifth edition of the DASH specification
   (ISO/IEC 23009-1:2021).

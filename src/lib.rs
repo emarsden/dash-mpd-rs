@@ -2117,7 +2117,7 @@ fn check_segment_template_duration(
     let mut errors = Vec::new();
     if let Some(timeline) = &st.SegmentTimeline {
         for s in &timeline.segments {
-            let sd = s.d as u64 / st.timescale.unwrap_or(outer_timescale);
+            let sd = s.d / st.timescale.unwrap_or(outer_timescale);
             if sd > max_seg_duration.as_secs() {
                 errors.push(String::from("SegmentTimeline has segment@d > @maxSegmentDuration"));
             }
