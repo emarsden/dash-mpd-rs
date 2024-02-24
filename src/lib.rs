@@ -1735,6 +1735,7 @@ pub struct MPD {
     pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
+    pub ContentProtection: Vec<ContentProtection>,
 }
 
 impl std::fmt::Display for MPD {

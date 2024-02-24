@@ -1,6 +1,9 @@
 # Changelog
 
-## [0.14.10] - Unreleased
+## [0.14.10] - 2024-02-24
+
+- Add support for `MPD.ContentProtection` element, as per the fifth edition of the DASH specification
+  (ISO/IEC 23009-1:2021).
 
 - Downloading: fix the support for specifying referer using the `with_referer` method on
   `DashDownloader` (bug reported by @yoyo890121).
