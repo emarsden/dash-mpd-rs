@@ -471,6 +471,30 @@ fn test_parsing_failover_content() {
 }
 
 
+#[test]
+fn test_parsing_xsd_uintvector() {
+    let xml = r#"<MPD><Period><Subset contains=""></Subset></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    assert!(&mpd.periods[0].subsets[0].contains.is_empty());
+
+    let xml = r#"<MPD><Period><Subset contains="56"></Subset></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let ss = &mpd.periods[0].subsets[0];
+    assert_eq!(ss.contains.len(), 1);
+    assert_eq!(ss.contains[0], 56);
+
+    let xml = r#"<MPD><Period><Subset contains="99 33 1 56789 44"></Subset></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let ss = &mpd.periods[0].subsets[0];
+    assert_eq!(ss.contains.len(), 5);
+    assert_eq!(ss.contains[0], 99);
+    assert_eq!(ss.contains[4], 44);
+
+    let xml = r#"<MPD><Period><Subset contains="-4 5"></Subset></Period></MPD>"#;
+    assert!(parse(xml).is_err());
+}
+
+
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
 #[test(tokio::test)]

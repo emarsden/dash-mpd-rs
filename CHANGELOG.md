@@ -2,9 +2,11 @@
 
 ## [0.14.10] - 2024-02-24
 
-- Add support for `MPD.ContentProtection` element, as per the fifth edition of the DASH specification
+- Add support for `MPD.ContentProtection` elements, as per the fifth edition of the DASH specification
   (ISO/IEC 23009-1:2021).
   
+- Add support for `Period.Subset` elements.
+
 - Add support for a `FailoverContent` element in a `SegmentTemplate` element. The XSD included in
   the DASH specification only includes a `FailoverContent` element on the `SegmentBase` element, but
   also includes it on a `SegmentTemplate` element in one of the examples. Even if examples are

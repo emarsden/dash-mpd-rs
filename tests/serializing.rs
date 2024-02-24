@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use chrono::prelude::*;
 use test_log::test;
-use dash_mpd::{parse, MPD, Period, BaseURL};
+use dash_mpd::{parse, MPD, Period, BaseURL, Subset};
 
 
 #[test]
@@ -91,3 +91,29 @@ fn test_serialize_f64_infnan() {
     // http://www.datypic.com/sc/xsd/t-xsd_double.html
     assert!(serialized.contains("availabilityTimeOffset=\"NaN\""));
 }
+
+
+
+#[test]
+fn test_serialize_xsd_uintvector() {
+    let subset = Subset {
+        id: Some("sub1".to_string()),
+        contains: vec![22, 33, 44],
+    };
+    let period = Period {
+        id: Some("66".to_string()),
+        duration: Some(Duration::new(420, 69)),
+        subsets: vec![subset],
+        ..Default::default()
+    };
+    let mpd = MPD {
+        mpdtype: Some(String::from("dynamic")),
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
+        periods: vec!(period),
+        ..Default::default()
+    };
+    let serialized = mpd.to_string();
+    assert!(serialized.contains("22 33 44"));
+}
+
+

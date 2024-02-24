@@ -408,6 +408,33 @@ where
     }
 }
 
+// XSD type is "UIntVectorType", or whitespace-separated list of unsigned integers.
+// It's a <xs:list itemType="xs:unsignedInt"/>.
+fn serialize_xsd_uintvector<S>(v: &Vec<u64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut formatted = String::new();
+    for u in v {
+        formatted += &format!("{u} ");
+    }
+    serializer.serialize_str(&formatted)
+}
+
+fn deserialize_xsd_uintvector<'de, D>(deserializer: D) -> Result<Vec<u64>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let mut out = Vec::<u64>::new();
+    for uint64_str in s.split_whitespace() {
+        match uint64_str.parse::<u64>() {
+            Ok(val) => out.push(val),
+            Err(e) => return Err(de::Error::custom(e)),
+        }
+    }
+    Ok(out)
+}
 
 // These serialization functions are need to serialize correct default values for various optional
 // namespaces specified as attributes of the root MPD struct (e.g. xmlns:xsi, xmlns:xlink). If a
@@ -1466,6 +1493,24 @@ pub struct AssetIdentifier {
     pub value: Option<String>,
 }
 
+/// Subsets provide a mechanism to restrict the combination of active Adaptation Sets where an
+/// active Adaptation Set is one for which the DASH Client is presenting at least one of the
+/// contained Representations.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[serde(default)]
+pub struct Subset {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
+    /// Specifies the AdaptationSets contained in a Subset by providing a whitespace separated
+    /// list of the @id values of the contained AdaptationSets.
+    #[serde(rename = "@contains",
+            deserialize_with = "deserialize_xsd_uintvector",
+            serialize_with = "serialize_xsd_uintvector",
+            default)]
+    pub contains: Vec<u64>,
+}
+
 /// Describes a chunk of the content with a start time and a duration. Content can be split up into
 /// multiple periods (such as chapters, advertising segments).
 #[skip_serializing_none]
@@ -1476,14 +1521,16 @@ pub struct Period {
     pub id: Option<String>,
     pub BaseURL: Vec<BaseURL>,
     /// The start time of the Period relative to the MPD availability start time.
-    #[serde(rename = "@start")]
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
+    #[serde(rename = "@start",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub start: Option<Duration>,
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@duration")]
+    #[serde(rename = "@duration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub duration: Option<Duration>,
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
@@ -1496,6 +1543,8 @@ pub struct Period {
     pub ContentProtection: Vec<ContentProtection>,
     #[serde(rename = "AdaptationSet")]
     pub adaptations: Vec<AdaptationSet>,
+    #[serde(rename = "Subset")]
+    pub subsets: Vec<Subset>,
     #[serde(rename = "AssetIdentifier")]
     pub asset_identifier: Option<AssetIdentifier>,
     #[serde(rename = "EventStream")]
@@ -1524,13 +1573,15 @@ pub struct Reporting {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Range {
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@starttime")]
+    #[serde(rename = "@starttime",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub starttime: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@duration")]
+    #[serde(rename = "@duration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub duration: Option<Duration>,
 }
 
@@ -1610,8 +1661,10 @@ pub struct ProducerReferenceTime {
     pub prtType: Option<String>,
     // There are two capitalizations for this attribute in the specification at
     // https://dashif.org/docs/CR-Low-Latency-Live-r8.pdf
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@wallclockTime", alias="@wallClockTime")]
+    #[serde(rename = "@wallclockTime",
+            alias="@wallClockTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
     pub wallClockTime: Option<XsDatetime>,
     pub UTCTiming: Vec<UTCTiming>,
 }
@@ -1624,8 +1677,9 @@ pub struct LeapSecondInformation {
     pub availabilityStartLeapOffset: Option<i64>,
     #[serde(rename = "@nextAvailabilityStartLeapOffset")]
     pub nextAvailabilityStartLeapOffset: Option<i64>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@nextLeapChangeTime")]
+    #[serde(rename = "@nextLeapChangeTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
 
@@ -1711,23 +1765,28 @@ pub struct MPD {
     #[serde(serialize_with = "serialize_xs_duration")]
     #[serde(rename = "@maxSegmentDuration")]
     pub maxSegmentDuration: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@maxSubsegmentDuration")]
+    #[serde(rename = "@maxSubsegmentDuration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub maxSubsegmentDuration: Option<Duration>,
     /// A suggested delay of the presentation compared to the Live edge.
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@suggestedPresentationDelay")]
+    #[serde(rename = "@suggestedPresentationDelay",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
     pub suggestedPresentationDelay: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@publishTime")]
+    #[serde(rename = "@publishTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
     pub publishTime: Option<XsDatetime>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@availabilityStartTime")]
+    #[serde(rename = "@availabilityStartTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
     pub availabilityStartTime: Option<XsDatetime>,
-    #[serde(deserialize_with = "deserialize_xs_datetime", default)]
-    #[serde(rename = "@availabilityEndTime")]
+    #[serde(rename = "@availabilityEndTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
     pub availabilityEndTime: Option<XsDatetime>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
