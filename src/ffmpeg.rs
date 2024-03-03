@@ -67,7 +67,7 @@ fn mux_audio_video_ffmpeg(
                "-i", video_str,
                "-c:v", "copy",
                "-c:a", "copy",
-               "-movflags", "+faststart", "-preset", "veryfast",
+               "-movflags", "faststart", "-preset", "veryfast",
                // select the muxer explicitly (debatable whether this is better than ffmpeg's
                // heuristics based on output filename)
                "-f", muxer,
@@ -113,7 +113,7 @@ fn mux_audio_video_ffmpeg(
                "-nostdin",
                "-i", audio_str,
                "-i", video_str,
-               "-movflags", "+faststart", "-preset", "veryfast",
+               "-movflags", "faststart", "-preset", "veryfast",
                // select the muxer explicitly (debatable whether this is better than ffmpeg's
                // heuristics based on output filename)
                "-f", muxer,
@@ -201,7 +201,7 @@ fn mux_stream_ffmpeg(
                         "-y",  // overwrite output file if it exists
                         "-nostdin",
                         "-i", input,
-                        "-movflags", "+faststart", "-preset", "veryfast");
+                        "-movflags", "faststart", "-preset", "veryfast");
     // We can select the muxer explicitly (otherwise it is determined using heuristics based in the
     // filename extension).
     if let Some(container_name) = ffmpeg_container_name(container) {
