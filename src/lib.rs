@@ -11,12 +11,16 @@
 //! DASH client uses to determine which assets to request in order to perform adaptive streaming of
 //! the content. DASH MPD manifests can be used both with content encoded as MPEG and as WebM.
 //!
+
 //! This library provides a serde-based parser (deserializer) and serializer for the DASH MPD
-//! format, as formally defined in ISO/IEC standard 23009-1:2019. XML schema files are [available
-//! for no cost from
+//! format, as formally defined in ISO/IEC standard 23009-1:2022. This version of the standard is
+//! [available for free online](https://standards.iso.org/ittf/PubliclyAvailableStandards/c083314_ISO_IEC%2023009-1_2022(en).zip). XML schema files are [available for no cost from
 //! ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). When
 //! MPD files in practical use diverge from the formal standard, this library prefers to
 //! interoperate with existing practice.
+//!
+//! The library does not yet provide full coverage of the fifth edition of the specification. All
+//! elements and attributes in common use are supported, however.
 //!
 //! The library also provides experimental support for downloading content (audio or video)
 //! described by an MPD manifest. This involves selecting the alternative with the most appropriate
@@ -590,6 +594,10 @@ pub struct SegmentTimeline {
     pub segments: Vec<S>,
 }
 
+/// When bitstream switching is enabled, the player can seamlessly switch between Representations in
+/// the manifest without reinitializing the media decoder. This means fewer perturbations for the
+/// viewer when the network conditions change. It requires the media segments to have been encoded
+/// respecting a certain number of constraints.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1147,6 +1155,7 @@ pub struct CencPssh {
     pub content: Option<String>,
 }
 
+/// Licence acquisition URL for content using Microsoft PlayReady DRM.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1157,6 +1166,7 @@ pub struct Laurl {
     pub content: Option<String>,
 }
 
+/// Initialization data that is specific to the Microsoft PlayReady DRM.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1198,14 +1208,20 @@ pub struct MsprKid {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ContentProtection {
+    /// The the robustness level required for this content protection scheme.
     #[serde(rename = "@robustness")]
     pub robustness: Option<String>,
+    /// An xs:IDREF that references an identifier in this MPD.
+    #[serde(rename = "@ref")]
+    pub ref: Option<String>,
+    /// References an identifier in this MPD.
     #[serde(rename = "@refId")]
     pub refId: Option<String>,
     #[serde(rename = "@ref")]
     pub cpref: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
+    /// The DRM initialization data (Protection System Specific Header).
     #[serde(rename="cenc:pssh", alias="pssh")]
     pub cenc_pssh: Vec<CencPssh>,
     /// The DRM key identifier.
@@ -1213,6 +1229,7 @@ pub struct ContentProtection {
     pub default_KID: Option<String>,
     #[serde(rename = "clearkey:Laurl", alias = "Laurl")]
     pub laurl: Option<Laurl>,
+    /// Content specific to initialization data using Microsoft PlayReady DRM.
     #[serde(rename = "mspr:pro", alias = "pro")]
     pub msprpro: Option<MsprPro>,
     #[serde(rename = "mspr:IsEncrypted", alias = "IsEncrypted")]
