@@ -1213,7 +1213,7 @@ pub struct ContentProtection {
     pub robustness: Option<String>,
     /// An xs:IDREF that references an identifier in this MPD.
     #[serde(rename = "@ref")]
-    pub ref: Option<String>,
+    pub r#ref: Option<String>,
     /// References an identifier in this MPD.
     #[serde(rename = "@refId")]
     pub refId: Option<String>,
