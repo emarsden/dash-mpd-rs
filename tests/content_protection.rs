@@ -128,6 +128,30 @@ async fn test_decryption_webm() {
 }
 
 
+#[test(tokio::test)]
+async fn test_decryption_cra () {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://devs.origin.cdn.cra.cz/dashmultikey/manifest.mpd ";
+    let outpath = env::temp_dir().join("cra.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .add_decryption_key(String::from("75bf33ac08440c81d623019c87fe1360"),
+                            String::from("bacd0a82f91a44d9315e6269dd769e0f"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 28_926_446);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 // These test cases are from https://refapp.hbbtv.org/videos/.
 
 // WideVine ContentProtection with CENC encryption
