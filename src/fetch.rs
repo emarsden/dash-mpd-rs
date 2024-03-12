@@ -2995,6 +2995,7 @@ async fn fetch_period_audio(
             }
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
+            trace!("Running mp4decrypt with args {args:?}");
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
@@ -3022,7 +3023,7 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt audio stream".red());
+                error!("{}", "Failed to decrypt audio stream with mp4decrypt".red());
                 warn!("Undecrypted audio left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
@@ -3040,6 +3041,7 @@ async fn fetch_period_audio(
             args.push("--enable_raw_key_decryption".to_string());
             args.push("--keys".to_string());
             args.push(keys.join(","));
+            trace!("Running shaka-packager with args {args:?}");
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
@@ -3067,7 +3069,7 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt audio stream".red());
+                error!("{}", "Failed to decrypt audio stream with shaka-packager".red());
                 warn!("Undecrypted audio stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
@@ -3280,6 +3282,7 @@ async fn fetch_period_video(
             }
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
+            trace!("Running mp4decrypt with args {args:?}");
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
@@ -3307,7 +3310,7 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt video stream".red());
+                error!("{}", "Failed to decrypt video stream with mp4decrypt".red());
                 warn!("Undecrypted video stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
@@ -3325,6 +3328,7 @@ async fn fetch_period_video(
             args.push("--enable_raw_key_decryption".to_string());
             args.push("--keys".to_string());
             args.push(keys.join(","));
+            trace!("Running shaka-packager with args {args:?}");
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
@@ -3352,7 +3356,7 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt video stream".red());
+                error!("{}", "Failed to decrypt video stream with shaka-packager".red());
                 warn!("Undecrypted video left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
