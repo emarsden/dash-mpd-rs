@@ -1407,7 +1407,7 @@ pub async fn parse_resolving_xlinks(
         if let Err(e) = fs::remove_file(&tmpmpd) {
             warn!("Error removing temporary MPD after XSLT processing: {e:?}");
         }
-        buf = xsltproc.stdout.clone();
+        buf.clone_from(&xsltproc.stdout);
     }
     let rewritten = std::str::from_utf8(&buf)
         .map_err(|e| parse_error("parsing UTF-8", e))?;
