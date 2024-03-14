@@ -1227,7 +1227,7 @@ pub struct ContentProtection {
     /// The DRM key identifier.
     #[serde(rename = "@cenc:default_KID", alias = "@default_KID")]
     pub default_KID: Option<String>,
-    #[serde(rename = "clearkey:Laurl", alias = "Laurl")]
+    #[serde(rename = "clearkey:Laurl", alias = "Laurl", alias = "dashif:laurl", alias = "laurl")]
     pub laurl: Option<Laurl>,
     /// Content specific to initialization data using Microsoft PlayReady DRM.
     #[serde(rename = "mspr:pro", alias = "pro")]
