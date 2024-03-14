@@ -304,3 +304,4 @@ intellectual property laws. Also, circumventing DRM may be prohibited in some co
 
 This project is licensed under the MIT license. For more information, see the `LICENSE-MIT` file.
 
+Pull requests are welcome.

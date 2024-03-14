@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1] - Unreleased
+
+- The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
+  URL, is superseded by the `ContentProtection.dashif:laurl` element. Both names are accepted when
+  parsing. Thanks to @pando-emil.
+
+
 ## [0.15.0] - 2024-02-24
 
 - Type of `S.@t` and `S.@d` attributes changed from `Option<i64>` to `Option<u64>`, to conform to the
