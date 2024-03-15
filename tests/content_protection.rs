@@ -545,6 +545,11 @@ async fn test_decryption_unencrypted_mp4decrypt () {
 
 // Content that isn't encrypted should be downloaded normally even if unnecessary decryption keys are
 // specified.
+//
+// This test currently disabled because the most recent version of shaka-packager (v3.0) fails while
+// decoding the media stream.
+// https://github.com/shaka-project/shaka-packager/issues/1368
+#[ignore]
 #[test(tokio::test)]
 async fn test_decryption_unencrypted_shaka () {
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
