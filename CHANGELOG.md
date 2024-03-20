@@ -6,6 +6,10 @@
   URL, is superseded by the `ContentProtection.dashif:laurl` element. Both names are accepted when
   parsing. Thanks to @pando-emil.
 
+- The `trust-dns` build feature has been renamed to `hickory-dns` following the same rename in the
+  reqwest crate (and the change in name of the Hickory DNS resolver). The old name is still
+  supported but is deprecated.
+
 
 ## [0.15.0] - 2024-02-24
 

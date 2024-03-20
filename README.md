@@ -257,8 +257,10 @@ be enabled:
 - `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
   mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate.
 
-- `trust-dns`: enable the `trust-dns` feature on our `reqwest` dependency, to use the trust-dns DNS
-  resolver library instead of the system resolver.
+- `hickory-dns`: enable the `hickory-dns` feature on our `reqwest` dependency, to use the [Hickory DNS
+  resolver library](https://github.com/hickory-dns/hickory-dns) instead of the system resolver. (This
+  feature was previously named `trust-dns` following the previous name for the Hickory DNS resolver.
+  The old name for the feature is still accepted but is deprecated.)
 
 - `scte35` *(enabled by default)*: enable support for XML elements corresponding to the SCTE-35
   standard for insertion of alternate content (mostly used for dynamic insertion of advertising).
