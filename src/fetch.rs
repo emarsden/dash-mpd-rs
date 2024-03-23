@@ -1187,8 +1187,14 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
     warn!("Transient error after {dur:?}: {err:?}");
 }
 
-fn network_error(why: &str, e: impl std::error::Error) -> DashMpdError {
-    DashMpdError::Network(format!("{why}: {e}"))
+fn network_error(why: &str, e: reqwest::Error) -> DashMpdError {
+    if e.is_timeout() {
+        DashMpdError::NetworkTimeout(format!("{why}"))
+    } else if e.is_connect() {
+        DashMpdError::NetworkConnect(format!("{why}: {e}"))
+    } else {
+        DashMpdError::Network(format!("{why}: {e}"))
+    }
 }
 
 fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {

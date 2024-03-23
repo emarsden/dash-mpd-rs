@@ -1,6 +1,9 @@
 # Changelog
 
-## [0.15.1] - Unreleased
+## [0.16.0] - Unreleased
+
+- New error types `NetworkTimeout` and `NetworkConnect` in `DashMpdError`. These error types would
+  previously have been reported as the `Network` error type. This is an API incompatible change.
 
 - The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
   URL, is superseded by the `ContentProtection.dashif:laurl` element. Both names are accepted when
@@ -8,7 +11,7 @@
 
 - The `trust-dns` build feature has been renamed to `hickory-dns` following the same rename in the
   reqwest crate (and the change in name of the Hickory DNS resolver). The old name is still
-  supported but is deprecated.
+  supported, but is deprecated.
 
 
 ## [0.15.0] - 2024-02-24

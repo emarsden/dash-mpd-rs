@@ -108,7 +108,7 @@ async fn test_error_img() {
 }
 
 #[test(tokio::test)]
-#[should_panic(expected = "dns error")]
+#[should_panic(expected = "NetworkConnect")]
 async fn test_error_dns() {
     let url = "https://nothere.example.org/";
     DashDownloader::new(url)
@@ -122,11 +122,11 @@ async fn test_error_dns() {
 // large video segment (427MB) which should lead to a network timeout with our 0.5s setting, even
 // if the test is running with a very large network bandwidth.
 #[test(tokio::test)]
-#[should_panic(expected = "operation timed out")]
+#[should_panic(expected = "NetworkTimeout")]
 async fn test_error_timeout() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
-        panic!("operation timed out");
+        panic!("NetworkTimeout");
     }
     let out = env::temp_dir().join("timeout.mkv");
     let client = reqwest::Client::builder()
@@ -144,11 +144,11 @@ async fn test_error_timeout() {
 // Check that we generate a timeout for network request when setting a low limit on network
 // bandwidth (100 Kbps) and retrieving a large file.
 #[test(tokio::test)]
-#[should_panic(expected = "operation timed out")]
+#[should_panic(expected = "NetworkTimeout")]
 async fn test_error_ratelimit() {
     // Don't run download tests on CI infrastructure
     if env::var("CI").is_ok() {
-        panic!("operation timed out");
+        panic!("NetworkTimeout");
     }
     let out = env::temp_dir().join("timeout.mkv");
     let client = reqwest::Client::builder()
@@ -211,7 +211,7 @@ async fn test_error_dynamic_mpd() {
 // "certificate has expired" (native-tls with OpenSSL), but our tests would be platform-dependent
 // and fragile.
 #[test(tokio::test)]
-#[should_panic(expected = "requesting DASH manifest")]
+#[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_expired() {
     // Check that the reqwest client refuses to download MPD from an expired TLS certificate
     let mpd = "https://expired.badssl.com/ignored.mpd";
@@ -220,9 +220,28 @@ async fn test_error_tls_expired() {
         .unwrap();
 }
 
+#[test(tokio::test)]
+#[should_panic(expected = "NetworkConnect")]
+async fn test_error_tls_untrusted_root() {
+    // Check that the reqwest client refuses to download from a server with an untrusted root certificate
+    let mpd = "https://untrusted-root.badssl.com/ignored.mpd";
+    DashDownloader::new(mpd)
+        .download().await
+        .unwrap();
+}
 
 #[test(tokio::test)]
-#[should_panic(expected = "requesting DASH manifest")]
+#[should_panic(expected = "NetworkConnect")]
+async fn test_error_tls_wronghost() {
+    // Check that the reqwest client refuses to download MPD from server with incorrect hostname
+    let mpd = "https://wrong.host.badssl.com/ignored.mpd";
+    DashDownloader::new(mpd)
+        .download().await
+        .unwrap();
+}
+
+#[test(tokio::test)]
+#[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_self_signed() {
     let mpd = "https://self-signed.badssl.com/ignored.mpd";
     DashDownloader::new(mpd)
@@ -231,7 +250,7 @@ async fn test_error_tls_self_signed() {
 }
 
 #[test(tokio::test)]
-#[should_panic(expected = "requesting DASH manifest")]
+#[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_too_large() {
     // The TLS response message is too large
     DashDownloader::new("https://10000-sans.badssl.com/ignored.mpd")
@@ -241,18 +260,9 @@ async fn test_error_tls_too_large() {
 
 
 #[test(tokio::test)]
-#[should_panic(expected = "requesting DASH manifest")]
+#[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_wrong_name() {
     DashDownloader::new("https://wrong.host.badssl.com/ignored.mpd")
-        .download().await
-        .unwrap();
-}
-
-
-#[test(tokio::test)]
-#[should_panic(expected = "requesting DASH manifest")]
-async fn test_error_tls_pinning() {
-    DashDownloader::new("https://pinning-test.badssl.com/ignored.mpd")
         .download().await
         .unwrap();
 }

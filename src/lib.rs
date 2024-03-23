@@ -127,6 +127,10 @@ pub enum DashMpdError {
     Io(#[source] std::io::Error, String),
     #[error("network error {0}")]
     Network(String),
+    #[error("network timeout: {0}")]
+    NetworkTimeout(String),
+    #[error("network connection: {0}")]
+    NetworkConnect(String),
     #[error("muxing error {0}")]
     Muxing(String),
     #[error("decryption error {0}")]
