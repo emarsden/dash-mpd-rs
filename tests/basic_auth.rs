@@ -23,9 +23,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
 use axum::extract::State;
 use axum::response::{Response, IntoResponse};
-use axum::http::{header, StatusCode};
+use axum::http::header;
 use axum::body::{Full, Bytes};
 use axum_auth::AuthBasic;
+use http::StatusCode;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
@@ -95,7 +96,7 @@ async fn test_basic_auth() -> Result<()> {
         state.counter.fetch_add(1, Ordering::SeqCst);
         let data = generate_minimal_mp4();
         Response::builder()
-            .status(StatusCode::OK)
+            .status(axum::http::StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")
             .body(Full::from(data))
             .unwrap()
