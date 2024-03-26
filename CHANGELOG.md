@@ -5,6 +5,10 @@
 - New error types `NetworkTimeout` and `NetworkConnect` in `DashMpdError`. These error types would
   previously have been reported as the `Network` error type. This is an API incompatible change.
 
+- Error messages include additional contextual information (they are formatted using `Debug` instead
+  of `Display`). For example, a network connection error caused by a TLS configuration error will
+  include information on the underlying issue.
+
 - The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
   URL, is superseded by the `ContentProtection.dashif:laurl` element. Both names are accepted when
   parsing. Thanks to @pando-emil.

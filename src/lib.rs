@@ -115,27 +115,27 @@ pub type XsDatetime = DateTime<chrono::offset::Utc>;
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum DashMpdError {
-    #[error("parse error {0}")]
+    #[error("parse error {0:?}")]
     Parsing(String),
-    #[error("invalid Duration: {0}")]
+    #[error("invalid Duration: {0:?}")]
     InvalidDuration(String),
-    #[error("invalid DateTime: {0}")]
+    #[error("invalid DateTime: {0:?}")]
     InvalidDateTime(String),
-    #[error("invalid media stream: {0}")]
+    #[error("invalid media stream: {0:?}")]
     UnhandledMediaStream(String),
-    #[error("I/O error {1}")]
+    #[error("I/O error {1} ({0:?})")]
     Io(#[source] std::io::Error, String),
-    #[error("network error {0}")]
+    #[error("network error {0:?}")]
     Network(String),
-    #[error("network timeout: {0}")]
+    #[error("network timeout: {0:?}")]
     NetworkTimeout(String),
-    #[error("network connection: {0}")]
+    #[error("network connection: {0:?}")]
     NetworkConnect(String),
-    #[error("muxing error {0}")]
+    #[error("muxing error {0:?}")]
     Muxing(String),
-    #[error("decryption error {0}")]
+    #[error("decryption error {0:?}")]
     Decrypting(String),
-    #[error("{0}")]
+    #[error("{0:?}")]
     Other(String),
 }
 

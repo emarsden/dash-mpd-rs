@@ -1189,11 +1189,11 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
 
 fn network_error(why: &str, e: reqwest::Error) -> DashMpdError {
     if e.is_timeout() {
-        DashMpdError::NetworkTimeout(format!("{why}"))
+        DashMpdError::NetworkTimeout(format!("{why}: {e:?}"))
     } else if e.is_connect() {
-        DashMpdError::NetworkConnect(format!("{why}: {e}"))
+        DashMpdError::NetworkConnect(format!("{why}: {e:?}"))
     } else {
-        DashMpdError::Network(format!("{why}: {e}"))
+        DashMpdError::Network(format!("{why}: {e:?}"))
     }
 }
 
