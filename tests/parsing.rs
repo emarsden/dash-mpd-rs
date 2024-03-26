@@ -511,7 +511,8 @@ async fn test_parsing_online() {
             .expect("requesting MPD content")
             .text().await
             .expect("fetching MPD content");
-        parse(&xml).unwrap();
+        parse(&xml)
+            .expect(&format!("Failed to parse {}", url));
     }
 
     let client = reqwest::Client::builder()

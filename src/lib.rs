@@ -1232,8 +1232,13 @@ pub struct ContentProtection {
     #[serde(rename = "@cenc:default_KID", alias = "@default_KID")]
     pub default_KID: Option<String>,
     /// License acquisition URL.
-    #[serde(rename = "clearkey:Laurl", alias = "Laurl", alias = "dashif:laurl", alias = "laurl")]
+    #[serde(rename = "dashif:laurl", alias = "laurl")]
     pub laurl: Option<Laurl>,
+    /// License acquisition URL. The name clearkey:Laurl is obsolete and replaced by dashif:laurl.
+    /// Some manifests in the wild include both, and the parser does not allow for duplicate fields,
+    /// so we need to allow for this field using a distinct name.
+    #[serde(rename = "clearkey:Laurl", alias = "Laurl")]
+    pub clearkey_laurl: Option<Laurl>,
     /// Content specific to initialization data using Microsoft PlayReady DRM.
     #[serde(rename = "mspr:pro", alias = "pro")]
     pub msprpro: Option<MsprPro>,

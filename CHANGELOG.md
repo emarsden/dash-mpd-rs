@@ -10,8 +10,10 @@
   include information on the underlying issue.
 
 - The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
-  URL, is superseded by the `ContentProtection.dashif:laurl` element. Both names are accepted when
-  parsing. Thanks to @pando-emil.
+  URL, is superseded by the `ContentProtection.dashif:laurl` element. We parse the former to an
+  field (re)named `clearkey_laurl` and the latter to the field `laurl` in `ContentProtection`
+  elements. Some manifests in the wild use both of these names, and we can't parse both into a Vec
+  due to a parser limitation when using aliases. Reported by @pando-emil.
 
 - The `trust-dns` build feature has been renamed to `hickory-dns` following the same rename in the
   reqwest crate (and the change in name of the Hickory DNS resolver). The old name is still
