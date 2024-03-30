@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.16.0] - Unreleased
+## [0.16.0] - 2024-03-30
 
 - New error types `NetworkTimeout` and `NetworkConnect` in `DashMpdError`. These error types would
   previously have been reported as the `Network` error type. This is an API incompatible change.
@@ -13,11 +13,12 @@
   URL, is superseded by the `ContentProtection.dashif:laurl` element. We parse the former to an
   field (re)named `clearkey_laurl` and the latter to the field `laurl` in `ContentProtection`
   elements. Some manifests in the wild use both of these names, and we can't parse both into a Vec
-  due to a parser limitation when using aliases. Reported by @pando-emil.
+  due to a parser limitation when using aliases. This is an API incompatible change. Reported by
+  @pando-emil.
 
 - The `trust-dns` build feature has been renamed to `hickory-dns` following the same rename in the
-  reqwest crate (and the change in name of the Hickory DNS resolver). The old name is still
-  supported, but is deprecated.
+  reqwest crate, which was triggered by the change in name of the Hickory DNS resolver. The old name
+  is still supported, but is deprecated.
 
 
 ## [0.15.0] - 2024-02-24
