@@ -289,6 +289,8 @@ This crate is tested on the following platforms:
   utility applications we use for muxing or decrypting media content are poorly supported on
   these platforms.
 
+- Solaris 11.4 on AMD64 and Sparc (you will probably need to set `CC` to gcc to build the protobuf crate).
+
 
 ## Why?
 
