@@ -4,7 +4,7 @@ name: macos
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-latest
     timeout-minutes: 100
     steps:
     - uses: actions/checkout@v4
