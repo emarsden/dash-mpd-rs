@@ -215,14 +215,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.15.0"
+dash-mpd = "0.16.1"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.15.0", default-features = false }
+dash-mpd = { version = "0.16.1", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -276,7 +276,8 @@ be enabled:
 This crate is tested on the following platforms:
 
 - Linux, with default features (muxing using mkvmerge, ffmpeg, vlc or MP4Box as a subprocess) and
-  libav support, on AMD64 and Aarch64 architectures
+  libav support, on AMD64 and Aarch64 architectures. This is what the author uses, so is the best
+  tested platform.
 
 - MacOS/Aarch64, without the libav feature (problems building the ac-ffmpeg crate against current ffmpeg)
 
