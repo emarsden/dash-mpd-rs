@@ -35,7 +35,6 @@ use std::process::Command;
 use std::time::Duration;
 use anyhow::{Result, Context};
 use clap::Arg;
-use url::Url;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
 use dash_mpd::MPD;
@@ -81,7 +80,7 @@ async fn main() -> Result<()> {
     // let mpd: MPD = parse(&xml).context("parsing MPD content")?;
     let dl = DashDownloader::new(url)
         .with_http_client(client.clone());
-    let mpd: MPD = parse_resolving_xlinks(&dl, &Url::parse(url)?, &xml.into_bytes()).await
+    let mpd: MPD = parse_resolving_xlinks(&dl, &xml.into_bytes()).await
         .context("parsing DASH XML")?;
     let rewritten = mpd.to_string();
     let out2 = env::temp_dir().join("mpd-rewritten.xml");

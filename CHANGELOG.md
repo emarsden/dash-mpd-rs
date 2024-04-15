@@ -9,6 +9,15 @@
   of `Display`). For example, a network connection error caused by a TLS configuration error will
   include information on the underlying issue.
 
+- Network requests for media fragments that fail are retried a certain number of times. The number
+  of retries for each fragment request can be set using the `fragment_retry_count` method on
+  `DashDownloader` (default is 10). Network errors that are identified as being transient (for
+  example, network timeouts) do not count towards this retry count. Network requests were previously
+  retried only if they were identified as transient, but anecdotally it seems that the internet and
+  CDN servers are not set up in a way that allows transient errors reliably to be distinguished from
+  non-transient errors. Non-transient retries still count towards the `max_error_count`, whose default
+  value is increased to 30.
+
 - The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
   URL, is superseded by the `ContentProtection.dashif:laurl` element. We parse the former to an
   field (re)named `clearkey_laurl` and the latter to the field `laurl` in `ContentProtection`

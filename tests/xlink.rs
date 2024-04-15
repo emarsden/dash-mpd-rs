@@ -262,7 +262,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         .error_for_status()?
         .bytes().await
         .context("fetching status")?;
-    let mpd: MPD = parse_resolving_xlinks(&dl, &mpd_url, &xml).await
+    let mpd: MPD = parse_resolving_xlinks(&dl, &xml).await
         .context("parsing DASH XML")?;
     // We expect to have period1, remote_period1 and remote_period2 which were xlinked from period2,
     // and nothing from period3 which resolved to zero.

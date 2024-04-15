@@ -3,7 +3,7 @@
 use std::env;
 use fs_err as fs;
 use fs::File;
-use std::io::{Write, BufWriter};
+use std::io::{Read, Write, BufWriter, Seek};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -98,6 +98,7 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 /// [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     pub mpd_url: String,
+    pub redirected_url: Url,
     referer: Option<String>,
     auth_username: Option<String>,
     auth_password: Option<String>,
@@ -119,6 +120,7 @@ pub struct DashDownloader {
     xslt_stylesheets: Vec<PathBuf>,
     content_type_checks: bool,
     conformity_checks: bool,
+    fragment_retry_count: u32,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
     sleep_between_requests: u8,
@@ -216,6 +218,7 @@ impl DashDownloader {
     pub fn new(mpd_url: &str) -> DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
+            redirected_url: Url::parse(mpd_url).unwrap(),
             referer: None,
             auth_username: None,
             auth_password: None,
@@ -237,7 +240,8 @@ impl DashDownloader {
             xslt_stylesheets: Vec::new(),
             content_type_checks: true,
             conformity_checks: true,
-            max_error_count: 10,
+            fragment_retry_count: 10,
+            max_error_count: 30,
             progress_observers: Vec::new(),
             sleep_between_requests: 0,
             allow_live_streams: false,
@@ -493,10 +497,19 @@ impl DashDownloader {
         self
     }
 
+    /// The upper limit on the number of times to attempt to fetch a media segment, even in the
+    /// presence of network errors. Transient network errors (such as timeouts) do not count towards
+    /// this limit.
+    pub fn fragment_retry_count(mut self, count: u32) -> DashDownloader {
+        self.fragment_retry_count = count;
+        self
+    }
+
     /// The upper limit on the number of non-transient network errors encountered for this download
     /// before we abort the download. Transient network errors such as an HTTP 408 “request timeout”
     /// are retried automatically with an exponential backoff mechanism, and do not count towards
-    /// this upper limit. The default is to fail after 10 non-transient network errors.
+    /// this upper limit. The default is to fail after 30 non-transient network errors over the
+    /// whole download.
     pub fn max_error_count(mut self, count: u32) -> DashDownloader {
         self.max_error_count = count;
         self
@@ -724,7 +737,7 @@ impl DashDownloader {
                 .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
         }
-        fetch_mpd(&self).await
+        fetch_mpd(&mut self).await
     }
 
     /// Download DASH streaming media content to a file in the current working directory and return
@@ -747,7 +760,7 @@ impl DashDownloader {
                 .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
             self.http_client = Some(client);
         }
-        fetch_mpd(&self).await
+        fetch_mpd(&mut self).await
     }
 }
 
@@ -1298,7 +1311,6 @@ fn do_pending_insertions_recurse(
 #[async_recursion]
 async fn resolve_xlink_references_recurse(
     downloader: &DashDownloader,
-    redirected_url: &Url,
     element: &mut xmltree::Element) -> Result<Vec<PendingInsertion>, DashMpdError>
 {
     let mut pending_insertions = Vec::new();
@@ -1310,9 +1322,9 @@ async fn resolve_xlink_references_recurse(
             } else {
                 // Note that we are joining against the original/redirected URL for the MPD, and
                 // not against the currently scoped BaseURL
-                let mut merged = redirected_url.join(&href)
+                let mut merged = downloader.redirected_url.join(&href)
                     .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?;
-                merged.set_query(redirected_url.query());
+                merged.set_query(downloader.redirected_url.query());
                 merged
             };
             let client = downloader.http_client.as_ref().unwrap();
@@ -1324,7 +1336,7 @@ async fn resolve_xlink_references_recurse(
             if let Some(referer) = &downloader.referer {
                 req = req.header("Referer", referer);
             } else {
-                req = req.header("Referer", redirected_url.to_string());
+                req = req.header("Referer", downloader.redirected_url.to_string());
             }
             if let Some(username) = &downloader.auth_username {
                 if let Some(password) = &downloader.auth_password {
@@ -1363,7 +1375,7 @@ async fn resolve_xlink_references_recurse(
             n.as_element().is_some_and(|e| !element_resolves_to_zero(e)));
     for child in element.children.iter_mut() {
         if let Some(ce) = child.as_mut_element() {
-            let pending = resolve_xlink_references_recurse(downloader, redirected_url, ce).await?;
+            let pending = resolve_xlink_references_recurse(downloader, ce).await?;
             for p in pending {
                 pending_insertions.push(p);
             }
@@ -1375,7 +1387,6 @@ async fn resolve_xlink_references_recurse(
 #[tracing::instrument(level="trace", skip_all)]
 pub async fn parse_resolving_xlinks(
     downloader: &DashDownloader,
-    redirected_url: &Url,
     xml: &[u8]) -> Result<MPD, DashMpdError>
 {
     let mut doc = xmltree::Element::parse(xml)
@@ -1386,7 +1397,7 @@ pub async fn parse_resolving_xlinks(
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
     for _ in 1..5 {
-        let pending = resolve_xlink_references_recurse(downloader, redirected_url, &mut doc).await?;
+        let pending = resolve_xlink_references_recurse(downloader, &mut doc).await?;
         do_pending_insertions_recurse(&mut doc, &pending);
     }
     let mut buf = Vec::new();
@@ -2797,17 +2808,146 @@ struct DownloadState {
     download_errors: u32
 }
 
+// Fetch a media fragment at URL frag.url, using the reqwest client in downloader.http_client.
+// Network bandwidth is throttled according to downloader.rate_limit. Transient network failures are
+// retried.
+//
+// Note: We return a File instead of a Bytes buffer, because some streams use huge segments that can
+// fill up RAM.
+#[tracing::instrument(level="trace", skip_all)]
+async fn fetch_fragment(
+    downloader: &DashDownloader,
+    frag: &MediaFragment,
+    fragment_type: &str,
+    progress_percent: u32) -> Result<std::fs::File, DashMpdError>
+{
+    let send_request = || async {
+        trace!("send_request {}", frag.url.clone());
+        // Don't use only "audio/*" or "video/*" in Accept header because some web servers (eg.
+        // media.axprod.net) are misconfigured and reject requests for valid audio content (eg .m4s)
+        let mut req = downloader.http_client.as_ref().unwrap().get(frag.url.clone())
+            .header("Accept", format!("{}/*;q=0.9,*/*;q=0.5", fragment_type))
+            .header("Sec-Fetch-Mode", "navigate");
+        if let Some(sb) = &frag.start_byte {
+            if let Some(eb) = &frag.end_byte {
+                req = req.header(RANGE, format!("bytes={sb}-{eb}"));
+            }
+        }
+        if let Some(referer) = &downloader.referer {
+            req = req.header("Referer", referer);
+        } else {
+            req = req.header("Referer", downloader.redirected_url.to_string());
+        }
+        if let Some(username) = &downloader.auth_username {
+            if let Some(password) = &downloader.auth_password {
+                req = req.basic_auth(username, Some(password));
+            }
+        }
+        if let Some(token) = &downloader.auth_bearer_token {
+            req = req.bearer_auth(token);
+        }
+        req.send().await
+            .map_err(categorize_reqwest_error)?
+            .error_for_status()
+            .map_err(categorize_reqwest_error)
+    };
+    let mut bw_estimator_started = Instant::now();
+    let mut bw_estimator_bytes = 0;
+    match retry_notify(ExponentialBackoff::default(), send_request, notify_transient).await {
+        Ok(response) => {
+            match response.error_for_status() {
+                Ok(mut resp) => {
+                    let mut tmp_out = tempfile::tempfile()
+                        .map_err(|e| DashMpdError::Io(e, String::from("creating tmpfile for fragment")))?;
+                      let content_type_checker = if fragment_type.eq("audio") {
+                        content_type_audio_p
+                    } else if fragment_type.eq("video") {
+                        content_type_video_p
+                    } else {
+                        panic!("fragment_type not audio or video");
+                    };
+                    if !downloader.content_type_checks || content_type_checker(&resp) {
+                        let mut fragment_out: Option<File> = None;
+                        if let Some(ref fragment_path) = downloader.fragment_path {
+                            if let Some(path) = frag.url.path_segments()
+                                .unwrap_or_else(|| "".split(' '))
+                                .last()
+                            {
+                                let vf_file = fragment_path.clone().join(fragment_type).join(path);
+                                if let Ok(f) = File::create(vf_file) {
+                                    fragment_out = Some(f)
+                                }
+                            }
+                        }
+                        let mut segment_size = 0;
+                        // Download in chunked format instead of using reqwest's .bytes() API, in
+                        // order to avoid saturating RAM with a large media segment. This is
+                        // important for DASH manifests that use indexRange addressing, which we
+                        // don't download using byte range requests as a normal DASH client would
+                        // do, but rather download using a single network request.
+                        while let Some(chunk) = resp.chunk().await
+                            .map_err(|e| network_error(&format!("fetching DASH {fragment_type} segment"), e))?
+                        {
+                            segment_size += chunk.len();
+                            bw_estimator_bytes += chunk.len();
+                            let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                            throttle_download_rate(downloader, size).await?;
+                            if let Err(e) = tmp_out.write_all(&chunk) {
+                                return Err(DashMpdError::Io(e, format!("writing DASH {fragment_type} data")));
+                            }
+                            if let Some(ref mut fout) = fragment_out {
+                                fout.write_all(&chunk)
+                                    .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))?;
+                            }
+                            let elapsed = bw_estimator_started.elapsed().as_secs_f64();
+                            if elapsed > 1.5 {
+                                let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
+                                let msg = if bw > 0.5 {
+                                    format!("Fetching {fragment_type} segments ({bw:.1} MB/s)")
+                                } else {
+                                    let kbs = (bw * 1000.0).round() as u64;
+                                    format!("Fetching {fragment_type} segments ({kbs:3} kB/s)")
+                                };
+                                for observer in &downloader.progress_observers {
+                                    observer.update(progress_percent, &msg);
+                                }
+                                bw_estimator_started = Instant::now();
+                                bw_estimator_bytes = 0;
+                            }
+                        }
+                        if downloader.verbosity > 2 {
+                            if let Some(sb) = &frag.start_byte {
+                                if let Some(eb) = &frag.end_byte {
+                                    info!("  {fragment_type} segment {} range {sb}-{eb} -> {} octets",
+                                          frag.url, segment_size);
+                                }
+                            } else {
+                                info!("  {fragment_type} segment {} -> {segment_size} octets", &frag.url);
+                            }
+                        }
+                    } else {
+                        warn!("{} {} with non-{fragment_type} content-type", "Ignoring segment".red(), frag.url);
+                    };
+                    tmp_out.sync_all()
+                        .map_err(|e| DashMpdError::Io(e, format!("syncing {fragment_type} fragment")))?;
+                    Ok(tmp_out)
+                },
+                Err(e) => Err(network_error("HTTP error", e)),
+            }
+        },
+        Err(e) => Err(network_error(&format!("{e:?}"), e)),
+    }
+}
+
 
 // Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_audio(
     downloader: &DashDownloader,
-    redirected_url: &Url,
     tmppath: PathBuf,
     audio_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
-    let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
     let mut have_audio = false;
     {
@@ -2828,8 +2968,6 @@ async fn fetch_period_audio(
         // FIXME: in DASH, the init segment contains headers that are necessary to generate a valid MP4
         // file, so we should always abort if the first segment cannot be fetched. However, we could
         // tolerate loss of subsequent segments.
-        let mut bw_estimator_started = Instant::now();
-        let mut bw_estimator_bytes = 0;
         for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
             ds.segment_counter += 1;
             let progress_percent = (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32;
@@ -2857,123 +2995,38 @@ async fn fetch_period_audio(
                 have_audio = true;
             } else {
                 // We could download these segments in parallel, but that might upset some servers.
-                let fetch = || async {
-                    // Don't use only "audio/*" in Accept header because some web servers
-                    // (eg. media.axprod.net) are misconfigured and reject requests for
-                    // valid audio content (eg .m4s)
-                    let mut req = client.get(url.clone())
-                        .header("Accept", "audio/*;q=0.9,*/*;q=0.5")
-                        .header("Sec-Fetch-Mode", "navigate");
-                    if let Some(sb) = &frag.start_byte {
-                        if let Some(eb) = &frag.end_byte {
-                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                        }
-                    }
-                    if let Some(referer) = &downloader.referer {
-                        req = req.header("Referer", referer);
-                    } else {
-                        req = req.header("Referer", redirected_url.to_string());
-                    }
-                    if let Some(username) = &downloader.auth_username {
-                        if let Some(password) = &downloader.auth_password {
-                            req = req.basic_auth(username, Some(password));
-                        }
-                    }
-                    if let Some(token) = &downloader.auth_bearer_token {
-                        req = req.bearer_auth(token);
-                    }
-                    req.send().await
-                        .map_err(categorize_reqwest_error)?
-                        .error_for_status()
-                        .map_err(categorize_reqwest_error)
-                };
-                let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(mut response) => {
-                        if response.status().is_success() {
-                            if !downloader.content_type_checks || content_type_audio_p(&response) {
-                                let mut fragment_out: Option<File> = None;
-                                if let Some(ref fragment_path) = downloader.fragment_path {
-                                    if let Some(path) = frag.url.path_segments()
-                                        .unwrap_or_else(|| "".split(' '))
-                                        .last()
-                                    {
-                                        let vf_file = fragment_path.clone().join("audio").join(path);
-                                        if let Ok(f) = File::create(vf_file) {
-                                            fragment_out = Some(f)
-                                        }
-                                    }
-                                }
-                                let mut segment_size = 0;
-                                // Download in chunked format instead of using reqwest's .bytes()
-                                // API, in order to avoid saturating RAM with a large media segment.
-                                // This is important for DASH manifests that use indexRange
-                                // addressing, which we don't download using byte range requests as
-                                // a normal DASH client would do, but rather download using a single
-                                // network request.
-                                while let Some(chunk) = response.chunk().await
-                                    .map_err(|e| network_error("fetching DASH audio segment", e))?
-                                {
-                                    segment_size += chunk.len();
-                                    bw_estimator_bytes += chunk.len();
-                                    let size = min((chunk.len()/1024+1) as u32, u32::MAX);
-                                    throttle_download_rate(downloader, size).await?;
-                                    if let Err(e) = tmpfile_audio.write_all(&chunk) {
-                                        return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                                    }
-                                    if let Some(ref mut fout) = fragment_out {
-                                        fout.write_all(&chunk)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("writing audio fragment")))?;
-                                    }
-                                    let elapsed = bw_estimator_started.elapsed().as_secs_f64();
-                                    if elapsed > 1.5 {
-                                        let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
-                                        let msg = if bw > 0.5 {
-                                            format!("Fetching audio segments ({bw:.1} MB/s)")
-                                        } else {
-                                            let kbs = (bw * 1000.0).round() as u64;
-                                            format!("Fetching audio segments ({kbs:3} kB/s)")
-                                        };
-                                        for observer in &downloader.progress_observers {
-                                            observer.update(progress_percent, &msg);
-                                        }
-                                        bw_estimator_started = Instant::now();
-                                        bw_estimator_bytes = 0;
-                                    }
-                                }
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            info!("  Audio segment {} range {sb}-{eb} -> {} octets",
-                                                  &frag.url, segment_size);
-                                        }
-                                    } else {
-                                        info!("  Audio segment {} -> {} octets", &frag.url, segment_size);
-                                    }
-                                }
-                                have_audio = true;
-                            } else {
-                                warn!("{} {url} with non-audio content-type", "Ignoring segment".red());
+                'done: for _ in 0..downloader.fragment_retry_count {
+                    match fetch_fragment(downloader, frag, "audio", progress_percent).await {
+                        Ok(mut frag_file) => {
+                            frag_file.rewind()
+                                .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
+                            let mut buf = Vec::new();
+                            frag_file.read_to_end(&mut buf)
+                                .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
+                            if let Err(e) = tmpfile_audio.write_all(&buf) {
+                                error!("Unable to write DASH audio data: {e:?}");
+                                return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
                             }
-                        } else {
-                            failure = Some(format!("HTTP error {}", response.status().as_str()));
-                        }
-                    },
-                    Err(e) => failure = Some(format!("{e}")),
-                }
-                if let Some(f) = failure {
-                    if downloader.verbosity > 0 {
-                        error!("{} fetching audio segment {url}", f.red());
+                            have_audio = true;
+                            break 'done;
+                        },
+                        Err(e) => {
+                            if downloader.verbosity > 0 {
+                                error!("Error fetching audio segment {url}: {e:?}");
+                            }
+                            ds.download_errors += 1;
+                            if ds.download_errors > downloader.max_error_count {
+                                error!("max_error_count network errors encountered");
+                                return Err(DashMpdError::Network(
+                                    String::from("more than max_error_count network errors")));
+                            }
+                        },
                     }
-                    ds.download_errors += 1;
-                    if ds.download_errors > downloader.max_error_count {
-                        return Err(DashMpdError::Network(
-                            String::from("more than max_error_count network errors")));
+                    info!("  Retrying audio segment {url}");
+                    if downloader.sleep_between_requests > 0 {
+                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
                     }
                 }
-            }
-            if downloader.sleep_between_requests > 0 {
-                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
             }
         }
         tmpfile_audio.flush().map_err(|e| {
@@ -3101,12 +3154,10 @@ async fn fetch_period_audio(
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_video(
     downloader: &DashDownloader,
-    redirected_url: &Url,
     tmppath: PathBuf,
     video_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
-    let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
     let mut have_video = false;
     {
@@ -3123,8 +3174,6 @@ async fn fetch_period_video(
                     .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
             }
         }
-        let mut bw_estimator_started = Instant::now();
-        let mut bw_estimator_bytes = 0;
         for frag in video_fragments.iter().filter(|f| f.period == ds.period_counter) {
             ds.segment_counter += 1;
             let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
@@ -3147,120 +3196,37 @@ async fn fetch_period_video(
                 }
                 have_video = true;
             } else {
-                let fetch = || async {
-                    let mut req = client.get(frag.url.clone())
-                        .header("Accept", "video/*")
-                        .header("Sec-Fetch-Mode", "navigate");
-                    if let Some(sb) = &frag.start_byte {
-                        if let Some(eb) = &frag.end_byte {
-                            req = req.header(RANGE, format!("bytes={sb}-{eb}"));
-                        }
-                    }
-                    if let Some(referer) = &downloader.referer {
-                        req = req.header("Referer", referer);
-                    } else {
-                        req = req.header("Referer", redirected_url.to_string());
-                    }
-                    if let Some(username) = &downloader.auth_username {
-                        if let Some(password) = &downloader.auth_password {
-                            req = req.basic_auth(username, Some(password));
-                        }
-                    }
-                    if let Some(token) = &downloader.auth_bearer_token {
-                        req = req.bearer_auth(token);
-                    }
-                    req.send().await
-                        .map_err(categorize_reqwest_error)?
-                        .error_for_status()
-                        .map_err(categorize_reqwest_error)
-                };
-                let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
-                    Ok(mut response) => {
-                        if response.status().is_success() {
-                            if !downloader.content_type_checks || content_type_video_p(&response) {
-                                let mut fragment_out: Option<File> = None;
-                                if let Some(ref fragment_path) = downloader.fragment_path {
-                                    if let Some(path) = frag.url.path_segments()
-                                        .unwrap_or_else(|| "".split(' '))
-                                        .last()
-                                    {
-                                        let vf_file = fragment_path.clone().join("video").join(path);
-                                        if let Ok(f) = File::create(vf_file) {
-                                            fragment_out = Some(f)
-                                        }
-                                    }
-                                }
-                                let mut segment_size = 0;
-                                // Download in chunked format instead of using reqwest's .bytes()
-                                // API, in order to avoid saturating RAM with a large media segment.
-                                // This is important for DASH manifests that use indexRange
-                                // addressing, which we don't download using byte range requests as
-                                // a normal DASH client would do, but rather download using a single
-                                // network request.
-                                while let Some(chunk) = response.chunk().await
-                                    .map_err(|e| network_error("fetching DASH video segment", e))?
-                                {
-                                    segment_size += chunk.len();
-                                    bw_estimator_bytes += chunk.len();
-                                    let size = min((chunk.len()/1024+1) as u32, u32::MAX);
-                                    throttle_download_rate(downloader, size).await?;
-                                    if let Err(e) = tmpfile_video.write_all(&chunk) {
-                                        return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                                    }
-                                    if let Some(ref mut fout) = fragment_out {
-                                        fout.write_all(&chunk)
-                                            .map_err(|e| DashMpdError::Io(e, String::from("writing video fragment")))?;
-                                    }
-                                    let elapsed = bw_estimator_started.elapsed().as_secs_f64();
-                                    if elapsed > 1.5 {
-                                        let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
-                                        let msg = if bw > 0.5 {
-                                            format!("Fetching video segments ({bw:.1} MB/s)")
-                                        } else {
-                                            let kbs = (bw * 1000.0).round() as u64;
-                                            format!("Fetching video segments ({kbs:3} kB/s)")
-                                        };
-                                        for observer in &downloader.progress_observers {
-                                            observer.update(progress_percent, &msg);
-                                        }
-                                        bw_estimator_started = Instant::now();
-                                        bw_estimator_bytes = 0;
-                                    }
-                                }
-                                if downloader.verbosity > 2 {
-                                    if let Some(sb) = &frag.start_byte {
-                                        if let Some(eb) = &frag.end_byte {
-                                            info!("  Video segment {} range {sb}-{eb} -> {} octets",
-                                                     &frag.url, segment_size);
-                                        }
-                                    } else {
-                                        info!("  Video segment {} -> {} octets", &frag.url, segment_size);
-                                    }
-                                }
-                                have_video = true;
-                            } else {
-                                warn!("{} {} with non-video content-type", "Ignoring segment".red(), &frag.url);
+                'done: for _ in 0..downloader.fragment_retry_count {
+                    match fetch_fragment(downloader, frag, "video", progress_percent).await {
+                        Ok(mut frag_file) => {
+                            frag_file.rewind()
+                                .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
+                            let mut buf = Vec::new();
+                            frag_file.read_to_end(&mut buf)
+                                .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
+                            if let Err(e) = tmpfile_video.write_all(&buf) {
+                                error!("Unable to write DASH video data: {e:?}");
+                                return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
                             }
-                        } else {
-                            failure = Some(format!("HTTP error {}", response.status().as_str()));
-                        }
-                    },
-                    Err(e) => failure = Some(format!("{e}")),
-                }
-                if let Some(f) = failure {
-                    if downloader.verbosity > 0 {
-                        error!("{} fetching video segment {}", f.red(), &frag.url);
+                            have_video = true;
+                            break 'done;
+                        },
+                        Err(e) => {
+                            if downloader.verbosity > 0 {
+                                error!("Error fetching video segment {}: {e:?}", frag.url);
+                            }
+                            ds.download_errors += 1;
+                            if ds.download_errors > downloader.max_error_count {
+                                return Err(DashMpdError::Network(
+                                    String::from("more than max_error_count network errors")));
+                            }
+                        },
                     }
-                    ds.download_errors += 1;
-                    if ds.download_errors > downloader.max_error_count {
-                        return Err(DashMpdError::Network(
-                            String::from("more than max_error_count network errors")));
+                    info!("  Retrying video segment {}", frag.url);
+                    if downloader.sleep_between_requests > 0 {
+                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
                     }
                 }
-            }
-            if downloader.sleep_between_requests > 0 {
-                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
             }
         }
         tmpfile_video.flush().map_err(|e| {
@@ -3388,7 +3354,6 @@ async fn fetch_period_video(
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
-    redirected_url: &Url,
     tmppath: PathBuf,
     subtitle_fragments: &[MediaFragment],
     subtitle_formats: &[SubtitleType],
@@ -3438,7 +3403,7 @@ async fn fetch_period_subtitles(
                     if let Some(referer) = &downloader.referer {
                         req = req.header("Referer", referer);
                     } else {
-                        req = req.header("Referer", redirected_url.to_string());
+                        req = req.header("Referer", downloader.redirected_url.to_string());
                     }
                     if let Some(username) = &downloader.auth_username {
                         if let Some(password) = &downloader.auth_password {
@@ -3549,10 +3514,10 @@ async fn fetch_period_subtitles(
 
 
 #[tracing::instrument(level="trace", skip_all)]
-async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError> {
+async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
     let client = &downloader.http_client.clone().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
-    let fetch = || async {
+    let send_request = || async {
         let mut req = client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-Language", "en-US,en")
@@ -3585,17 +3550,17 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
     }
     // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
     // or https://docs.rs/again/latest/again/ with async support
-    let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+    let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
         .await
         .map_err(|e| network_error("requesting DASH manifest", e))?;
     if !response.status().is_success() {
         let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
         return Err(DashMpdError::Network(msg));
     }
-    let mut redirected_url = response.url().clone();
+    downloader.redirected_url = response.url().clone();
     let xml = response.bytes().await
         .map_err(|e| network_error("fetching DASH manifest", e))?;
-    let mut mpd: MPD = parse_resolving_xlinks(downloader, &redirected_url, &xml).await
+    let mut mpd: MPD = parse_resolving_xlinks(downloader, &xml).await
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
@@ -3604,7 +3569,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         if downloader.verbosity > 0 {
             info!("Redirecting to new manifest <Location> {new_url}");
         }
-        let fetch = || async {
+        let send_request = || async {
             let mut req = client.get(new_url)
                 .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
                 .header("Accept-Language", "en-US,en")
@@ -3612,7 +3577,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             if let Some(referer) = &downloader.referer {
                 req = req.header("Referer", referer);
             } else {
-                req = req.header("Referer", redirected_url.to_string());
+                req = req.header("Referer", downloader.redirected_url.to_string());
             }
             if let Some(username) = &downloader.auth_username {
                 if let Some(password) = &downloader.auth_password {
@@ -3627,17 +3592,17 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
                 .error_for_status()
                 .map_err(categorize_reqwest_error)
         };
-        let response = retry_notify(ExponentialBackoff::default(), fetch, notify_transient)
+        let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
             .await
             .map_err(|e| network_error("requesting relocated DASH manifest", e))?;
         if !response.status().is_success() {
             let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
             return Err(DashMpdError::Network(msg));
         }
-        redirected_url = response.url().clone();
+        downloader.redirected_url = response.url().clone();
         let xml = response.bytes().await
             .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
-        mpd = parse_resolving_xlinks(downloader, &redirected_url, &xml).await
+        mpd = parse_resolving_xlinks(downloader, &xml).await
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }
     if let Some(mpdtype) = mpd.mpdtype.as_ref() {
@@ -3653,10 +3618,10 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
             }
         }
     }
-    let mut toplevel_base_url = redirected_url.clone();
+    let mut toplevel_base_url = downloader.redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
     if !mpd.base_url.is_empty() {
-        toplevel_base_url = merge_baseurls(&redirected_url, &mpd.base_url[0].base)?;
+        toplevel_base_url = merge_baseurls(&downloader.redirected_url, &mpd.base_url[0].base)?;
     }
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
@@ -3781,12 +3746,12 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs", OsStr::new("sub"))?;
         if downloader.fetch_audio && !pd.audio_fragments.is_empty() {
-            have_audio = fetch_period_audio(downloader, &redirected_url,
+            have_audio = fetch_period_audio(downloader,
                                             tmppath_audio.clone(), &pd.audio_fragments,
                                             &mut ds).await?;
         }
         if downloader.fetch_video && !pd.video_fragments.is_empty() {
-            have_video = fetch_period_video(downloader, &redirected_url,
+            have_video = fetch_period_video(downloader,
                                             tmppath_video.clone(), &pd.video_fragments,
                                             &mut ds).await?;
         }
@@ -3794,7 +3759,7 @@ async fn fetch_mpd(downloader: &DashDownloader) -> Result<PathBuf, DashMpdError>
         // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
         // formatted as EBU-TT for DASH media) formats.
         if downloader.fetch_subtitles && !pd.subtitle_fragments.is_empty() {
-            have_subtitles = fetch_period_subtitles(downloader, &redirected_url,
+            have_subtitles = fetch_period_subtitles(downloader,
                                                     tmppath_subs.clone(),
                                                     &pd.subtitle_fragments,
                                                     &pd.subtitle_formats,
