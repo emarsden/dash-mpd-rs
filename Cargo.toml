@@ -21,7 +21,7 @@ serde_ignored = { version = "0.1.9", optional = true }
 serde_with = { version = "3.7.0", features = ["base64"] }
 quick-xml = { version = "0.31.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.0"
-chrono = { version = "0.4.37", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 num-traits = "0.2.18"
 iso8601 = "0.6.1"
 regex = "1.10.4"
