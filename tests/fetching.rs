@@ -835,6 +835,46 @@ async fn test_dl_lowlatency_forced_duration() {
 }
 
 
+// Test the escaping of a filename that contains '&' due to the &delay=25 in the mpd URL.
+// Potentially problematic for our calls to ffmpeg and to mp4decrypt.
+#[test(tokio::test)]
+async fn test_dl_filename_ampersand() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://content.uplynk.com/playlist/6c526d97954b41deb90fe64328647a71.mpd?ad=bbbads&delay=25";
+    let tmpd = tempfile::tempdir().unwrap();
+    env::set_current_dir(&tmpd)
+        .expect("changing current directory to tmpdir");
+    // We want to check the download() method on DashDownloader, which is going to create a filename
+    // that includes an ampersand and an equal sign.
+    let out = DashDownloader::new(mpd_url)
+        .worst_quality()
+        .add_decryption_key(String::from("1f35eaf0cb29406a92888b1097e9a39a"),
+                            String::from("da7bc7544d9f5fe3cab7f1d75a8fb9ee"))
+        .allow_live_streams(true)
+        .download().await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 541_593);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding audio stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // This test doesn't work with libav because we haven't yet implemented copy_video_to_container()
 // with a change in container type.
 #[test(tokio::test)]
