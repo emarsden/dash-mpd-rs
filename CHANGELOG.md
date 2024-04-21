@@ -1,13 +1,12 @@
 # Changelog
 
-## [0.16.0] - 2024-03-30
+## [0.16.2] - Unreleased
 
-- New error types `NetworkTimeout` and `NetworkConnect` in `DashMpdError`. These error types would
-  previously have been reported as the `Network` error type. This is an API incompatible change.
+- Fix bug in filename handling when using the ffmpeg concatenation filter. Filenames were not
+  properly escaped when passed as arguments to the `filter_complex` commandline argument.
 
-- Error messages include additional contextual information (they are formatted using `Debug` instead
-  of `Display`). For example, a network connection error caused by a TLS configuration error will
-  include information on the underlying issue.
+
+## [0.16.1] - 2024-04-15
 
 - Network requests for media fragments that fail are retried a certain number of times. The number
   of retries for each fragment request can be set using the `fragment_retry_count` method on
@@ -17,6 +16,16 @@
   CDN servers are not set up in a way that allows transient errors reliably to be distinguished from
   non-transient errors. Non-transient retries still count towards the `max_error_count`, whose default
   value is increased to 30.
+
+
+## [0.16.0] - 2024-03-30
+
+- New error types `NetworkTimeout` and `NetworkConnect` in `DashMpdError`. These error types would
+  previously have been reported as the `Network` error type. This is an API incompatible change.
+
+- Error messages include additional contextual information (they are formatted using `Debug` instead
+  of `Display`). For example, a network connection error caused by a TLS configuration error will
+  include information on the underlying issue.
 
 - The `ContentProtection.clearkey:Laurl` element, containing information on the license acquisition
   URL, is superseded by the `ContentProtection.dashif:laurl` element. We parse the former to an

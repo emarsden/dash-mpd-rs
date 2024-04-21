@@ -3,6 +3,10 @@
 /// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
 /// in file "libav.rs".
 
+// TODO: on Linux we should try to use bubblewrap to execute the muxers in a sandboxed environment,
+// along the lines of
+//
+//    bwrap --ro-bind /usr /usr --ro-bind /etc /etc --tmpfs /tmp ffmpeg -i audio.mp4 -i video.mp4 /tmp/muxed.mp4
 
 use std::io;
 use std::io::{BufReader, BufWriter};
@@ -823,18 +827,24 @@ pub fn copy_audio_to_container(
 #[tracing::instrument(level="trace")]
 fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let n = paths.len();
+    let mut args = Vec::new();
     let mut filter = String::new();
     let mut link_labels = Vec::new();
     let mut have_audio = false;
     let mut have_video = false;
     for (i, path) in paths.iter().enumerate().take(n) {
         if container_has_video(path) {
-            filter = format!("movie={}:streams=dv[v{i}];{filter}", path.display());
+            args.push(String::from("-i"));
+            args.push(path.display().to_string());
+            //filter = format!("streams=dv[v{i}];{filter}");
             have_video = true;
-            link_labels.push(format!("[v{i}]"));
+            link_labels.push(format!("[{i}:v]"));
         }
         if container_has_audio(path) {
-            filter = format!("movie={}:streams=da[a{i}];{filter}", path.display());
+            args.push(String::from("-i"));
+            args.push(path.display().to_string());
+            // filter = format!("streams=da[a{i}];{filter}");
+            link_labels.push(format!("[{i}:a]"));
             have_audio = true;
         } else {
             // Use a null audio src. Without this null audio track the concat filter is generating
@@ -842,7 +852,7 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
             filter = format!("anullsrc=r=48000:cl=mono:d=1[a{i}];{filter}");
             have_audio = true;
         }
-        link_labels.push(format!("[a{i}]"));
+        // link_labels.push(format!("[a{i}]"));
     }
     filter += &link_labels.join("");
     filter += &format!(" concat=n={n}");
@@ -862,7 +872,8 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     if have_audio {
         filter += "[outa]";
     }
-    let mut args = vec![String::from("-filter_complex"), filter];
+    args.push(String::from("-filter_complex"));
+    args.push(filter);
     if have_video {
         args.push(String::from("-map"));
         args.push(String::from("[outv]"));
