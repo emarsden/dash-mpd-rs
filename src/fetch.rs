@@ -18,6 +18,7 @@ use tracing::{trace, info, warn, error};
 use colored::*;
 use regex::Regex;
 use url::Url;
+use bytes::Bytes;
 use data_url::DataUrl;
 use reqwest::header::RANGE;
 use backoff::{future::retry_notify, ExponentialBackoff};
@@ -800,6 +801,8 @@ fn generate_filename_from_url(url: &str) -> PathBuf {
     }
     let mut sanitize_opts = Options::DEFAULT;
     sanitize_opts.length_limit = 150;
+    // We could also enable sanitize_opts.url_safe here.
+
     // We currently default to an MP4 container (could default to Matroska which is more flexible,
     // and less patent-encumbered, but perhaps less commonly supported).
     PathBuf::from(sanitise_with_options(path, &sanitize_opts) + ".mp4")
@@ -1214,6 +1217,44 @@ fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
     DashMpdError::Parsing(format!("{why}: {e:#?}"))
 }
 
+
+// This would be easier with middleware such as https://lib.rs/crates/tower-reqwest or
+// https://lib.rs/crates/reqwest-retry or https://docs.rs/again/latest/again/.
+async fn reqwest_bytes_with_retries(
+    client: &reqwest::Client,
+    req: reqwest::Request,
+    retry_count: u32) -> Result<Bytes, reqwest::Error>
+{
+    let mut last_error = None;
+    for _ in 0..retry_count {
+        if let Some(rqw) = req.try_clone() {
+            match client.execute(rqw).await {
+                Ok(response) => {
+                    match response.error_for_status() {
+                        Ok(resp) => {
+                            match resp.bytes().await {
+                                Ok(bytes) => return Ok(bytes),
+                                Err(e) => {
+                                    info!("Retrying after HTTP error {e:?}");
+                                    last_error = Some(e);
+                                },
+                            }
+                        },
+                        Err(e) => {
+                            info!("Retrying after HTTP error {e:?}");
+                            last_error = Some(e);
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("Retrying after HTTP error {e:?}");
+                    last_error = Some(e);
+                },
+            }
+        }
+    }
+    Err(last_error.unwrap())
+}
 
 // As per https://www.freedesktop.org/wiki/CommonExtendedAttributes/, set extended filesystem
 // attributes indicating metadata such as the origin URL, title, source and copyright, if
@@ -2404,12 +2445,10 @@ async fn do_period_subtitles(
                         } else {
                             req = req.header("Referer", base_url.to_string());
                         }
-                        let subs = req.send().await
-                            .map_err(|e| network_error("fetching subtitles", e))?
-                            .error_for_status()
-                            .map_err(|e| network_error("fetching subtitles", e))?
-                            .bytes().await
-                            .map_err(|e| network_error("retrieving subtitles", e))?;
+                        let rqw = req.build()
+                            .map_err(|e| network_error("building request", e))?;
+                        let subs = reqwest_bytes_with_retries(client, rqw, 5).await
+                            .map_err(|e| network_error("fetching subtitles", e))?;
                         let mut subs_path = period_output_path.clone();
                         let subtitle_format = subtitle_type(&subtitle_adaptation);
                         match subtitle_format {
@@ -3548,8 +3587,6 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         info!("Fetching the DASH manifest");
     }
-    // could also try crate https://lib.rs/crates/reqwest-retry for a "middleware" solution to retries
-    // or https://docs.rs/again/latest/again/ with async support
     let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
         .await
         .map_err(|e| network_error("requesting DASH manifest", e))?;
