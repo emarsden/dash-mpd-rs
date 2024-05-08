@@ -1849,8 +1849,8 @@ pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
     let xd = &mut quick_xml::de::Deserializer::from_str(xml);
     #[cfg(feature = "warn_ignored_elements")]
     let _: MPD = serde_ignored::deserialize(xd, |path| {
-        warn("Unused XML element in manifest: {path}");
-    });
+        warn!("Unused XML element in manifest: {path}");
+    })?;
     let mpd: MPD = serde_path_to_error::deserialize(xd)
         .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
     Ok(mpd)
