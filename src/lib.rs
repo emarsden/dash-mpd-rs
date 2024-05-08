@@ -1847,11 +1847,14 @@ impl std::fmt::Display for MPD {
 
 /// Parse an MPD manifest, provided as an XML string, returning an `MPD` node.
 pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
-    let xd = &mut quick_xml::de::Deserializer::from_str(xml);
     #[cfg(feature = "warn_ignored_elements")]
-    let _: MPD = serde_ignored::deserialize(xd, |path| {
-        warn!("Unused XML element in manifest: {path}");
-    }).map_err(|e| DashMpdError::Parsing(e.to_string()))?;
+    {
+        let xd = &mut quick_xml::de::Deserializer::from_str(xml);
+        let _: MPD = serde_ignored::deserialize(xd, |path| {
+            warn!("Unused XML element in manifest: {path}");
+        }).map_err(|e| DashMpdError::Parsing(e.to_string()))?;
+    }
+    let xd = &mut quick_xml::de::Deserializer::from_str(xml);
     let mpd: MPD = serde_path_to_error::deserialize(xd)
         .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
     Ok(mpd)
