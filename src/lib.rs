@@ -93,6 +93,7 @@ use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
 use url::Url;
+use tracing::warn;
 
 // Regular Expression used for parsing the XsDuration, compiled once
 lazy_static! {
@@ -1850,7 +1851,7 @@ pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
     #[cfg(feature = "warn_ignored_elements")]
     let _: MPD = serde_ignored::deserialize(xd, |path| {
         warn!("Unused XML element in manifest: {path}");
-    })?;
+    }).map_err(|e| DashMpdError::Parsing(e.to_string()))?;
     let mpd: MPD = serde_path_to_error::deserialize(xd)
         .map_err(|e| DashMpdError::Parsing(e.to_string()))?;
     Ok(mpd)
