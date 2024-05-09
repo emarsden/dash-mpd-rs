@@ -76,8 +76,9 @@ default configuration (using an external application as a subprocess).
   standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/)
   project), if it is installed. STPP subtitles (which according to the DASH specifications should be
   formatted as EBU-TT) will be muxed into the output media container as a `subt:stpp` stream using
-  MP4Box. Note that common media players such as mplayer and VLC don't currently support this
-  subtitle type; you can try using the GPAC media player (available with `gpac -gui`).
+  MP4Box (VLC should be able to read these subtitles), and also converted to a separate `.ttml` file
+  using ffmpeg. If your media players doesn't support STPP/TTML subtitles, you can try using the
+  GPAC media player (available with `gpac -gui`).
 
 - Support for **decrypting** media streams that use MPEG Common Encryption (cenc) ContentProtection.
   This requires either the `mp4decrypt` commandline application from the [Bento4
@@ -215,14 +216,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.16.1"
+dash-mpd = "0.16.2"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.16.1", default-features = false }
+dash-mpd = { version = "0.16.2", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major

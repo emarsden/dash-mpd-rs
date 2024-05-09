@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.16.2] - Unreleased
+## [0.16.2] - 2024-05-09
 
 - Fix bug in filename handling when using the ffmpeg concatenation filter. Filenames were not
   properly escaped when passed as arguments to the `filter_complex` commandline argument.

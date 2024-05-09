@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.16.1"
+version = "0.16.2"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
