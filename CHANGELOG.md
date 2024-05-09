@@ -5,6 +5,12 @@
 - Fix bug in filename handling when using the ffmpeg concatenation filter. Filenames were not
   properly escaped when passed as arguments to the `filter_complex` commandline argument.
 
+- Add support for subtitles that use SegmentBase addressing.
+
+- Subtitles in STPP format (a data stream in MP4 fragments) are now converted to TTML format. The
+  XML data stream is extracted using ffmpeg. If the conversion is successful it will be saved to a
+  file with the same name as the output file, but with a `.ttml` extension.
+
 
 ## [0.16.1] - 2024-04-15
 

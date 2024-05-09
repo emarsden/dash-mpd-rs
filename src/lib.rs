@@ -93,6 +93,7 @@ use regex::Regex;
 use std::time::Duration;
 use chrono::DateTime;
 use url::Url;
+#[allow(unused_imports)]
 use tracing::warn;
 
 // Regular Expression used for parsing the XsDuration, compiled once

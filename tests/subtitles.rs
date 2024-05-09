@@ -235,5 +235,39 @@ async fn test_subtitles_tx3g() {
 }
 
 
+#[test(tokio::test)]
+async fn test_subtitles_segmentbase() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // This manifest contains a subtitle Representation with stpp codec using SegmentBase addressing.
+    let mpd = "https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd";
+    let outpath = env::temp_dir().join("segbase.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(outpath.clone()).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("robot hand"));
+    let meta = ffprobe(outpath.clone()).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let _ = fs::remove_file(outpath);
+}
+
+
 // https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd
 // has vtt subs in de/en/fr
