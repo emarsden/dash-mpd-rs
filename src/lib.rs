@@ -1383,6 +1383,9 @@ pub struct SupplementalProperty {
     pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename(serialize = "scte214:ContentIdentifier"))]
+    #[serde(rename(deserialize = "ContentIdentifier"))]
+    pub scte214ContentIdentifiers: Vec<Scte214ContentIdentifier>,
 }
 
 /// Provides a textual description of the content, which can be used by the client to allow
@@ -1520,6 +1523,9 @@ pub struct AssetIdentifier {
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename(serialize = "scte214:ContentIdentifier"))]
+    #[serde(rename(deserialize = "ContentIdentifier"))]
+    pub scte214ContentIdentifiers: Vec<Scte214ContentIdentifier>,
 }
 
 /// Subsets provide a mechanism to restrict the combination of active Adaptation Sets where an
