@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.3] - Unreleased
+
+- `AssetIdentifier` and `SupplementalProperty` elements may contain `Scte214ContentIdentifier`
+  elements, as per the SCTE 214-1 specification (from @sbuzzard).
+
+
 ## [0.16.2] - 2024-05-09
 
 - Fix bug in filename handling when using the ffmpeg concatenation filter. Filenames were not
