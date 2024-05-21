@@ -100,7 +100,7 @@ async fn test_error_html() {
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_error_img() {
     // Check that we fail to parse an image response.
-    let url = "https://unsplash.it/240/120";
+    let url = "https://picsum.photos/240/120";
     DashDownloader::new(url)
         .best_quality()
         .download().await
