@@ -833,7 +833,9 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let mut have_audio = false;
     let mut have_video = false;
     for (i, path) in paths.iter().enumerate().take(n) {
+        let mut included = false;
         if container_has_video(path) {
+            included = true;
             args.push(String::from("-i"));
             args.push(path.display().to_string());
             //filter = format!("streams=dv[v{i}];{filter}");
@@ -841,8 +843,10 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
             link_labels.push(format!("[{i}:v]"));
         }
         if container_has_audio(path) {
-            args.push(String::from("-i"));
-            args.push(path.display().to_string());
+            if !included {
+                args.push(String::from("-i"));
+                args.push(path.display().to_string());
+            }
             // filter = format!("streams=da[a{i}];{filter}");
             link_labels.push(format!("[{i}:a]"));
             have_audio = true;
@@ -1017,4 +1021,116 @@ pub(crate) fn concat_output_files(
         return Ok(());
     }
     concat_output_files_ffmpeg(downloader, paths)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::process::Command;
+    use test_log::test;
+    use fs_err as fs;
+    use super::concat_output_files_ffmpeg;
+
+    fn generate_mp4_hue_tone(filename: &Path, color: &str, tone: &str) {
+        let ffmpeg = Command::new("ffmpeg")
+            .args(["-y",  // overwrite output file if it exists
+                   "-nostdin",
+                   "-lavfi", &format!("color=c={color}:duration=5:size=50x50:rate=1;sine=frequency={tone}:sample_rate=48000:duration=5"),
+                   // Force the use of the libx264 encoder. ffmpeg defaults to platform-specific
+                   // encoders (which may allow hardware encoding) on certain builds, which may have
+                   // stronger restrictions on acceptable frame rates and so on. For example, the
+                   // h264_mediacodec encoder on Android has more constraints than libx264 regarding the
+                   // number of keyframes.
+                   "-c:v", "libx264",
+                   filename.to_str().unwrap()])
+            .output()
+            .expect("spawning ffmpeg");
+        assert!(ffmpeg.status.success());
+    }
+
+    // Generate 3 5-second dummy MP4 files, one with a red background color, the second with green,
+    // the third with blue. Concatenate them into the first red file. Check that at second 2.5 we
+    // have a red background, at second 7.5 a green background, and at second 12.5 a blue
+    // background.
+    #[test]
+    fn test_concat() {
+        use crate::fetch::DashDownloader;
+        use image::io::Reader as ImageReader;
+        use image::Rgb;
+
+        let tmpd = tempfile::tempdir().unwrap();
+        let red = tmpd.path().join("concat-red.mp4");
+        let green = tmpd.path().join("concat-green.mp4");
+        let blue = tmpd.path().join("concat-blue.mp4");
+        generate_mp4_hue_tone(&red, "red", "400");
+        generate_mp4_hue_tone(&green, "green", "600");
+        generate_mp4_hue_tone(&blue, "blue", "800");
+        let ddl = DashDownloader::new("https://www.example.com/");
+        let _ = concat_output_files_ffmpeg(&ddl, &[red.clone(), green, blue]);
+        let capture_red = tmpd.path().join("capture-red.png");
+        Command::new("ffmpeg")
+            .args(["-ss", "2.5",
+                   "-i", &red.to_str().unwrap(),
+                   "-frames:v", "1",
+                   &capture_red.to_str().unwrap()])
+            .output()
+            .expect("extracting red frame");
+        let img = ImageReader::open(capture_red).unwrap()
+            .decode().unwrap()
+            .into_rgb8();
+        for pixel in img.pixels() {
+            match pixel {
+                Rgb(rgb) => {
+                    assert!(rgb[0] > 250);
+                    assert!(rgb[1] < 5);
+                    assert!(rgb[2] < 5);
+                },
+            };
+        }
+        // The green color used by ffmpeg is Rgb(0,127,0)
+        let capture_green = tmpd.path().join("capture-green.png");
+        Command::new("ffmpeg")
+            .args(["-ss", "7.5",
+                   "-i", &red.to_str().unwrap(),
+                   "-frames:v", "1",
+                   &capture_green.to_str().unwrap()])
+            .output()
+            .expect("extracting green frame");
+        let img = ImageReader::open(capture_green).unwrap()
+            .decode().unwrap()
+            .into_rgb8();
+        for pixel in img.pixels() {
+            match pixel {
+                Rgb(rgb) => {
+                    assert!(rgb[0] < 5);
+                    assert!(rgb[1].abs_diff(127) < 5);
+                    assert!(rgb[2] < 5);
+                },
+            };
+        }
+        // The "blue" color chosen by ffmpeg is Rgb(0,0,254)
+        let capture_blue = tmpd.path().join("capture-blue.png");
+        Command::new("ffmpeg")
+            .args(["-ss", "12.5",
+                   "-i", &red.to_str().unwrap(),
+                   "-frames:v", "1",
+                   &capture_blue.to_str().unwrap()])
+            .output()
+            .expect("extracting blue frame");
+        let img = ImageReader::open(capture_blue).unwrap()
+            .decode().unwrap()
+            .into_rgb8();
+        for pixel in img.pixels() {
+            match pixel {
+                Rgb(rgb) => {
+                    assert!(rgb[0] < 5);
+                    assert!(rgb[1] < 5);
+                    assert!(rgb[2] > 250);
+                },
+            };
+        }
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
