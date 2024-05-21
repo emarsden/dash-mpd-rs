@@ -119,6 +119,7 @@ pub struct DashDownloader {
     fragment_path: Option<PathBuf>,
     decryption_keys: HashMap<String, String>,
     xslt_stylesheets: Vec<PathBuf>,
+    minimum_period_duration: Option<Duration>,
     content_type_checks: bool,
     conformity_checks: bool,
     fragment_retry_count: u32,
@@ -185,6 +186,8 @@ struct PeriodDownloads {
     video_fragments: Vec<MediaFragment>,
     subtitle_fragments: Vec<MediaFragment>,
     subtitle_formats: Vec<SubtitleType>,
+    period_counter: u8,
+    id: Option<String>,
 }
 
 fn period_fragment_count(pd: &PeriodDownloads) -> usize {
@@ -239,6 +242,7 @@ impl DashDownloader {
             fragment_path: None,
             decryption_keys: HashMap::new(),
             xslt_stylesheets: Vec::new(),
+            minimum_period_duration: None,
             content_type_checks: true,
             conformity_checks: true,
             fragment_retry_count: 10,
@@ -438,6 +442,13 @@ impl DashDownloader {
     /// * `stylesheet`: the path to an XSLT stylesheet.
     pub fn with_xslt_stylesheet<P: Into<PathBuf>>(mut self, stylesheet: P) -> DashDownloader {
         self.xslt_stylesheets.push(stylesheet.into());
+        self
+    }
+
+    /// Don't download (skip over) Periods in the manifest whose duration is less than the specified
+    /// value.
+    pub fn minimum_period_duration(mut self, value: Duration) -> DashDownloader {
+        self.minimum_period_duration = Some(value);
         self
     }
 
@@ -3742,7 +3753,22 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     for mpd_period in &mpd.periods {
         let period = mpd_period.clone();
         period_counter += 1;
-        let mut pd = PeriodDownloads::default();
+        if let Some(min) = downloader.minimum_period_duration {
+            if let Some(duration) = period.duration {
+                if duration < min {
+                    if let Some(id) = period.id.as_ref() {
+                        info!("Skipping period {id} (#{period_counter}): duration is less than requested minimum");
+                    } else {
+                        info!("Skipping period #{period_counter}: duration is less than requested minimum");
+                    }
+                    continue;
+                }
+            }
+        }
+        let mut pd = PeriodDownloads { period_counter, ..Default::default() };
+        if let Some(id) = period.id.as_ref() {
+            pd.id = Some(id.clone());
+        }
         if downloader.verbosity > 0 {
             if let Some(id) = period.id.as_ref() {
                 info!("Preparing download for period {id} (#{period_counter})");
@@ -3816,18 +3842,21 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         segment_counter: 0,
         download_errors: 0
     };
-    for _mpd_period in &mpd.periods {
+    for pd in pds {
         let mut have_audio = false;
         let mut have_video = false;
         let mut have_subtitles = false;
-        let pd = &pds[ds.period_counter as usize];
-        ds.period_counter += 1;
-        let period_output_path = output_path_for_period(output_path, ds.period_counter);
+        ds.period_counter = pd.period_counter;
+        let period_output_path = output_path_for_period(output_path, pd.period_counter);
         #[allow(clippy::collapsible_if)]
         if downloader.verbosity > 0 {
             if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
-                info!("Period #{}: fetching {} audio, {} video and {} subtitle segments",
-                      ds.period_counter,
+                let idnum = if let Some(id) = pd.id {
+                    format!("id={} (#{})", id, pd.period_counter)
+                } else {
+                    format!("#{}", pd.period_counter)
+                };
+                info!("Period {idnum}: fetching {} audio, {} video and {} subtitle segments",
                       pd.audio_fragments.len(),
                       pd.video_fragments.len(),
                       pd.subtitle_fragments.len());
@@ -3961,7 +3990,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             concat_output_files(downloader, &period_output_paths)?;
             for p in &period_output_paths[1..] {
                 if fs::remove_file(p).is_err() {
-                    info!("Failed to delete temporary file {}", p.display());
+                    warn!("Failed to delete temporary file {}", p.display());
                 }
             }
             concatenated = true;
@@ -3969,6 +3998,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         if !concatenated {
             info!("Media content has been saved in a separate file for each period:");
+            // FIXME this is not the original period number if we have dropped periods
             period_counter = 0;
             for p in period_output_paths {
                 period_counter += 1;

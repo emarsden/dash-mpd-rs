@@ -2,6 +2,13 @@
 
 ## [0.16.3] - Unreleased
 
+- Downloading: new method `minimum_period_duration()` on `DashDownloader`. Periods whose duration is
+  less than this value will not be downloaded.
+
+- Downloading: fix a bug in the concatenation of multiperiod manifests. When per-Period files
+  contained both audio and video content, the content was being included twice in the concatenated
+  file. Add an integration test for concatenation using ffmpeg.
+
 - `AssetIdentifier` and `SupplementalProperty` elements may contain `Scte214ContentIdentifier`
   elements, as per the SCTE 214-1 specification (from @sbuzzard).
 
