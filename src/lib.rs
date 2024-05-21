@@ -97,6 +97,7 @@ use url::Url;
 use tracing::warn;
 
 // Regular Expression used for parsing the XsDuration, compiled once
+// TODO: replace with std::cell::OnceCell (MSRV 1.70)
 lazy_static! {
     static ref XS_DURATION_REGEX: Regex = Regex::new(concat!(r"^(?P<sign>[+-])?P",
                                 r"(?:(?P<years>\d+)Y)?",
