@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.16.3] - Unreleased
+## [0.16.3] - 2024-05-21
 
 - Downloading: new method `minimum_period_duration()` on `DashDownloader`. Periods whose duration is
   less than this value will not be downloaded.
