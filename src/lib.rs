@@ -2082,6 +2082,7 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
 }
 
 
+#[allow(dead_code)]
 fn content_protection_type(cp: &ContentProtection) -> String {
     if let Some(v) = &cp.value {
         if v.eq("cenc") {
