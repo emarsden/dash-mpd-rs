@@ -5,6 +5,9 @@
 - Downloading: fix a bug in concatenation for multiperiod manifests that occurs when one of the
   Periods does not contain any audio.
 
+- Downloading: accomodate manifests which say a Representation has `mimeType="video/mp4"` and
+  `codecs="mp4a"`. These are now detected as audio streams rather than as video streams.
+
 
 ## [0.16.3] - 2024-05-21
 

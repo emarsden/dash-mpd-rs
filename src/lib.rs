@@ -1869,12 +1869,30 @@ pub fn parse(xml: &str) -> Result<MPD, DashMpdError> {
 }
 
 
+// Note that a codec name can be of the form "mp4a" or "mp4a.40.2".
+fn is_audio_codec(name: &str) -> bool {
+    name.starts_with("mp4a") ||
+        name.starts_with("aac") ||
+        name.starts_with("vorbis") ||
+        name.starts_with("opus") ||
+        name.starts_with("flac") ||
+        name.starts_with("mp3") ||
+        name.starts_with("ec-3") ||
+        name.starts_with("ac-4")
+}
+
+
 /// Returns `true` if this AdaptationSet contains audio content.
 ///
-/// It contains audio if the `contentType` attribute` is `audio`, or the `mimeType` attribute is
-/// `audio/*`, or if one of its child `Representation` nodes has an audio `contentType` or
-/// `mimeType` attribute.
+/// It contains audio if the codec attribute corresponds to a known audio codec, or the
+/// `contentType` attribute` is `audio`, or the `mimeType` attribute is `audio/*`, or if one of its
+/// child `Representation` nodes has an audio `contentType` or `mimeType` attribute.
 pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
+    if let Some(codec) = &a.codecs {
+        if is_audio_codec(codec) {
+            return true;
+        }
+    }
     if let Some(ct) = &a.contentType {
         if ct == "audio" {
             return true;
@@ -1905,7 +1923,13 @@ pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
 /// It contains video if the `contentType` attribute` is `video`, or the `mimeType` attribute is
 /// `video/*` (but without a codec specifying a subtitle format), or if one of its child
 /// `Representation` nodes has an audio `contentType` or `mimeType` attribute.
+///
+/// Note: if it's an audio adaptation then it's not a video adaptation (an audio adaptation means
+/// audio-only), but a video adaptation may contain audio.
 pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
+    if is_audio_adaptation(a) {
+        return false;
+    }
     if let Some(ct) = &a.contentType {
         if ct == "video" {
             return true;

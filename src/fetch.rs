@@ -445,7 +445,7 @@ impl DashDownloader {
         self
     }
 
-    /// Don't download (skip over) Periods in the manifest whose duration is less than the specified
+    /// Don't download (skip) Periods in the manifest whose duration is less than the specified
     /// value.
     pub fn minimum_period_duration(mut self, value: Duration) -> DashDownloader {
         self.minimum_period_duration = Some(value);

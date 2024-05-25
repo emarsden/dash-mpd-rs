@@ -352,6 +352,59 @@ async fn test_muxing_mp4box() {
 }
 
 
+/// 3GP content which ffmpeg v6.1 is unable to mux (error "Could not find codec parameters for
+/// stream 0 (Video: h264 (avc1 / 0x31637661), none, 640x360): unspecified pixel format"). We mux
+/// with mkvmerge instead.
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_muxing_3gp_mkvmerge() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("3gp.mp4");
+    DashDownloader::new(&mpd_url)
+        .worst_quality()
+        .with_muxer_preference("mp4", "mkvmerge")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 14_887_121);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+/// 3GP content which ffmpeg v6.1 is unable to mux (error "Could not find codec parameters for
+/// stream 0 (Video: h264 (avc1 / 0x31637661), none, 640x360): unspecified pixel format"). We mux
+/// with VLC instead.
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_muxing_3gp_vlc() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("3gp.mp4");
+    DashDownloader::new(&mpd_url)
+        .worst_quality()
+        .with_muxer_preference("mp4", "vlc")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 15_005_122);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // This test succeeds with MP4Box version 2.2, but fails with version 2.0, which is the one
 // currently available in ubuntu-latest and MacOS Homebrew. Version 2.2 adds improvements concerning
 // MKV containers. We currently disable this test on CI until a more recent version of MP4Box is easily

@@ -928,4 +928,3 @@ async fn test_dl_follow_redirect() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-
