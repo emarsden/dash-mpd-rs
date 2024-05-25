@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.4] - Unreleased
+
+- Downloading: fix a bug in concatenation for multiperiod manifests that occurs when one of the
+  Periods does not contain any audio.
+
+
 ## [0.16.3] - 2024-05-21
 
 - Downloading: new method `minimum_period_duration()` on `DashDownloader`. Periods whose duration is

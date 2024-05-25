@@ -838,7 +838,7 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
             included = true;
             args.push(String::from("-i"));
             args.push(path.display().to_string());
-            //filter = format!("streams=dv[v{i}];{filter}");
+            // filter = format!("streams=dv[v{i}];{filter}");
             have_video = true;
             link_labels.push(format!("[{i}:v]"));
         }
@@ -853,7 +853,8 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
         } else {
             // Use a null audio src. Without this null audio track the concat filter is generating
             // errors, with ffmpeg version 6.1.1.
-            filter = format!("anullsrc=r=48000:cl=mono:d=1[a{i}];{filter}");
+            filter = format!("anullsrc=r=48000:cl=mono:d=1[audio{i}];{filter}");
+            link_labels.push(format!("[audio{i}]"));
             have_audio = true;
         }
         // link_labels.push(format!("[a{i}]"));
