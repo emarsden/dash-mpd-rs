@@ -653,6 +653,34 @@ async fn test_parsing_supplementalproperty() {
 }
 
 
+// This manifest has some unusual use of XML namespacing
+//   <g1:MPD xmlns="urn:MPEG:ns:DASH" xmlns:g1="urn:mpeg:DASH:schema:MPD:2011"
+#[test(tokio::test)]
+async fn test_parsing_namespacing() {
+    let url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = dash_mpd::parse(&xml);
+    let mpd = mpd.unwrap();
+    assert_eq!(mpd.periods.len(), 1);
+    assert_eq!(mpd.periods[0].adaptations.len(), 2);
+    // This manifest uses SegmentList+SegmentURL addressing for both Adapations
+    assert!(mpd.periods.iter().all(
+        |p| p.adaptations.iter().all(
+            |a| a.representations.iter().all(
+                |r| r.SegmentList.iter().all(
+                    |sl| sl.segment_urls.len() == 1)))));
+}
+
 // This manifest is invalid because it contains a subsegmentStartsWithSAP="true", whereas the DASH
 // specification states that this should be an SAPType, an integer (checked with
 // https://conformance.dashif.org/).
