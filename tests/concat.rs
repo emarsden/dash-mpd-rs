@@ -51,7 +51,7 @@ async fn test_concat_noaudio() {
 
 #[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
-async fn test_concat_noaudio() {
+async fn test_concat_singleases() {
     if env::var("CI").is_ok() {
         return;
     }
