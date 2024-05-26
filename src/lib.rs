@@ -213,44 +213,52 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
                     s = &s[..9];
                 }
                 let padded = format!("{s:0<9}");
-                nsecs = padded.parse::<u32>().unwrap();
+                nsecs = padded.parse::<u32>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
             }
-            if let Some(s) = m.name("seconds") {
-                let seconds = s.as_str().parse::<u64>().unwrap();
+            if let Some(mseconds) = m.name("seconds") {
+                let seconds = mseconds.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += seconds;
             }
-            if let Some(s) = m.name("minutes") {
-                let minutes = s.as_str().parse::<u64>().unwrap();
+            if let Some(mminutes) = m.name("minutes") {
+                let minutes = mminutes.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += minutes * 60;
             }
-            if let Some(s) = m.name("hours") {
-                let hours = s.as_str().parse::<u64>().unwrap();
+            if let Some(mhours) = m.name("hours") {
+                let hours = mhours.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += hours * 60 * 60;
             }
-            if let Some(s) = m.name("days") {
-                let days = s.as_str().parse::<u64>().unwrap();
+            if let Some(mdays) = m.name("days") {
+                let days = mdays.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += days * 60 * 60 * 24;
             }
-            if let Some(s) = m.name("weeks") {
-                let weeks = s.as_str().parse::<u64>().unwrap();
+            if let Some(mweeks) = m.name("weeks") {
+                let weeks = mweeks.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += weeks * 60 * 60 * 24 * 7;
             }
-            if let Some(s) = m.name("months") {
-                let months = s.as_str().parse::<u64>().unwrap();
+            if let Some(mmonths) = m.name("months") {
+                let months = mmonths.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += months * 60 * 60 * 24 * 30;
             }
-            if let Some(s) = m.name("years") {
-                let years = s.as_str().parse::<u64>().unwrap();
+            if let Some(myears) = m.name("years") {
+                let years = myears.as_str().parse::<u64>()
+                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 secs += years * 60 * 60 * 24 * 365;
             }
-            if let Some(s) = m.name("sign") {
-                if s.as_str() == "-" {
+            if let Some(msign) = m.name("sign") {
+                if msign.as_str() == "-" {
                     return Err(DashMpdError::InvalidDuration("can't represent negative durations".to_string()));
                 }
             }
             Ok(Duration::new(secs, nsecs))
         },
-        None => Err(DashMpdError::InvalidDuration("couldn't parse XS duration".to_string())),
+        None => Err(DashMpdError::InvalidDuration(String::from("couldn't parse XS duration"))),
     }
 }
 

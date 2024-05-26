@@ -49,6 +49,10 @@ trivy-repository:
     podman run -v $PWD:/myapp docker.io/aquasec/trivy fs --scanners vuln,secret,misconfig .
 
 
+clippy:
+    cargo clippy -- -Wclippy::unwrap_used -Wclippy::expect_used -Wclippy::indexing_slicing -Wclippy::panic
+
+
 publish:
   cargo test
   cargo publish

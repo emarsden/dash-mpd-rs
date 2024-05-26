@@ -153,9 +153,11 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
     if paths.is_empty() {
         return false;
     }
-    if let Ok(p0m) = video_container_metainfo(&paths[0]) {
-        return paths.iter().all(
-            |p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
+    if let Some(p0) = &paths.get(0) {
+        if let Ok(p0m) = video_container_metainfo(p0) {
+            return paths.iter().all(
+                |p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
+        }
     }
     paths.iter().all(container_only_audio)
 }

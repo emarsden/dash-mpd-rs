@@ -896,6 +896,7 @@ pub(crate) fn concat_output_files_ffmpeg(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
+    assert!(paths.len() >= 2);
     let container = match paths[0].extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -963,6 +964,7 @@ pub(crate) fn concat_output_files_mp4box(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
+    assert!(paths.len() >= 2);
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(".mp4")
@@ -985,8 +987,12 @@ pub(crate) fn concat_output_files_mp4box(
     let out = paths[0].to_string_lossy();
     let mut args = vec!["-flat", "-add", &tmppath];
     for p in &paths[1..] {
-        args.push("-cat");
-        args.push(p.to_str().unwrap());
+        if let Some(ps) = p.to_str() {
+            args.push("-cat");
+            args.push(&ps);
+        } else {
+            warn!("Ignoring non-Unicode pathname {:?}", p);
+        }
     }
     args.push(&out);
     trace!("Concatenating with MP4Box {args:?}");
