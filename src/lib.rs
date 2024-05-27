@@ -1896,7 +1896,8 @@ fn is_audio_codec(name: &str) -> bool {
         name.starts_with("flac") ||
         name.starts_with("mp3") ||
         name.starts_with("ec-3") ||
-        name.starts_with("ac-4")
+        name.starts_with("ac-4") ||
+        name.starts_with("mha1")       // MPEG-H 3D Audio
 }
 
 
