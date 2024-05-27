@@ -109,6 +109,7 @@ pub struct DashDownloader {
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
     language_preference: Option<String>,
+    role_preference: Vec<String>,
     video_width_preference: Option<u64>,
     video_height_preference: Option<u64>,
     fetch_video: bool,
@@ -234,6 +235,7 @@ impl DashDownloader {
             http_client: None,
             quality_preference: QualityPreference::Lowest,
             language_preference: None,
+            role_preference: vec!["main".to_string(), "alternate".to_string()],
             video_width_preference: None,
             video_height_preference: None,
             fetch_video: true,
@@ -364,6 +366,21 @@ impl DashDownloader {
     /// will be downloaded.
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
+        self
+    }
+
+    /// Specify the preference ordering for Role annotations on AdaptationSet elements. Some DASH
+    /// streams include multiple AdaptationSets, one annotated "main" and another "alternate", for
+    /// example. If `role_preference` is ["main", "alternate"] and one of the AdaptationSets is
+    /// annotated "main", then we will only download that AdaptationSet. If no role annotations are
+    /// specified, this preference is ignored. This preference selection is applied before the
+    /// preferences related to stream quality and video height/width: for example an AdaptationSet
+    /// with role=alternate will be ignored when a role=main AdaptationSet is present, even if we
+    /// also specify a quality preference for highest and the role=alternate stream has a higher
+    /// quality.
+    pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
+        assert!(role_preference.len() < u8::MAX);
+        self.role_preference = role_preference;
         self
     }
 
@@ -934,28 +951,105 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
     }
 }
 
+// We can have a <Role value="foobles"> element directly within the AdaptationSet element, or within
+// a ContentComponent element in the AdaptationSet.
+fn adaptation_roles(a: &AdaptationSet) -> Vec<String> {
+    let mut roles = Vec::new();
+    for r in &a.Role {
+        if let Some(rv) = &r.value {
+            roles.push(String::from(rv));
+        }
+    }
+    for cc in &a.ContentComponent {
+        for r in &cc.Role {
+            if let Some(rv) = &r.value {
+                roles.push(String::from(rv));
+            }
+        }
+    }
+    roles
+}
+
+// Best possible "score" is zero. 
+fn adaptation_role_distance(a: &AdaptationSet, role_preference: &[String]) -> u8 {
+    adaptation_roles(a).iter()
+        .map(|r| role_preference.binary_search(r).unwrap_or(u8::MAX.into()))
+        .map(|u| u8::try_from(u).unwrap_or(u8::MAX))
+        .min()
+        .unwrap_or(u8::MAX)
+}
+
+
+// We select the AdaptationSets that correspond to our language preference, and if there are several
+// with our language preference, that with the role according to role_preference, and if no
+// role_preference, return all adaptations.
+//
+// Start by getting a Vec of adaptation_lang_distance
+// Take the min and collect all Adaptations where dist = min_distance
+// then apply role_preference
+fn select_preferred_adaptations<'a>(
+    adaptations: Vec<&'a AdaptationSet>,
+    downloader: &DashDownloader) -> Vec<&'a AdaptationSet>
+{
+    let mut preferred: Vec<&'a AdaptationSet>;
+    if let Some(ref lang) = downloader.language_preference {
+        preferred = Vec::new();
+        let distance: Vec<u8> = adaptations.iter()
+            .map(|a| adaptation_lang_distance(a, lang))
+            .collect();
+        let min_distance = distance.iter().min().unwrap_or(&0);
+        for (i, a) in adaptations.iter().enumerate() {
+            if distance[i] == *min_distance {
+                preferred.push(a);
+            }
+        }
+    } else {
+        preferred = adaptations;
+    }
+    // Apply the role_preference. For example, a role_preference of ["main", "alternate",
+    // "supplementary", "commentary"] means we should prefer an AdaptationSet with role=main, and
+    // return only that AdaptationSet. If there are no role annotations on the AdaptationSets, or
+    // the specified roles don't match anything in our role_preference ordering, then all
+    // AdaptationSets will receive the maximum distance and they will all be returned.
+    let role_distance: Vec<u8> = preferred.iter()
+        .map(|a| adaptation_role_distance(a, &downloader.role_preference))
+        .collect();
+    let role_distance_min = role_distance.iter().min().unwrap_or(&0);
+    let mut best = Vec::new();
+    for (i, a) in preferred.into_iter().enumerate() {
+        if role_distance[i] == *role_distance_min {
+            best.push(a);
+        }
+    }
+    best
+}
+
+
 // A manifest often contains multiple video Representations with different bandwidths and video
 // resolutions. We select the Representation to download by ranking following the user's specified
 // quality preference. We first rank following the @qualityRanking attribute if it is present, and
 // otherwise by the bandwidth specified. Note that quality ranking may be different from bandwidth
 // ranking when different codecs are used.
-fn select_stream_quality_preference(
-    representations: &[Representation],
-    pref: QualityPreference) -> Option<&Representation>
+fn select_preferred_representation<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Option<&'a Representation>
 {
     if representations.iter().all(|x| x.qualityRanking.is_some()) {
         // rank according to the @qualityRanking attribute (lower values represent
         // higher quality content)
-        match pref {
+        match downloader.quality_preference {
             QualityPreference::Lowest =>
-                representations.iter().max_by_key(|r| r.qualityRanking.unwrap_or(u8::MAX)),
+                representations.iter()
+                .max_by_key(|r| r.qualityRanking.unwrap_or(u8::MAX))
+                .copied(),
             QualityPreference::Highest =>
-                representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0)),
+                representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0))
+                    .copied(),
             QualityPreference::Intermediate => {
                 let count = representations.len();
                 match count {
                     0 => None,
-                    1 => Some(&representations[0]),
+                    1 => Some(representations[0]),
                     _ => {
                         let mut ranking: Vec<u8> = representations.iter()
                             .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
@@ -964,22 +1058,25 @@ fn select_stream_quality_preference(
                         let want_ranking = ranking.get(count / 2).unwrap();
                         representations.iter()
                             .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                            .copied()
                     },
                 }
             },
         }
     } else {
         // rank according to the bandwidth attribute (lower values imply lower quality)
-        match pref {
+        match downloader.quality_preference {
             QualityPreference::Lowest => representations.iter()
-                .min_by_key(|r| r.bandwidth.unwrap_or(1_000_000_000)),
+                .min_by_key(|r| r.bandwidth.unwrap_or(1_000_000_000))
+                .copied(),
             QualityPreference::Highest => representations.iter()
-                .max_by_key(|r| r.bandwidth.unwrap_or(0)),
+                .max_by_key(|r| r.bandwidth.unwrap_or(0))
+                .copied(),
             QualityPreference::Intermediate => {
                 let count = representations.len();
                 match count {
                     0 => None,
-                    1 => Some(&representations[0]),
+                    1 => Some(representations[0]),
                     _ => {
                         let mut ranking: Vec<u64> = representations.iter()
                             .map(|r| r.bandwidth.unwrap_or(100_000_000))
@@ -988,6 +1085,7 @@ fn select_stream_quality_preference(
                         let want_ranking = ranking.get(count / 2).unwrap();
                         representations.iter()
                             .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                            .copied()
                     },
                 }
             },
@@ -1548,19 +1646,14 @@ async fn do_period_audio(
     }
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
-    let audio_adaptations = period.adaptations.iter()
-        .filter(is_audio_adaptation);
-    let representations = if let Some(ref lang) = downloader.language_preference {
-        audio_adaptations
-            .min_by_key(|a| adaptation_lang_distance(a, lang))
-            .map_or_else(Vec::new, |a| a.representations.clone())
-
-    } else {
-        audio_adaptations
-            .flat_map(|a| a.representations.clone())
-            .collect()
-    };
-    if let Some(audio_repr) = select_stream_quality_preference(&representations, downloader.quality_preference) {
+    let audio_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
+        .filter(is_audio_adaptation)
+        .collect();
+    let representations: Vec<&Representation> = select_preferred_adaptations(audio_adaptations, downloader)
+        .iter()
+        .flat_map(|a| a.representations.iter())
+        .collect();
+    if let Some(audio_repr) = select_preferred_representation(representations, downloader) {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
@@ -2010,18 +2103,23 @@ async fn do_period_video(
     // to download by ranking the available streams according to the preferred width specified by
     // the user, or by the preferred height specified by the user, or by the user's specified
     // quality preference.
-    let representations: Vec<Representation> = period.adaptations.iter()
+    let video_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
         .filter(is_video_adaptation)
-        .flat_map(|a| a.representations.clone())
+        .collect();
+    let representations: Vec<&Representation> = select_preferred_adaptations(video_adaptations, downloader)
+        .iter()
+        .flat_map(|a| a.representations.iter())
         .collect();
     let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
         representations.iter()
             .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+            .copied()
     }  else if let Some(want) = downloader.video_height_preference {
         representations.iter()
             .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
+            .copied()
     } else {
-        select_stream_quality_preference(&representations, downloader.quality_preference)
+        select_preferred_representation(representations, downloader)
     };
     if let Some(video_repr) = maybe_video_repr {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be

@@ -8,6 +8,13 @@
 - Downloading: accomodate manifests which say a Representation has `mimeType="video/mp4"` and
   `codecs="mp4a"`. These are now detected as audio streams rather than as video streams.
 
+- Allow the user to specify a preference for streams based on the value of the `Role` element in an
+  `AdaptationSet`. Streaming services sometimes publish various additional streams marked with roles
+  such as `alternate` or `supplementary` or `description`, in addition to the main stream which is
+  generalled labelled with a role of `main`. The user can specify a preference order for these role
+  annotations, which is applied after the language preference and before the width/height/quality
+  preference.
+
 
 ## [0.16.3] - 2024-05-21
 
