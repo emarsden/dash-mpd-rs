@@ -989,7 +989,7 @@ pub(crate) fn concat_output_files_mp4box(
     for p in &paths[1..] {
         if let Some(ps) = p.to_str() {
             args.push("-cat");
-            args.push(&ps);
+            args.push(ps);
         } else {
             warn!("Ignoring non-Unicode pathname {:?}", p);
         }
