@@ -153,7 +153,7 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
     if paths.is_empty() {
         return false;
     }
-    if let Some(p0) = &paths.get(0) {
+    if let Some(p0) = &paths.first() {
         if let Ok(p0m) = video_container_metainfo(p0) {
             return paths.iter().all(
                 |p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
