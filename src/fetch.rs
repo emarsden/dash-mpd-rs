@@ -379,7 +379,7 @@ impl DashDownloader {
     /// also specify a quality preference for highest and the role=alternate stream has a higher
     /// quality.
     pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
-        assert!(role_preference.len() < u8::MAX);
+        assert!(role_preference.len() < u8::MAX.into());
         self.role_preference = role_preference;
         self
     }
