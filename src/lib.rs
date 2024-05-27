@@ -985,6 +985,8 @@ pub struct Accessibility {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Scope {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
@@ -1270,6 +1272,8 @@ pub struct ContentProtection {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Role {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
@@ -1280,6 +1284,8 @@ pub struct Role {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Viewpoint {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
@@ -1603,6 +1609,8 @@ pub struct Period {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Reporting {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     #[serde(rename = "@value")]
@@ -1680,6 +1688,8 @@ pub struct ServiceDescription {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct UTCTiming {
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
     // http-ntp:2014, ntp:2014, http-head:2014, direct:2014
     #[serde(rename = "@schemeIdUri")]
