@@ -261,12 +261,13 @@ async fn test_dl_dolby_dtsc() {
     let out = tmpd.path().join("dolby-dtsc.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_muxer_preference("mkv", "mkvmerge")
         .content_type_checks(false)
         .conformity_checks(false)
         .verbosity(2)
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 35_408_884);
+    check_file_size_approx(&out, 35_408_836);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
