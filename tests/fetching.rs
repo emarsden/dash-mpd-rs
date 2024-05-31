@@ -837,6 +837,8 @@ async fn test_dl_lowlatency_forced_duration() {
 
 // Test the escaping of a filename that contains '&' due to the &delay=25 in the mpd URL.
 // Potentially problematic for our calls to ffmpeg and to mp4decrypt.
+// Disable this test because the decryption keys seem to change over time.
+#[ignore]
 #[test(tokio::test)]
 async fn test_dl_filename_ampersand() {
     if env::var("CI").is_ok() {
