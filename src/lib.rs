@@ -1139,6 +1139,10 @@ pub struct Representation {
     pub href: Option<String>,
     #[serde(rename = "@xlink:actuate", alias = "@actuate")]
     pub actuate: Option<String>,
+    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
+    pub scte214_supplemental_profiles: Option<String>,
+    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
+    pub scte214_supplemental_codecs: Option<String>,
 }
 
 /// Describes a media content component.
