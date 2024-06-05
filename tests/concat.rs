@@ -57,7 +57,7 @@ async fn test_concat_noaudio_ffmpeg() {
 #[should_panic(expected = "all concat helpers failed")]
 async fn test_concat_noaudio_mkvmerge_mp4() {
     if env::var("CI").is_ok() {
-        return;
+        panic!("all concat helpers failed");
     }
     let mpd_url = "https://dash.akamaized.net/fokus/adinsertion-samples/xlink/twoperiodsOR.mpd";
     let tmpd = tempfile::tempdir().unwrap();
@@ -153,7 +153,7 @@ async fn test_concat_singleases_ffmpeg() {
 #[should_panic(expected = "all concat helpers failed")]
 async fn test_concat_singleases_mkvmerge() {
     if env::var("CI").is_ok() {
-        return;
+        panic!("all concat helpers failed");
     }
     let mpd_url = "https://dash.akamaized.net/fokus/adinsertion-samples/xlink/singleases.mpd";
     let tmpd = tempfile::tempdir().unwrap();
@@ -245,7 +245,7 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
 #[should_panic(expected = "all concat helpers failed")]
 async fn test_concat_heliocentrism_mkvmerge_mp4() {
     if env::var("CI").is_ok() {
-        return;
+        panic!("all concat helpers failed");
     }
     let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
     let tmpd = tempfile::tempdir().unwrap();
