@@ -901,6 +901,12 @@ pub(crate) fn concat_output_files_ffmpeg(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
+    // See output from "ffmpeg -muxers"
+    let output_format = match container {
+        "mkv" => "matroska",
+        "ts" => "mpegts",
+        _ => container,
+    };
     // First copy the contents of the first file to a temporary file, as ffmpeg will be overwriting the
     // contents of the first file.
     let tmpout = tempfile::Builder::new()
@@ -931,7 +937,7 @@ pub(crate) fn concat_output_files_ffmpeg(
     args.push("-movflags");
     args.push("faststart+omit_tfhd_offset");
     args.push("-f");
-    args.push(container);
+    args.push(output_format);
     let target = paths[0].to_string_lossy();
     args.push(&target);
     trace!("Concatenating with ffmpeg {args:?}");
@@ -1019,6 +1025,68 @@ pub(crate) fn concat_output_files_mp4box(
     }
 }
 
+#[tracing::instrument(level="trace", skip(downloader))]
+pub(crate) fn concat_output_files_mkvmerge(
+    downloader: &DashDownloader,
+    paths: &[PathBuf]) -> Result<(), DashMpdError>
+{
+    assert!(paths.len() >= 2);
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(".mkv")
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = &tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    let mut tmpoutb = BufWriter::new(&tmpout);
+    let overwritten = File::open(paths[0].clone())
+        .map_err(|e| DashMpdError::Io(e, String::from("opening first container")))?;
+    let mut overwritten = BufReader::new(overwritten);
+    io::copy(&mut overwritten, &mut tmpoutb)
+        .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
+    // https://mkvtoolnix.download/doc/mkvmerge.html
+    let mut args = Vec::new();
+    args.push("--quiet");
+    args.push("-o");
+    let out = paths[0].to_string_lossy();
+    args.push(&out);
+    args.push("[");
+    args.push(tmppath);
+    for p in &paths[1..] {
+        if let Some(ps) = p.to_str() {
+            args.push(ps);
+        }
+    }
+    args.push("]");
+    trace!("Concatenating with mkvmerge {args:?}");
+    let mkvmerge = Command::new(&downloader.mkvmerge_location)
+        .args(args)
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge")))?;
+    let msg = partial_process_output(&mkvmerge.stdout);
+    if msg.len() > 0 {
+        info!("mkvmerge stdout: {msg}");
+    }
+    let msg = partial_process_output(&mkvmerge.stderr);
+    if msg.len() > 0 {
+        info!("mkvmerge stderr: {msg}");
+    }
+    if mkvmerge.status.success() {
+        Ok(())
+    } else {
+        warn!("  unconcatenated input files:");
+        for p in paths {
+            warn!("      {}", p.display());
+        }
+        Err(DashMpdError::Muxing(String::from("running mkvmerge")))
+    }
+}
+
 // Merge all media files named by paths into the file named by the first element of the vector.
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files(
@@ -1027,7 +1095,60 @@ pub(crate) fn concat_output_files(
     if paths.len() < 2 {
         return Ok(());
     }
-    concat_output_files_ffmpeg(downloader, paths)
+    let container = if let Some(p0) = paths.first() {
+        match p0.extension() {
+            Some(ext) => ext.to_str().unwrap_or("mp4"),
+            None => "mp4",
+        }
+    } else {
+        "mp4"
+    };
+    let mut concat_preference = vec![];
+    if container.eq("mp4") ||
+        container.eq("mkv") ||
+        container.eq("webm")
+    {
+        concat_preference.push("mkvmerge");
+        concat_preference.push("ffmpeg");
+    } else {
+        concat_preference.push("ffmpeg");
+    }
+    if let Some(ordering) = downloader.concat_preference.get(container) {
+        concat_preference.clear();
+        for m in ordering.split(',') {
+            concat_preference.push(m);
+        }
+    }
+    info!("  Concat helper preference for {container} is {concat_preference:?}");
+    for concat in concat_preference {
+        info!("  Trying concat helper {concat}");
+        if concat.eq("mkvmerge") {
+            if let Err(e) = concat_output_files_mkvmerge(downloader, paths) {
+                warn!("  Concatenation with mkvmerge failed: {e}");
+            } else {
+                info!("  Concatenation with mkvmerge succeeded");
+                return Ok(());
+            }
+        } else if concat.eq("ffmpeg") {
+            if let Err(e) = concat_output_files_ffmpeg(downloader, paths) {
+                warn!("  Concatenation with ffmpeg failed: {e}");
+            } else {
+                info!("  Concatenation with ffmpeg succeeded");
+                return Ok(());
+            }
+        } else if concat.eq("mp4box") {
+            if let Err(e) = concat_output_files_mp4box(downloader, paths) {
+                warn!("  Concatenation with MP4Box failed: {e}");
+            } else {
+                info!("  Concatenation with MP4Box succeeded");
+                return Ok(());
+            }
+        } else {
+            warn!("  Ignoring unknown concat helper preference {concat}");
+        }
+    }
+    warn!("All concat helpers failed");
+    Err(DashMpdError::Muxing(String::from("all concat helpers failed")))
 }
 
 
