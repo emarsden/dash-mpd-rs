@@ -135,6 +135,7 @@ pub struct DashDownloader {
     verbosity: u8,
     record_metainformation: bool,
     pub muxer_preference: HashMap<String, String>,
+    pub concat_preference: HashMap<String, String>,
     pub decryptor_preference: String,
     pub ffmpeg_location: String,
     pub vlc_location: String,
@@ -261,6 +262,7 @@ impl DashDownloader {
             verbosity: 0,
             record_metainformation: true,
             muxer_preference: HashMap::new(),
+            concat_preference: HashMap::new(),
             decryptor_preference: String::from("mp4decrypt"),
             ffmpeg_location: String::from("ffmpeg"),
 	    vlc_location: if cfg!(target_os = "windows") {
@@ -650,6 +652,30 @@ impl DashDownloader {
     /// ```
     pub fn with_muxer_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
         self.muxer_preference.insert(container.to_string(), ordering.to_string());
+        self
+    }
+
+    /// When concatenating streams from a multi-period manifest to a container of type `container`,
+    /// try concat helper applications following the order given by `ordering`. This function may be
+    /// called multiple times to specify the ordering for different container types. If called more
+    /// than once for the same container type, the ordering specified in the last call is retained.
+    ///
+    /// # Arguments
+    ///
+    /// * `container`: the container type (e.g. "mp4", "mkv", "avi")
+    /// * `ordering`: the comma-separated order of preference for trying concat helper applications
+    ///   (valid possibilities are "ffmpeg", "mkvmerge", "mp4box")
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let out = DashDownloader::new(url)
+    ///      .with_concat_preference("mkv", "ffmpeg,mkvmerge")
+    ///      .download_to("wonderful.mkv")
+    ///      .await?;
+    /// ```
+    pub fn with_concat_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
+        self.concat_preference.insert(container.to_string(), ordering.to_string());
         self
     }
 
