@@ -363,14 +363,14 @@ async fn test_muxing_3gp_mkvmerge() {
     }
     let mpd_url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("3gp.mp4");
+    let out = tmpd.path().join("3gp.mkv");
     DashDownloader::new(&mpd_url)
         .worst_quality()
-        .with_muxer_preference("mp4", "mkvmerge")
+        .with_muxer_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 14_887_121);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();

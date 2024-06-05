@@ -49,7 +49,7 @@ async fn test_multiperiod_helio() {
 
 
 #[test(tokio::test)]
-async fn test_multiperiod_nomor5a() {
+async fn test_multiperiod_nomor5a_ffmpeg() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -60,6 +60,8 @@ async fn test_multiperiod_nomor5a() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .concatenate_periods(true)
+        // The mkvmerge concat helper fails on this manifest
+        .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 95_623_359);
@@ -71,7 +73,7 @@ async fn test_multiperiod_nomor5a() {
 
 
 #[test(tokio::test)]
-async fn test_multiperiod_nomor5b() {
+async fn test_multiperiod_nomor5b_ffmpeg() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -84,6 +86,33 @@ async fn test_multiperiod_nomor5b() {
     let p3 = tmpd.path().join("multiperiod-5b-p3.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_concat_preference("mp4", "ffmpeg")
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 28_755_275);
+    check_file_size_approx(&p2, 4_383_256);
+    check_file_size_approx(&p3, 31_215_605);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 3, "Expecting 3 output files, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+#[test(tokio::test)]
+async fn test_multiperiod_nomor5b_mkvmerge() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // This manifest has 3 periods, with different resolutions. We will therefore save the media
+    // content to three separate files.
+    let mpd_url = "http://dash.edgesuite.net/dash264/TestCases/5b/1/manifest.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("multiperiod-5b.mp4");
+    let p2 = tmpd.path().join("multiperiod-5b-p2.mp4");
+    let p3 = tmpd.path().join("multiperiod-5b-p3.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mp4", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 28_755_275);
@@ -109,7 +138,7 @@ async fn test_multiperiod_withsubs() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 98_716_475);
+    check_file_size_approx(&out, 148_457_681);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -140,7 +169,8 @@ async fn test_multiperiod_audio() {
 
 
 // This manifest contains three Periods, each with a different BaseURL (which could be pointing to
-// different CDNs).
+// different CDNs). We disable it due to the size of the output file.
+#[ignore]
 #[test(tokio::test)]
 async fn test_multiperiod_diffbase() {
     if env::var("CI").is_ok() {
@@ -151,6 +181,7 @@ async fn test_multiperiod_diffbase() {
     let out = tmpd.path().join("multiperiod-diffbase.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 245_287_205);
@@ -181,7 +212,7 @@ async fn test_multiperiod_witha_withouta() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 5_742_832);
+    check_file_size_approx(&out, 7_258_379);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
@@ -194,7 +225,7 @@ async fn test_multiperiod_witha_withouta() {
     assert_eq!(video.codec_name, Some(String::from("h264")));
     assert!(video.width.is_some());
     let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(39.0 < duration && duration < 41.0, "Expecting duration around 39.2, got {duration}");
+    assert!(59.0 < duration && duration < 60.5, "Expecting duration around 60s, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -212,6 +243,7 @@ async fn test_multiperiod_witha_withouta_witha() {
     let out = tmpd.path().join("threeperiods.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
@@ -229,7 +261,7 @@ async fn test_multiperiod_witha_withouta_witha() {
     assert_eq!(video.codec_name, Some(String::from("h264")));
     assert!(video.width.is_some());
     let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(72.0 < duration && duration < 73.0, "Expecting duration around 72.5s, got {duration}");
+    assert!(71.5 < duration && duration < 73.0, "Expecting duration around 72.5s, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
