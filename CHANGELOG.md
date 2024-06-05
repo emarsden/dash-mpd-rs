@@ -5,6 +5,14 @@
 - Downloading: fix a bug in concatenation for multiperiod manifests that occurs when one of the
   Periods does not contain any audio.
 
+- Downloading: add support for concatenating streams in multi-period manifests using mkvmerge, as an
+  alternative to the existing support for concatenation using ffmpeg. The preference ordering for
+  concatenation helpers is specified by method `with_concat_helper` on `DashDownloader`.
+  Concatenation using mkvmerge works at least with MP4 and with Matroska (.mkv) containers. It tends
+  to be much faster than using ffmpeg but also less robust (less tolerant of the variety of media
+  encoding specificities found in the wild). You can specify multiple concatenation helpers, in
+  which case they will be called sequentially until one of them returns a success code.
+
 - Downloading: accomodate manifests which say a Representation has `mimeType="video/mp4"` and
   `codecs="mp4a"`. These are now detected as audio streams rather than as video streams.
 
@@ -14,6 +22,9 @@
   generalled labelled with a role of `main`. The user can specify a preference order for these role
   annotations, which is applied after the language preference and before the width/height/quality
   preference.
+
+- Add scte214 attributes `@supplementalProfiles` and `@supplementalCodecs` to `Representation` nodes
+  (from @sbuzzard).
 
 
 ## [0.16.3] - 2024-05-21
