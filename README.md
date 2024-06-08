@@ -77,7 +77,7 @@ default configuration (using an external application as a subprocess).
   project), if it is installed. STPP subtitles (which according to the DASH specifications should be
   formatted as EBU-TT) will be muxed into the output media container as a `subt:stpp` stream using
   MP4Box (VLC should be able to read these subtitles), and also converted to a separate `.ttml` file
-  using ffmpeg. If your media players doesn't support STPP/TTML subtitles, you can try using the
+  using ffmpeg. If your media player doesn't support STPP/TTML subtitles, you can try using the
   GPAC media player (available with `gpac -gui`).
 
 - Support for **decrypting** media streams that use MPEG Common Encryption (cenc) ContentProtection.
@@ -116,6 +116,39 @@ default configuration (using an external application as a subprocess).
   download this type of content.
 
 - No support for XLink with actuate=onRequest semantics.
+
+
+## Priority of different stream preference options
+
+The library allows you to express a preference ordering for several characteristics of streams in a
+DASH manifest (audio language, video resolution, bandwidth/quality, role label). The list belows
+specifies the order in which these preferences are handled:
+
+- First filter out AdaptationSets in the manifest that do not correspond to our language
+  preference. If not language preference is specified, no filtering takes place. If multiple
+  AdaptationSets match the language preference, they all are passed on to the next stage of
+  filtering.
+
+- Select adaptations according to the role preference. If no role preference is specified, no
+  filtering takes place based on the role labels. If no adaptations match one of our role
+  preferences, no filtering takes place based on the role labels. If at least one adaptation matches
+  one role in the expressed role preference, only the adaptation which is closest to the head of the
+  role preference list is passed on to the next stage of filtering.
+
+- When multiple Representation elements are present, filter them according to any specified quality
+  preference. If no quality preference is specified, no filtering takes place. The filtering is
+  based on the `@qualityRanking` attribute, if it is specified on the Representation elements, and
+  otherwise based on the `@bandwidth` attribute specified. Note that quality ranking may be
+  different from bandwidth ranking when different codecs are used.
+
+- If a video width preference is specified, only select the Representation whose video width is
+  closest to the requested width.
+
+- If a video height preference is specified, only select the Representation whose video height is
+  closest to the requested height.
+
+- If more than one stream remains under consideration after all the preceding steps, select the
+  first stream that appears in the XML of the DASH manifest.
 
 
 ## Usage
