@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.16.4] - Unreleased
+## [0.16.4] - 2024-09-08
 
 - Downloading: fix a bug in concatenation for multiperiod manifests that occurs when one of the
   Periods does not contain any audio.

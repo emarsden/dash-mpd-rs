@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.16.3"
+version = "0.16.4"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -16,8 +16,8 @@ base64 = "0.22.1"
 base64-serde = "0.7.0"
 lazy_static = "1.4.0"
 serde = { version = "1.0.203", features = ["derive"] }
-serde_path_to_error = "0.1.15"
-serde_ignored = { version = "0.1.9", optional = true }
+serde_path_to_error = "0.1.16"
+serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.8.1", features = ["base64"] }
 quick-xml = { version = "0.31.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.0"
@@ -35,10 +35,10 @@ tokio = { version = "1.38.0", features = ["rt-multi-thread", "time", "macros"], 
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.6.3", optional = true }
 xmltree = { version = "0.10.3", optional = true }
-async-recursion = { version = "1.1.0", optional = true }
+async-recursion = { version = "1.1.1", optional = true }
 tempfile = { version = "3.10.1", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
-colored = { version = "2.0.4", optional = true }
+colored = { version = "2.1.0", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
 ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.25.0", features = ["reader"], optional = true }
@@ -47,9 +47,9 @@ hex-literal = { version = "0.4.1", optional = true }
 pssh-box = { version = "0.1.5", optional = true }
 
 [dev-dependencies]
-sha2 = "0.10.7"
+sha2 = "0.10.8"
 hex-literal = "0.4.1"
-colored = "2.0.4"
+colored = "2.1.0"
 indicatif = "0.17.8"
 # We pin to this version because the latest versions require a bleeding edge Rust toolchain.
 clap = "=4.3.24"
@@ -62,7 +62,7 @@ axum-server = { version = "0.5.1" }
 axum-auth = "0.4.1"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.4", default-features = false, features = ["cookies", "json"] }
-serde_json = "1.0.116"
+serde_json = "1.0.117"
 anyhow = "1.0.86"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
