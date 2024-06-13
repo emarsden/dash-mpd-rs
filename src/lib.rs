@@ -1530,6 +1530,10 @@ pub struct AdaptationSet {
     #[serde(rename = "Representation")]
     pub representations: Vec<Representation>,
     pub ProducerReferenceTime: Option<ProducerReferenceTime>,
+    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
+    pub scte214_supplemental_profiles: Option<String>,
+    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
+    pub scte214_supplemental_codecs: Option<String>,
 }
 
 /// Identifies the asset to which a given Period belongs. Can be used to implement
