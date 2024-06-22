@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.16.4] - 2024-09-08
+## [0.16.5] - 2024-06-22
+
+- The `scte214:supplementalProfiles` and `supplementalCodecs` attributes can live at the level of an
+  `AdaptationSet` element, in addition to `Representation` element (from @sbuzzard).
+
+
+## [0.16.4] - 2024-06-08
 
 - Downloading: fix a bug in concatenation for multiperiod manifests that occurs when one of the
   Periods does not contain any audio.
