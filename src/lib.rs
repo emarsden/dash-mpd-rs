@@ -207,14 +207,13 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
             }
             let mut secs: u64 = 0;
             let mut nsecs: u32 = 0;
-            if let Some(s) = m.name("nanoseconds") {
-                let mut s = &s.as_str()[1..]; // drop initial "."
-                if s.len() > 9 {
-                    s = &s[..9];
+            if let Some(nano) = m.name("nanoseconds") {
+                // We drop the initial "." and limit precision
+                if let Some(ss) = &nano.as_str().get(1..9) {
+                    let padded = format!("{ss:0<9}");
+                    nsecs = padded.parse::<u32>()
+                        .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
                 }
-                let padded = format!("{s:0<9}");
-                nsecs = padded.parse::<u32>()
-                    .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
             }
             if let Some(mseconds) = m.name("seconds") {
                 let seconds = mseconds.as_str().parse::<u64>()

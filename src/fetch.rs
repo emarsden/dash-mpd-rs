@@ -602,10 +602,13 @@ impl DashDownloader {
             warn!("Throttling bandwidth limit");
             kps = u32::MAX.into();
         }
-        let bw_limit = NonZeroU32::new(kps as u32).unwrap();
-        let bw_quota = Quota::per_second(bw_limit)
-            .allow_burst(NonZeroU32::new(10 * 1024).unwrap());
-        self.bw_limiter = Some(RateLimiter::direct(bw_quota));
+        if let Some(bw_limit) = NonZeroU32::new(kps as u32) {
+            if let Some(burst) = NonZeroU32::new(10 * 1024) {
+                let bw_quota = Quota::per_second(bw_limit)
+                    .allow_burst(burst);
+                self.bw_limiter = Some(RateLimiter::direct(bw_quota));
+            }
+        }
         self
     }
 
@@ -825,10 +828,12 @@ impl DashDownloader {
 async fn throttle_download_rate(downloader: &DashDownloader, size: u32) -> Result<(), DashMpdError> {
     if downloader.rate_limit > 0 {
         if let Some(cells) = NonZeroU32::new(size) {
-            #[allow(clippy::redundant_pattern_matching)]
-            if let Err(_) = downloader.bw_limiter.as_ref().unwrap().until_n_ready(cells).await {
-                return Err(DashMpdError::Other(
-                    "Bandwidth limit is too low".to_string()));
+            if let Some(limiter) = downloader.bw_limiter.as_ref() {
+                #[allow(clippy::redundant_pattern_matching)]
+                if let Err(_) = limiter.until_n_ready(cells).await {
+                    return Err(DashMpdError::Other(
+                        "Bandwidth limit is too low".to_string()));
+                }
             }
         }
     }
