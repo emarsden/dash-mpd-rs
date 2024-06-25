@@ -196,6 +196,8 @@ where
 // Limitations: we can't represent negative durations (leading "-" character) due to the choice of a
 // std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H".
 fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
+    use std::cmp::min;
+    
     match XS_DURATION_REGEX.captures(s) {
         Some(m) => {
             if m.name("hastime").is_none() &&
@@ -209,7 +211,8 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
             let mut nsecs: u32 = 0;
             if let Some(nano) = m.name("nanoseconds") {
                 // We drop the initial "." and limit precision
-                if let Some(ss) = &nano.as_str().get(1..9) {
+                let lim = min(nano.as_str().len(), 9);
+                if let Some(ss) = &nano.as_str().get(1..lim) {
                     let padded = format!("{ss:0<9}");
                     nsecs = padded.parse::<u32>()
                         .map_err(|_| DashMpdError::InvalidDuration(String::from(s)))?;
