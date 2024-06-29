@@ -3151,7 +3151,7 @@ async fn fetch_fragment(
                                     .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))?;
                             }
                             let elapsed = bw_estimator_started.elapsed().as_secs_f64();
-                            if elapsed > 1.5 {
+                            if elapsed > 0.5 || bw_estimator_bytes > 1000 {
                                 let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
                                 let msg = if bw > 0.5 {
                                     format!("Fetching {fragment_type} segments ({bw:.1} MB/s)")

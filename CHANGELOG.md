@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.6] - Unreleased
+
+- Progress reporters will be called (and the progress bar updated) more frequently, and more
+  reliably when segment sizes are small and network speeds are high (suggestion from @filiptibell).
+
+
 ## [0.16.5] - 2024-06-22
 
 - The `scte214:supplementalProfiles` and `supplementalCodecs` attributes can live at the level of an
