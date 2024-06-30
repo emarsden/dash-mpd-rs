@@ -2162,11 +2162,11 @@ async fn do_period_video(
         // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
-        if !video_adaptation.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
+        if let Some(bu) = &video_adaptation.BaseURL.get(0) {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
-        if !video_repr.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+        if let Some(bu) = &video_repr.BaseURL.get(0) {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         if downloader.verbosity > 0 {
             let bw = if let Some(bw) = video_repr.bandwidth.or(video_adaptation.maxBandwidth) {
@@ -3813,8 +3813,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
-    if !mpd.locations.is_empty() {
-        let new_url = &mpd.locations[0].url;
+    if let Some(new_location) = &mpd.locations.get(0) {
+        let new_url = &new_location.url;
         if downloader.verbosity > 0 {
             info!("Redirecting to new manifest <Location> {new_url}");
         }
@@ -3869,8 +3869,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     }
     let mut toplevel_base_url = downloader.redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
-    if !mpd.base_url.is_empty() {
-        toplevel_base_url = merge_baseurls(&downloader.redirected_url, &mpd.base_url[0].base)?;
+    if let Some(bu) = &mpd.base_url.get(0) {
+        toplevel_base_url = merge_baseurls(&downloader.redirected_url, &bu.base)?;
     }
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
