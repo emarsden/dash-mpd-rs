@@ -1694,11 +1694,11 @@ async fn do_period_audio(
         // The AdaptationSet may have a BaseURL (e.g. the test BBC streams). We use a local variable
         // to make sure we don't "corrupt" the base_url for the video segments.
         let mut base_url = base_url.clone();
-        if !audio_adaptation.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
+        if let Some(bu) = &audio_adaptation.BaseURL.first() {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
-        if !audio_repr.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+        if let Some(bu) = audio_repr.BaseURL.first() {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         if downloader.verbosity > 0 {
             let bw = if let Some(bw) = audio_repr.bandwidth {
@@ -2162,10 +2162,10 @@ async fn do_period_video(
         // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
         // don't "corrupt" the base_url for the subtitle segments.
         let mut base_url = base_url.clone();
-        if let Some(bu) = &video_adaptation.BaseURL.get(0) {
+        if let Some(bu) = &video_adaptation.BaseURL.first() {
             base_url = merge_baseurls(&base_url, &bu.base)?;
         }
-        if let Some(bu) = &video_repr.BaseURL.get(0) {
+        if let Some(bu) = &video_repr.BaseURL.first() {
             base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         if downloader.verbosity > 0 {
@@ -2282,8 +2282,8 @@ async fn do_period_video(
                     let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
-                } else if !video_adaptation.BaseURL.is_empty() {
-                    let u = merge_baseurls(&base_url, &video_adaptation.BaseURL[0].base)?;
+                } else if let Some(bu) = video_adaptation.BaseURL.first() {
+                    let u = merge_baseurls(&base_url, &bu.base)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 }
@@ -2577,8 +2577,8 @@ async fn do_period_subtitles(
             // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
             // don't "corrupt" the base_url for the subtitle segments.
             let mut base_url = base_url.clone();
-            if !subtitle_adaptation.BaseURL.is_empty() {
-                base_url = merge_baseurls(&base_url, &subtitle_adaptation.BaseURL[0].base)?;
+            if let Some(bu) = &subtitle_adaptation.BaseURL.first() {
+                base_url = merge_baseurls(&base_url, &bu.base)?;
             }
             // We don't do any ranking on subtitle Representations, because there is probably only a
             // single one for our selected Adaptation.
@@ -2827,11 +2827,11 @@ async fn do_period_subtitles(
                                 let u = merge_baseurls(&base_url, m)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
-                            } else if !rep.BaseURL.is_empty() {
-                                let u = merge_baseurls(&base_url, &rep.BaseURL[0].base)?;
+                            } else if let Some(bu) = &rep.BaseURL.first() {
+                                let u = merge_baseurls(&base_url, &bu.base)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
-                            }
+                            };
                         }
                     } else if rep.SegmentTemplate.is_some() ||
                         subtitle_adaptation.SegmentTemplate.is_some()
@@ -3813,7 +3813,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
-    if let Some(new_location) = &mpd.locations.get(0) {
+    if let Some(new_location) = &mpd.locations.first() {
         let new_url = &new_location.url;
         if downloader.verbosity > 0 {
             info!("Redirecting to new manifest <Location> {new_url}");
@@ -3869,7 +3869,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     }
     let mut toplevel_base_url = downloader.redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
-    if let Some(bu) = &mpd.base_url.get(0) {
+    if let Some(bu) = &mpd.base_url.first() {
         toplevel_base_url = merge_baseurls(&downloader.redirected_url, &bu.base)?;
     }
     if downloader.verbosity > 0 {
