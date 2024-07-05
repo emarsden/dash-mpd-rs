@@ -18,7 +18,7 @@ lazy_static = "1.5.0"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
-serde_with = { version = "3.8.2", features = ["base64"] }
+serde_with = { version = "3.8.3", features = ["base64"] }
 quick-xml = { version = "0.35.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.1"
 chrono = { version = "0.4.38", features = ["serde"] }
