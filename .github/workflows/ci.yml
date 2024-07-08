@@ -14,7 +14,7 @@ jobs:
       - name: Install ffmpeg + protoc
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake
       - run: cargo check
       - run: cargo hack check --feature-powerset --no-dev-deps
 
@@ -48,7 +48,7 @@ jobs:
           chmod +x /usr/local/bin/shaka-packager
 
       - name: Install xsltproc + protoc
-        run: sudo apt install xsltproc protobuf-compiler
+        run: sudo apt install xsltproc protobuf-compiler cmake
 
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
       - run: RUST_LOG=info cargo test --jobs 1
