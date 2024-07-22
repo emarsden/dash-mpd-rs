@@ -15,7 +15,7 @@ use axum::{routing::get, Router};
 use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
-use axum::body::{Full, Bytes};
+use axum::body::Body;
 use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate, Location};
 use dash_mpd::fetch::DashDownloader;
@@ -83,13 +83,13 @@ async fn test_mpd_location() -> Result<()> {
     let shared_state = Arc::new(AppState::new());
 
 
-    async fn send_segment(State(state): State<Arc<AppState>>) -> Response<Full<Bytes>> {
+    async fn send_segment(State(state): State<Arc<AppState>>) -> Response {
         state.counter.fetch_add(1, Ordering::SeqCst);
         let bytes = generate_minimal_mp4();
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")
-            .body(Full::from(bytes))
+            .body(Body::from(bytes))
             .unwrap()
     }
 
@@ -105,10 +105,10 @@ async fn test_mpd_location() -> Result<()> {
         .route("/media/:id", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = axum_server::Handle::new();
+    let server_handle = hyper_serve::Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        axum_server::bind("127.0.0.1:6667".parse().unwrap())
+        hyper_serve::bind("127.0.0.1:6667".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

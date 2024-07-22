@@ -161,10 +161,10 @@ async fn test_data_url() -> Result<()> {
     let xml = mpd.to_string();
     let app = Router::new()
         .route("/mpd", get(|| async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }));
-    let server_handle = axum_server::Handle::new();
+    let server_handle = hyper_serve::Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        axum_server::bind("127.0.0.1:6666".parse().unwrap())
+        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

@@ -24,7 +24,7 @@ use axum::{routing::get, Router};
 use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::header;
-use axum::body::{Full, Bytes};
+use axum::body::Body;
 use axum_auth::AuthBearer;
 use http::StatusCode;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
@@ -92,7 +92,7 @@ async fn test_bearer_auth() -> Result<()> {
     // Create a minimal sufficiently-valid MP4 file.
     async fn send_mp4(
         AuthBearer(token): AuthBearer,
-        State(state): State<Arc<AppState>>) -> Response<Full<Bytes>>
+        State(state): State<Arc<AppState>>) -> Response
     {
         info!("segment request: auth {token:?}");
         state.counter.fetch_add(1, Ordering::SeqCst);
@@ -100,7 +100,7 @@ async fn test_bearer_auth() -> Result<()> {
         Response::builder()
             .status(axum::http::StatusCode::OK)
             .header(header::CONTENT_TYPE, "video/mp4")
-            .body(Full::from(data))
+            .body(Body::from(data))
             .unwrap()
     }
 
@@ -114,10 +114,10 @@ async fn test_bearer_auth() -> Result<()> {
         .route("/media/:seg", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = axum_server::Handle::new();
+    let server_handle = hyper_serve::Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        axum_server::bind("127.0.0.1:6666".parse().unwrap())
+        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

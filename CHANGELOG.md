@@ -5,6 +5,9 @@
 - Progress reporters will be called (and the progress bar updated) more frequently, and more
   reliably when segment sizes are small and network speeds are high (suggestion from @filiptibell).
 
+- Update protobuf-src which was causing builds to fail, and move to current versions of crates in
+  the axum ecosystem used for tests.
+
 
 ## [0.16.5] - 2024-06-22
 
