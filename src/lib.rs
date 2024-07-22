@@ -85,7 +85,7 @@ use crate::scte35::{Signal, SpliceInfoSection};
 use crate::libav::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
-use lazy_static::lazy_static;
+use std::cell::OnceCell;
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
 use serde_with::skip_serializing_none;
@@ -96,20 +96,6 @@ use url::Url;
 #[allow(unused_imports)]
 use tracing::warn;
 
-// Regular Expression used for parsing the XsDuration, compiled once
-// TODO: replace with std::cell::OnceCell (MSRV 1.70)
-lazy_static! {
-    static ref XS_DURATION_REGEX: Regex = Regex::new(concat!(r"^(?P<sign>[+-])?P",
-                                r"(?:(?P<years>\d+)Y)?",
-                                r"(?:(?P<months>\d+)M)?",
-                                r"(?:(?P<weeks>\d+)W)?",
-                                r"(?:(?P<days>\d+)D)?",
-                                r"(?:(?P<hastime>T)", // time part must begin with a T
-                                r"(?:(?P<hours>\d+)H)?",
-                                r"(?:(?P<minutes>\d+)M)?",
-                                r"(?:(?P<seconds>\d+)(?:(?P<nanoseconds>[.,]\d+)?)S)?",
-                                r")?")).unwrap();
-}
 
 /// Type representing an xs:dateTime, as per <https://www.w3.org/TR/xmlschema-2/#dateTime>
 // Something like 2021-06-03T13:00:00Z or 2022-12-06T22:27:53
@@ -197,8 +183,20 @@ where
 // std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H".
 fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
     use std::cmp::min;
-    
-    match XS_DURATION_REGEX.captures(s) {
+    let xs_duration_regex = OnceCell::new();
+
+    match xs_duration_regex.get_or_init(
+        || Regex::new(concat!(r"^(?P<sign>[+-])?P",
+                              r"(?:(?P<years>\d+)Y)?",
+                              r"(?:(?P<months>\d+)M)?",
+                              r"(?:(?P<weeks>\d+)W)?",
+                              r"(?:(?P<days>\d+)D)?",
+                              r"(?:(?P<hastime>T)", // time part must begin with a T
+                              r"(?:(?P<hours>\d+)H)?",
+                              r"(?:(?P<minutes>\d+)M)?",
+                              r"(?:(?P<seconds>\d+)(?:(?P<nanoseconds>[.,]\d+)?)S)?",
+                              r")?")).unwrap()).captures(s)
+    {
         Some(m) => {
             if m.name("hastime").is_none() &&
                m.name("years").is_none() &&
