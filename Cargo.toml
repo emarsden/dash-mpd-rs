@@ -19,7 +19,7 @@ serde = { version = "1.0.204", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.8.3", features = ["base64"] }
-quick-xml = { version = "0.36.0", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.36.1", features = ["serialize", "overlapped-lists"] }
 url = "2.5.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 num-traits = "0.2.19"
@@ -31,7 +31,7 @@ tracing = { version = "0.1.40", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
 bytes = "1.6.1"
 reqwest = { version = "0.12.5", default-features = false, features = ["cookies"], optional = true }
-tokio = { version = "1.38.1", features = ["rt-multi-thread", "time", "macros"], optional = true }
+tokio = { version = "1.39.1", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.6.3", optional = true }
 xmltree = { version = "0.10.3", optional = true }
@@ -53,7 +53,7 @@ colored = "2.1.0"
 indicatif = "0.17.8"
 # We pin to this version because the latest versions require a bleeding edge Rust toolchain.
 clap = "=4.3.24"
-tokio = { version = "1.38.1", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.39.1", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 test-log = { version = "0.2.16", features = ["trace"] }
 http = "1.1.0"
