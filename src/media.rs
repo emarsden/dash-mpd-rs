@@ -100,15 +100,14 @@ fn video_container_metainfo(path: &PathBuf) -> Result<VideoMetainfo, DashMpdErro
                 return Err(DashMpdError::Muxing(String::from("reading video resolution")));
             }
             if let Some(s) = &meta.streams.iter().find(|s| s.width.is_some() && s.height.is_some()) {
-                if let Some(fr) = parse_frame_rate(&s.avg_frame_rate) {
+                if let Some(frame_rate) = parse_frame_rate(&s.avg_frame_rate) {
                     let sar = s.sample_aspect_ratio.as_ref()
                         .and_then(|sr| parse_aspect_ratio(sr));
-                    return Ok(VideoMetainfo {
-                        width: s.width.unwrap(),
-                        height: s.height.unwrap(),
-                        frame_rate: fr,
-                        sar,
-                    });
+                    if let Some(width) = s.width {
+                        if let Some(height) = s.height {
+                            return Ok(VideoMetainfo { width, height, frame_rate, sar });
+                        }
+                    }
                 }
             }
         },

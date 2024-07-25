@@ -15,10 +15,10 @@ use std::process::Command;
 use fs_err as fs;
 use fs::File;
 use tracing::{trace, info, warn};
+use extrasafe::isolate::Isolate;
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
-
 
 
 
@@ -1057,9 +1057,11 @@ pub(crate) fn concat_output_files_mkvmerge(
     args.push(&out);
     args.push("[");
     args.push(tmppath);
-    for p in &paths[1..] {
-        if let Some(ps) = p.to_str() {
-            args.push(ps);
+    if let Some(inpaths) = paths.get(1..) {
+        for p in inpaths {
+            if let Some(ps) = p.to_str() {
+                args.push(ps);
+            }
         }
     }
     args.push("]");
@@ -1185,7 +1187,7 @@ mod tests {
     #[test]
     fn test_concat() {
         use crate::fetch::DashDownloader;
-        use image::io::Reader as ImageReader;
+        use image::ImageReader;
         use image::Rgb;
 
         let tmpd = tempfile::tempdir().unwrap();

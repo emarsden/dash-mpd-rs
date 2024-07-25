@@ -1030,8 +1030,10 @@ fn select_preferred_adaptations<'a>(
             .collect();
         let min_distance = distance.iter().min().unwrap_or(&0);
         for (i, a) in adaptations.iter().enumerate() {
-            if distance[i] == *min_distance {
-                preferred.push(a);
+            if let Some(di) = distance.get(i) {
+                if di == min_distance {
+                    preferred.push(a);
+                }
             }
         }
     } else {
@@ -1048,8 +1050,10 @@ fn select_preferred_adaptations<'a>(
     let role_distance_min = role_distance.iter().min().unwrap_or(&0);
     let mut best = Vec::new();
     for (i, a) in preferred.into_iter().enumerate() {
-        if role_distance[i] == *role_distance_min {
-            best.push(a);
+        if let Some(rdi) = role_distance.get(i) {
+            if rdi == role_distance_min {
+                best.push(a);
+            }
         }
     }
     best
@@ -1086,10 +1090,13 @@ fn select_preferred_representation<'a>(
                             .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
                             .collect();
                         ranking.sort_unstable();
-                        let want_ranking = ranking.get(count / 2).unwrap();
-                        representations.iter()
-                            .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
-                            .copied()
+                        if let Some(want_ranking) = ranking.get(count / 2) {
+                            representations.iter()
+                                .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                                .copied()
+                        } else {
+                            representations.get(0).copied()
+                        }
                     },
                 }
             },
@@ -1113,10 +1120,13 @@ fn select_preferred_representation<'a>(
                             .map(|r| r.bandwidth.unwrap_or(100_000_000))
                             .collect();
                         ranking.sort_unstable();
-                        let want_ranking = ranking.get(count / 2).unwrap();
-                        representations.iter()
-                            .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
-                            .copied()
+                        if let Some(want_ranking) = ranking.get(count / 2) {
+                            representations.iter()
+                                .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                                .copied()
+                        } else {
+                            representations.get(0).copied()
+                        }
                     },
                 }
             },
@@ -1276,8 +1286,9 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
             }
             let start = offset - 4;
             let end = start + segment_first_bytes[offset-1] as usize;
-            let pssh = &segment_first_bytes[start..end];
-            return Some(pssh.to_vec());
+            if let Some(pssh) = &segment_first_bytes.get(start..end) {
+                return Some(pssh.to_vec());
+            }
         }
     }
     None
