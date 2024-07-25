@@ -15,7 +15,6 @@ use std::process::Command;
 use fs_err as fs;
 use fs::File;
 use tracing::{trace, info, warn};
-use extrasafe::isolate::Isolate;
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
