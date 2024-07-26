@@ -1611,6 +1611,8 @@ pub struct Period {
     pub supplemental_property: Vec<SupplementalProperty>,
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
+    #[serde(rename = "Preselection")]
+    pub pre_selections: Vec<Preselection>,
 }
 
 #[skip_serializing_none]
