@@ -48,7 +48,7 @@ fn check_frame_color(video: &Path, timestamp: &str, expected_rgb: &[u8; 3]) {
         eprintln!("ffmpeg stderr: {stderr}");
     }
     assert!(ffmpeg.status.success());
-    let img = image::io::Reader::open(out.path())
+    let img = image::ImageReader::open(out.path())
         .unwrap().decode().unwrap();
     // We are satisfied with a simple non-perceptual distance in RGB color space here.
     for (_x, _y, rgba) in img.pixels() {
