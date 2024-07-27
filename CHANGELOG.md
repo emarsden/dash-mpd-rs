@@ -1,12 +1,14 @@
 # Changelog
 
-## [0.16.6] - Unreleased
+## [0.16.6] - 2024-07-27
 
 - Progress reporters will be called (and the progress bar updated) more frequently, and more
   reliably when segment sizes are small and network speeds are high (suggestion from @filiptibell).
 
 - Update protobuf-src which was causing builds to fail, and move to current versions of crates in
   the axum ecosystem used for tests.
+
+- `Period` elements can contain a `Preselection` element (from @sbuzzard).
 
 
 ## [0.16.5] - 2024-06-22

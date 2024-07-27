@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.16.5"
+version = "0.16.6"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -42,9 +42,9 @@ colored = { version = "2.1.0", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
 ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.25.0", features = ["reader"], optional = true }
-bstr = { version = "1.9.1", optional = true }
+bstr = { version = "1.10.0", optional = true }
 hex-literal = { version = "0.4.1", optional = true }
-pssh-box = { version = "0.1.7", optional = true }
+pssh-box = { version = "0.1.8", optional = true }
 
 [dev-dependencies]
 sha2 = "0.10.8"

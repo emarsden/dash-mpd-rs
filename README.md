@@ -63,8 +63,8 @@ default configuration (using an external application as a subprocess).
 
 ## DASH features supported
 
-- **Multi-period** content. The media in the different streams will be saved in a single media container
-  if the formats are compatible (same resolution, codecs, bitrate and so on) and
+- **Multi-period** content. The media in the different streams will be saved in a single media
+  container if the formats are compatible (same resolution, codecs, bitrate and so on) and
   `concatenate_periods(false)` has not been called on DashDownloader, and otherwise in separate
   media containers.
 
@@ -249,14 +249,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.16.4"
+dash-mpd = "0.16.6"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.16.4", default-features = false }
+dash-mpd = { version = "0.16.6", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -324,7 +324,7 @@ This crate is tested on the following platforms:
   utility applications we use for muxing or decrypting media content are poorly supported on
   these platforms.
 
-- Solaris 11.4 on AMD64 and Sparc (you will probably need to set `CC` to gcc to build the protobuf crate).
+- Solaris 11.4 on AMD64 and Sparc (you will probably need to set `CC` to gcc to build the protobuf-src crate).
 
 
 ## Why?
@@ -343,4 +343,4 @@ intellectual property laws. Also, circumventing DRM may be prohibited in some co
 
 This project is licensed under the MIT license. For more information, see the `LICENSE-MIT` file.
 
-Pull requests are welcome.
+Patches and pull requests are welcome.
