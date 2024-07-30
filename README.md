@@ -117,6 +117,10 @@ default configuration (using an external application as a subprocess).
 
 - No support for XLink with actuate=onRequest semantics.
 
+- HLS streaming (m3u8 manifests).
+
+- Microsoft Smooth Streaming.
+
 
 ## Priority of different stream preference options
 
