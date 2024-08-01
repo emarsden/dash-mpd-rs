@@ -1095,7 +1095,7 @@ fn select_preferred_representation<'a>(
                                 .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
                                 .copied()
                         } else {
-                            representations.get(0).copied()
+                            representations.first().copied()
                         }
                     },
                 }
@@ -1125,7 +1125,7 @@ fn select_preferred_representation<'a>(
                                 .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
                                 .copied()
                         } else {
-                            representations.get(0).copied()
+                            representations.first().copied()
                         }
                     },
                 }
