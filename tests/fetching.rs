@@ -15,6 +15,7 @@
 pub mod common;
 use fs_err as fs;
 use std::env;
+use std::process::Command;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use test_log::test;
@@ -374,7 +375,7 @@ async fn test_dl_vp9_uhd() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-// H.266/VVC codec. ffmpeg v6.0 is not able to place this video stream in an MP4 container, but
+// H.266/VVC codec. ffmpeg v7.0 is not able to place this video stream in an MP4 container, but
 // muxing to Matroska with mkvmerge works. Neither mplayer nor VLC can play the video.
 #[test(tokio::test)]
 #[cfg(not(feature = "libav"))]
@@ -392,13 +393,22 @@ async fn test_dl_vvc() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 9_311_029);
-    let meta = ffprobe(out).unwrap();
-    let video = meta.streams.iter()
-        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
-        .expect("finding video stream");
-    // This codec is not recognized by ffprobe v6.0
+    // ffprobe is not able to read metainformation on the video (it panics)
+    // let meta = ffprobe(out).unwrap();
+    // let video = meta.streams.iter()
+    //     .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+    //     .expect("finding video stream");
     // assert_eq!(video.codec_name, Some(String::from("vvc1")));
-    assert_eq!(video.width, Some(384));
+    // assert_eq!(video.width, Some(384));
+    let mkvinfo = Command::new("mkvinfo")
+        .env("LANG", "C")
+        .arg(out)
+        .output()
+        .expect("spawning mkvinfo");
+    assert!(mkvinfo.status.success());
+    let stdout = String::from_utf8_lossy(&mkvinfo.stdout);
+    assert!(stdout.contains("Codec ID: V_QUICKTIME"));
+    assert!(stdout.contains("Display width: 384"));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
