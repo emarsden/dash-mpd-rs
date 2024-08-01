@@ -208,8 +208,9 @@ fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
             let mut secs: u64 = 0;
             let mut nsecs: u32 = 0;
             if let Some(nano) = m.name("nanoseconds") {
-                // We drop the initial "." and limit precision
-                let lim = min(nano.as_str().len(), 9);
+                // We drop the initial "." and limit precision in the fractional seconds to 9 digits
+                // (nanosecond precision)
+                let lim = min(nano.as_str().len(), 9 + ".".len());
                 if let Some(ss) = &nano.as_str().get(1..lim) {
                     let padded = format!("{ss:0<9}");
                     nsecs = padded.parse::<u32>()
@@ -2481,6 +2482,11 @@ mod tests {
         assert_eq!(parse_xs_duration("PT10M10S").ok(), Some(Duration::new(610, 0)));
         assert_eq!(parse_xs_duration("PT1H0.040S").ok(), Some(Duration::new(3600, 40_000_000)));
         assert_eq!(parse_xs_duration("PT00H03M30SZ").ok(), Some(Duration::new(210, 0)));
+        assert_eq!(parse_xs_duration("PT3.14159S").ok(), Some(Duration::new(3, 141_590_000)));
+        assert_eq!(parse_xs_duration("PT3.14159265S").ok(), Some(Duration::new(3, 141_592_650)));
+        assert_eq!(parse_xs_duration("PT3.141592653S").ok(), Some(Duration::new(3, 141_592_653)));
+        // We are truncating rather than rounding the number of nanoseconds
+        assert_eq!(parse_xs_duration("PT3.141592653897S").ok(), Some(Duration::new(3, 141_592_653)));
         assert_eq!(parse_xs_duration("P0W").ok(), Some(Duration::new(0, 0)));
         assert_eq!(parse_xs_duration("P26W").ok(), Some(Duration::new(15724800, 0)));
         assert_eq!(parse_xs_duration("P52W").ok(), Some(Duration::new(31449600, 0)));
