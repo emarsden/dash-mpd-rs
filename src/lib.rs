@@ -1578,40 +1578,55 @@ pub struct Subset {
 pub struct Period {
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    pub BaseURL: Vec<BaseURL>,
+
     /// The start time of the Period relative to the MPD availability start time.
     #[serde(rename = "@start",
             serialize_with = "serialize_xs_duration",
             deserialize_with = "deserialize_xs_duration",
             default)]
     pub start: Option<Duration>,
+
     // note: the spec says that this is an xs:duration, not an unsigned int as for other "duration" fields
     #[serde(rename = "@duration",
             serialize_with = "serialize_xs_duration",
             deserialize_with = "deserialize_xs_duration",
             default)]
     pub duration: Option<Duration>,
+
     #[serde(rename = "@bitstreamSwitching")]
     pub bitstreamSwitching: Option<bool>,
+
     /// A "remote resource", following the XML Linking Language (XLink) specification.
     #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
+
     #[serde(rename = "@xlink:actuate", alias = "@actuate")]
     pub actuate: Option<String>,
-    pub SegmentTemplate: Option<SegmentTemplate>,
-    pub ContentProtection: Vec<ContentProtection>,
-    #[serde(rename = "AdaptationSet")]
-    pub adaptations: Vec<AdaptationSet>,
-    #[serde(rename = "Subset")]
-    pub subsets: Vec<Subset>,
-    #[serde(rename = "AssetIdentifier")]
-    pub asset_identifier: Option<AssetIdentifier>,
-    #[serde(rename = "EventStream")]
-    pub event_streams: Vec<EventStream>,
-    #[serde(rename = "SupplementalProperty")]
-    pub supplemental_property: Vec<SupplementalProperty>,
+
+    pub BaseURL: Vec<BaseURL>,
+
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
+
+    pub SegmentTemplate: Option<SegmentTemplate>,
+
+    #[serde(rename = "AssetIdentifier")]
+    pub asset_identifier: Option<AssetIdentifier>,
+
+    #[serde(rename = "EventStream")]
+    pub event_streams: Vec<EventStream>,
+
+    pub ContentProtection: Vec<ContentProtection>,
+
+    #[serde(rename = "AdaptationSet")]
+    pub adaptations: Vec<AdaptationSet>,
+
+    #[serde(rename = "Subset")]
+    pub subsets: Vec<Subset>,
+
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+
     #[serde(rename = "Preselection")]
     pub pre_selections: Vec<Preselection>,
 }
@@ -1853,27 +1868,27 @@ pub struct MPD {
             deserialize_with = "deserialize_xs_datetime",
             default)]
     pub availabilityEndTime: Option<XsDatetime>,
+    pub ProgramInformation: Option<ProgramInformation>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
     pub base_url: Vec<BaseURL>,
-    #[serde(rename = "Period", default)]
-    pub periods: Vec<Period>,
     #[serde(rename = "Location", default)]
     pub locations: Vec<Location>,
     /// Specifies the location of an MPD “patch document”, a set of instructions for replacing
     /// certain parts of the MPD manifest with updated information.
     pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,
-    pub ProgramInformation: Option<ProgramInformation>,
+    pub ContentProtection: Vec<ContentProtection>,
+    #[serde(rename = "Period", default)]
+    pub periods: Vec<Period>,
     pub Metrics: Vec<Metrics>,
-    pub UTCTiming: Vec<UTCTiming>,
-    /// Correction for leap seconds, used by the DASH Low Latency specification.
-    pub LeapSecondInformation: Option<LeapSecondInformation>,
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
-    pub ContentProtection: Vec<ContentProtection>,
+    pub UTCTiming: Vec<UTCTiming>,
+    /// Correction for leap seconds, used by the DASH Low Latency specification.
+    pub LeapSecondInformation: Option<LeapSecondInformation>,
 }
 
 impl std::fmt::Display for MPD {
