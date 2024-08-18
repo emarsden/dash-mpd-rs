@@ -221,6 +221,34 @@ async fn test_dl_dolby_ac4_mkv() {
 }
 
 
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_sessionid() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://cf-sf-video.wmspanel.com/local/raw/BigBuckBunny_320x180.mp4/manifest.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("bunny-small.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 64_617_930);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // As of 2023-10, ffmpeg v6.0 (https://trac.ffmpeg.org/ticket/8349) and VLC v3.0.18 are unable to
 // mux this Dolby AC-4 audio stream into an MP4 container, nor to play the content. mp4box is able
 // to mux it into an MP4 container.
