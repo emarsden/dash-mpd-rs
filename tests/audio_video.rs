@@ -158,8 +158,11 @@ async fn test_dl_cea608_captions_slow() {
 // check that when selecting the video stream to download (criterion = lowest bandwidth), we are
 // analyzing all Representation elements in the manifest, and not just the Representations in the
 // first AdaptationSet.
+
+// The MPD URL generates an HTTP 403 error from 2024-08.
+#[ignore]
 #[test(tokio::test)]
-async fn test_dl_video_stream_selection() {
+async fn test_dl_video_stream_selection_defunct() {
     if env::var("CI").is_ok() {
         return;
     }
@@ -177,6 +180,37 @@ async fn test_dl_video_stream_selection() {
     assert_eq!(meta.streams.len(), 2);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
+    // This manifest contains a video AdaptationSet with codec of hevc and another with codec vp9
+    // with exactly the same bandwidth, so we could chose either one.
+    assert!(video.codec_name.eq(&Some(String::from("hevc"))) ||
+            video.codec_name.eq(&Some(String::from("vp9"))));
+    assert_eq!(video.width, Some(480));
+}
+
+
+async fn test_dl_video_stream_selection() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://quick.vidalytics.com/video/o8U49vKp/jyXxbwOZnoHv2EI8/15032/10315/stream.mpd";
+    let out = env::temp_dir().join("vidalytics-multiple-video-adaptations.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(2)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 8_392_620);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
     // This manifest contains a video AdaptationSet with codec of hevc and another with codec vp9
     // with exactly the same bandwidth, so we could chose either one.
     assert!(video.codec_name.eq(&Some(String::from("hevc"))) ||
