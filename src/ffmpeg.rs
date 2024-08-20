@@ -14,12 +14,29 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use fs_err as fs;
 use fs::File;
+use ffprobe::ffprobe;
 use tracing::{trace, info, warn};
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
 
 
+fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
+    match ffprobe(input) {
+        Ok(info) => if let Some(st) = info.format.start_time {
+            Ok(st.parse::<f64>()
+                .map_err(|_| DashMpdError::Io(
+                    io::Error::new(io::ErrorKind::Other, "reading start_time"),
+                    String::from("")))?)
+        } else {
+            Ok(0.0)
+        },
+        Err(e) => {
+            warn!("Error probing metadata: {e:?}");
+            Ok(0.0)
+        },
+    }
+}
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
 #[tracing::instrument(level="trace", skip(downloader))]
@@ -60,21 +77,54 @@ fn mux_audio_video_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    let mut audio_delay = 0.0;
+    let mut video_delay = 0.0;
+    if let Ok(audio_start_time) = ffprobe_start_time(audio_path) {
+        if let Ok(video_start_time) = ffprobe_start_time(video_path) {
+            if audio_start_time > video_start_time {
+                video_delay = audio_start_time - video_start_time;
+            } else {
+                audio_delay = video_start_time - audio_start_time;
+            }
+        }
+    }
+    let mut args = vec![
+        "-hide_banner",
+        "-nostats",
+        "-loglevel", "error",  // or "warning", "info"
+        "-y",  // overwrite output file if it exists
+        "-nostdin"];
+    let ad = format!("{}", audio_delay);
+    if audio_delay > 0.001 {
+        // "-itsoffset", &format!("{}", audio_delay),
+        args.push("-ss");
+        args.push(&ad);
+    }
+    args.push("-i");
+    args.push(audio_str);
+    let vd = format!("{}", video_delay);
+    if video_delay > 0.001 {
+        // "-itsoffset", &format!("{}", video_delay),
+        args.push("-ss");
+        args.push(&vd);
+    }
+    args.push("-i");
+    args.push(video_str);
+    args.push("-c:v");
+    args.push("copy");
+    args.push("-c:a");
+    args.push("copy");
+    args.push("-movflags");
+    args.push("faststart");
+    args.push("-preset");
+    args.push("veryfast");
+    // select the muxer explicitly (debatable whether this is better than ffmpeg's
+    // heuristics based on output filename)
+    args.push("-f");
+    args.push(muxer);
+    args.push(tmppath);
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(["-hide_banner",
-               "-nostats",
-               "-loglevel", "error",  // or "warning", "info"
-               "-y",  // overwrite output file if it exists
-               "-nostdin",
-               "-i", audio_str,
-               "-i", video_str,
-               "-c:v", "copy",
-               "-c:a", "copy",
-               "-movflags", "faststart", "-preset", "veryfast",
-               // select the muxer explicitly (debatable whether this is better than ffmpeg's
-               // heuristics based on output filename)
-               "-f", muxer,
-               tmppath])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
@@ -108,19 +158,37 @@ fn mux_audio_video_ffmpeg(
     // VP9 or AV1 codecs and Vorbis or Opus audio codecs. (Unfortunately, ffmpeg doesn't seem to
     // return a recognizable error message in this specific case.)  So we try invoking ffmpeg again,
     // this time allowing reencoding.
+    let mut args = vec![
+        "-hide_banner",
+        "-nostats",
+        "-loglevel", "error",  // or "warning", "info"
+        "-y",  // overwrite output file if it exists
+        "-nostdin"];
+    let ad = format!("{}", audio_delay);
+    if audio_delay > 0.001 {
+        args.push("-itsoffset");
+        args.push(&ad);
+    }
+    args.push("-i");
+    args.push(audio_str);
+    let vd = format!("{}", video_delay);
+    if video_delay > 0.001 {
+        args.push("-itsoffset");
+        args.push(&vd);
+    }
+    args.push("-i");
+    args.push(video_str);
+    args.push("-movflags");
+    args.push("faststart");
+    args.push("-preset");
+    args.push("veryfast");
+    // select the muxer explicitly (debatable whether this is better than ffmpeg's heuristics based
+    // on output filename)
+    args.push("-f");
+    args.push(muxer);
+    args.push(tmppath);
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(["-hide_banner",
-               "-nostats",
-               "-loglevel", "error",  // or "warning", "info"
-               "-y", // overwrite output file if it exists
-               "-nostdin",
-               "-i", audio_str,
-               "-i", video_str,
-               "-movflags", "faststart", "-preset", "veryfast",
-               // select the muxer explicitly (debatable whether this is better than ffmpeg's
-               // heuristics based on output filename)
-               "-f", muxer,
-               tmppath])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
@@ -895,7 +963,9 @@ pub(crate) fn concat_output_files_ffmpeg(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
-    assert!(paths.len() >= 2);
+    if paths.len() < 2 {
+        return Err(DashMpdError::Muxing(String::from("need at least two files")));
+    }
     let container = match paths[0].extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -969,7 +1039,9 @@ pub(crate) fn concat_output_files_mp4box(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
-    assert!(paths.len() >= 2);
+    if paths.len() < 2 {
+        return Err(DashMpdError::Muxing(String::from("need at least two files")));
+    }
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(".mp4")
@@ -1029,7 +1101,9 @@ pub(crate) fn concat_output_files_mkvmerge(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
-    assert!(paths.len() >= 2);
+    if paths.len() < 2 {
+        return Err(DashMpdError::Muxing(String::from("need at least two files")));
+    }
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(".mkv")

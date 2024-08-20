@@ -1,5 +1,21 @@
 # Changelog
 
+
+## [0.17.0] - Unreleased
+
+- Serialization to XML: fix the ordering of elements in `MPD` and `Period` elements to match those
+  of the DASH specification. Most parsers and consumers of DASH manifests will not be affected by
+  this change, but we have updated the y component in our x.y.z semantic versioning nonetheless.
+
+- Parsing xs_duration: truncate nanoseconds to 9 rather than 8 digits of precision. Bug noted by
+  @sbuzzard.
+
+- Downloading: when the audio and video tracks are unsynchronized due to a difference in their
+  startTime attribute, we attempt to fix this desynchronization during muxing. This is a rare
+  problem in the wild and has not been heavily tested. The fix is currently only implemented when
+  using ffmpeg as a muxer application (uses the `-itsoffset` commandline option).
+
+
 ## [0.16.6] - 2024-07-27
 
 - Progress reporters will be called (and the progress bar updated) more frequently, and more
