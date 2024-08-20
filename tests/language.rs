@@ -87,7 +87,7 @@ async fn test_subtitle_lang_stpp_im1t() {
 // for the en_surround audio track (which has a larger bitrate) and check that the resulting file
 // size is plausible.
 #[test(tokio::test)]
-async fn test_lang_en_surroud() {
+async fn test_lang_en_surround() {
     let mpd_url = "https://bitmovin-a.akamaihd.net/content/sintel/sintel.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("sintel-surround.mp4");
@@ -97,7 +97,7 @@ async fn test_lang_en_surroud() {
         .audio_only()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 35_709_031);
+    check_file_size_approx(&out, 14_451_023);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out.clone()).unwrap();

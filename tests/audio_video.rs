@@ -188,6 +188,7 @@ async fn test_dl_video_stream_selection_defunct() {
 }
 
 
+#[test(tokio::test)]
 async fn test_dl_video_stream_selection() {
     if env::var("CI").is_ok() {
         return;
