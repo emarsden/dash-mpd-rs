@@ -15,12 +15,12 @@ edition = "2021"
 base64 = "0.22.1"
 base64-serde = "0.7.0"
 lazy_static = "1.5.0"
-serde = { version = "1.0.206", features = ["derive"] }
+serde = { version = "1.0.208", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.9.0", features = ["base64"] }
 quick-xml = { version = "0.36.1", features = ["serialize", "overlapped-lists"] }
-url = "2.5.1"
+url = "2.5.2"
 chrono = { version = "0.4.38", features = ["serde"] }
 num-traits = "0.2.19"
 iso8601 = "0.6.1"
@@ -30,8 +30,8 @@ fs-err = "2.11.0"
 tracing = { version = "0.1.40", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
 bytes = "1.7.1"
-reqwest = { version = "0.12.5", default-features = false, features = ["cookies"], optional = true }
-tokio = { version = "1.39.2", features = ["rt-multi-thread", "time", "macros"], optional = true }
+reqwest = { version = "0.12.7", default-features = false, features = ["cookies"], optional = true }
+tokio = { version = "1.39.3", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.6.3", optional = true }
 xmltree = { version = "0.10.3", optional = true }
@@ -44,7 +44,7 @@ ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.25.0", features = ["reader"], optional = true }
 bstr = { version = "1.10.0", optional = true }
 hex-literal = { version = "0.4.1", optional = true }
-pssh-box = { version = "0.1.8", optional = true }
+pssh-box = { version = "0.1.9", optional = true }
 
 [dev-dependencies]
 sha2 = "0.10.8"
@@ -52,8 +52,8 @@ hex-literal = "0.4.1"
 colored = "2.1.0"
 indicatif = "0.17.8"
 # We pin to this version because the latest versions require a bleeding edge Rust toolchain.
-clap = "=4.3.24"
-tokio = { version = "1.39.2", features = ["rt-multi-thread", "time", "macros"] }
+clap = "=4.4.18"
+tokio = { version = "1.39.3", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 test-log = { version = "0.2.16", features = ["trace"] }
 http = "1.1.0"
@@ -61,14 +61,14 @@ axum = "0.7.5"
 hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
-reqwest = { version = "0.12.5", default-features = false, features = ["cookies", "json"] }
-serde_json = "1.0.124"
+reqwest = { version = "0.12.7", default-features = false, features = ["cookies", "json"] }
+serde_json = "1.0.125"
 anyhow = "1.0.86"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
 json = "0.12.4"
 mp4 = "0.14.0"
-image = "0.25.1"
+image = "0.25.2"
 pretty_assertions = "1.4.0"
 approx = "0.5.1"
 
