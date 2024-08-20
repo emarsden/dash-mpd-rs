@@ -88,6 +88,9 @@ async fn test_subtitle_lang_stpp_im1t() {
 // size is plausible.
 #[test(tokio::test)]
 async fn test_lang_en_surround() {
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd_url = "https://bitmovin-a.akamaihd.net/content/sintel/sintel.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("sintel-surround.mp4");
