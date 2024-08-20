@@ -1879,14 +1879,15 @@ async fn do_period_audio(
                     let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
-                } else if !audio_repr.BaseURL.is_empty() {
-                    let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
+                } else if let Some(bu) = audio_repr.BaseURL.first() {
+                    let u = merge_baseurls(&base_url, &bu.base)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 }
             }
         } else if audio_repr.SegmentTemplate.is_some() ||
-            audio_adaptation.SegmentTemplate.is_some() {
+            audio_adaptation.SegmentTemplate.is_some()
+        {
             // Here we are either looking at a Representation.SegmentTemplate, or a
             // higher-level AdaptationSet.SegmentTemplate
             let st;
@@ -2075,14 +2076,16 @@ async fn do_period_audio(
                 is_init: true,
             };
             fragments.push(mf);
-        } else if fragments.is_empty() && !audio_repr.BaseURL.is_empty() {
-            // (6) plain BaseURL addressing mode
-            if downloader.verbosity > 1 {
-                info!("  {}", "Using BaseURL addressing mode for audio representation".italic());
+         } else if fragments.is_empty() {
+            if let Some(bu) = audio_repr.BaseURL.first() {
+                // (6) plain BaseURL addressing mode
+                if downloader.verbosity > 1 {
+                    info!("  {}", "Using BaseURL addressing mode for audio representation".italic());
+                }
+                let u = merge_baseurls(&base_url, &bu.base)?;
+                let mf = make_fragment(period_counter, u, None, None);
+                fragments.push(mf);
             }
-            let u = merge_baseurls(&base_url, &audio_repr.BaseURL[0].base)?;
-            let mf = make_fragment(period_counter, u, None, None);
-            fragments.push(mf);
         }
         if fragments.is_empty() {
             return Err(DashMpdError::UnhandledMediaStream(
@@ -2214,8 +2217,8 @@ async fn do_period_video(
                 }
             }
         }
-        if !video_repr.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+        if let Some(bu) = video_repr.BaseURL.first() {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         let mut dict = HashMap::new();
         if let Some(rid) = &video_repr.id {
@@ -2345,8 +2348,8 @@ async fn do_period_video(
                     let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
-                } else if !video_repr.BaseURL.is_empty() {
-                    let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
+                } else if let Some(bu) = video_repr.BaseURL.first() {
+                    let u = merge_baseurls(&base_url, &bu.base)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 }
@@ -2531,14 +2534,16 @@ async fn do_period_video(
                     is_init: true
                 };
                 fragments.push(mf);
-            } else if fragments.is_empty() && !video_repr.BaseURL.is_empty() {
-                // (6) BaseURL addressing mode
-                if downloader.verbosity > 1 {
-                    info!("  {}", "Using BaseURL addressing mode for video representation".italic());
+            } else if fragments.is_empty()  {
+                if let Some(bu) = video_repr.BaseURL.first() {
+                    // (6) BaseURL addressing mode
+                    if downloader.verbosity > 1 {
+                        info!("  {}", "Using BaseURL addressing mode for video representation".italic());
+                    }
+                    let u = merge_baseurls(&base_url, &bu.base)?;
+                    let mf = make_fragment(period_counter, u, None, None);
+                    fragments.push(mf);
                 }
-                let u = merge_baseurls(&base_url, &video_repr.BaseURL[0].base)?;
-                let mf = make_fragment(period_counter, u, None, None);
-                fragments.push(mf);
             }
         if fragments.is_empty() {
             return Err(DashMpdError::UnhandledMediaStream(
@@ -3925,8 +3930,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         let mut base_url = toplevel_base_url.clone();
         // A BaseURL could be specified for each Period
-        if !period.BaseURL.is_empty() {
-            base_url = merge_baseurls(&base_url, &period.BaseURL[0].base)?;
+        if let Some(bu) = period.BaseURL.first() {
+            base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         let mut audio_outputs = PeriodOutputs::default();
         if downloader.fetch_audio {
@@ -4141,7 +4146,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 }
             }
             concatenated = true;
-            maybe_record_metainformation(&period_output_paths[0], downloader, &mpd);
+            if let Some(pop) = period_output_paths.first() {
+                maybe_record_metainformation(&pop, downloader, &mpd);
+            }
         }
         if !concatenated {
             info!("Media content has been saved in a separate file for each period:");
