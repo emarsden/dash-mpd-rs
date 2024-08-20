@@ -99,7 +99,7 @@ async fn test_lang_en_surround() {
         .unwrap();
     check_file_size_approx(&out, 14_451_023);
     let format = FileFormat::from_file(out.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(out.clone()).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = meta.streams.iter()
