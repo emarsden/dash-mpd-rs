@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.17.0] - Unreleased
+## [0.17.0] - 2024-08-22
 
 - Serialization to XML: fix the ordering of elements in `MPD` and `Period` elements to match those
   of the DASH specification. Most parsers and consumers of DASH manifests will not be affected by
