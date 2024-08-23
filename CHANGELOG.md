@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [0.17.1] - Unreleased
+
+- Improvements to the handling of subtitles: we make additional efforts to extract STPP subtitles
+  from a sequence of fMP4 segments, as a .ttml file. ffmpeg does not currently seem to be able to
+  extract this in the more commonly supported SRT format. When saving to a Matroska container (.mkv
+  or .webm output files), we attempt to embed subtitle tracks with mkvmerge instead of with MP4Box
+  (which fails).
+
+
 ## [0.17.0] - 2024-08-22
 
 - Serialization to XML: fix the ordering of elements in `MPD` and `Period` elements to match those

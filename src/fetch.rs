@@ -1,9 +1,10 @@
 //! Support for downloading content from DASH MPD media streams.
 
+use std::io;
 use std::env;
 use fs_err as fs;
 use fs::File;
-use std::io::{Read, Write, BufWriter, Seek};
+use std::io::{Read, Write, Seek, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -32,6 +33,8 @@ use crate::{subtitle_type, content_protection_type, SubtitleType};
 use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
+#[cfg(not(feature = "libav"))]
+use crate::ffmpeg::temporary_outpath;
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -2644,9 +2647,10 @@ async fn do_period_subtitles(
                         if subtitle_formats.contains(&SubtitleType::Wvtt) ||
                             subtitle_formats.contains(&SubtitleType::Ttxt)
                         {
-                            info!("Converting subtitles to SRT format");
-                            let mut out = subs_path.clone();
-                            out.set_extension("srt");
+                            if downloader.verbosity > 0 {
+                                info!("   Converting subtitles to SRT format with MP4Box ");
+                            }
+                            let out = subs_path.with_extension("srt");
                             // We try to convert this to SRT format, which is more widely supported,
                             // using MP4Box. However, it's not a fatal error if MP4Box is not
                             // installed or the conversion fails.
@@ -2664,43 +2668,9 @@ async fn do_period_subtitles(
                                     info!("MP4Box stderr: {msg}");
                                 }
                                 if mp4box.status.success() {
-                                    info!("Converted subtitles to SRT");
+                                    info!("   Converted subtitles to SRT");
                                 } else {
                                     warn!("Error running MP4Box to convert subtitles");
-                                }
-                            }
-                        }
-                        // ffmpeg is able to extract the TTML-formatted data from the MP4 container,
-                        // but can't read the subtitles. VLC is able to TTML subtitles.
-                        if subtitle_formats.contains(&SubtitleType::Stpp) {
-                            info!("Converting STPP subtitles to TTML format");
-                            let mut out = subs_path.clone();
-                            out.set_extension("ttml");
-                            if let Ok(ffmpeg) = Command::new(downloader.ffmpeg_location.clone())
-                                .args(["-hide_banner",
-                                       "-nostats",
-                                       "-loglevel", "error",
-                                       "-y",  // overwrite output file if it exists
-                                       "-nostdin",
-                                       "-i", &subs_path.to_string_lossy(),
-                                       "-f", "data",
-                                       "-map", "0",
-                                       "-c", "copy",
-                                       &out.to_string_lossy()])
-                                .output()
-                            {
-                                let msg = partial_process_output(&ffmpeg.stdout);
-                                if msg.len() > 0 {
-                                    info!("ffmpeg stdout: {msg}");
-                                }
-                                let msg = partial_process_output(&ffmpeg.stderr);
-                                if msg.len() > 0 {
-                                    info!("ffmpeg stderr: {msg}");
-                                }
-                                if ffmpeg.status.success() {
-                                    info!("Converted subtitles to TTML format");
-                                } else {
-                                    warn!("Error running ffmpeg to convert subtitles");
                                 }
                             }
                         }
@@ -2791,8 +2761,8 @@ async fn do_period_subtitles(
                                 let u = merge_baseurls(&base_url, m)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
-                            } else if !subtitle_adaptation.BaseURL.is_empty() {
-                                let u = merge_baseurls(&base_url, &subtitle_adaptation.BaseURL[0].base)?;
+                            } else if let Some(bu) = subtitle_adaptation.BaseURL.first() {
+                                let u = merge_baseurls(&base_url, &bu.base)?;
                                 let mf = make_fragment(period_counter, u, start_byte, end_byte);
                                 fragments.push(mf);
                             }
@@ -3118,6 +3088,9 @@ async fn fetch_fragment(
             .error_for_status()
             .map_err(categorize_reqwest_error)
     };
+    // FIXME we should be tracking this in our DashDownloader, rather than here. If each fragment
+    // takes very little time to download, we will not be reporting recent bandwidth in a
+    // satisfactory manner.
     let mut bw_estimator_started = Instant::now();
     let mut bw_estimator_bytes = 0;
     match retry_notify(ExponentialBackoff::default(), send_request, notify_transient).await {
@@ -3627,7 +3600,7 @@ async fn fetch_period_subtitles(
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let client = downloader.http_client.clone().unwrap();
-   let start_download = Instant::now();
+    let start_download = Instant::now();
     let mut have_subtitles = false;
     {
         let tmpfile_subs = File::create(tmppath.clone())
@@ -3742,11 +3715,13 @@ async fn fetch_period_subtitles(
                       mbytes / elapsed.as_secs_f64());
             }
         }
+        // TODO: for subtitle_formats sub and srt we could also try to embed them in the output
+        // file, for example using MP4Box or mkvmerge
         if subtitle_formats.contains(&SubtitleType::Wvtt) ||
            subtitle_formats.contains(&SubtitleType::Ttxt)
         {
             // We can extract these from the MP4 container in .srt format, using MP4Box.
-            if downloader.verbosity > 1 {
+            if downloader.verbosity > 0 {
                 if let Some(fmt) = subtitle_formats.first() {
                     info!("  Downloaded media contains subtitles in {fmt:?} format");
                 }
@@ -3775,6 +3750,51 @@ async fn fetch_period_subtitles(
                 warn!("Failed to spawn MP4Box to extract subtitles");
             }
         }
+        if subtitle_formats.contains(&SubtitleType::Stpp) {
+            if downloader.verbosity > 0 {
+                info!("  Converting STPP subtitles to TTML format with ffmpeg");
+            }
+            let out = downloader.output_path.as_ref().unwrap()
+                .with_extension("ttml");
+            let tmppath_arg = &tmppath.to_string_lossy();
+            let out_arg = &out.to_string_lossy();
+            let ffmpeg_args = vec![
+                "-hide_banner",
+                "-nostats",
+                "-loglevel", "error",
+                "-y",  // overwrite output file if it exists
+                "-nostdin",
+                "-i", tmppath_arg,
+                "-f", "data",
+                "-map", "0",
+                "-c", "copy",
+                out_arg];
+            if downloader.verbosity > 0 {
+                info!("  Running ffmpeg {}", ffmpeg_args.join(" "));
+            }
+            if let Ok(ffmpeg) = Command::new(downloader.ffmpeg_location.clone())
+                .args(ffmpeg_args)
+                .output()
+            {
+                let msg = partial_process_output(&ffmpeg.stdout);
+                if msg.len() > 0 {
+                    info!("ffmpeg stdout: {msg}");
+                }
+                let msg = partial_process_output(&ffmpeg.stderr);
+                if msg.len() > 0 {
+                    info!("ffmpeg stderr: {msg}");
+                }
+                if ffmpeg.status.success() {
+                    info!("  Converted STPP subtitles to TTML format");
+                } else {
+                    warn!("Error running ffmpeg to convert subtitles");
+                }
+            }
+            // TODO: it would be useful to also convert the subtitles to SRT format, as that tends
+            // to be better supported. However, ffmpeg does not seem able to convert from SPTT to
+            // SRT formats. We could perhaps use the Python ttconv package.
+        }
+
     }
     Ok(have_subtitles)
 }
@@ -4060,33 +4080,102 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             }
             mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
             if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
-                if downloader.verbosity > 1 {
-                    if let Some(fmt) = &pd.subtitle_formats.first() {
-                        info!("  Downloaded media contains subtitles in {fmt:?} format");
+                let container = match &period_output_path.extension() {
+                    Some(ext) => ext.to_str().unwrap_or("mp4"),
+                    None => "mp4",
+                };
+                if container.eq("mp4") {
+                    if downloader.verbosity > 1 {
+                        if let Some(fmt) = &pd.subtitle_formats.first() {
+                            info!("  Downloaded media contains subtitles in {fmt:?} format");
+                        }
+                        info!("  Running MP4Box to merge subtitles with output MP4 container");
                     }
-                    info!("  {}", "Running MP4Box to merge subtitles with output file".italic());
-                }
-                // We can try to add the subtitles to the MP4 container, using MP4Box.
-                if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                    .args(["-add", &tmppath_subs.to_string_lossy(),
-                           &period_output_path.clone().to_string_lossy()])
-                    .output()
-                {
-                    let msg = partial_process_output(&mp4box.stdout);
-                    if msg.len() > 0 {
-                        info!("MP4Box stdout: {msg}");
-                    }
-                    let msg = partial_process_output(&mp4box.stderr);
-                    if msg.len() > 0 {
-                        info!("MP4Box stderr: {msg}");
-                    }
-                    if mp4box.status.success() {
-                        info!("  Merged subtitles with MP4 container");
+                    // We can try to add the subtitles to the MP4 container, using MP4Box. Only
+                    // works with MP4 containers.
+                    if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
+                        .args(["-add", &tmppath_subs.to_string_lossy(),
+                               &period_output_path.clone().to_string_lossy()])
+                        .output()
+                    {
+                        let msg = partial_process_output(&mp4box.stdout);
+                        if msg.len() > 0 {
+                            info!("MP4Box stdout: {msg}");
+                        }
+                        let msg = partial_process_output(&mp4box.stderr);
+                        if msg.len() > 0 {
+                            info!("MP4Box stderr: {msg}");
+                        }
+                        if mp4box.status.success() {
+                            info!("  Merged subtitles with MP4 container");
+                        } else {
+                            warn!("Error running MP4Box to merge subtitles");
+                        }
                     } else {
-                        warn!("Error running MP4Box to merge subtitles");
+                        warn!("Failed to spawn MP4Box to merge subtitles");
                     }
-                } else {
-                    warn!("Failed to spawn MP4Box to merge subtitles");
+                } else if container.eq("mkv") || container.eq("webm") {
+                    // Try using mkvmerge to add a subtitle track. mkvmerge does not seem to be able
+                    // to merge STPP subtitles, but can merge SRT if we have managed to convert
+                    // them.
+                    //
+                    // We mkvmerge to a temporary output file, and if the command succeeds we copy
+                    // that to the original output path. Note that mkvmerge on Windows is compiled
+                    // using MinGW and isn't able to handle native pathnames (for instance files
+                    // created with tempfile::Builder), so we use temporary_outpath() which will create a
+                    // temporary file in the current directory on Windows.
+                    //
+                    //    mkvmerge -o output.mkv input.mkv subs.srt
+                    let srt = period_output_path.with_extension("srt");
+                    if srt.exists() {
+                        if downloader.verbosity > 0 {
+                            info!("  Running mkvmerge to merge subtitles with output Matroska container");
+                        }
+                        let tmppath = temporary_outpath(".mkv")?;
+                        let pop_arg = &period_output_path.to_string_lossy();
+                        let srt_arg = &srt.to_string_lossy();
+                        let mkvmerge_args = vec!["-o", &tmppath, pop_arg, srt_arg];
+                        if downloader.verbosity > 0 {
+                            info!("  Running mkvmerge {}", mkvmerge_args.join(" "));
+                        }
+                        if let Ok(mkvmerge) = Command::new(downloader.mkvmerge_location.clone())
+                            .args(mkvmerge_args)
+                            .output()
+                        {
+                            let msg = partial_process_output(&mkvmerge.stdout);
+                            if msg.len() > 0 {
+                                info!("mkvmerge stdout: {msg}");
+                            }
+                            let msg = partial_process_output(&mkvmerge.stderr);
+                            if msg.len() > 0 {
+                                info!("mkvmerge stderr: {msg}");
+                            }
+                            if mkvmerge.status.success() {
+                                info!("  Merged subtitles with Matroska container");
+                                // Copy the output file from mkvmerge to the period_output_path
+                                // local scope so that tmppath is not busy on Windows and can be deleted
+                                {
+                                    let tmpfile = File::open(tmppath.clone())
+                                        .map_err(|e| DashMpdError::Io(
+                                            e, String::from("opening mkvmerge output")))?;
+                                    let mut merged = BufReader::new(tmpfile);
+                                    // This will truncate the period_output_path
+                                    let outfile = File::create(period_output_path.clone())
+                                        .map_err(|e| DashMpdError::Io(
+                                            e, String::from("creating output file")))?;
+                                    let mut sink = BufWriter::new(outfile);
+                                    io::copy(&mut merged, &mut sink)
+                                        .map_err(|e| DashMpdError::Io(
+                                            e, String::from("copying mkvmerge output to output file")))?;
+                                }
+	                        if let Err(e) = fs::remove_file(tmppath) {
+                                    warn!("Error deleting temporary mkvmerge output: {e}");
+                                }
+                            } else {
+                                warn!("Error running mkvmerge to merge subtitles");
+                            }
+                        }
+                    }
                 }
             }
         } else if have_audio {
@@ -4147,7 +4236,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             }
             concatenated = true;
             if let Some(pop) = period_output_paths.first() {
-                maybe_record_metainformation(&pop, downloader, &mpd);
+                maybe_record_metainformation(pop, downloader, &mpd);
             }
         }
         if !concatenated {
