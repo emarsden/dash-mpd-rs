@@ -15,7 +15,7 @@ edition = "2021"
 base64 = "0.22.1"
 base64-serde = "0.7.0"
 lazy_static = "1.5.0"
-serde = { version = "1.0.208", features = ["derive"] }
+serde = { version = "1.0.209", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.9.0", features = ["base64"] }
@@ -62,7 +62,7 @@ hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.7", default-features = false, features = ["cookies", "json"] }
-serde_json = "1.0.125"
+serde_json = "1.0.127"
 anyhow = "1.0.86"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
