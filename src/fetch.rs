@@ -33,7 +33,6 @@ use crate::{subtitle_type, content_protection_type, SubtitleType};
 use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
-#[cfg(not(feature = "libav"))]
 use crate::ffmpeg::temporary_outpath;
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
