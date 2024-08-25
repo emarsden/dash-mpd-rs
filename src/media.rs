@@ -161,3 +161,24 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
     paths.iter().all(container_only_audio)
 }
 
+// mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
+// create the temporary file in the current directory.
+#[cfg(target_os = "windows")]
+pub fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
+    Ok(format!("dashmpdrs-tmp{suffix}"))
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(suffix)
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    match tmpout.path().to_str() {
+        Some(s) => Ok(s.to_string()),
+        None => Ok(format!("/tmp/dashmpdrs-tmp{suffix}")),
+    }
+}
+

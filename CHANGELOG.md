@@ -3,11 +3,15 @@
 
 ## [0.17.1] - Unreleased
 
-- Improvements to the handling of subtitles: we make additional efforts to extract STPP subtitles
-  from a sequence of fMP4 segments, as a .ttml file. ffmpeg does not currently seem to be able to
-  extract this in the more commonly supported SRT format. When saving to a Matroska container (.mkv
-  or .webm output files), we attempt to embed subtitle tracks with mkvmerge instead of with MP4Box
-  (which fails).
+- Downloading: improvements to the handling of subtitles: we make additional efforts to extract STPP
+  subtitles from a sequence of fMP4 segments, as a .ttml file. ffmpeg does not currently seem to be
+  able to extract this in the more commonly supported SRT format. When saving to a Matroska
+  container (.mkv or .webm output files), we attempt to embed subtitle tracks with mkvmerge instead
+  of with MP4Box (which fails).
+
+- Downloading: fix off-by-one bug in the calculation of the number of media fragments to download
+  when using SegmentTemplate addressing with `$Number$`. The initialiation segment was being counted
+  towards the number of segments, but should not be. Bug reported by @vidasi.
 
 
 ## [0.17.0] - 2024-08-22

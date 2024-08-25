@@ -51,7 +51,7 @@ async fn test_dl_mp4() {
         .download_to(out.clone()).await
         .unwrap();
     // Curious: this download size changed abruptly from 60_939 to this size early Nov. 2023.
-    check_file_size_approx(&out, 325_334);
+    check_file_size_approx(&out, 410_218);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -672,7 +672,7 @@ async fn test_progress_observer() {
         .add_progress_observer(Arc::new(DownloadProgressionTest{}))
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 325_334);
+    check_file_size_approx(&out, 410_218);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
@@ -743,6 +743,30 @@ async fn test_downloader() {
               1_786_875,
               &hex!("fc70321b55339d37c6c1ce8303fe357f3b1c83e86bc38fac54eed553cf3a251b")).await;
 
+}
+
+
+// Testing compatibility with the unified-streaming.com DASH encoder
+#[test(tokio::test)]
+async fn test_dl_usp_tos() {
+    // Don't run download tests on CI infrastructure
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("usp-tos.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 41_621_346);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
 }
 
 
@@ -820,7 +844,7 @@ async fn test_dl_dynamic_forced_duration() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 141_675);
+    check_file_size_approx(&out, 192_856);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
@@ -831,7 +855,7 @@ async fn test_dl_dynamic_forced_duration() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(5.0 < duration && duration < 7.0, "Expecting duration between 5 and 6, got {duration}");
+    assert!(7.5 < duration && duration < 8.5, "Expecting duration between 7.5 and 8.5, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -855,7 +879,7 @@ async fn test_dl_lowlatency_forced_duration() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 2_633_341);
+    check_file_size_approx(&out, 3_160_237);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
@@ -930,7 +954,7 @@ async fn test_dl_forced_duration_audio() {
         .force_duration(8.0)
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 281_686);
+    check_file_size_approx(&out, 437_193);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(out).unwrap();
@@ -939,7 +963,7 @@ async fn test_dl_forced_duration_audio() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(7.1 < duration && duration < 8.5);
+    assert!(11.0 < duration && duration < 12.0, "Expecting duration between 11 and 12, got {duration}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -962,7 +986,7 @@ async fn test_dl_follow_redirect() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 325_334);
+    check_file_size_approx(&out, 410_218);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");

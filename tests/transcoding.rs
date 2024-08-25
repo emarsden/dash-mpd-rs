@@ -40,7 +40,7 @@ async fn test_transcode_webm() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 52_811);
+    check_file_size_approx(&out, 69_243);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Webm);
 }

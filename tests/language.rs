@@ -78,7 +78,7 @@ async fn test_subtitle_lang_stpp_im1t() {
     let subtags = stpp.tags.as_ref().unwrap();
     assert_eq!(subtags.language, Some(String::from("fra")));
     let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!((3598.0 < duration) && (duration < 3599.0));
+    assert!(3599.5 < duration && duration < 3601.0, "Expecting duration between 3599.5 and 3601, got {duration}");
     let _ = fs::remove_file(outpath);
 }
 

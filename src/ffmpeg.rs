@@ -18,8 +18,13 @@ use ffprobe::ffprobe;
 use tracing::{trace, info, warn};
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
-use crate::media::{audio_container_type, video_container_type, container_has_video, container_has_audio};
-
+use crate::media::{
+    audio_container_type,
+    video_container_type,
+    container_has_video,
+    container_has_audio,
+    temporary_outpath
+};
 
 fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
     match ffprobe(input) {
@@ -513,27 +518,6 @@ fn mux_stream_mp4box(
         warn!("MP4Box mux_stream failure: stdout {}", partial_process_output(&cmd.stdout));
         warn!("MP4Box stderr: {msg}");
         Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
-    }
-}
-
-// mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
-// create the temporary file in the current directory.
-#[cfg(target_os = "windows")]
-pub fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
-    Ok(format!("dashmpdrs-tmp{suffix}"))
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn temporary_outpath(suffix: &str) -> Result<String, DashMpdError> {
-    let tmpout = tempfile::Builder::new()
-        .prefix("dashmpdrs")
-        .suffix(suffix)
-        .rand_bytes(5)
-        .tempfile()
-        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
-    match tmpout.path().to_str() {
-        Some(s) => Ok(s.to_string()),
-        None => Ok(format!("/tmp/dashmpdrs-tmp{suffix}")),
     }
 }
 

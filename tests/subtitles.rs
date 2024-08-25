@@ -197,7 +197,7 @@ async fn test_subtitles_stpp_imsc1() {
     // In the MPD it's specified as stpp.ttml.im1i.
     assert_eq!(stpp.codec_tag_string, "stpp");
     let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!((56.0 < duration) && (duration < 60.0));
+    assert!(59.0 < duration && duration < 63.0, "Expecting duration between 59 and 63, got {duration}");
     let _ = fs::remove_file(outpath);
 }
 
@@ -235,6 +235,7 @@ async fn test_subtitles_tx3g() {
 }
 
 
+#[ignore] // As of 2024-08 this URL is returning HTTP 403
 #[test(tokio::test)]
 async fn test_subtitles_segmentbase() {
     if env::var("CI").is_ok() {

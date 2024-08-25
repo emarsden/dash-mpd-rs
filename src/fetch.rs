@@ -33,7 +33,7 @@ use crate::{subtitle_type, content_protection_type, SubtitleType};
 use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
-use crate::ffmpeg::temporary_outpath;
+use crate::media::temporary_outpath;
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -1995,8 +1995,6 @@ async fn do_period_audio(
                 }
                 let mut total_number = 0i64;
                 if let Some(init) = opt_init {
-                    // The initialization segment counts as one of the $Number$
-                    total_number -= 1;
                     let path = resolve_url_template(&init, &dict);
                     let mf = MediaFragment{
                         period: period_counter,
@@ -2464,8 +2462,6 @@ async fn do_period_video(
                     }
                     let mut total_number = 0i64;
                     if let Some(init) = opt_init {
-                        // The initialization segment counts as one of the $Number$
-                        total_number -= 1;
                         let path = resolve_url_template(&init, &dict);
                         let mf = MediaFragment{
                             period: period_counter,
@@ -2953,8 +2949,6 @@ async fn do_period_subtitles(
                             }
                             let mut total_number = 0i64;
                             if let Some(init) = opt_init {
-                                // The initialization segment counts as one of the $Number$
-                                total_number -= 1;
                                 let path = resolve_url_template(&init, &dict);
                                 let mf = MediaFragment{
                                     period: period_counter,
