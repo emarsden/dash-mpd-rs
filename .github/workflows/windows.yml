@@ -8,11 +8,15 @@ jobs:
     timeout-minutes: 100
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - uses: msys2/setup-msys2@v2
       with:
         path-type: inherit
         update: true
         install: base-devel autotools mingw-w64-x86_64-toolchain mingw-w64-x86_64-rust mingw-w64-ucrt-x86_64-gcc
+
     - uses: taiki-e/install-action@cargo-hack
 
     # The executables installed by choco are not available on the PATH in the current shell.
@@ -50,7 +54,7 @@ jobs:
 
     - name: Install shaka-packager
       run: |
-        Invoke-WebRequest -Uri "https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe" -OutFile c:\tools\shaka-packager.exe
+          Invoke-WebRequest -Uri "https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe" -OutFile c:\tools\shaka-packager.exe
 
     - name: install xsltproc
       run: choco install --yes --limit-output xsltproc
