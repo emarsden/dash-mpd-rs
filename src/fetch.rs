@@ -2217,9 +2217,6 @@ async fn do_period_video(
                 }
             }
         }
-        if let Some(bu) = video_repr.BaseURL.first() {
-            base_url = merge_baseurls(&base_url, &bu.base)?;
-        }
         let mut dict = HashMap::new();
         if let Some(rid) = &video_repr.id {
             dict.insert("RepresentationID", rid.to_string());
