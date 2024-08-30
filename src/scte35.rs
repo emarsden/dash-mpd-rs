@@ -285,9 +285,10 @@ pub struct SpliceInfoSection {
     pub time_descriptor: Option<TimeDescriptor>,
 }
 
-/// A binary representation of a SCTE 35 cue message. We don't attempt to decode these, but the
-/// `scte35-reader` crate is able to parse a subset of the standard, and the `threefive` Python
-/// library provides a full parser.
+/// A binary representation of a SCTE 35 cue message.
+///
+/// We don't attempt to decode these, but the `scte35-reader` crate is able to parse a subset of the
+/// standard, and the `threefive` Python library provides a full parser.
 ///
 /// Basic messages may just be '/' + base64-encoded string
 ///   e.g. "/TWFpbiBDb250ZW50" -> "Main Content"
