@@ -93,8 +93,9 @@ pub trait ProgressObserver: Send + Sync {
 pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 
 
-/// The DashDownloader allows the download of streaming media content from a DASH MPD manifest. This
-/// involves fetching the manifest file, parsing it, identifying the relevant audio and video
+/// The DashDownloader allows the download of streaming media content from a DASH MPD manifest.
+///
+/// This involves fetching the manifest file, parsing it, identifying the relevant audio and video
 /// representations, downloading all the segments, concatenating them then muxing the audio and
 /// video streams to produce a single video file including audio. This should work with both
 /// MPEG-DASH MPD manifests (where the media segments are typically placed in fragmented MP4 or
@@ -1230,70 +1231,73 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
     use bstr::ByteSlice;
     use hex_literal::hex;
 
-    let client = downloader.http_client.as_ref().unwrap();
-    let mut req = client.get(init_url);
-    if let Some(referer) = &downloader.referer {
-        req = req.header("Referer", referer);
-    }
-    if let Some(username) = &downloader.auth_username {
-        if let Some(password) = &downloader.auth_password {
-            req = req.basic_auth(username, Some(password));
+    if let Some(client) = downloader.http_client.as_ref() {
+        let mut req = client.get(init_url);
+        if let Some(referer) = &downloader.referer {
+            req = req.header("Referer", referer);
         }
-    }
-    if let Some(token) = &downloader.auth_bearer_token {
-        req = req.bearer_auth(token);
-    }
-    if let Ok(mut resp) = req.send().await {
-        // We only download the first bytes of the init segment, because it may be very large in the
-        // case of indexRange adressing, and we don't want to fill up RAM.
-        let mut chunk_counter = 0;
-        let mut segment_first_bytes = Vec::<u8>::new();
-        while let Ok(Some(chunk)) = resp.chunk().await {
-            let size = min((chunk.len()/1024+1) as u32, u32::MAX);
-            #[allow(clippy::redundant_pattern_matching)]
-            if let Err(_) = throttle_download_rate(downloader, size).await {
-                return None;
-            }
-            segment_first_bytes.append(&mut chunk.to_vec());
-            chunk_counter += 1;
-            if chunk_counter > 20 {
-                break;
+        if let Some(username) = &downloader.auth_username {
+            if let Some(password) = &downloader.auth_password {
+                req = req.basic_auth(username, Some(password));
             }
         }
-        let needle = b"pssh";
-        for offset in segment_first_bytes.find_iter(needle) {
-            #[allow(clippy::needless_range_loop)]
-            for i in offset-4..offset+2 {
-                if let Some(b) = segment_first_bytes.get(i) {
-                    if *b != 0 {
-                        continue;
-                    }
+        if let Some(token) = &downloader.auth_bearer_token {
+            req = req.bearer_auth(token);
+        }
+        if let Ok(mut resp) = req.send().await {
+            // We only download the first bytes of the init segment, because it may be very large in the
+            // case of indexRange adressing, and we don't want to fill up RAM.
+            let mut chunk_counter = 0;
+            let mut segment_first_bytes = Vec::<u8>::new();
+            while let Ok(Some(chunk)) = resp.chunk().await {
+                let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                #[allow(clippy::redundant_pattern_matching)]
+                if let Err(_) = throttle_download_rate(downloader, size).await {
+                    return None;
+                }
+                segment_first_bytes.append(&mut chunk.to_vec());
+                chunk_counter += 1;
+                if chunk_counter > 20 {
+                    break;
                 }
             }
-            #[allow(clippy::needless_range_loop)]
-            for i in offset+4..offset+8 {
-                if let Some(b) = segment_first_bytes.get(i) {
-                    if *b != 0 {
-                        continue;
+            let needle = b"pssh";
+            for offset in segment_first_bytes.find_iter(needle) {
+                #[allow(clippy::needless_range_loop)]
+                for i in offset-4..offset+2 {
+                    if let Some(b) = segment_first_bytes.get(i) {
+                        if *b != 0 {
+                            continue;
+                        }
                     }
                 }
-            }
-            if offset+24 > segment_first_bytes.len() {
-                continue;
-            }
-            // const PLAYREADY_SYSID: [u8; 16] = hex!("9a04f07998404286ab92e65be0885f95");
-            const WIDEVINE_SYSID: [u8; 16] = hex!("edef8ba979d64acea3c827dcd51d21ed");
-            if !segment_first_bytes[(offset+8)..(offset+24)].eq(&WIDEVINE_SYSID) {
-                continue;
-            }
-            let start = offset - 4;
-            let end = start + segment_first_bytes[offset-1] as usize;
-            if let Some(pssh) = &segment_first_bytes.get(start..end) {
-                return Some(pssh.to_vec());
+                #[allow(clippy::needless_range_loop)]
+                for i in offset+4..offset+8 {
+                    if let Some(b) = segment_first_bytes.get(i) {
+                        if *b != 0 {
+                            continue;
+                        }
+                    }
+                }
+                if offset+24 > segment_first_bytes.len() {
+                    continue;
+                }
+                // const PLAYREADY_SYSID: [u8; 16] = hex!("9a04f07998404286ab92e65be0885f95");
+                const WIDEVINE_SYSID: [u8; 16] = hex!("edef8ba979d64acea3c827dcd51d21ed");
+                if !segment_first_bytes[(offset+8)..(offset+24)].eq(&WIDEVINE_SYSID) {
+                    continue;
+                }
+                let start = offset - 4;
+                let end = start + segment_first_bytes[offset-1] as usize;
+                if let Some(pssh) = &segment_first_bytes.get(start..end) {
+                    return Some(pssh.to_vec());
+                }
             }
         }
+        None
+    } else {
+        None
     }
-    None
 }
 
 
@@ -1325,10 +1329,11 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
         // now check for complex cases such as $Number%06d$
         if let Some(cap) = rx.captures(&result) {
             if let Some(value) = params.get(k as &str) {
-                let width: usize = cap[1].parse::<usize>().unwrap();
-                let count = format!("{value:0>width$}");
-                let m = rx.find(&result).unwrap();
-                result = result[..m.start()].to_owned() + &count + &result[m.end()..];
+                if let Ok(width) = cap[1].parse::<usize>() {
+                    let count = format!("{value:0>width$}");
+                    let m = rx.find(&result).unwrap();
+                    result = result[..m.start()].to_owned() + &count + &result[m.end()..];
+                }
             }
         }
     }
@@ -1828,8 +1833,8 @@ async fn do_period_audio(
                     let u = merge_baseurls(&base_url, m)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
-                } else if !audio_adaptation.BaseURL.is_empty() {
-                    let u = merge_baseurls(&base_url, &audio_adaptation.BaseURL[0].base)?;
+                } else if let Some(bu) = audio_adaptation.BaseURL.first() {
+                    let u = merge_baseurls(&base_url, &bu.base)?;
                     let mf = make_fragment(period_counter, u, start_byte, end_byte);
                     fragments.push(mf);
                 }
@@ -2646,6 +2651,9 @@ async fn do_period_subtitles(
                             // We try to convert this to SRT format, which is more widely supported,
                             // using MP4Box. However, it's not a fatal error if MP4Box is not
                             // installed or the conversion fails.
+                            //
+                            // Could also try to convert to WebVTT with
+                            //   MP4Box -raw "0:output=output.vtt" input.mp4
                             if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                                 .args(["-srt", "1", "-out", &out.to_string_lossy(),
                                        &subs_path.to_string_lossy()])
@@ -3717,8 +3725,8 @@ async fn fetch_period_subtitles(
                 }
                 info!("  {}", "Running MP4Box to extract subtitles".italic());
             }
-            let mut out = downloader.output_path.as_ref().unwrap().clone();
-            out.set_extension("srt");
+            let out = downloader.output_path.as_ref().unwrap()
+                .with_extension("srt");
             if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
                 .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath.to_string_lossy()])
                 .output()
@@ -3780,9 +3788,9 @@ async fn fetch_period_subtitles(
                     warn!("Error running ffmpeg to convert subtitles");
                 }
             }
-            // TODO: it would be useful to also convert the subtitles to SRT format, as that tends
+            // TODO: it would be useful to also convert the subtitles to SRT/WebVTT format, as they tend
             // to be better supported. However, ffmpeg does not seem able to convert from SPTT to
-            // SRT formats. We could perhaps use the Python ttconv package.
+            // these formats. We could perhaps use the Python ttconv package, or below with MP4Box.
         }
 
     }
