@@ -567,8 +567,9 @@ pub struct ProgramInformation {
     pub scte214ContentIdentifier: Option<Scte214ContentIdentifier>,
 }
 
-/// Dash specification MPEG extension (SCTE 214) program identification type
-/// (indicates how the program content is identified).
+/// DASH specification MPEG extension (SCTE 214) program identification type.
+///
+/// Indicates how the program content is identified.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -610,6 +611,8 @@ pub struct SegmentTimeline {
     pub segments: Vec<S>,
 }
 
+/// Information on the bitstream switching capabilities for Representations.
+///
 /// When bitstream switching is enabled, the player can seamlessly switch between Representations in
 /// the manifest without reinitializing the media decoder. This means fewer perturbations for the
 /// viewer when the network conditions change. It requires the media segments to have been encoded
@@ -624,8 +627,9 @@ pub struct BitstreamSwitching {
     pub range: Option<String>,
 }
 
-/// The first media segment in a sequence of Segments. Subsequent segments can be concatenated to this
-/// segment to produce a media stream.
+/// The first media segment in a sequence of Segments.
+///
+/// Subsequent segments can be concatenated to this segment to produce a media stream.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -696,8 +700,9 @@ pub struct SegmentTemplate {
     pub failover_content: Option<FailoverContent>,
 }
 
-/// A URI string to which a new request for an updated manifest should be made. This feature is
-/// intended for servers and clients that can't use sticky HTTP redirects.
+/// A URI string to which a new request for an updated manifest should be made.
+///
+/// This feature is intended for servers and clients that can't use sticky HTTP redirects.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Location {
@@ -705,8 +710,9 @@ pub struct Location {
     pub url: String,
 }
 
-/// A URI string that specifies one or more common locations for Segments and other resources, used
-/// as a prefix for SegmentURLs. Can be specified at the level of the MPD node, or Period,
+/// A URI string that specifies one or more common locations for Segments and other resources.
+///
+/// Used as a prefix for SegmentURLs. Can be specified at the level of the MPD node, or Period,
 /// AdaptationSet, Representation, and can be nested (the client should combine the prefix on MPD
 /// and on Representation, for example).
 #[skip_serializing_none]
@@ -735,10 +741,11 @@ pub struct BaseURL {
     pub weight: Option<i64>,
 }
 
-/// Failover Content Segment (FCS).  The time and optional duration for which a
-/// representation does not represent the main content but a failover version.  It
-/// can and is also used to represent gaps where no segments are present at all -
-/// used within the `FailoverContent` element.
+/// Failover Content Segment (FCS).
+///
+/// The time and optional duration for which a representation does not represent the main content
+/// but a failover version. It can and is also used to represent gaps where no segments are present
+/// at all - used within the `FailoverContent` element.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -755,7 +762,7 @@ pub struct Fcs {
 }
 
 /// Period of time for which either failover content or no content/segments exist for the
-/// for the parent `Representation`.
+/// parent `Representation`.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -886,10 +893,11 @@ pub struct Language {
     pub content: Option<String>,
 }
 
+/// A Preselection is a personalization option to produce a “complete audio experience”.
+///
 /// Used for audio signaling in the context of the ATSC 3.0 standard for advanced IP-based
-/// television broadcasting. A Preselection is a personalization option to produce a “complete audio
-/// experience”. Details are specified by the “DASH-IF Interoperability Point for ATSC 3.0”
-/// document.
+/// television broadcasting. Details are specified by the “DASH-IF Interoperability Point for ATSC
+/// 3.0” document.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -957,7 +965,9 @@ pub struct FramePacking {
 }
 
 /// Information used to allow Adaptation Set Switching (for instance, allowing the player to switch
-/// between camera angles). This is different from "bitstream switching".
+/// between camera angles).
+///
+/// This is different from "bitstream switching".
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1050,7 +1060,8 @@ pub struct SubRepresentation {
     pub FramePacking: Vec<FramePacking>,
 }
 
-/// A representation describes a version of the content, using a specific encoding and bitrate.
+/// A Representation describes a version of the content, using a specific encoding and bitrate.
+///
 /// Streams often have multiple representations with different bitrates, to allow the client to
 /// select that most suitable to its network conditions (adaptive bitrate or ABR streaming).
 #[skip_serializing_none]
@@ -1223,9 +1234,10 @@ pub struct MsprKid {
     pub content: Option<String>,
 }
 
-/// Contains information on DRM (rights management / encryption) mechanisms used in the stream, such
-/// as Widevine and Playready. If this node is not present, no content protection is applied by the
-/// source.
+/// Contains information on DRM (rights management / encryption) mechanisms used in the stream.
+///
+/// If this node is not present, no content protection (such as Widevine and Playready) is applied
+/// by the source.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1270,9 +1282,11 @@ pub struct ContentProtection {
     pub value: Option<String>,
 }
 
-/// The purpose of this media stream, such as "caption", "subtitle", "main", "alternate",
-/// "supplementary", "commentary", and "dub" (this is the attribute scheme for @value when the
-/// schemeIdUri is "urn:mpeg:dash:role:2011").
+/// The Role specifies the purpose of this media stream (caption, subtitle, main content, etc.).
+///
+/// Possible values include "caption", "subtitle", "main", "alternate", "supplementary",
+/// "commentary", and "dub" (this is the attribute scheme for @value when the schemeIdUri is
+/// "urn:mpeg:dash:role:2011").
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1297,11 +1311,12 @@ pub struct Viewpoint {
     pub value: Option<String>,
 }
 
-/// A DASH event, a mechanism allowing the server to send additional information to the DASH client
-/// which is synchronized with the media stream. Used for various purposes such as dynamic ad
-/// insertion, providing additional metainformation concerning the actors or location at a point in
-/// the media stream, providing parental guidance information, or sending custom data to the DASH
-/// player application.
+/// A mechanism allowing the server to send additional information to the DASH client which is
+/// synchronized with the media stream.
+///
+/// DASH Events are Used for various purposes such as dynamic ad insertion, providing additional
+/// metainformation concerning the actors or location at a point in the media stream, providing
+/// parental guidance information, or sending custom data to the DASH player application.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1359,8 +1374,10 @@ pub struct EventStream {
 }
 
 /// "Inband" events are materialized by the presence of DASHEventMessageBoxes (emsg) in the media
-/// segments. The client is informed of their presence by the inclusion of an InbandEventStream
-/// element in the AdaptationSet or Representation element.
+/// segments.
+///
+/// The client is informed of their presence by the inclusion of an InbandEventStream element in the
+/// AdaptationSet or Representation element.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1422,11 +1439,13 @@ pub struct Label {
     pub content: String,
 }
 
-/// Contains a set of Representations. For example, if multiple language streams are available for
-/// the audio content, each one can be in its own AdaptationSet. DASH implementation guidelines
-/// indicate that "representations in the same video adaptation set should be alternative encodings
-/// of the same source content, encoded such that switching between them does not produce visual
-/// glitches due to picture size or aspect ratio differences".
+/// Contains a set of Representations.
+///
+/// For example, if multiple language streams are available for the audio content, each one can be
+/// in its own AdaptationSet. DASH implementation guidelines indicate that "representations in the
+/// same video adaptation set should be alternative encodings of the same source content, encoded
+/// such that switching between them does not produce visual glitches due to picture size or aspect
+/// ratio differences".
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1537,8 +1556,10 @@ pub struct AdaptationSet {
     pub scte214_supplemental_codecs: Option<String>,
 }
 
-/// Identifies the asset to which a given Period belongs. Can be used to implement
-/// client functionality that depends on distinguishing between ads and main content.
+/// Identifies the asset to which a given Period belongs.
+///
+/// Can be used to implement client functionality that depends on distinguishing between ads and
+/// main content.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1552,8 +1573,9 @@ pub struct AssetIdentifier {
     pub scte214ContentIdentifiers: Vec<Scte214ContentIdentifier>,
 }
 
-/// Subsets provide a mechanism to restrict the combination of active Adaptation Sets where an
-/// active Adaptation Set is one for which the DASH Client is presenting at least one of the
+/// Subsets provide a mechanism to restrict the combination of active Adaptation Sets.
+///
+/// An active Adaptation Set is one for which the DASH Client is presenting at least one of the
 /// contained Representations.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
@@ -1724,9 +1746,10 @@ pub struct UTCTiming {
     pub value: Option<String>,
 }
 
-/// Specifies wall‐clock times at which media fragments were produced, to help clients consume the
-/// fragments at the same rate at which they were produced. Used by the low-latency streaming
-/// extensions to DASH.
+/// Specifies wall‐clock times at which media fragments were produced.
+///
+/// This information helps clients consume the fragments at the same rate at which they were
+/// produced. Used by the low-latency streaming extensions to DASH.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
@@ -1763,9 +1786,10 @@ pub struct LeapSecondInformation {
     pub nextLeapChangeTime: Option<XsDatetime>,
 }
 
-/// The Patch mechanism allows the DASH client to retrieve a patch from the server that contains a
-/// set of instructions for replacing certain parts of the MPD manifest with updated information. It
-/// is a bandwidth-friendly alternative to retrieving a new version of the full MPD manifest. The
+/// The Patch mechanism allows the DASH client to retrieve a set of instructions for replacing
+/// certain parts of the MPD manifest with updated information.
+///
+/// It is a bandwidth-friendly alternative to retrieving a new version of the full MPD manifest. The
 /// MPD patch document is guaranteed to be available between MPD@publishTime and MPD@publishTime +
 /// PatchLocation@ttl.
 #[skip_serializing_none]
@@ -2465,6 +2489,16 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn doesnt_crash(s in "\\PC*") {
+            let _ = super::parse_xs_duration(&s);
+            let _ = super::parse_xs_datetime(&s);
+        }
+    }
+
     #[test]
     fn test_parse_xs_duration() {
         use std::time::Duration;
