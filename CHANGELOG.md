@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [0.17.2] - Unreleased
+
+- Downloading: fix duplicated merge of baseURLS for video segments. Patch from @jonasgrosch.
+
+- Added some random robustness checks for parsing functions, using the proptest crate.
+
+
 ## [0.17.1] - 2024-08-25
 
 - Downloading: improvements to the handling of subtitles: we make additional efforts to extract STPP
