@@ -352,6 +352,37 @@ async fn test_muxing_mp4box() {
 }
 
 
+// VP9 codec test case. mplayer 1.5 is not able to play this file, for some reason.
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_muxing_vp9_mkvmerge() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCasesVP9/vp9-hd/sintel-vp9-hd.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("vp9.mkv");
+    DashDownloader::new(&mpd_url)
+        .worst_quality()
+        .with_muxer_preference("mkv", "mkvmerge")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::MatroskaVideo);
+    check_file_size_approx(&out, 29_931_784);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("vp9")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 /// 3GP content which ffmpeg v6.1 is unable to mux (error "Could not find codec parameters for
 /// stream 0 (Video: h264 (avc1 / 0x31637661), none, 640x360): unspecified pixel format"). We mux
 /// with mkvmerge instead.
