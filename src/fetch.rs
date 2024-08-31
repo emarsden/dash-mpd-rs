@@ -3798,10 +3798,9 @@ async fn fetch_period_subtitles(
 }
 
 
-#[tracing::instrument(level="trace", skip_all)]
-async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
+// Fetch XML content of manifest from an HTTP/HTTPS URL
+async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
     let client = &downloader.http_client.clone().unwrap();
-    let output_path = &downloader.output_path.as_ref().unwrap().clone();
     let send_request = || async {
         let mut req = client.get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
@@ -3841,12 +3840,38 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         return Err(DashMpdError::Network(msg));
     }
     downloader.redirected_url = response.url().clone();
-    let xml = response.bytes().await
-        .map_err(|e| network_error("fetching DASH manifest", e))?;
+    response.bytes().await
+        .map_err(|e| network_error("fetching DASH manifest", e))
+}
+
+// Fetch XML content of manifest from a file:// URL. The reqwest library is not able to download
+// from this URL type.
+async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
+    if ! &downloader.mpd_url.starts_with("file://") {
+        return Err(DashMpdError::Other(String::from("expecting file:// URL scheme")));
+    }
+    let url = Url::parse(&downloader.mpd_url)
+        .map_err(|_| DashMpdError::Other(String::from("parsing MPD URL")))?;
+    let path = url.to_file_path()
+        .map_err(|_| DashMpdError::Other(String::from("extracting path from file:// URL")))?;
+    let octets = fs::read(path)
+               .map_err(|_| DashMpdError::Other(String::from("reading from file:// URL")))?;
+    Ok(Bytes::from(octets))
+}
+
+
+#[tracing::instrument(level="trace", skip_all)]
+async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
+    let xml = if downloader.mpd_url.starts_with("file://") {
+        fetch_mpd_file(downloader).await?
+    } else {
+        fetch_mpd_http(downloader).await?
+    };
     let mut mpd: MPD = parse_resolving_xlinks(downloader, &xml).await
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
+    let client = &downloader.http_client.clone().unwrap();
     if let Some(new_location) = &mpd.locations.first() {
         let new_url = &new_location.url;
         if downloader.verbosity > 0 {
@@ -4004,6 +4029,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
 
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
+    let output_path = &downloader.output_path.as_ref().unwrap().clone();
     let mut period_output_paths: Vec<PathBuf> = Vec::new();
     let mut ds = DownloadState {
         period_counter: 0,

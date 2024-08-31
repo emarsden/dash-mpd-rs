@@ -3,7 +3,11 @@
 
 ## [0.17.2] - Unreleased
 
-- Downloading: fix duplicated merge of baseURLS for video segments. Patch from @jonasgrosch.
+- Downloading: fix duplicated merge of BaseURLS for video segments. Patch from @jonasgrosch.
+
+- Downloading: add the ability to download from file:// URLs. This requires the MPD manifest to
+  specify an absolute BaseURL element at the MPD, Period or Representation level, or to use absolute
+  URLS for all media segments.
 
 - Added some random robustness checks for parsing functions, using the proptest crate.
 
