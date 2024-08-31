@@ -135,7 +135,7 @@ pub struct DashDownloader {
     force_duration: Option<f64>,
     rate_limit: u64,
     bw_limiter: Option<DirectRateLimiter>,
-    verbosity: u8,
+    pub verbosity: u8,
     record_metainformation: bool,
     pub muxer_preference: HashMap<String, String>,
     pub concat_preference: HashMap<String, String>,
@@ -2654,9 +2654,17 @@ async fn do_period_subtitles(
                             //
                             // Could also try to convert to WebVTT with
                             //   MP4Box -raw "0:output=output.vtt" input.mp4
+                            let out_str = out.to_string_lossy();
+                            let subs_str = subs_path.to_string_lossy();
+                            let args = vec![
+                                "-srt", "1",
+                                "-out", &out_str,
+                                &subs_str];
+                            if downloader.verbosity > 0 {
+                                info!("  Running MPBox {}", args.join(" "));
+                            }
                             if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                                .args(["-srt", "1", "-out", &out.to_string_lossy(),
-                                       &subs_path.to_string_lossy()])
+                                .args(args)
                                 .output()
                             {
                                 let msg = partial_process_output(&mp4box.stdout);
@@ -3292,7 +3300,9 @@ async fn fetch_period_audio(
             }
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
-            trace!("Running mp4decrypt with args {args:?}");
+            if downloader.verbosity > 1 {
+                info!("  Running mp4decrypt with args {}", args.join(" "));
+            }
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
@@ -3338,7 +3348,9 @@ async fn fetch_period_audio(
             args.push("--enable_raw_key_decryption".to_string());
             args.push("--keys".to_string());
             args.push(keys.join(","));
-            trace!("Running shaka-packager with args {args:?}");
+            if downloader.verbosity > 1 {
+                info!("Running shaka-packager with args {}", args.join(" "));
+            }
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
@@ -3492,7 +3504,9 @@ async fn fetch_period_video(
             }
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
-            trace!("Running mp4decrypt with args {args:?}");
+            if downloader.verbosity > 1 {
+                info!("Running mp4decrypt with args {}", args.join(" "));
+            }
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
@@ -3538,7 +3552,9 @@ async fn fetch_period_video(
             args.push("--enable_raw_key_decryption".to_string());
             args.push("--keys".to_string());
             args.push(keys.join(","));
-            trace!("Running shaka-packager with args {args:?}");
+            if downloader.verbosity > 1 {
+                info!("Running shaka-packager with args {}", args.join(" "));
+            }
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
@@ -3727,8 +3743,17 @@ async fn fetch_period_subtitles(
             }
             let out = downloader.output_path.as_ref().unwrap()
                 .with_extension("srt");
+            let out_str = out.to_string_lossy();
+            let tmp_str = tmppath.to_string_lossy();
+            let args = vec![
+                "-srt", "1",
+                "-out", &out_str,
+                &tmp_str];
+            if downloader.verbosity > 0 {
+                info!("  Running MP4Box {}", args.join(" "));
+            }
             if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                .args(["-srt", "1", "-out", &out.to_string_lossy(), &tmppath.to_string_lossy()])
+                .args(args)
                 .output()
             {
                 let msg = partial_process_output(&mp4box.stdout);
@@ -4117,9 +4142,14 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     }
                     // We can try to add the subtitles to the MP4 container, using MP4Box. Only
                     // works with MP4 containers.
+                    let tmp_str = tmppath_subs.to_string_lossy();
+                    let period_output_str = period_output_path.to_string_lossy();
+                    let args = vec!["-add", &tmp_str, &period_output_str];
+                    if downloader.verbosity > 0 {
+                        info!("  Running MP4Box {}", args.join(" "));
+                    }
                     if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                        .args(["-add", &tmppath_subs.to_string_lossy(),
-                               &period_output_path.clone().to_string_lossy()])
+                        .args(args)
                         .output()
                     {
                         let msg = partial_process_output(&mp4box.stdout);

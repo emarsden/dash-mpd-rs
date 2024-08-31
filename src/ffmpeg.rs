@@ -128,6 +128,9 @@ fn mux_audio_video_ffmpeg(
     args.push("-f");
     args.push(muxer);
     args.push(tmppath);
+    if downloader.verbosity > 0 {
+        info!("  Running ffmpeg {}", args.join(" "));
+    }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
         .output()
@@ -192,6 +195,9 @@ fn mux_audio_video_ffmpeg(
     args.push("-f");
     args.push(muxer);
     args.push(tmppath);
+    if downloader.verbosity > 0 {
+        info!("  Running ffmpeg {}", args.join(" "));
+    }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
         .output()
@@ -286,6 +292,9 @@ fn mux_stream_ffmpeg(
         args.push(&cn);
     }
     args.push(tmppath);
+    if downloader.verbosity > 0 {
+        info!("  Running ffmpeg {}", args.join(" "));
+    }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
         .output()
@@ -367,15 +376,21 @@ fn mux_audio_video_vlc(
     } else {
         ""
     };
+    let sout = format!("--sout=#{transcode}std{{access=file,mux={muxer},dst={tmppath}}}");
+    let args = vec![
+        "-I", "dummy",
+        "--no-repeat", "--no-loop",
+        video_str,
+        "--input-slave", audio_str,
+        "--sout-mp4-faststart",
+        &sout,
+        "--sout-keep",
+        "vlc://quit"];
+    if downloader.verbosity > 0 {
+        info!("  Running vlc {}", args.join(" "));
+    }
     let vlc = Command::new(&downloader.vlc_location)
-        .args(["-I", "dummy",
-               "--no-repeat", "--no-loop",
-               video_str,
-               "--input-slave", audio_str,
-               "--sout-mp4-faststart",
-               &format!("--sout=#{transcode}std{{access=file,mux={muxer},dst={tmppath}}}"),
-               "--sout-keep",
-               "vlc://quit"])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning VLC subprocess")))?;
     // VLC is erroneously returning a 0 (success) return code even when it fails to mux, so we need
@@ -437,11 +452,16 @@ fn mux_audio_video_mp4box(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    let args = vec![
+        "-flat",
+        "-add", video_str,
+        "-add", audio_str,
+        "-new", tmppath];
+    if downloader.verbosity > 0 {
+        info!("  Running MP4Box {}", args.join(" "));
+    }
     let cmd = Command::new(&downloader.mp4box_location)
-        .args(["-flat",
-               "-add", video_str,
-               "-add", audio_str,
-               "-new", tmppath])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     if cmd.status.success() {
@@ -493,9 +513,12 @@ fn mux_stream_mp4box(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining input stream name"),
             String::from("")))?;
+    let args = vec!["-add", input, "-new", tmppath];
+    if downloader.verbosity > 0 {
+        info!("  Running MP4Box {}", args.join(" "));
+    }
     let cmd = Command::new(&downloader.mp4box_location)
-        .args(["-add", input,
-               "-new", tmppath])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     if cmd.status.success() {
@@ -538,10 +561,14 @@ fn mux_audio_video_mkvmerge(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    let args = vec!["--output", &tmppath,
+                    "--no-video", audio_str,
+                    "--no-audio", video_str];
+    if downloader.verbosity > 0 {
+        info!("  Running mkvmerge {}", args.join(" "));
+    }
     let mkv = Command::new(&downloader.mkvmerge_location)
-        .args(["--output", &tmppath,
-               "--no-video", audio_str,
-               "--no-audio", video_str])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     if mkv.status.success() {
@@ -578,9 +605,12 @@ fn mux_video_mkvmerge(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    let args = vec!["--output", &tmppath, "--no-audio", video_str];
+    if downloader.verbosity > 0 {
+        info!("  Running mkvmerge {}", args.join(" "));
+    }
     let mkv = Command::new(&downloader.mkvmerge_location)
-        .args(["--output", &tmppath,
-               "--no-audio", video_str])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     if mkv.status.success() {
@@ -618,9 +648,12 @@ fn mux_audio_mkvmerge(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
             String::from("")))?;
+    let args = vec!["--output", &tmppath, "--no-video", audio_str];
+    if downloader.verbosity > 0 {
+        info!("  Running mkvmerge {}", args.join(" "));
+    }
     let mkv = Command::new(&downloader.mkvmerge_location)
-        .args(["--output", &tmppath,
-               "--no-video", audio_str])
+        .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     if mkv.status.success() {
@@ -993,7 +1026,9 @@ pub(crate) fn concat_output_files_ffmpeg(
     args.push(output_format);
     let target = paths[0].to_string_lossy();
     args.push(&target);
-    trace!("Concatenating with ffmpeg {args:?}");
+    if downloader.verbosity > 0 {
+        info!("  Concatenating with ffmpeg {args:?}");
+    }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
         .output()
@@ -1056,7 +1091,9 @@ pub(crate) fn concat_output_files_mp4box(
         }
     }
     args.push(&out);
-    trace!("Concatenating with MP4Box {args:?}");
+    if downloader.verbosity > 0 {
+        info!("  Concatenating with MP4Box {args:?}");
+    }
     let mp4box = Command::new(&downloader.mp4box_location)
         .args(args)
         .output()
@@ -1122,7 +1159,9 @@ pub(crate) fn concat_output_files_mkvmerge(
         }
     }
     args.push("]");
-    trace!("Concatenating with mkvmerge {args:?}");
+    if downloader.verbosity > 1 {
+        info!("  Concatenating with mkvmerge {args:?}");
+    }
     let mkvmerge = Command::new(&downloader.mkvmerge_location)
         .args(args)
         .output()

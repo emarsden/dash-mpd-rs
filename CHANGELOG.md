@@ -9,6 +9,10 @@
   specify an absolute BaseURL element at the MPD, Period or Representation level, or to use absolute
   URLS for all media segments.
 
+- Downloading: log additional diagnostics information for most external commands run for muxing,
+  concatenating and subtitle extraction/merging, when the verbosity level is greater than 0 or 1.
+  The logged information includes the full commandline.
+
 - Added some random robustness checks for parsing functions, using the proptest crate.
 
 
