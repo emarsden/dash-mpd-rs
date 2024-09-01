@@ -33,6 +33,7 @@ async fn test_file_mpd_baseurl() {
     let out = tmpd.path().join("fileurl-mpd-baseurl.mp4");
     DashDownloader::new(&mpd_url.to_string())
         .worst_quality()
+        .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 3_918_028);
@@ -80,6 +81,7 @@ async fn test_file_period_baseurl() {
     DashDownloader::new(&mpd_url.to_string())
         .worst_quality()
         .verbosity(3)
+        .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
         .download_to(out.clone()).await
         .unwrap();
@@ -128,6 +130,7 @@ async fn test_file_period_baseurl_thomson() {
     DashDownloader::new(&mpd_url.to_string())
         .worst_quality()
         .verbosity(3)
+        .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
         .download_to(out.clone()).await
         .unwrap();
@@ -185,6 +188,7 @@ async fn test_file_segmenttemplate() {
     DashDownloader::new(&mpd_url.to_string())
         .worst_quality()
         .verbosity(3)
+        .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
         .download_to(out.clone()).await
         .unwrap();

@@ -9,7 +9,7 @@
 //    bwrap --ro-bind /usr /usr --ro-bind /etc /etc --tmpfs /tmp ffmpeg -i audio.mp4 -i video.mp4 /tmp/muxed.mp4
 
 use std::io;
-use std::io::{BufReader, BufWriter};
+use std::io::{Write, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use fs_err as fs;
@@ -137,11 +137,11 @@ fn mux_audio_video_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
-        info!("ffmpeg stdout: {msg}");
+        info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
-        info!("ffmpeg stderr: {msg}");
+        info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         // local scope so that tmppath is not busy on Windows and can be deleted
@@ -156,7 +156,7 @@ fn mux_audio_video_ffmpeg(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
 	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary ffmpeg output: {e}");
+            warn!("  Error deleting temporary ffmpeg output: {e}");
         }
         return Ok(());
     }
@@ -204,11 +204,11 @@ fn mux_audio_video_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
-        info!("ffmpeg stdout: {msg}");
+        info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
-        info!("ffmpeg stderr: {msg}");
+        info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         // local scope so that tmppath is not busy on Windows and can be deleted
@@ -223,7 +223,7 @@ fn mux_audio_video_ffmpeg(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
 	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary ffmpeg output: {e}");
+            warn!("  Error deleting temporary ffmpeg output: {e}");
         }
         Ok(())
     } else {
@@ -301,11 +301,11 @@ fn mux_stream_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
-        info!("ffmpeg stdout: {msg}");
+        info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
-        info!("ffmpeg stderr: {msg}");
+        info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         // local scope so that tmppath is not busy on Windows and can be deleted
@@ -320,7 +320,7 @@ fn mux_stream_ffmpeg(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
 	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary ffmpeg output: {e}");
+            warn!("  Error deleting temporary ffmpeg output: {e}");
         }
         Ok(())
     } else {
@@ -408,7 +408,7 @@ fn mux_audio_video_vlc(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
         }
         if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary VLC output: {e}");
+            warn!("  Error deleting temporary VLC output: {e}");
         }
         Ok(())
     } else {
@@ -476,7 +476,7 @@ fn mux_audio_video_mp4box(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
         }
 	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary MP4Box output: {e}");
+            warn!("  Error deleting temporary MP4Box output: {e}");
         }
         Ok(())
     } else {
@@ -533,13 +533,13 @@ fn mux_stream_mp4box(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
         }
 	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary MP4Box output: {e}");
+            warn!("  Error deleting temporary MP4Box output: {e}");
         }
         Ok(())
     } else {
         let msg = partial_process_output(&cmd.stderr);
-        warn!("MP4Box mux_stream failure: stdout {}", partial_process_output(&cmd.stdout));
-        warn!("MP4Box stderr: {msg}");
+        warn!("  MP4Box mux_stream failure: stdout {}", partial_process_output(&cmd.stdout));
+        warn!("  MP4Box stderr: {msg}");
         Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
@@ -583,7 +583,7 @@ fn mux_audio_video_mkvmerge(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
         if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary mkvmerge output: {e}");
+            warn!("  Error deleting temporary mkvmerge output: {e}");
         }
         Ok(())
     } else {
@@ -625,7 +625,7 @@ fn mux_video_mkvmerge(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
         if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary mkvmerge output: {e}");
+            warn!("  Error deleting temporary mkvmerge output: {e}");
         }
         Ok(())
     } else {
@@ -668,7 +668,7 @@ fn mux_audio_mkvmerge(
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
         if let Err(e) = fs::remove_file(tmppath) {
-            warn!("Error deleting temporary mkvmerge output: {e}");
+            warn!("  Error deleting temporary mkvmerge output: {e}");
         }
         Ok(())
     } else {
@@ -798,34 +798,34 @@ pub fn copy_video_to_container(
             muxer_preference.push(m);
         }
     }
-    info!("Muxer preference for {container} is {muxer_preference:?}");
+    info!("  Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
-        info!("Trying muxer {muxer}");
+        info!("  Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
             if let Err(e) =  mux_video_mkvmerge(downloader, output_path, video_path) {
-                warn!("Muxing with mkvmerge subprocess failed: {e}");
+                warn!("  Muxing with mkvmerge subprocess failed: {e}");
             } else {
-                info!("Muxing with mkvmerge subprocess succeeded");
+                info!("  Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
             if let Err(e) = mux_stream_ffmpeg(downloader, output_path, video_path) {
-                warn!("Muxing with ffmpeg subprocess failed: {e}");
+                warn!("  Muxing with ffmpeg subprocess failed: {e}");
             } else {
-                info!("Muxing with ffmpeg subprocess succeeded");
+                info!("  Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("mp4box") {
             if let Err(e) = mux_stream_mp4box(downloader, output_path, video_path) {
-                warn!("Muxing with MP4Box subprocess failed: {e}");
+                warn!("  Muxing with MP4Box subprocess failed: {e}");
             } else {
-                info!("Muxing with MP4Box subprocess succeeded");
+                info!("  Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
         }
     }
-    warn!("All available muxers failed");
-    warn!("  unmuxed video stream: {}", video_path.display());
+    warn!("  All available muxers failed");
+    warn!("    unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
@@ -868,34 +868,34 @@ pub fn copy_audio_to_container(
             muxer_preference.push(m);
         }
     }
-    info!("Muxer preference for {container} is {muxer_preference:?}");
+    info!("  Muxer preference for {container} is {muxer_preference:?}");
     for muxer in muxer_preference {
-        info!("Trying muxer {muxer}");
+        info!("  Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
             if let Err(e) =  mux_audio_mkvmerge(downloader, output_path, audio_path) {
-                warn!("Muxing with mkvmerge subprocess failed: {e}");
+                warn!("  Muxing with mkvmerge subprocess failed: {e}");
             } else {
-                info!("Muxing with mkvmerge subprocess succeeded");
+                info!("  Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
             if let Err(e) = mux_stream_ffmpeg(downloader, output_path, audio_path) {
-                warn!("Muxing with ffmpeg subprocess failed: {e}");
+                warn!("  Muxing with ffmpeg subprocess failed: {e}");
             } else {
-                info!("Muxing with ffmpeg subprocess succeeded");
+                info!("  Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("mp4box") {
             if let Err(e) = mux_stream_mp4box(downloader, output_path, audio_path) {
-                warn!("Muxing with MP4Box subprocess failed: {e}");
+                warn!("  Muxing with MP4Box subprocess failed: {e}");
             } else {
-                info!("Muxing with MP4Box subprocess succeeded");
+                info!("  Muxing with MP4Box subprocess succeeded");
                 return Ok(());
             }
         }
     }
-    warn!("All available muxers failed");
-    warn!("  unmuxed audio stream: {}", audio_path.display());
+    warn!("  All available muxers failed");
+    warn!("    unmuxed audio stream: {}", audio_path.display());
     Err(DashMpdError::Muxing(String::from("all available muxers failed")))
 }
 
@@ -912,7 +912,7 @@ pub fn copy_audio_to_container(
 fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
     let n = paths.len();
     let mut args = Vec::new();
-    let mut filter = String::new();
+    let mut anullsrc = String::new();
     let mut link_labels = Vec::new();
     let mut have_audio = false;
     let mut have_video = false;
@@ -922,7 +922,6 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
             included = true;
             args.push(String::from("-i"));
             args.push(path.display().to_string());
-            // filter = format!("streams=dv[v{i}];{filter}");
             have_video = true;
             link_labels.push(format!("[{i}:v]"));
         }
@@ -931,19 +930,30 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
                 args.push(String::from("-i"));
                 args.push(path.display().to_string());
             }
-            // filter = format!("streams=da[a{i}];{filter}");
             link_labels.push(format!("[{i}:a]"));
             have_audio = true;
         } else {
             // Use a null audio src. Without this null audio track the concat filter is generating
             // errors, with ffmpeg version 6.1.1.
-            filter = format!("anullsrc=r=48000:cl=mono:d=1[audio{i}];{filter}");
-            link_labels.push(format!("[audio{i}]"));
-            have_audio = true;
+            anullsrc += &format!("anullsrc=r=48000:cl=mono:d=1[anull{i}:a];{anullsrc}");
+            link_labels.push(format!("[anull{i}:a]"));
         }
-        // link_labels.push(format!("[a{i}]"));
     }
-    filter += &link_labels.join("");
+    let mut filter = String::new();
+    // Only include the null audio track and the audio link labels to the concat filter when at
+    // least one of our component segments has a audio component.
+    if have_audio {
+        filter += &anullsrc;
+        filter += &link_labels.join("");
+    } else {
+        // We need to delete the link_labels of the form [anull{i}] that refer to null audio sources
+        // that we aren't including in the filter graph.
+        for ll in link_labels {
+            if ! ll.starts_with("[anull") {
+                filter += &ll;
+            }
+        }
+    }
     filter += &format!(" concat=n={n}");
     if have_video {
         filter += ":v=1";
@@ -975,8 +985,10 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
 }
 
 
+/// This function concatenates files using the ffmpeg "concat filter". This reencodes all streams so
+/// is slow, but works in situations where the concat protocol doesn't work.
 #[tracing::instrument(level="trace", skip(downloader))]
-pub(crate) fn concat_output_files_ffmpeg(
+pub(crate) fn concat_output_files_ffmpeg_filter(
     downloader: &DashDownloader,
     paths: &[PathBuf]) -> Result<(), DashMpdError>
 {
@@ -1027,7 +1039,7 @@ pub(crate) fn concat_output_files_ffmpeg(
     let target = paths[0].to_string_lossy();
     args.push(&target);
     if downloader.verbosity > 0 {
-        info!("  Concatenating with ffmpeg {args:?}");
+        info!("  Concatenating with ffmpeg concat filter {}", args.join(" "));
     }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
         .args(args)
@@ -1035,11 +1047,11 @@ pub(crate) fn concat_output_files_ffmpeg(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
     if msg.len() > 0 {
-        info!("ffmpeg stdout: {msg}");
+        info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
     if msg.len() > 0 {
-        info!("ffmpeg stderr: {msg}");
+        info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
         Ok(())
@@ -1052,7 +1064,125 @@ pub(crate) fn concat_output_files_ffmpeg(
     }
 }
 
+// This function concatenates files using the ffmpeg concat demuxer. All files must have the same
+// streams (same codecs, same time base, etc.) but can be wrapped in different container formats.
+// This concatenation helper is very fast because it copies the media streams, rather than
+// reencoding them.
+//
+// In a typical use case of a multi-period DASH manifest with DAI (where Periods containing
+// advertising have been intermixed with Periods of content), where it is possible to drop the
+// advertising segments (using minimum_period_duration() or using an XSLT filter on Period
+// elements), the content segments are likely to all use the same codecs and encoding parameters, so
+// this helper should work well.
+#[tracing::instrument(level="trace", skip(downloader))]
+pub(crate) fn concat_output_files_ffmpeg_demuxer(
+    downloader: &DashDownloader,
+    paths: &[PathBuf]) -> Result<(), DashMpdError>
+{
+    if paths.len() < 2 {
+        return Err(DashMpdError::Muxing(String::from("need at least two files")));
+    }
+    let container = match paths[0].extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // See output from "ffmpeg -muxers"
+    let output_format = match container {
+        "mkv" => "matroska",
+        "ts" => "mpegts",
+        _ => container,
+    };
+    // First copy the contents of the first file to a temporary file, as ffmpeg will be overwriting the
+    // contents of the first file.
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{container}"))
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = &tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    fs::copy(paths[0].clone(), tmppath)
+        .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
+    let mut args = vec!["-hide_banner", "-nostats",
+                        "-loglevel", "error",  // or "warning", "info"
+                        "-y",
+                        "-nostdin"];
+    // https://trac.ffmpeg.org/wiki/Concatenate
+    let demuxlist = tempfile::Builder::new()
+        .prefix("dashmpddemux")
+        .suffix(".txt")
+        .rand_bytes(5)
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    // https://ffmpeg.org/ffmpeg-formats.html#concat
+    writeln!(&demuxlist, "ffconcat version 1.0")
+        .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
+    let mut inputs = Vec::<PathBuf>::new();
+    inputs.push(tmppath.into());
+    writeln!(&demuxlist, "file '{}'", tmppath.to_string())
+        .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
+    for p in &paths[1..] {
+        inputs.push(p.to_path_buf());
+        writeln!(&demuxlist, "file '{}'", p.to_path_buf().display())
+            .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
+    }
+    let demuxlistpath = &demuxlist
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            String::from("")))?;
+    args.push("-f");
+    args.push("concat");
+    // We can't use "safe" file paths because our input files have names that are absolute, rather
+    // than relative.
+    args.push("-safe");
+    args.push("0");
+    args.push("-i");
+    args.push(demuxlistpath);
+    args.push("-c");
+    args.push("copy");
+    args.push("-movflags");
+    args.push("faststart+omit_tfhd_offset");
+    args.push("-f");
+    args.push(output_format);
+    let target = String::from("file:") + &paths[0].to_string_lossy();
+    args.push(&target);
+    if downloader.verbosity > 0 {
+        info!("  Concatenating with ffmpeg concat demuxer {}", args.join(" "));
+    }
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
+        .args(args)
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg")))?;
+    let msg = partial_process_output(&ffmpeg.stdout);
+    if msg.len() > 0 {
+        info!("  ffmpeg stdout: {msg}");
+    }
+    let msg = partial_process_output(&ffmpeg.stderr);
+    if msg.len() > 0 {
+        info!("  ffmpeg stderr: {msg}");
+    }
+    if ffmpeg.status.success() {
+        Ok(())
+    } else {
+        warn!("  unconcatenated input files:");
+        for p in paths {
+            warn!("      {}", p.display());
+        }
+        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+    }
+}
+
+
 // Merge all media files named by paths into the file named by the first element of the vector.
+//
+// This concat helper does not seem to work in a satisfactory manner.
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_mp4box(
     downloader: &DashDownloader,
@@ -1087,12 +1217,12 @@ pub(crate) fn concat_output_files_mp4box(
             args.push("-cat");
             args.push(ps);
         } else {
-            warn!("Ignoring non-Unicode pathname {:?}", p);
+            warn!("  Ignoring non-Unicode pathname {:?}", p);
         }
     }
     args.push(&out);
     if downloader.verbosity > 0 {
-        info!("  Concatenating with MP4Box {args:?}");
+        info!("  Concatenating with MP4Box {}", args.join(" "));
     }
     let mp4box = Command::new(&downloader.mp4box_location)
         .args(args)
@@ -1100,11 +1230,11 @@ pub(crate) fn concat_output_files_mp4box(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     let msg = partial_process_output(&mp4box.stdout);
     if msg.len() > 0 {
-        info!("MP4Box stdout: {msg}");
+        info!("  MP4Box stdout: {msg}");
     }
     let msg = partial_process_output(&mp4box.stderr);
     if msg.len() > 0 {
-        info!("MP4Box stderr: {msg}");
+        info!("  MP4Box stderr: {msg}");
     }
     if mp4box.status.success() {
         Ok(())
@@ -1160,7 +1290,7 @@ pub(crate) fn concat_output_files_mkvmerge(
     }
     args.push("]");
     if downloader.verbosity > 1 {
-        info!("  Concatenating with mkvmerge {args:?}");
+        info!("  Concatenating with mkvmerge {}", args.join(" "));
     }
     let mkvmerge = Command::new(&downloader.mkvmerge_location)
         .args(args)
@@ -1168,11 +1298,11 @@ pub(crate) fn concat_output_files_mkvmerge(
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge")))?;
     let msg = partial_process_output(&mkvmerge.stdout);
     if msg.len() > 0 {
-        info!("mkvmerge stdout: {msg}");
+        info!("  mkvmerge stdout: {msg}");
     }
     let msg = partial_process_output(&mkvmerge.stderr);
     if msg.len() > 0 {
-        info!("mkvmerge stderr: {msg}");
+        info!("  mkvmerge stderr: {msg}");
     }
     if mkvmerge.status.success() {
         Ok(())
@@ -1228,10 +1358,17 @@ pub(crate) fn concat_output_files(
                 return Ok(());
             }
         } else if concat.eq("ffmpeg") {
-            if let Err(e) = concat_output_files_ffmpeg(downloader, paths) {
-                warn!("  Concatenation with ffmpeg failed: {e}");
+            if let Err(e) = concat_output_files_ffmpeg_filter(downloader, paths) {
+                warn!("  Concatenation with ffmpeg filter failed: {e}");
             } else {
-                info!("  Concatenation with ffmpeg succeeded");
+                info!("  Concatenation with ffmpeg filter succeeded");
+                return Ok(());
+            }
+        } else if concat.eq("ffmpegdemuxer") {
+            if let Err(e) = concat_output_files_ffmpeg_demuxer(downloader, paths) {
+                warn!("  Concatenation with ffmpeg demuxer failed: {e}");
+            } else {
+                info!("  Concatenation with ffmpeg demuxer succeeded");
                 return Ok(());
             }
         } else if concat.eq("mp4box") {
@@ -1245,7 +1382,7 @@ pub(crate) fn concat_output_files(
             warn!("  Ignoring unknown concat helper preference {concat}");
         }
     }
-    warn!("All concat helpers failed");
+    warn!("  All concat helpers failed");
     Err(DashMpdError::Muxing(String::from("all concat helpers failed")))
 }
 
@@ -1257,7 +1394,7 @@ mod tests {
     use std::process::Command;
     use test_log::test;
     use fs_err as fs;
-    use super::concat_output_files_ffmpeg;
+    use super::concat_output_files_ffmpeg_filter;
 
     fn generate_mp4_hue_tone(filename: &Path, color: &str, tone: &str) {
         let ffmpeg = Command::new("ffmpeg")
@@ -1294,7 +1431,7 @@ mod tests {
         generate_mp4_hue_tone(&green, "green", "600");
         generate_mp4_hue_tone(&blue, "blue", "800");
         let ddl = DashDownloader::new("https://www.example.com/");
-        let _ = concat_output_files_ffmpeg(&ddl, &[red.clone(), green, blue]);
+        let _ = concat_output_files_ffmpeg_filter(&ddl, &[red.clone(), green, blue]);
         let capture_red = tmpd.path().join("capture-red.png");
         Command::new("ffmpeg")
             .args(["-ss", "2.5",

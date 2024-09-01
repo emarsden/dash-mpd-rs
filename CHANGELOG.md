@@ -9,11 +9,28 @@
   specify an absolute BaseURL element at the MPD, Period or Representation level, or to use absolute
   URLS for all media segments.
 
+- Downloading: add support for the ffmpeg “concat demuxer” as a concatenation helper for multperiod
+  manifests, as an alternative to the existing ffmpeg “concat filter” support. To use this
+  concatenation helper, all Periods must use the same encoding (same codecs, same time base, etc.),
+  though they may be wrapped in different container formats. This concatenation helper is very fast
+  because it copies the media streams, rather than reencoding them.
+
+  In a typical use case of a multi-period DASH manifest with DAI (where Periods containing
+  advertising have been intermixed with Periods of content), where it is possible to drop the
+  advertising segments (using `minimum_period_duration()` or using an XSLT filter on Period
+  elements), the content segments are likely to all use the same codecs and encoding parameters, so
+  this concat helper should work well.
+  
+  Use it with `--concat-preference mp4:ffmpegdemuxer` for example.
+
 - Downloading: log additional diagnostics information for most external commands run for muxing,
   concatenating and subtitle extraction/merging, when the verbosity level is greater than 0 or 1.
   The logged information includes the full commandline.
 
 - Added some random robustness checks for parsing functions, using the proptest crate.
+
+- Fixed: the concatenation of multiperiod manifests using the ffmpeg concat filter was erroneously
+  adding an empty audio track when none of the input Periods contained audio.
 
 
 ## [0.17.1] - 2024-08-25

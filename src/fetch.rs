@@ -669,8 +669,9 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `container`: the container type (e.g. "mp4", "mkv", "avi")
-    /// * `ordering`: the comma-separated order of preference for trying concat helper applications
-    ///   (valid possibilities are "ffmpeg", "mkvmerge", "mp4box")
+    /// * `ordering`: the comma-separated order of preference for trying concat helper applications.
+    ///   Valid possibilities are "ffmpeg" (the ffmpeg concat filter, slow), "ffmpegdemuxer" (the
+    ///   ffmpeg concat demuxer, fast but less robust), "mkvmerge" (fast but not robust), and "mp4box".
     ///
     /// # Example
     ///
@@ -3801,16 +3802,16 @@ async fn fetch_period_subtitles(
             {
                 let msg = partial_process_output(&ffmpeg.stdout);
                 if msg.len() > 0 {
-                    info!("ffmpeg stdout: {msg}");
+                    info!("  ffmpeg stdout: {msg}");
                 }
                 let msg = partial_process_output(&ffmpeg.stderr);
                 if msg.len() > 0 {
-                    info!("ffmpeg stderr: {msg}");
+                    info!("  ffmpeg stderr: {msg}");
                 }
                 if ffmpeg.status.success() {
                     info!("  Converted STPP subtitles to TTML format");
                 } else {
-                    warn!("Error running ffmpeg to convert subtitles");
+                    warn!("  Error running ffmpeg to convert subtitles");
                 }
             }
             // TODO: it would be useful to also convert the subtitles to SRT/WebVTT format, as they tend

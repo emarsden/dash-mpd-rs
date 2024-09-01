@@ -50,6 +50,41 @@ async fn test_concat_noaudio_ffmpeg() {
 }
 
 
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_noaudio_ffmpegdemuxer() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/fokus/adinsertion-samples/xlink/twoperiodsOR.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-noaudio-ffmpegdemuxer.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mp4", "ffmpegdemuxer")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 5_781_840);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // mkvmerge cannot concat this stream to MP4: failure with error message
 //   Quicktime/MP4 reader: Could not read chunk number 48/62 with size 1060 from position 15936. Aborting.
 #[test(tokio::test)]
@@ -142,6 +177,41 @@ async fn test_concat_singleases_ffmpeg() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_singleases_ffmpegdemuxer() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/fokus/adinsertion-samples/xlink/singleases.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-singleases-ffmpeg.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mp4", "ffmpegdemuxer")
+        .minimum_period_duration(Duration::new(10, 0))
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 5_781_840);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
 // mkvmerge is unable to concatenate these streams: fails with an error message
 //
 //   The track number 0 from the file '/tmp/.tmpkgxD7n/concat-singleases-mkvmerge-p2.mp4' can
@@ -184,13 +254,40 @@ async fn test_concat_heliocentrism_ffmpeg_mp4() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 42_060);
+    check_file_size_approx(&out, 36_829);
     let meta = ffprobe(out).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let audio = meta.streams.iter()
-        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
-        .expect("finding audio stream");
-    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    // This manifest has no audio track.
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_heliocentrism_ffmpegdemuxer_mp4() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-helio-ffmpeg-demuxer.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mp4", "ffmpegdemuxer")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 40_336);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
@@ -218,14 +315,39 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
+    check_file_size_approx(&out, 35_937);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-helio-ffmpeg.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mkv", "ffmpegdemuxer")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 42_060);
     let meta = ffprobe(out).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let audio = meta.streams.iter()
-        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
-        .expect("finding audio stream");
-    // ffmpeg decides to reencode the original aac to vorbis for the mkv container
-    assert_eq!(audio.codec_name, Some(String::from("vorbis")));
+    assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
@@ -327,13 +449,9 @@ async fn test_concat_heliocentrism_p1p2() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 33_967);
+    check_file_size_approx(&out, 30_496);
     let meta = ffprobe(out).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let audio = meta.streams.iter()
-        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
-        .expect("finding audio stream");
-    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
@@ -346,3 +464,83 @@ async fn test_concat_heliocentrism_p1p2() {
 }
 
 
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_dashif_5bnomor2() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // From https://testassets.dashif.org/#feature/details/586fb3879ae9045678eab587
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCases/5b/nomor/2.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-5bnomor2.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .with_concat_preference("mp4", "ffmpegdemuxer")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 119_710_971);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(709.0 < duration && duration < 710.5,
+            "Expecting duration between 709 and 710.5, got {duration}");
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+#[test(tokio::test)]
+#[cfg(not(feature = "libav"))]
+async fn test_concat_axinom_multiperiod() {
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // Keys obtained from https://github.com/Axinom/public-test-vectors/blob/master/TestVectors-v7-v8.md
+    let mpd_url = "https://media.axprod.net/TestVectors/v7-MultiDRM-MultiKey-MultiPeriod/Manifest.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("concat-axinom-multiperiod.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .add_decryption_key(String::from("0872786ef9e7465fa3a24e5b0ef8fa45"),
+                            String::from("c3261179bab61eeec979d2d4069511cf"))
+        .add_decryption_key(String::from("29f05e8fa1ae46e480e922dcd44cd7a1"),
+                            String::from("0711b17c84a90cbb41097264c901b732"))
+        .with_concat_preference("mp4", "ffmpegdemuxer")
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 83_015_660);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.is_some());
+    let duration = video.duration.as_ref().unwrap().parse::<f64>().unwrap();
+    assert!(1468.0 < duration && duration < 1469.0,
+            "Expecting duration between 1468 and 1469s, got {duration}");
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
