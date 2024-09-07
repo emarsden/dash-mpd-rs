@@ -16,11 +16,10 @@ use axum::extract::State;
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
-use test_log::test;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate, Location};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use common::generate_minimal_mp4;
+use common::{generate_minimal_mp4, setup_logging};
 
 
 #[derive(Debug, Default)]
@@ -35,7 +34,7 @@ impl AppState {
 }
 
 
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mpd_location() -> Result<()> {
     let segment_template1 = SegmentTemplate {
         initialization: Some("/media/init.mp4".to_string()),
@@ -97,6 +96,7 @@ async fn test_mpd_location() -> Result<()> {
         ([(header::CONTENT_TYPE, "text/plain")], format!("{}", state.counter.load(Ordering::Relaxed)))
     }
 
+    setup_logging();
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml1) }))

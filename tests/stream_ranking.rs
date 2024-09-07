@@ -26,12 +26,11 @@ use axum::extract::{State, Path};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use common::{generate_minimal_mp4_ffmpeg, ffprobe_metadata_title};
+use common::{generate_minimal_mp4_ffmpeg, ffprobe_metadata_title, setup_logging};
 
 
 #[derive(Debug, Default)]
@@ -50,7 +49,7 @@ const QUALITY_INTERMEDIATE: u8 = 66;
 const QUALITY_WORST: u8 = 77;
 
 
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_preference_ranking() -> Result<()> {
     let segment_template1 = SegmentTemplate {
         initialization: Some(format!("/media/{QUALITY_BEST}")),
@@ -131,6 +130,7 @@ async fn test_preference_ranking() -> Result<()> {
         ([(header::CONTENT_TYPE, "text/plain")], format!("{}", state.counter.load(Ordering::Relaxed)))
     }
 
+    setup_logging();
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))

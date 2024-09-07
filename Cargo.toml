@@ -15,7 +15,7 @@ edition = "2021"
 base64 = "0.22.1"
 base64-serde = "0.7.0"
 lazy_static = "1.5.0"
-serde = { version = "1.0.209", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.9.0", features = ["base64"] }
@@ -55,7 +55,6 @@ indicatif = "0.17.8"
 clap = "=4.4.18"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
-test-log = { version = "0.2.16", features = ["trace"] }
 proptest = "1.5.0"
 http = "1.1.0"
 axum = "0.7.5"
@@ -64,7 +63,7 @@ axum-auth = "0.7.0"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.7", default-features = false, features = ["cookies", "json"] }
 serde_json = "1.0.127"
-anyhow = "1.0.86"
+anyhow = "1.0.87"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
 json = "0.12.4"
@@ -72,6 +71,7 @@ mp4 = "0.14.0"
 image = "0.25.2"
 pretty_assertions = "1.4.0"
 approx = "0.5.1"
+assert_cmd = "2.0.16"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35"]

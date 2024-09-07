@@ -19,11 +19,10 @@ use axum::http::{header, StatusCode};
 use axum::body::Body;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
-use common::{check_file_size_approx, generate_minimal_mp4};
+use common::{check_file_size_approx, generate_minimal_mp4, setup_logging};
 
 
 #[derive(Debug, Default)]
@@ -41,7 +40,7 @@ impl AppState {
     }
 }
 
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xslt_rewrite_media() -> Result<()> {
     // State shared between the request handlers.
     let shared_state = Arc::new(AppState::new());
@@ -73,6 +72,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
                  state.count_media.load(Ordering::Relaxed)))
     }
 
+    setup_logging();
     let mut mpd = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     mpd.push("tests");
     mpd.push("fixtures");
@@ -137,8 +137,9 @@ async fn test_xslt_rewrite_media() -> Result<()> {
 // This MPD manifest includes two AdaptationSets, one for the video streams and one for the audio
 // stream. The rewrite-drop-audio.xslt stylesheet rewrites the XML manifest to remove the audio
 // AdaptationSet. We check that the resulting media container only contains a video track.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_xslt_drop_audio() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -168,8 +169,9 @@ async fn test_xslt_drop_audio() {
 
 // This XSLT stylesheet replaces @media and @initialization attributes to point to a beloved media
 // segment.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_xslt_rick() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -197,8 +199,9 @@ async fn test_xslt_rick() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_xslt_multiple_stylesheets() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -233,7 +236,7 @@ async fn test_xslt_multiple_stylesheets() {
 
 
 // Note that the error message is structured differently on Unix and Microsoft Windows platforms.
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "xsltproc returned exit")]
 async fn test_xslt_stylesheet_error() {
     let mpd_url = "https://dash.akamaized.net/akamai/test/index3-original.mpd";

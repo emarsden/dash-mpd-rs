@@ -9,16 +9,16 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, setup_logging};
 
 
 // This test is too slow to run; disable it.
 #[ignore]
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_video_only_slow() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -37,8 +37,9 @@ async fn test_dl_video_only_slow() {
     assert!(stream.width.is_some());
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_video_only() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -57,9 +58,10 @@ async fn test_dl_video_only() {
     assert!(stream.width.is_some());
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_only() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -78,8 +80,9 @@ async fn test_dl_audio_only() {
     assert!(stream.width.is_none());
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_keep_audio_video() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -109,8 +112,9 @@ async fn test_dl_keep_audio_video() {
     assert!(stream.width.is_some());
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_keep_segments() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -132,8 +136,9 @@ async fn test_dl_keep_segments() {
 }
 
 #[ignore]
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_cea608_captions_slow() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -161,8 +166,9 @@ async fn test_dl_cea608_captions_slow() {
 
 // The MPD URL generates an HTTP 403 error from 2024-08.
 #[ignore]
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_video_stream_selection_defunct() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -188,8 +194,9 @@ async fn test_dl_video_stream_selection_defunct() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_video_stream_selection() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }

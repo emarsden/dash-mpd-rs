@@ -11,9 +11,8 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, setup_logging};
 
 
 // This manifest has role=main and role=alternate but segments are timing out as of May 2024
@@ -22,8 +21,9 @@ use common::check_file_size_approx;
 
 // This manifest has role=main (HEVC 10 bit) and role=alternate (HEVC 8 bit) streams in different
 // AdaptationSets.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_role_main() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -50,7 +50,7 @@ async fn test_role_main() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_role_alternate() {
     if env::var("CI").is_ok() {
         return;

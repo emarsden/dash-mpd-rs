@@ -11,18 +11,19 @@
 #[macro_use]
 extern crate approx;
 
+pub mod common;
 use fs_err as fs;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::parse;
 use dash_mpd::fetch::DashDownloader;
-
+use common::setup_logging;
 
 #[test]
 fn test_mpd_parser () {
+    setup_logging();
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></Period></MPD>"#;
     let res = parse(case1);
     let mpd = res.unwrap();
@@ -111,6 +112,7 @@ fn test_mpd_parser () {
 
 #[test]
 fn test_mpd_failures () {
+    setup_logging();
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-live:2011" type="static" mediaPresentationDuration="PT6M16S" minBufferTime="PT1.97S">"#;
     let c1 = parse(case1);
@@ -123,6 +125,7 @@ fn test_mpd_failures () {
 // of triggering a parse failure.
 #[test]
 fn test_unknown_elements () {
+    setup_logging();
     let case1 = r#"<MPD><UnknownElement/></MPD>"#;
     let res = parse(case1);
     assert_eq!(res.unwrap().periods.len(), 0);
@@ -159,6 +162,7 @@ fn test_unknown_elements () {
 
 #[test]
 fn test_url_parsing () {
+    setup_logging();
     // Yes, this path component is really accepted even if containing characters that are not
     // recommended for use in URLs.
     let err4 = r#"<MPD><Period id="1">
@@ -181,6 +185,7 @@ fn test_url_parsing () {
 fn test_datetime_parsing () {
     use chrono::{Timelike, Datelike};
 
+    setup_logging();
     let case1 = r#"<MPD minBufferTime="PT1.500S"></MPD>"#;
     let res = parse(case1);
     let mpd = res.unwrap();
@@ -237,6 +242,7 @@ fn test_datetime_parsing () {
 // check is correctly deserialized into our Option<f64> field.
 #[test]
 fn test_timeoffset_inf() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -260,6 +266,7 @@ fn test_timeoffset_inf() {
 // xsd:double.
 #[test]
 fn test_parse_f64() {
+    setup_logging();
     let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="-3E5"/></Period></MPD>"#;
     let mpd = parse(xml).unwrap();
     let bu = &mpd.periods[0].BaseURL[0];
@@ -294,6 +301,7 @@ fn test_parse_f64() {
 
 #[test]
 fn test_parse_f64_infnan() {
+    setup_logging();
     let xml = r#"<MPD><Period id="1"><BaseURL availabilityTimeOffset="INF"/></Period></MPD>"#;
     let mpd = parse(xml).unwrap();
     let bu = &mpd.periods[0].BaseURL[0];
@@ -319,6 +327,7 @@ fn test_parse_f64_infnan() {
 // Includes features of the DASH Low Latency specification.
 #[test]
 fn test_parse_low_latency() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -348,6 +357,7 @@ fn test_parse_low_latency() {
 
 #[test]
 fn test_file_parsing() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -433,6 +443,7 @@ fn test_file_parsing() {
 
 #[test]
 fn test_parsing_patch_location() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -448,6 +459,7 @@ fn test_parsing_patch_location() {
 // Test fixture is from https://standards.iso.org/iso-iec/23009/-1/ed-5/en/
 #[test]
 fn test_parsing_failover_content() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -473,6 +485,7 @@ fn test_parsing_failover_content() {
 
 #[test]
 fn test_parsing_xsd_uintvector() {
+    setup_logging();
     let xml = r#"<MPD><Period><Subset contains=""></Subset></Period></MPD>"#;
     let mpd = parse(xml).unwrap();
     assert!(&mpd.periods[0].subsets[0].contains.is_empty());
@@ -497,9 +510,10 @@ fn test_parsing_xsd_uintvector() {
 
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_parsing_online() {
     // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -562,9 +576,10 @@ async fn test_parsing_online() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_parsing_subrepresentations() {
     // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -591,9 +606,9 @@ async fn test_parsing_subrepresentations() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_parsing_eventstream() {
-    // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -622,9 +637,9 @@ async fn test_parsing_eventstream() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_parsing_supplementalproperty() {
-    // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -655,8 +670,9 @@ async fn test_parsing_supplementalproperty() {
 
 // This manifest has some unusual use of XML namespacing
 //   <g1:MPD xmlns="urn:MPEG:ns:DASH" xmlns:g1="urn:mpeg:DASH:schema:MPD:2011"
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_parsing_namespacing() {
+    setup_logging();
     let url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
@@ -684,9 +700,10 @@ async fn test_parsing_namespacing() {
 // This manifest is invalid because it contains a subsegmentStartsWithSAP="true", whereas the DASH
 // specification states that this should be an SAPType, an integer (checked with
 // https://conformance.dashif.org/).
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "invalid digit found in string")]
 async fn test_parsing_fail_invalid_int() {
+    setup_logging();
     DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd")
         .best_quality()
         .download().await
@@ -694,9 +711,10 @@ async fn test_parsing_fail_invalid_int() {
 }
 
 // This manifest has <BaseURL> closed by <BaseURl>
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "parsing DASH XML")]
 async fn test_parsing_fail_incorrect_tag() {
+    setup_logging();
     DashDownloader::new("https://dash.akamaized.net/akamai/test/isptest.mpd")
         .best_quality()
         .download().await

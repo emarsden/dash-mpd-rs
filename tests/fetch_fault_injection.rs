@@ -13,13 +13,12 @@ use fs_err as fs;
 use std::env;
 use std::process::Command;
 use tracing::trace;
-use test_log::test;
 use anyhow::{Context, Result};
 use serde_json::json;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, setup_logging};
 
 
 
@@ -70,8 +69,9 @@ impl Drop for ToxiProxy {
 
 #[ignore]
 #[cfg(not(feature = "libav"))]
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
 async fn test_dl_resilience() -> Result<()> {
+    setup_logging();
     if env::var("CI").is_ok() {
         return Ok(());
     }

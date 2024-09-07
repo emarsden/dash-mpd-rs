@@ -48,7 +48,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
 use dash_mpd::{SegmentTemplate, SegmentURL};
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
 use anyhow::{Context, Result};
-use common::generate_minimal_mp4;
+use common::{generate_minimal_mp4, setup_logging};
 
 
 
@@ -104,10 +104,7 @@ fn make_segment_list(urls: Vec<&str>) -> SegmentList {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xlink_retrieval() -> Result<()> {
-    let subscriber = tracing_subscriber::fmt()
-        .compact()
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
+    setup_logging();
 
     // Temporarily disable this test on CI machines, because the concatenation of our small
     // synthetic MP4 segments is failing with certain older ffmpeg versions.
@@ -324,6 +321,7 @@ async fn test_xlink_errors() -> Result<()> {
     let remote_period_xml = quick_xml::se::to_string(&remote_period)?;
     let remote_period_xml = add_xml_namespaces(&remote_period_xml)?;
 
+    setup_logging();
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))

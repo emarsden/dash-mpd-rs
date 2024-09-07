@@ -1,15 +1,16 @@
 // Basic tests for the serialization support
 
+pub mod common;
 use fs_err as fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use chrono::prelude::*;
-use test_log::test;
 use dash_mpd::{parse, MPD, Period, BaseURL, Subset};
-
+use common::setup_logging;
 
 #[test]
 fn test_serialize () {
+    setup_logging();
     let period = Period {
         id: Some("randomcookie".to_string()),
         duration: Some(Duration::new(420, 69)),
@@ -34,6 +35,7 @@ fn test_serialize () {
 // See https://github.com/emarsden/dash-mpd-rs/issues/49
 #[test]
 fn test_serialize_inf() {
+    setup_logging();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("fixtures");
@@ -60,6 +62,7 @@ fn test_serialize_inf() {
 
 #[test]
 fn test_serialize_f64_infnan() {
+    setup_logging();
     let period = Period {
         id: Some("randomcookie".to_string()),
         duration: Some(Duration::new(420, 69)),
@@ -96,6 +99,7 @@ fn test_serialize_f64_infnan() {
 
 #[test]
 fn test_serialize_xsd_uintvector() {
+    setup_logging();
     let subset = Subset {
         id: Some("sub1".to_string()),
         contains: vec![22, 33, 44],

@@ -10,15 +10,15 @@ use fs_err as fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_lang_prefer_spa() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -37,7 +37,7 @@ async fn test_lang_prefer_spa() {
     check_file_size_approx(&out, 11_809_117);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
@@ -48,8 +48,9 @@ async fn test_lang_prefer_spa() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitle_lang_stpp_im1t() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -66,7 +67,7 @@ async fn test_subtitle_lang_stpp_im1t() {
         .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
-    let meta = ffprobe(outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let audio = &meta.streams[1];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -77,8 +78,7 @@ async fn test_subtitle_lang_stpp_im1t() {
     assert_eq!(stpp.codec_tag_string, "stpp");
     let subtags = stpp.tags.as_ref().unwrap();
     assert_eq!(subtags.language, Some(String::from("fra")));
-    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(3599.5 < duration && duration < 3601.0, "Expecting duration between 3599.5 and 3601, got {duration}");
+    check_media_duration(&outpath, 3600.0);
     let _ = fs::remove_file(outpath);
 }
 
@@ -86,8 +86,9 @@ async fn test_subtitle_lang_stpp_im1t() {
 // This manifest contains 3 audio streams, with lang=en_stereo, no-voices_stereo, en_surround. Ask
 // for the en_surround audio track (which has a larger bitrate) and check that the resulting file
 // size is plausible.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_lang_en_surround() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -103,7 +104,7 @@ async fn test_lang_en_surround() {
     check_file_size_approx(&out, 14_451_023);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))

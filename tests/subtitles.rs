@@ -8,15 +8,17 @@
 // root crate directory).
 
 
+pub mod common;
 use fs_err as fs;
 use std::env;
 use std::path::Path;
 use tracing::info;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
+use common::{check_media_duration, setup_logging};
+
 
 // This manifest includes subtitles in WVTT (WebVTT) format. We check that these are downloaded to
 // the output path with a ".wvtt" extension. Also check that the subtitles are successfully
@@ -25,8 +27,9 @@ use dash_mpd::fetch::DashDownloader;
 //
 // Note that these tests will fail if MP4Box (from GPAC) is not installed. MP4Box is used for the
 // conversion to SRT format.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_wvtt () {
+    setup_logging();
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
     let outpath = env::temp_dir().join("sintel.mp4");
     let mut subpath_wvtt = outpath.clone();
@@ -77,8 +80,9 @@ async fn test_subtitles_wvtt () {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_ttml () {
+    setup_logging();
     let mpd = "https://dash.akamaized.net/dash264/TestCases/4b/qualcomm/2/TearsOfSteel_onDem5secSegSubTitles.mpd";
     let outpath = env::temp_dir().join("tears-of-steel.mp4");
     let mut subpath = outpath.clone();
@@ -115,8 +119,9 @@ async fn test_subtitles_ttml () {
 
 // We can run this on CI infrastructure because it's only downloading a modest amount of subtitle
 // segments.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_vtt () {
+    setup_logging();
     let mpd = "http://dash.edgesuite.net/akamai/test/caption_test/ElephantsDream/elephants_dream_480p_heaac5_1.mpd";
     let outpath = env::temp_dir().join("elephants-dream.mp4");
     if outpath.exists() {
@@ -145,8 +150,9 @@ async fn test_subtitles_vtt () {
 
 // STPP subtitles are muxed into the output media stream, so we need to download audio and video for
 // this type. So we don't run this test on CI infrastructure.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_stpp() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -162,19 +168,19 @@ async fn test_subtitles_stpp() {
         .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
-    let meta = ffprobe(outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath.clone()).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];
     assert_eq!(stpp.codec_tag_string, "stpp");
-    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!((620.0 < duration) && (duration < 640.0));
+    check_media_duration(&outpath, 630.0);
     let _ = fs::remove_file(outpath);
 }
 
 
 // Image-based (IMSC1 CMAF) STPP subtitles.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_stpp_imsc1() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -189,22 +195,22 @@ async fn test_subtitles_stpp_imsc1() {
         .fetch_subtitles(true)
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
-    let meta = ffprobe(outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];
     // In the MPD it's specified as stpp.ttml.im1i.
     assert_eq!(stpp.codec_tag_string, "stpp");
-    let duration = stpp.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(59.0 < duration && duration < 63.0, "Expecting duration between 59 and 63, got {duration}");
+    check_media_duration(&outpath, 60.0);
     let _ = fs::remove_file(outpath);
 }
 
 
 // MPEG-4 Part 17 (Timed Text), called "mov_text" in ffmpeg.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_tx3g() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -229,15 +235,16 @@ async fn test_subtitles_tx3g() {
     assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath).unwrap();
     assert!(srt.contains("Cue #3 Start Time"));
-    let meta = ffprobe(outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let _ = fs::remove_file(outpath);
 }
 
 
 #[ignore] // As of 2024-08 this URL is returning HTTP 403
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_subtitles_segmentbase() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -264,7 +271,7 @@ async fn test_subtitles_segmentbase() {
     let ttml = fs::read_to_string(subpath).unwrap();
     assert!(ttml.contains("http://www.w3.org/ns/ttml"));
     assert!(ttml.contains("robot hand"));
-    let meta = ffprobe(outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let _ = fs::remove_file(outpath);
 }

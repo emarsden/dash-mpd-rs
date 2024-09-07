@@ -18,13 +18,13 @@ use std::env;
 use std::process::Command;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_none() {
+    setup_logging();
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cfnone.mp4");
     DashDownloader::new(mpd_url)
@@ -37,9 +37,10 @@ async fn test_dl_none() {
     assert!(!out.exists());
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_mp4() {
+    setup_logging();
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("cf.mp4");
@@ -60,8 +61,9 @@ async fn test_dl_mp4() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_segmentbase_baseurl() {
+    setup_logging();
     let mpd_url = "https://v.redd.it/p5rowtg41iub1/DASHPlaylist.mpd?a=1701104071";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("reddit.mp4");
@@ -86,8 +88,9 @@ async fn test_dl_segmentbase_baseurl() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_segmenttemplate_tiny() {
+    setup_logging();
     let mpd_url = "https://github.com/bbc/exoplayer-testing-samples/raw/master/app/src/androidTest/assets/streams/files/redGreenVideo/redGreenOnlyVideo.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("red-green.mp4");
@@ -111,9 +114,10 @@ async fn test_dl_segmenttemplate_tiny() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_mp4a() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -137,9 +141,10 @@ async fn test_dl_audio_mp4a() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_flac() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -164,11 +169,12 @@ async fn test_dl_audio_flac() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_dolby_eac3() {
     // E-AC-3 is the same as Dolby Digital Plus; it's an improved version of the AC-3 codec that
     // allows higher bitrates.
+    setup_logging();
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesMCA/dolby/3/1/ChID_voices_20_128_ddp.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("dolby-eac3.mp4");
@@ -192,9 +198,10 @@ async fn test_dl_dolby_eac3() {
 
 // As of 2023-09, ffmpeg v6.0 and VLC v3.0.18 are unable to mux this Dolby AC-4 audio stream into an
 // MP4 container, not play the content. mkvmerge is able to mux it into a Matroska container.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_dolby_ac4_mkv() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -221,9 +228,10 @@ async fn test_dl_dolby_ac4_mkv() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_sessionid() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -252,9 +260,10 @@ async fn test_dl_sessionid() {
 // As of 2023-10, ffmpeg v6.0 (https://trac.ffmpeg.org/ticket/8349) and VLC v3.0.18 are unable to
 // mux this Dolby AC-4 audio stream into an MP4 container, nor to play the content. mp4box is able
 // to mux it into an MP4 container.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_dolby_ac4_mp4() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -279,9 +288,10 @@ async fn test_dl_dolby_ac4_mp4() {
 
 // As of 2023-09, ffmpeg v6.0 is unable to mux this Dolby DTSC audio codec into an MP4 container. mkvmerge
 // is able to mux it into a Matroska container.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_dolby_dtsc() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -314,9 +324,10 @@ async fn test_dl_dolby_dtsc() {
 // https://dash.akamaized.net/dash264/TestCasesMCA/fraunhofer/MPEGH_Stereo_lc_mha1/1/Sintel/sintel_audio_video_mpegh_mha1_stereo_sidx.mpd
 
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_hevc_hdr() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -342,9 +353,10 @@ async fn test_dl_hevc_hdr() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_hvc1() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -375,9 +387,10 @@ async fn test_dl_hvc1() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_vp9_uhd() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -405,9 +418,10 @@ async fn test_dl_vp9_uhd() {
 
 // H.266/VVC codec. ffmpeg v7.0 is not able to place this video stream in an MP4 container, but
 // muxing to Matroska with mkvmerge works. Neither mplayer nor VLC can play the video.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_vvc() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -444,9 +458,10 @@ async fn test_dl_vvc() {
 }
 
 // MPEG2 TS codec (mostly historical interest).
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_mp2t() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -460,7 +475,7 @@ async fn test_dl_mp2t() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 9_019_006);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
@@ -475,8 +490,9 @@ async fn test_dl_mp2t() {
 
 // A test for SegmentTemplate+SegmentTimeline addressing. Also a test of manifests created with the
 // Broadpeak Origin packager.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_segment_timeline() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -497,9 +513,10 @@ async fn test_dl_segment_timeline() {
 }
 
 // A test for SegmentList addressing
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_segment_list() {
+    setup_logging();
     let mpd_url = "https://res.cloudinary.com/demo/video/upload/sp_full_hd/handshake.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("handshake.mp4");
@@ -518,9 +535,10 @@ async fn test_dl_segment_list() {
 
 // A test for SegmentBase@indexRange addressing with a single audio and video fragment that
 // is convenient for testing sleep_between_requests()
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_segment_base_indexrange() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -546,8 +564,9 @@ async fn test_dl_segment_base_indexrange() {
 // it is necessary to combine information from the AdaptationSet.SegmentTemplate element (which has
 // the SegmentTimeline) and the Representation.SegmentTemplate element (which has the media
 // template).
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_segment_template_multilevel() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -569,9 +588,10 @@ async fn test_dl_segment_template_multilevel() {
 }
 
 // A test for BaseURL addressing mode.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_baseurl() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -593,8 +613,9 @@ async fn test_dl_baseurl() {
 }
 
 // A test for AdaptationSet>SegmentList + Representation>SegmentList addressing modes.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_adaptation_segment_list() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -617,8 +638,9 @@ async fn test_dl_adaptation_segment_list() {
 }
 
 // This manifest has video streams with different codecs (avc1 and hev1) in different AdaptationSets.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_adaptation_set_variants() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -652,7 +674,7 @@ async fn test_dl_adaptation_set_variants() {
 }
 
 // A test for the progress observer functionality.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_progress_observer() {
     use dash_mpd::fetch::ProgressObserver;
     use std::sync::Arc;
@@ -665,6 +687,7 @@ async fn test_progress_observer() {
         }
     }
 
+    setup_logging();
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("progress.mp4");
     DashDownloader::new(mpd_url)
@@ -682,7 +705,7 @@ async fn test_progress_observer() {
 // identical to previous "known good" downloads. These checks are fragile because checksums and
 // exact octet counts might change due to version changes in libav, that we use for muxing.
 // Running this test downloads several hundred megabytes, so we disable it for CI.
-#[test(tokio::test)]
+#[tokio::test]
 #[allow(dead_code)]
 async fn test_downloader() {
     use std::io;
@@ -691,6 +714,7 @@ async fn test_downloader() {
     use ffprobe::ffprobe;
     use colored::*;
 
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -747,9 +771,9 @@ async fn test_downloader() {
 
 
 // Testing compatibility with the unified-streaming.com DASH encoder
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_usp_tos() {
-    // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -771,9 +795,9 @@ async fn test_dl_usp_tos() {
 
 
 // Content that uses the HVC1 H265 codec in a CMAF container.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_h265() {
-    // Don't run download tests on CI infrastructure
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -798,8 +822,9 @@ async fn test_dl_h265() {
 // stream (we don't implement the clock functionality needed to wait until segments become
 // progressively available), we are able to download pseudo-live stream if the
 // allow_live_streaming() method is enabled.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_dynamic_stream() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -831,21 +856,23 @@ async fn test_dl_dynamic_stream() {
 
 // This is a really live stream, for which we only download a certain number of seconds.
 // Only a small download, so we can run it on CI infrastructure.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_dynamic_forced_duration() {
+    setup_logging();
     let mpd_url = "https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("dynamic-6s.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .verbosity(2)
         .allow_live_streams(true)
         .force_duration(6.5)
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 192_856);
-    let meta = ffprobe(out).unwrap();
+    check_file_size_approx(&out, 141_181);
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
@@ -854,8 +881,7 @@ async fn test_dl_dynamic_forced_duration() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(7.5 < duration && duration < 8.5, "Expecting duration between 7.5 and 8.5, got {duration}");
+    check_media_duration(&out, 6.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -863,8 +889,9 @@ async fn test_dl_dynamic_forced_duration() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_lowlatency_forced_duration() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -879,8 +906,8 @@ async fn test_dl_lowlatency_forced_duration() {
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 3_160_237);
-    let meta = ffprobe(out).unwrap();
+    check_file_size_approx(&out, 2_633_347);
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
@@ -889,8 +916,7 @@ async fn test_dl_lowlatency_forced_duration() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(9.5 < duration && duration < 13.0, "Expecting duration between 9.5 and 13, got {duration}");
+    check_media_duration(&out, 11.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -902,8 +928,9 @@ async fn test_dl_lowlatency_forced_duration() {
 // Potentially problematic for our calls to ffmpeg and to mp4decrypt.
 // Disable this test because the decryption keys seem to change over time.
 #[ignore]
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_filename_ampersand() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -923,7 +950,7 @@ async fn test_dl_filename_ampersand() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 541_593);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
@@ -942,9 +969,10 @@ async fn test_dl_filename_ampersand() {
 
 // This test doesn't work with libav because we haven't yet implemented copy_video_to_container()
 // with a change in container type.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_forced_duration_audio() {
+    setup_logging();
     let mpd_url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-surround-en.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("forced-duration-audio.mp4");
@@ -954,16 +982,15 @@ async fn test_dl_forced_duration_audio() {
         .force_duration(8.0)
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 437_193);
+    check_file_size_approx(&out, 281_821);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    let duration = stream.duration.as_ref().unwrap().parse::<f64>().unwrap();
-    assert!(11.0 < duration && duration < 12.0, "Expecting duration between 11 and 12, got {duration}");
+    check_media_duration(&out, 7.7);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -971,8 +998,9 @@ async fn test_dl_forced_duration_audio() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_dl_follow_redirect() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }

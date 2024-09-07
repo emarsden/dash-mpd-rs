@@ -12,14 +12,14 @@ use std::path::PathBuf;
 use url::Url;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, setup_logging};
 
 
 // This manifest has a single absolute BaseURL at the top level (MPD.BaseURL).
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_file_mpd_baseurl() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -52,8 +52,9 @@ async fn test_file_mpd_baseurl() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_file_period_baseurl() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -101,8 +102,9 @@ async fn test_file_period_baseurl() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_file_period_baseurl_thomson() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -154,8 +156,9 @@ async fn test_file_period_baseurl_thomson() {
 // This manifest has absolute URLs in each SegmentTemplate element. It's a multiperiod manifest with
 // several DAI periods including segments from dai.google.com that have now expired; we only fetch
 // the first Period which is identified by its id in an XPath query.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_file_segmenttemplate() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }

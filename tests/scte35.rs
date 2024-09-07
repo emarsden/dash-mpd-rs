@@ -4,7 +4,6 @@
 use fs_err as fs;
 use std::path::PathBuf;
 use std::time::Duration;
-use test_log::test;
 use dash_mpd::{MPD, parse};
 
 
@@ -172,7 +171,7 @@ fn test_scte35_elements() {
 
 
 // This MPD contains an SCTE35 EventStream with events encoding in Binary format.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 async fn test_scte35_live() {
     let client = reqwest::Client::builder()

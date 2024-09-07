@@ -8,18 +8,18 @@ pub mod common;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use pretty_assertions::assert_eq;
 use dash_mpd::fetch::DashDownloader;
-use common::check_file_size_approx;
+use common::{check_file_size_approx, setup_logging};
 
 
 // We can't check file size for this test, as depending on whether mkvmerge or ffmpeg or mp4box are
 // used to copy the video stream into the Matroska container (depending on which one is installed),
 // the output file size varies quite a lot.
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_mkv() {
+    setup_logging();
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cf.mkv");
     DashDownloader::new(mpd_url)
@@ -31,9 +31,10 @@ async fn test_transcode_mkv() {
     assert_eq!(format, FileFormat::MatroskaVideo);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_webm() {
+    setup_logging();
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cf.webm");
     DashDownloader::new(mpd_url)
@@ -45,9 +46,10 @@ async fn test_transcode_webm() {
     assert_eq!(format, FileFormat::Webm);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_avi() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -62,9 +64,10 @@ async fn test_transcode_avi() {
     assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
 
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_av1() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -77,7 +80,7 @@ async fn test_transcode_av1() {
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 12_987_188);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     // The order of streams in the WebM container is unreliable.
     let audio = meta.streams.iter()
@@ -93,9 +96,10 @@ async fn test_transcode_av1() {
 
 
 // Test transcoding audio from mp4a/aac to Ogg Vorbis
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_audio_vorbis() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -108,7 +112,7 @@ async fn test_transcode_audio_vorbis() {
     check_file_size_approx(&out, 9_880_500);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::OggVorbis);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -116,9 +120,10 @@ async fn test_transcode_audio_vorbis() {
 }
 
 // Test transcoding multiperiod audio from mp4a/aac to MP3
-#[test(tokio::test)]
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_audio_multiperiod_mp3() {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -131,7 +136,7 @@ async fn test_transcode_audio_multiperiod_mp3() {
     check_file_size_approx(&out, 23_362_703);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out.clone()).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));

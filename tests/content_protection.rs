@@ -12,14 +12,15 @@ use std::process::Command;
 use std::time::Duration;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use test_log::test;
 use dash_mpd::fetch::DashDownloader;
-use common::{check_file_size_approx, ffmpeg_approval};
+use common::{check_file_size_approx, ffmpeg_approval, setup_logging};
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_content_protection_parsing() {
     use dash_mpd::{parse, MPD};
+
+    setup_logging();
 
     fn known_cp_name(name: &str) -> bool {
         let known = &["cenc", "MSPR 2.0", "Widevine", "ClearKey1.0"];
@@ -74,8 +75,9 @@ async fn test_content_protection_parsing() {
 
 // Note that mp4decrypt is not able to decrypt content in a WebM container, so we use Shaka packager
 // here.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_webm() {
+    setup_logging();
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out = env::temp_dir().join("angel.webm");
     if out.exists() {
@@ -128,8 +130,9 @@ async fn test_decryption_webm() {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_cra () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -140,6 +143,7 @@ async fn test_decryption_cra () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("75bf33ac08440c81d623019c87fe1360"),
                             String::from("bacd0a82f91a44d9315e6269dd769e0f"))
         .download_to(outpath.clone()).await
@@ -155,8 +159,9 @@ async fn test_decryption_cra () {
 // These test cases are from https://refapp.hbbtv.org/videos/.
 
 // WideVine ContentProtection with CENC encryption
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_wvcenc_mp4decrypt () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -167,6 +172,7 @@ async fn test_decryption_wvcenc_mp4decrypt () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -183,8 +189,9 @@ async fn test_decryption_wvcenc_mp4decrypt () {
 
 
 // Widevine ContentProtection with CBCS encryption
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_wvcbcs_mp4decrypt () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -213,8 +220,9 @@ async fn test_decryption_wvcbcs_mp4decrypt () {
 
 
 // PlayReady / CENC
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_prcenc_mp4decrypt () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -239,8 +247,9 @@ async fn test_decryption_prcenc_mp4decrypt () {
 
 
 // Marlin / CENC
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_marlincenc_mp4decrypt () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -251,6 +260,7 @@ async fn test_decryption_marlincenc_mp4decrypt () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .download_to(outpath.clone()).await
@@ -263,8 +273,9 @@ async fn test_decryption_marlincenc_mp4decrypt () {
 }
 
 // Marlin / CBCS
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_marlincbcs_mp4decrypt () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -275,6 +286,7 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .download_to(outpath.clone()).await
@@ -290,8 +302,9 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
 
 
 // WideVine ContentProtection with CENC encryption
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_wvcenc_shaka () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -302,6 +315,7 @@ async fn test_decryption_wvcenc_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -319,8 +333,9 @@ async fn test_decryption_wvcenc_shaka () {
 
 
 // Widevine ContentProtection with CBCS encryption
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_wvcbcs_shaka () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -349,8 +364,9 @@ async fn test_decryption_wvcbcs_shaka () {
 }
 
 // PlayReady / CENC
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_prcenc_shaka () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -376,8 +392,9 @@ async fn test_decryption_prcenc_shaka () {
 
 
 // Marlin / CENC
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_mlcenc_shaka () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -402,8 +419,9 @@ async fn test_decryption_mlcenc_shaka () {
 
 
 // Marlin / CBCS
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_mlcbcs_shaka () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -414,6 +432,7 @@ async fn test_decryption_mlcbcs_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -430,8 +449,9 @@ async fn test_decryption_mlcbcs_shaka () {
 
 
 // Test vectors from https://github.com/Axinom/public-test-vectors
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_axinom_cmaf_h265_multikey () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -442,6 +462,7 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("53dc3eaa5164410a8f4ee15113b43040"),
                             String::from("620045a34e839061ee2e9b7798fdf89b"))
         .add_decryption_key(String::from("9dbace9e41034c5296aa63227dc5f773"),
@@ -457,8 +478,9 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_axinom_cbcs () {
+    setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
@@ -469,6 +491,7 @@ async fn test_decryption_axinom_cbcs () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
                             String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
         // For an unknown reason, mp4decrypt is not able to decrypt the audio stream for this
@@ -484,8 +507,9 @@ async fn test_decryption_axinom_cbcs () {
 
 
 // A small decryption test case that we can run on the CI infrastructure.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_small () {
+    setup_logging();
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes.mp4");
     if outpath.exists() {
@@ -502,8 +526,9 @@ async fn test_decryption_small () {
 }
 
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_small_shaka () {
+    setup_logging();
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes-shaka.mp4");
     if outpath.exists() {
@@ -511,6 +536,7 @@ async fn test_decryption_small_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -522,8 +548,9 @@ async fn test_decryption_small_shaka () {
 
 // Content that isn't encrypted should be downloaded normally even if unnecessary decryption keys are
 // specified.
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_unencrypted_mp4decrypt () {
+    setup_logging();
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-mp4decrypt.mp4");
     if outpath.exists() {
@@ -531,6 +558,7 @@ async fn test_decryption_unencrypted_mp4decrypt () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4decrypt")
@@ -550,8 +578,9 @@ async fn test_decryption_unencrypted_mp4decrypt () {
 // decoding the media stream.
 // https://github.com/shaka-project/shaka-packager/issues/1368
 #[ignore]
-#[test(tokio::test)]
+#[tokio::test]
 async fn test_decryption_unencrypted_shaka () {
+    setup_logging();
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-shaka.mp4");
     if outpath.exists() {
@@ -559,6 +588,7 @@ async fn test_decryption_unencrypted_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .verbosity(2)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -573,9 +603,11 @@ async fn test_decryption_unencrypted_shaka () {
 
 
 
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "unknown decryption application")]
 async fn test_decryption_invalid_decryptor () {
+    // Don't set up logging, because we know that an error will be logged to the terminal.
+    // setup_logging();
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("failing.mp4");
     DashDownloader::new(mpd)
@@ -588,7 +620,7 @@ async fn test_decryption_invalid_decryptor () {
 
 
 // We are expecting a DashMpdError::Decrypting error.
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_mp4decrypt () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
@@ -603,7 +635,7 @@ async fn test_decryption_invalid_key_mp4decrypt () {
 
 
 // We are expecting a DashMpdError::Decrypting error.
-#[test(tokio::test)]
+#[tokio::test]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_shaka () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";

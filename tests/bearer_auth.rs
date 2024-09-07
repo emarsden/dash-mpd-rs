@@ -31,8 +31,7 @@ use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use tracing::info;
-use test_log::test;
-use common::generate_minimal_mp4;
+use common::{generate_minimal_mp4, setup_logging};
 
 
 #[derive(Debug, Default)]
@@ -46,7 +45,7 @@ impl AppState {
     }
 }
 
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_bearer_auth() -> Result<()> {
     // State shared between the request handlers. We are simply maintaining a counter of the number
     // of requests for media segments made.
@@ -109,6 +108,7 @@ async fn test_bearer_auth() -> Result<()> {
         ([(header::CONTENT_TYPE, "text/plain")], format!("{}", state.counter.load(Ordering::Relaxed)))
     }
 
+    setup_logging();
     let app = Router::new()
         .route("/mpd", get(send_mpd))
         .route("/media/:seg", get(send_mp4))
