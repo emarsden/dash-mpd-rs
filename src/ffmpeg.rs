@@ -1124,7 +1124,7 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
         .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
     let mut inputs = Vec::<PathBuf>::new();
     inputs.push(tmppath.into());
-    writeln!(&demuxlist, "file '{}'", tmppath.to_string())
+    writeln!(&demuxlist, "file '{}'", tmppath)
         .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
     for p in &paths[1..] {
         inputs.push(p.to_path_buf());
@@ -1275,7 +1275,9 @@ pub(crate) fn concat_output_files_mkvmerge(
         .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
     // https://mkvtoolnix.download/doc/mkvmerge.html
     let mut args = Vec::new();
-    args.push("--quiet");
+    if downloader.verbosity < 1 {
+        args.push("--quiet");
+    }
     args.push("-o");
     let out = paths[0].to_string_lossy();
     args.push(&out);
@@ -1299,10 +1301,12 @@ pub(crate) fn concat_output_files_mkvmerge(
     let msg = partial_process_output(&mkvmerge.stdout);
     if msg.len() > 0 {
         info!("  mkvmerge stdout: {msg}");
+        println!("  mkvmerge stdout: {msg}");
     }
     let msg = partial_process_output(&mkvmerge.stderr);
     if msg.len() > 0 {
         info!("  mkvmerge stderr: {msg}");
+        println!("  mkvmerge stderr: {msg}");
     }
     if mkvmerge.status.success() {
         Ok(())
@@ -1336,6 +1340,10 @@ pub(crate) fn concat_output_files(
         container.eq("mkv") ||
         container.eq("webm")
     {
+        // We will probably make ffmpegdemuxer the default concat helper in a future release; it's
+        // much more robust than mkvmerge and much faster than ffmpeg ("concat filter"). But wait
+        // until it gets more testing.
+        // concat_preference.push("ffmpegdemuxer");
         concat_preference.push("mkvmerge");
         concat_preference.push("ffmpeg");
     } else {
@@ -1387,17 +1395,15 @@ pub(crate) fn concat_output_files(
 }
 
 
-
+// Run these tests with "cargo test -- --nocapture" to see all tracing logs.
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use std::process::Command;
-    use test_log::test;
+    use std::path::{Path, PathBuf};
+    use assert_cmd::Command;
     use fs_err as fs;
-    use super::concat_output_files_ffmpeg_filter;
 
     fn generate_mp4_hue_tone(filename: &Path, color: &str, tone: &str) {
-        let ffmpeg = Command::new("ffmpeg")
+        Command::new("ffmpeg")
             .args(["-y",  // overwrite output file if it exists
                    "-nostdin",
                    "-lavfi", &format!("color=c={color}:duration=5:size=50x50:rate=1;sine=frequency={tone}:sample_rate=48000:duration=5"),
@@ -1407,21 +1413,102 @@ mod tests {
                    // h264_mediacodec encoder on Android has more constraints than libx264 regarding the
                    // number of keyframes.
                    "-c:v", "libx264",
+                   "-pix_fmt", "yuv420p",
+                   "-profile:v", "baseline",
+                   "-framerate", "25",
+                   "-movflags", "faststart",
                    filename.to_str().unwrap()])
-            .output()
-            .expect("spawning ffmpeg");
-        assert!(ffmpeg.status.success());
+            .assert()
+            .success();
     }
 
     // Generate 3 5-second dummy MP4 files, one with a red background color, the second with green,
     // the third with blue. Concatenate them into the first red file. Check that at second 2.5 we
     // have a red background, at second 7.5 a green background, and at second 12.5 a blue
     // background.
+    //
+    // We run this test once for each of the concat helpers: ffmpeg, ffmpegdemuxer, mkvmerge.
     #[test]
-    fn test_concat() {
+    fn test_concat_helpers() {
         use crate::fetch::DashDownloader;
+        use crate::ffmpeg::{
+            concat_output_files_ffmpeg_filter,
+            concat_output_files_ffmpeg_demuxer,
+            concat_output_files_mkvmerge
+        };
         use image::ImageReader;
         use image::Rgb;
+
+        // Check that the media file merged contains a first sequence with red background, then with
+        // green background, then with blue background.
+        fn check_color_sequence(merged: &PathBuf) {
+            let tmpd = tempfile::tempdir().unwrap();
+            let capture_red = tmpd.path().join("capture-red.png");
+            Command::new("ffmpeg")
+                .args(["-ss", "2.5",
+                       "-i", &merged.to_str().unwrap(),
+                       "-frames:v", "1",
+                       &capture_red.to_str().unwrap()])
+                .assert()
+                .success();
+            let img = ImageReader::open(&capture_red).unwrap()
+                .decode().unwrap()
+                .into_rgb8();
+            for pixel in img.pixels() {
+                match pixel {
+                    Rgb(rgb) => {
+                        assert!(rgb[0] > 250);
+                        assert!(rgb[1] < 5);
+                        assert!(rgb[2] < 5);
+                    },
+                };
+            }
+            fs::remove_file(&capture_red).unwrap();
+            // The green color used by ffmpeg is Rgb(0,127,0)
+            let capture_green = tmpd.path().join("capture-green.png");
+            Command::new("ffmpeg")
+                .args(["-ss", "7.5",
+                       "-i", &merged.to_str().unwrap(),
+                       "-frames:v", "1",
+                       &capture_green.to_str().unwrap()])
+                .assert()
+                .success();
+            let img = ImageReader::open(&capture_green).unwrap()
+                .decode().unwrap()
+                .into_rgb8();
+            for pixel in img.pixels() {
+                match pixel {
+                    Rgb(rgb) => {
+                        assert!(rgb[0] < 5);
+                        assert!(rgb[1].abs_diff(127) < 5);
+                        assert!(rgb[2] < 5);
+                    },
+                };
+            }
+            fs::remove_file(&capture_green).unwrap();
+            // The "blue" color chosen by ffmpeg is Rgb(0,0,254)
+            let capture_blue = tmpd.path().join("capture-blue.png");
+            Command::new("ffmpeg")
+                .args(["-ss", "12.5",
+                       "-i", &merged.to_str().unwrap(),
+                       "-frames:v", "1",
+                       &capture_blue.to_str().unwrap()])
+                .assert()
+                .success();
+            let img = ImageReader::open(&capture_blue).unwrap()
+                .decode().unwrap()
+                .into_rgb8();
+            for pixel in img.pixels() {
+                match pixel {
+                    Rgb(rgb) => {
+                        assert!(rgb[0] < 5);
+                        assert!(rgb[1] < 5);
+                        assert!(rgb[2] > 250);
+                    },
+                };
+            }
+            fs::remove_file(&capture_blue).unwrap();
+        }
 
         let tmpd = tempfile::tempdir().unwrap();
         let red = tmpd.path().join("concat-red.mp4");
@@ -1430,70 +1517,60 @@ mod tests {
         generate_mp4_hue_tone(&red, "red", "400");
         generate_mp4_hue_tone(&green, "green", "600");
         generate_mp4_hue_tone(&blue, "blue", "800");
-        let ddl = DashDownloader::new("https://www.example.com/");
-        let _ = concat_output_files_ffmpeg_filter(&ddl, &[red.clone(), green, blue]);
-        let capture_red = tmpd.path().join("capture-red.png");
-        Command::new("ffmpeg")
-            .args(["-ss", "2.5",
-                   "-i", &red.to_str().unwrap(),
-                   "-frames:v", "1",
-                   &capture_red.to_str().unwrap()])
-            .output()
-            .expect("extracting red frame");
-        let img = ImageReader::open(capture_red).unwrap()
-            .decode().unwrap()
-            .into_rgb8();
-        for pixel in img.pixels() {
-            match pixel {
-                Rgb(rgb) => {
-                    assert!(rgb[0] > 250);
-                    assert!(rgb[1] < 5);
-                    assert!(rgb[2] < 5);
-                },
-            };
-        }
-        // The green color used by ffmpeg is Rgb(0,127,0)
-        let capture_green = tmpd.path().join("capture-green.png");
-        Command::new("ffmpeg")
-            .args(["-ss", "7.5",
-                   "-i", &red.to_str().unwrap(),
-                   "-frames:v", "1",
-                   &capture_green.to_str().unwrap()])
-            .output()
-            .expect("extracting green frame");
-        let img = ImageReader::open(capture_green).unwrap()
-            .decode().unwrap()
-            .into_rgb8();
-        for pixel in img.pixels() {
-            match pixel {
-                Rgb(rgb) => {
-                    assert!(rgb[0] < 5);
-                    assert!(rgb[1].abs_diff(127) < 5);
-                    assert!(rgb[2] < 5);
-                },
-            };
-        }
-        // The "blue" color chosen by ffmpeg is Rgb(0,0,254)
-        let capture_blue = tmpd.path().join("capture-blue.png");
-        Command::new("ffmpeg")
-            .args(["-ss", "12.5",
-                   "-i", &red.to_str().unwrap(),
-                   "-frames:v", "1",
-                   &capture_blue.to_str().unwrap()])
-            .output()
-            .expect("extracting blue frame");
-        let img = ImageReader::open(capture_blue).unwrap()
-            .decode().unwrap()
-            .into_rgb8();
-        for pixel in img.pixels() {
-            match pixel {
-                Rgb(rgb) => {
-                    assert!(rgb[0] < 5);
-                    assert!(rgb[1] < 5);
-                    assert!(rgb[2] > 250);
-                },
-            };
-        }
+        let ddl = DashDownloader::new("https://www.example.com/")
+            .verbosity(2);
+
+        let output_ffmpeg_filter = tmpd.path().join("output-ffmpeg-filter.mp4");
+        fs::copy(&red, &output_ffmpeg_filter).unwrap();
+        concat_output_files_ffmpeg_filter(
+            &ddl,
+            &[output_ffmpeg_filter.clone(), green.clone(), blue.clone()]).unwrap();
+        check_color_sequence(&output_ffmpeg_filter);
+        fs::remove_file(&output_ffmpeg_filter).unwrap();
+
+        let output_ffmpeg_demuxer = tmpd.path().join("output-ffmpeg-demuxer.mp4");
+        fs::copy(&red, &output_ffmpeg_demuxer).unwrap();
+        concat_output_files_ffmpeg_demuxer(
+            &ddl,
+            &[output_ffmpeg_demuxer.clone(), green.clone(), blue.clone()]).unwrap();
+        check_color_sequence(&output_ffmpeg_demuxer);
+        fs::remove_file(&output_ffmpeg_demuxer).unwrap();
+
+        // mkvmerge fails to concatenate our test MP4 files generated with ffmpeg (its Quicktime/MP4
+        // reader complains about "Could not read chunk number XX/YY with size XX from position
+        // XX"). So test it instead with Matroska files for which it should be more robust. We
+        // also test the ffmpeg_filter and ffmpeg_demuxer concat helpers on the Matroska files.
+        let red = tmpd.path().join("concat-red.mkv");
+        let green = tmpd.path().join("concat-green.mkv");
+        let blue = tmpd.path().join("concat-blue.mkv");
+        generate_mp4_hue_tone(&red, "red", "400");
+        generate_mp4_hue_tone(&green, "green", "600");
+        generate_mp4_hue_tone(&blue, "blue", "800");
+
+        let output_mkvmerge = tmpd.path().join("output-mkvmerge.mkv");
+        fs::copy(&red, &output_mkvmerge).unwrap();
+        concat_output_files_mkvmerge(
+            &ddl,
+            &[output_mkvmerge.clone(), green.clone(), blue.clone()]).unwrap();
+        check_color_sequence(&output_mkvmerge);
+        fs::remove_file(&output_mkvmerge).unwrap();
+
+        let output_ffmpeg_filter = tmpd.path().join("output-ffmpeg-filter.mkv");
+        fs::copy(&red, &output_ffmpeg_filter).unwrap();
+        concat_output_files_ffmpeg_filter(
+            &ddl,
+            &[output_ffmpeg_filter.clone(), green.clone(), blue.clone()]).unwrap();
+        check_color_sequence(&output_ffmpeg_filter);
+        fs::remove_file(&output_ffmpeg_filter).unwrap();
+
+        let output_ffmpeg_demuxer = tmpd.path().join("output-ffmpeg-demuxer.mkv");
+        fs::copy(&red, &output_ffmpeg_demuxer).unwrap();
+        concat_output_files_ffmpeg_demuxer(
+            &ddl,
+            &[output_ffmpeg_demuxer.clone(), green.clone(), blue.clone()]).unwrap();
+        check_color_sequence(&output_ffmpeg_demuxer);
+        fs::remove_file(&output_ffmpeg_demuxer).unwrap();
+
         let _ = fs::remove_dir_all(tmpd);
     }
 }
