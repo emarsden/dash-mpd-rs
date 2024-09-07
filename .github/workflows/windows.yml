@@ -62,6 +62,9 @@ jobs:
     - name: install protobuf compiler
       run: choco install --yes --limit-output protoc
 
+    - name: install mediainfo (CLI)
+      run: choco install --yes --limit-output mediainfo-cli
+
     - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
       shell: msys2 {0}
 

@@ -26,10 +26,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install ffmpeg + GPAC
+      - name: Install ffmpeg + GPAC + mediainfo
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac mediainfo
           MP4Box -version
 
       - name: Install mkvmerge
