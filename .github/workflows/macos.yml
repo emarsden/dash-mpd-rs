@@ -23,8 +23,10 @@ jobs:
     - name: install ffmpeg
       run: brew install ffmpeg
 
-    - name: install mkvmerge
-      run: brew install mkvtoolnix
+    - name: install mkvmerge and mediainfo
+      run: |
+        brew install mkvtoolnix
+        brew install --cask mediainfo
 
     # We can't install the version of Bento4 distributed with brew, because it conflicts with GPAC
     - name: install Bento4 mp4decrypt
