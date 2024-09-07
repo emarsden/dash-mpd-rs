@@ -2026,7 +2026,7 @@ async fn do_period_audio(
                         return Err(DashMpdError::UnhandledMediaStream(
                             "Audio representation is missing SegmentTemplate@duration attribute".to_string()));
                     }
-                    total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                    total_number += (period_duration_secs / segment_duration).round() as i64;
                     let mut number = start_number;
                     for _ in 1..=total_number {
                         let dict = HashMap::from([("Number", number.to_string())]);
@@ -2490,7 +2490,7 @@ async fn do_period_video(
                             return Err(DashMpdError::UnhandledMediaStream(
                                 "Video representation is missing SegmentTemplate@duration attribute".to_string()));
                         }
-                        total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                        total_number += (period_duration_secs / segment_duration).round() as i64;
                         let mut number = start_number;
                         for _ in 1..=total_number {
                             let dict = HashMap::from([("Number", number.to_string())]);
@@ -3302,43 +3302,41 @@ async fn fetch_period_audio(
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
             if downloader.verbosity > 1 {
-                info!("  Running mp4decrypt with args {}", args.join(" "));
+                info!("  Running mp4decrypt {}", args.join(" "));
             }
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-            let mut no_output = false;
+            let mut no_output = true;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
+                no_output = false;
             }
             if !out.status.success() || no_output {
-                warn!("mp4decrypt subprocess failed");
+                warn!("  mp4decrypt subprocess failed");
                 let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
-                    warn!("mp4decrypt stdout: {msg}");
+                    warn!("  mp4decrypt stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
-                    warn!("mp4decrypt stderr: {msg}");
+                    warn!("  mp4decrypt stderr: {msg}");
                 }
             }
             if no_output {
                 error!("{}", "Failed to decrypt audio stream with mp4decrypt".red());
-                warn!("Undecrypted audio left in {}", tmppath.display());
+                warn!("  Undecrypted audio left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
             let mut args = Vec::new();
             let mut keys = Vec::new();
-            // TODO could add --quiet
+            if downloader.verbosity < 1 {
+                args.push("--quiet".to_string());
+            }
             args.push(format!("in={},stream=audio,output={}", tmppath.display(), decrypted.display()));
             let mut drm_label = 0;
             #[allow(clippy::explicit_counter_loop)]
@@ -3350,7 +3348,7 @@ async fn fetch_period_audio(
             args.push("--keys".to_string());
             args.push(keys.join(","));
             if downloader.verbosity > 1 {
-                info!("Running shaka-packager with args {}", args.join(" "));
+                info!("  Running shaka-packager {}", args.join(" "));
             }
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
@@ -3368,19 +3366,19 @@ async fn fetch_period_audio(
                 no_output = true;
             }
             if !out.status.success() || no_output {
-                warn!("shaka-packager subprocess failed");
+                warn!("  shaka-packager subprocess failed");
                 let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
-                    warn!("shaka-packager stdout: {msg}");
+                    warn!("  shaka-packager stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
-                    warn!("shaka-packager stderr: {msg}");
+                    warn!("  shaka-packager stderr: {msg}");
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt audio stream with shaka-packager".red());
-                warn!("Undecrypted audio stream left in {}", tmppath.display());
+                error!("  {}", "Failed to decrypt audio stream with shaka-packager".red());
+                warn!("  Undecrypted audio stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else {
@@ -3464,7 +3462,7 @@ async fn fetch_period_video(
                         },
                         Err(e) => {
                             if downloader.verbosity > 0 {
-                                error!("Error fetching video segment {}: {e:?}", frag.url);
+                                error!("  Error fetching video segment {}: {e:?}", frag.url);
                             }
                             ds.download_errors += 1;
                             if ds.download_errors > downloader.max_error_count {
@@ -3481,7 +3479,7 @@ async fn fetch_period_video(
             }
         }
         tmpfile_video.flush().map_err(|e| {
-            error!("Couldn't flush video file: {e}");
+            error!("  Couldn't flush video file: {e}");
             DashMpdError::Io(e, String::from("flushing video file"))
         })?;
     } // end local scope for tmpfile_video File
@@ -3506,7 +3504,7 @@ async fn fetch_period_video(
             args.push(String::from(tmppath.to_string_lossy()));
             args.push(String::from(decrypted.to_string_lossy()));
             if downloader.verbosity > 1 {
-                info!("Running mp4decrypt with args {}", args.join(" "));
+                info!("  Running mp4decrypt {}", args.join(" "));
             }
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
@@ -3524,25 +3522,27 @@ async fn fetch_period_video(
                 no_output = true;
             }
             if !out.status.success() || no_output {
-                error!("mp4decrypt subprocess failed");
+                error!("  mp4decrypt subprocess failed");
                 let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
-                    warn!("mp4decrypt stdout: {msg}");
+                    warn!("  mp4decrypt stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
-                    warn!("mp4decrypt stderr: {msg}");
+                    warn!("  mp4decrypt stderr: {msg}");
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt video stream with mp4decrypt".red());
-                warn!("Undecrypted video stream left in {}", tmppath.display());
+                error!("  {}", "Failed to decrypt video stream with mp4decrypt".red());
+                warn!("  Undecrypted video stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
             let mut args = Vec::new();
             let mut keys = Vec::new();
-            // TODO could add --quiet
+            if downloader.verbosity < 1 {
+                args.push("--quiet".to_string());
+            }
             args.push(format!("in={},stream=video,output={}", tmppath.display(), decrypted.display()));
             let mut drm_label = 0;
             #[allow(clippy::explicit_counter_loop)]
@@ -3554,37 +3554,33 @@ async fn fetch_period_video(
             args.push("--keys".to_string());
             args.push(keys.join(","));
             if downloader.verbosity > 1 {
-                info!("Running shaka-packager with args {}", args.join(" "));
+                info!("  Running shaka-packager {}", args.join(" "));
             }
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
-            let mut no_output = false;
+            let mut no_output = true;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
+                no_output = false;
             }
             if !out.status.success() || no_output {
-                warn!("shaka-packager subprocess failed");
+                warn!("  shaka-packager subprocess failed");
                 let msg = partial_process_output(&out.stdout);
                 if msg.len() > 0 {
-                    warn!("shaka-packager stdout: {msg}");
+                    warn!("  shaka-packager stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
                 if msg.len() > 0 {
-                    warn!("shaka-packager stderr: {msg}");
+                    warn!("  shaka-packager stderr: {msg}");
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt video stream with shaka-packager".red());
-                warn!("Undecrypted video left in {}", tmppath.display());
+                error!("  {}", "Failed to decrypt video stream with shaka-packager".red());
+                warn!("  Undecrypted video left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else {
@@ -3759,19 +3755,19 @@ async fn fetch_period_subtitles(
             {
                 let msg = partial_process_output(&mp4box.stdout);
                 if msg.len() > 0 {
-                    info!("MP4Box stdout: {msg}");
+                    info!("  MP4Box stdout: {msg}");
                 }
                 let msg = partial_process_output(&mp4box.stderr);
                 if msg.len() > 0 {
-                    info!("MP4Box stderr: {msg}");
+                    info!("  MP4Box stderr: {msg}");
                 }
                 if mp4box.status.success() {
-                    info!("Extracted subtitles as SRT");
+                    info!("  Extracted subtitles as SRT");
                 } else {
-                    warn!("Error running MP4Box to extract subtitles");
+                    warn!("  Error running MP4Box to extract subtitles");
                 }
             } else {
-                warn!("Failed to spawn MP4Box to extract subtitles");
+                warn!("  Failed to spawn MP4Box to extract subtitles");
             }
         }
         if subtitle_formats.contains(&SubtitleType::Stpp) {
@@ -4025,7 +4021,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     pd.subtitle_formats.push(f);
                 }
             },
-            Err(e) => warn!("Ignoring error triggered while processing subtitles: {e}"),
+            Err(e) => warn!("  Ignoring error triggered while processing subtitles: {e}"),
         }
         // Print some diagnostics information on the selected streams
         if downloader.verbosity > 0 {
@@ -4155,19 +4151,19 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     {
                         let msg = partial_process_output(&mp4box.stdout);
                         if msg.len() > 0 {
-                            info!("MP4Box stdout: {msg}");
+                            info!("  MP4Box stdout: {msg}");
                         }
                         let msg = partial_process_output(&mp4box.stderr);
                         if msg.len() > 0 {
-                            info!("MP4Box stderr: {msg}");
+                            info!("  MP4Box stderr: {msg}");
                         }
                         if mp4box.status.success() {
                             info!("  Merged subtitles with MP4 container");
                         } else {
-                            warn!("Error running MP4Box to merge subtitles");
+                            warn!("  Error running MP4Box to merge subtitles");
                         }
                     } else {
-                        warn!("Failed to spawn MP4Box to merge subtitles");
+                        warn!("  Failed to spawn MP4Box to merge subtitles");
                     }
                 } else if container.eq("mkv") || container.eq("webm") {
                     // Try using mkvmerge to add a subtitle track. mkvmerge does not seem to be able
@@ -4199,11 +4195,11 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                         {
                             let msg = partial_process_output(&mkvmerge.stdout);
                             if msg.len() > 0 {
-                                info!("mkvmerge stdout: {msg}");
+                                info!("  mkvmerge stdout: {msg}");
                             }
                             let msg = partial_process_output(&mkvmerge.stderr);
                             if msg.len() > 0 {
-                                info!("mkvmerge stderr: {msg}");
+                                info!("  mkvmerge stderr: {msg}");
                             }
                             if mkvmerge.status.success() {
                                 info!("  Merged subtitles with Matroska container");
@@ -4224,10 +4220,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                                             e, String::from("copying mkvmerge output to output file")))?;
                                 }
 	                        if let Err(e) = fs::remove_file(tmppath) {
-                                    warn!("Error deleting temporary mkvmerge output: {e}");
+                                    warn!("  Error deleting temporary mkvmerge output: {e}");
                                 }
                             } else {
-                                warn!("Error running mkvmerge to merge subtitles");
+                                warn!("  Error running mkvmerge to merge subtitles");
                             }
                         }
                     }
@@ -4247,18 +4243,18 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(clippy::collapsible_if)]
         if downloader.keep_audio.is_none() && downloader.fetch_audio {
             if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
-                info!("Failed to delete temporary file for audio stream");
+                info!("  Failed to delete temporary file for audio stream");
             }
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_video.is_none() && downloader.fetch_video {
             if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
-                info!("Failed to delete temporary file for video stream");
+                info!("  Failed to delete temporary file for video stream");
             }
         }
         #[allow(clippy::collapsible_if)]
         if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
-            info!("Failed to delete temporary file for subtitles");
+            info!("  Failed to delete temporary file for subtitles");
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
@@ -4286,7 +4282,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             concat_output_files(downloader, &period_output_paths)?;
             for p in &period_output_paths[1..] {
                 if fs::remove_file(p).is_err() {
-                    warn!("Failed to delete temporary file {}", p.display());
+                    warn!("  Failed to delete temporary file {}", p.display());
                 }
             }
             concatenated = true;
