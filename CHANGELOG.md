@@ -9,7 +9,7 @@
   specify an absolute BaseURL element at the MPD, Period or Representation level, or to use absolute
   URLS for all media segments.
 
-- Downloading: add support for the ffmpeg “concat demuxer” as a concatenation helper for multperiod
+- Downloading: add support for the ffmpeg “concat demuxer” as a concatenation helper for multiperiod
   manifests, as an alternative to the existing ffmpeg “concat filter” support. To use this
   concatenation helper, all Periods must use the same encoding (same codecs, same time base, etc.),
   though they may be wrapped in different container formats. This concatenation helper is very fast
@@ -23,9 +23,12 @@
   
   Use it with `--concat-preference mp4:ffmpegdemuxer` for example.
 
-- Downloading: log additional diagnostics information for most external commands run for muxing,
-  concatenating and subtitle extraction/merging, when the verbosity level is greater than 0 or 1.
-  The logged information includes the full commandline.
+- Downloading: fix an additional possible off-by-one error in calculating the segment count for
+  $Time$-based manifests (use `round()` instead of `ceil()`).
+
+- Downloading: log additional diagnostics information when the verbosity level is greater than 0 or
+  1 for external commands run for muxing, concatenating, subtitle extraction/merging, and
+  decrypting. The logged information includes the full commandline.
 
 - Added some random robustness checks for parsing functions, using the proptest crate.
 
