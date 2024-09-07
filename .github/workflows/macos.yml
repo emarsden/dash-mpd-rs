@@ -28,7 +28,7 @@ jobs:
 
     - name: install mediainfo
       run: |
-        brew install --cask media-info
+        brew install --cask mediainfo
         mediainfo --Version
 
 
