@@ -320,10 +320,18 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
         .download_to(out.clone()).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
+        .arg("-hide_banner")
         .arg(out.to_str().unwrap())
         .output()
         .expect("spawning ffprobe");
-    println!("ffprobe stdout> {}", String::from_utf8_lossy(&fp.stdout));
+    let stdout = String::from_utf8_lossy(&fp.stdout);
+    if stdout.len() > 0 {
+        println!("ffprobe stdout> {stdout}");
+    }
+    let stderr = String::from_utf8_lossy(&fp.stderr);
+    if stderr.len() > 0 {
+        println!("ffprobe stderr> {stderr}");
+    }
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 35_937);
@@ -354,13 +362,19 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
         .with_concat_preference("mkv", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
-    // TMP
-    let nm = out.to_str().unwrap();
     let fp = std::process::Command::new("ffprobe")
-        .args(vec![nm])
+        .arg("-hide_banner")
+        .arg(out.to_str().unwrap())
         .output()
         .expect("spawning ffprobe");
-    println!("ffprobe stdout> {}", String::from_utf8_lossy(&fp.stdout));
+    let stdout = String::from_utf8_lossy(&fp.stdout);
+    if stdout.len() > 0 {
+        println!("ffprobe stdout> {stdout}");
+    }
+    let stderr = String::from_utf8_lossy(&fp.stderr);
+    if stderr.len() > 0 {
+        println!("ffprobe stderr> {stderr}");
+    }
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     // On Windows we are seeing the size 37005 instead of 42_060
