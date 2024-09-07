@@ -315,7 +315,7 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
     let out = tmpd.path().join("concat-helio-ffmpeg.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .verbosity(2)
+        .verbosity(3)
         .with_concat_preference("mkv", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();

@@ -20,10 +20,7 @@ pub fn setup_logging() {
     use tracing_subscriber::{EnvFilter, fmt, prelude::*};
     
     TRACING_INIT.call_once(|| {
-        // tracing_subscriber::fmt()
-        //    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        //    .init();
-        let fmt_layer = tracing_subscriber::fmt::layer()
+        let fmt_layer = fmt::layer()
             .compact()
             .with_target(false);
         let filter_layer = EnvFilter::try_from_default_env()
@@ -34,13 +31,6 @@ pub fn setup_logging() {
             .with(filter_layer)
             .with(fmt_layer)
             .init();
-
-        /*
-        tracing_subscriber::registry()
-            .with(fmt::layer())
-            .with(EnvFilter::from_default_env())
-            .init();
-        */
     });
 }
 
