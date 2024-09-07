@@ -359,6 +359,7 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
+        .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
