@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.17.2] - Unreleased
+## [0.17.2] - 2024-09-08
 
 - Downloading: fix duplicated merge of BaseURLS for video segments. Patch from @jonasgrosch.
 
@@ -24,7 +24,7 @@
   Use it with `--concat-preference mp4:ffmpegdemuxer` for example.
 
 - Downloading: fix an additional possible off-by-one error in calculating the segment count for
-  $Time$-based manifests (use `round()` instead of `ceil()`).
+  `$Time$`-based manifests (use `round()` instead of `ceil()`).
 
 - Downloading: log additional diagnostics information when the verbosity level is greater than 0 or
   1 for external commands run for muxing, concatenating, subtitle extraction/merging, and
