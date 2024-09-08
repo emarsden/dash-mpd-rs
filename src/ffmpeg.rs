@@ -258,7 +258,7 @@ fn mux_stream_ffmpeg(
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
     };
-    info!("ffmpeg inserting stream into {container} container named {}", output_path.display());
+    info!("  ffmpeg inserting stream into {container} container named {}", output_path.display());
     let tmpout = tempfile::Builder::new()
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
@@ -1398,7 +1398,7 @@ pub(crate) fn concat_output_files(
 // Run these tests with "cargo test -- --nocapture" to see all tracing logs.
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use assert_cmd::Command;
     use fs_err as fs;
 
@@ -1441,14 +1441,14 @@ mod tests {
 
         // Check that the media file merged contains a first sequence with red background, then with
         // green background, then with blue background.
-        fn check_color_sequence(merged: &PathBuf) {
+        fn check_color_sequence(merged: &Path) {
             let tmpd = tempfile::tempdir().unwrap();
             let capture_red = tmpd.path().join("capture-red.png");
             Command::new("ffmpeg")
                 .args(["-ss", "2.5",
-                       "-i", &merged.to_str().unwrap(),
+                       "-i", merged.to_str().unwrap(),
                        "-frames:v", "1",
-                       &capture_red.to_str().unwrap()])
+                       capture_red.to_str().unwrap()])
                 .assert()
                 .success();
             let img = ImageReader::open(&capture_red).unwrap()
@@ -1468,9 +1468,9 @@ mod tests {
             let capture_green = tmpd.path().join("capture-green.png");
             Command::new("ffmpeg")
                 .args(["-ss", "7.5",
-                       "-i", &merged.to_str().unwrap(),
+                       "-i", merged.to_str().unwrap(),
                        "-frames:v", "1",
-                       &capture_green.to_str().unwrap()])
+                       capture_green.to_str().unwrap()])
                 .assert()
                 .success();
             let img = ImageReader::open(&capture_green).unwrap()
@@ -1490,9 +1490,9 @@ mod tests {
             let capture_blue = tmpd.path().join("capture-blue.png");
             Command::new("ffmpeg")
                 .args(["-ss", "12.5",
-                       "-i", &merged.to_str().unwrap(),
+                       "-i", merged.to_str().unwrap(),
                        "-frames:v", "1",
-                       &capture_blue.to_str().unwrap()])
+                       capture_blue.to_str().unwrap()])
                 .assert()
                 .success();
             let img = ImageReader::open(&capture_blue).unwrap()
