@@ -31,7 +31,7 @@ async fn test_file_mpd_baseurl() {
     let mpd_url = Url::from_file_path(path).unwrap();
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("fileurl-mpd-baseurl.mp4");
-    DashDownloader::new(&mpd_url.to_string())
+    DashDownloader::new(mpd_url.as_ref())
         .worst_quality()
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
@@ -39,7 +39,7 @@ async fn test_file_mpd_baseurl() {
     check_file_size_approx(&out, 3_918_028);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
@@ -79,7 +79,7 @@ async fn test_file_period_baseurl() {
     let mpd_url = Url::from_file_path(path).unwrap();
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("fileurl-period-baseurl.mp4");
-    DashDownloader::new(&mpd_url.to_string())
+    DashDownloader::new(mpd_url.as_ref())
         .worst_quality()
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
@@ -129,7 +129,7 @@ async fn test_file_period_baseurl_thomson() {
     let mpd_url = Url::from_file_path(path).unwrap();
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("fileurl-period-baseurl-thomson.mp4");
-    DashDownloader::new(&mpd_url.to_string())
+    DashDownloader::new(mpd_url.as_ref())
         .worst_quality()
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
@@ -139,7 +139,7 @@ async fn test_file_period_baseurl_thomson() {
     check_file_size_approx(&out, 2_777_692);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
@@ -188,7 +188,7 @@ async fn test_file_segmenttemplate() {
     let mpd_url = Url::from_file_path(path).unwrap();
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("fileurl-segment-template.mp4");
-    DashDownloader::new(&mpd_url.to_string())
+    DashDownloader::new(mpd_url.as_ref())
         .worst_quality()
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
@@ -198,7 +198,7 @@ async fn test_file_segmenttemplate() {
     check_file_size_approx(&out, 120_695_762);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))

@@ -449,8 +449,10 @@ async fn test_dl_vvc() {
         .expect("spawning mkvinfo");
     assert!(mkvinfo.status.success());
     let stdout = String::from_utf8_lossy(&mkvinfo.stdout);
-    assert!(stdout.contains("Codec ID: V_QUICKTIME"));
-    assert!(stdout.contains("Display width: 384"));
+    // Note that the "Codec ID" part of this string is locale-dependent.
+    assert!(stdout.contains("Codec ID: V_QUICKTIME"), "mkvinfo output missing V_QUICKTIME: got {stdout}");
+    // Note that the "Display width" part of this string is locale-dependent.
+    assert!(stdout.contains("Display width: 384"), "mkvinfo output missing display width: got {stdout}");
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -771,6 +773,9 @@ async fn test_downloader() {
 
 
 // Testing compatibility with the unified-streaming.com DASH encoder
+//
+// As of 2024-09 this test is failing with an expired certificate error. This is useful information
+// in judging the technical competence of a streaming provider.
 #[tokio::test]
 async fn test_dl_usp_tos() {
     setup_logging();

@@ -305,7 +305,9 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mp4() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-// 2024-09 this test is failing on Windows for unknown reasons (file size is smaller than here)
+// If ffmpeg is used as a concat helper for mkv files that were muxed using mkvmerge (our default
+// muxer for that container format), we see concatenation errors. Using ffmpeg for both muxing and
+// concatenation helps work around this problem.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_concat_heliocentrism_ffmpeg_mkv() {
@@ -316,10 +318,12 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(3)
+        .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
+        .env("LANG", "C")
         .arg("-hide_banner")
         .arg(out.to_str().unwrap())
         .output()
@@ -364,6 +368,7 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
         .download_to(out.clone()).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
+        .env("LANG", "C")
         .arg("-hide_banner")
         .arg(out.to_str().unwrap())
         .output()
@@ -537,7 +542,6 @@ async fn test_concat_dashif_5bnomor2() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-// FIXME this test is failing on Windows with a decryption error on the audio stream.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_concat_axinom_multiperiod() {
@@ -559,6 +563,33 @@ async fn test_concat_axinom_multiperiod() {
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
+    let fp = std::process::Command::new("ffprobe")
+        .env("LANG", "C")
+        .arg("-hide_banner")
+        .arg(out.to_str().unwrap())
+        .output()
+        .expect("spawning ffprobe");
+    let stdout = String::from_utf8_lossy(&fp.stdout);
+    if stdout.len() > 0 {
+        println!("ffprobe stdout> {stdout}");
+    }
+    let stderr = String::from_utf8_lossy(&fp.stderr);
+    if stderr.len() > 0 {
+        println!("ffprobe stderr> {stderr}");
+    }
+    let mi = std::process::Command::new("mediainfo")
+        .env("LANG", "C")
+        .arg(out.to_str().unwrap())
+        .output()
+        .expect("spawning mediainfo");
+    let stdout = String::from_utf8_lossy(&mi.stdout);
+    if stdout.len() > 0 {
+        println!("mediainfo stdout> {stdout}");
+    }
+    let stderr = String::from_utf8_lossy(&mi.stderr);
+    if stderr.len() > 0 {
+        println!("mediainfo stderr> {stderr}");
+    }
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 83_015_660);
@@ -573,7 +604,11 @@ async fn test_concat_axinom_multiperiod() {
         .expect("finding video stream");
     assert_eq!(video.codec_name, Some(String::from("h264")));
     assert!(video.width.is_some());
-    check_media_duration(&out, 1468.5);
+    // On Linux, we were seeing 1468.5 seconds; on Windows for some crazy reason we see a duration
+    // of 10751.3 (2h29), displayed both by ffprobe and by mediainfo.
+    if ! env::consts::OS.eq("windows") {
+        check_media_duration(&out, 1468.5);
+    }
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");

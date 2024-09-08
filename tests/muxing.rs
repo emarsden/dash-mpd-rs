@@ -373,7 +373,7 @@ async fn test_muxing_vp9_mkvmerge() {
     let mpd_url = "https://dash.akamaized.net/dash264/TestCasesVP9/vp9-hd/sintel-vp9-hd.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("vp9.mkv");
-    DashDownloader::new(&mpd_url)
+    DashDownloader::new(mpd_url)
         .worst_quality()
         .with_muxer_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
@@ -407,7 +407,7 @@ async fn test_muxing_3gp_mkvmerge() {
     let mpd_url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("3gp.mkv");
-    DashDownloader::new(&mpd_url)
+    DashDownloader::new(mpd_url)
         .worst_quality()
         .with_muxer_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
@@ -434,7 +434,7 @@ async fn test_muxing_3gp_vlc() {
     let mpd_url = "https://dash.akamaized.net/qualcomm/cloud/cloudology_new_dash.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("3gp.mp4");
-    DashDownloader::new(&mpd_url)
+    DashDownloader::new(mpd_url)
         .worst_quality()
         .with_muxer_preference("mp4", "vlc")
         .download_to(out.clone()).await

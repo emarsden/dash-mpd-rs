@@ -35,6 +35,7 @@ fn check_frame_color(video: &Path, timestamp: &str, expected_rgb: &[u8; 3]) {
     
     let out = Builder::new().suffix(".png").tempfile().unwrap();
     let ffmpeg = Command::new("ffmpeg")
+        .env("LANG", "C")
         .args(["-y",
                "-nostdin",
                "-ss", timestamp,
@@ -77,6 +78,7 @@ async fn test_data_url() -> Result<()> {
     let tmpd = Builder::new().prefix("dash-mpd-ffmpeg").tempdir().unwrap();
     let tmpdp = tmpd.path();
     let ffmpeg = Command::new("ffmpeg")
+        .env("LANG", "C")
         .current_dir(tmpdp)
         .args(["-y",
                "-nostdin",
@@ -99,6 +101,7 @@ async fn test_data_url() -> Result<()> {
     }
     assert!(ffmpeg.status.success());
     let ffmpeg = Command::new("ffmpeg")
+        .env("LANG", "C")
         .current_dir(tmpdp)
         .args(["-y",
                "-nostdin",

@@ -28,6 +28,7 @@ impl ToxiProxy {
     pub fn new() -> ToxiProxy {
         // https://github.com/Shopify/toxiproxy
         let pull = Command::new("podman")
+            .env("LANG", "C")
             .args(["pull", "ghcr.io/shopify/toxiproxy"])
             .output()
             .expect("failed spawning podman");
@@ -43,6 +44,7 @@ impl ToxiProxy {
         }
         assert!(pull.status.success());
         let _run = Command::new("podman")
+            .env("LANG", "C")
             .args(["run", "--rm",
                    "--name", "toxiproxy",
                    "--env", "LOG_LEVEL=trace",
@@ -60,9 +62,16 @@ impl Drop for ToxiProxy {
     fn drop(&mut self) {
         // cleanup
         let _stop = Command::new("podman")
+            .env("LANG", "C")
             .args(["stop", "toxiproxy"])
             .output()
             .expect("failed to spawn podman");
+    }
+}
+
+impl Default for ToxiProxy {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

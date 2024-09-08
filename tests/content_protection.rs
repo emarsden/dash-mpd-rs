@@ -85,7 +85,7 @@ async fn test_decryption_webm() {
     }
     DashDownloader::new(url)
         .worst_quality()
-        .verbosity(3)
+        .verbosity(2)
         .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
                             String::from("429ec76475e7a952d224d8ef867f12b6"))
         .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
@@ -96,6 +96,7 @@ async fn test_decryption_webm() {
                             String::from("775dbf7289c4cc5847becd571f536ff2"))
         .add_decryption_key(String::from("67b30c86756f57c5a0a38a23ac8c9178"),
                             String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
+        .with_muxer_preference("webm", "ffmpeg")
         .with_decryptor_preference("shaka")
         .download_to(out.clone()).await
         .unwrap();
@@ -116,6 +117,7 @@ async fn test_decryption_webm() {
     assert_eq!(video.codec_name, Some(String::from("vp9")));
     assert!(video.width.is_some());
     let ffmpeg = Command::new("ffmpeg")
+        .env("LANG", "C")
         .args(["-v", "error",
                "-i", &out.to_string_lossy(),
                "-f", "null", "-"])

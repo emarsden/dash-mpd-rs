@@ -136,7 +136,7 @@ async fn test_transcode_audio_multiperiod_mp3() {
     check_file_size_approx(&out, 23_362_703);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
-    let meta = ffprobe(&out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));

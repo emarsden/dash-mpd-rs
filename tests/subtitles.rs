@@ -168,7 +168,7 @@ async fn test_subtitles_stpp() {
         .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();
-    let meta = ffprobe(&outpath.clone()).unwrap();
+    let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];
     assert_eq!(stpp.codec_tag_string, "stpp");
