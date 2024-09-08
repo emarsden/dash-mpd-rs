@@ -776,6 +776,7 @@ async fn test_downloader() {
 //
 // As of 2024-09 this test is failing with an expired certificate error. This is useful information
 // in judging the technical competence of a streaming provider.
+#[ignore]
 #[tokio::test]
 async fn test_dl_usp_tos() {
     setup_logging();
