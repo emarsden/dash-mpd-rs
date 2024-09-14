@@ -1,3 +1,4 @@
+
 /// Muxing support using mkvmerge/ffmpeg/vlc/mp4box as a subprocess.
 ///
 /// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
@@ -6,7 +7,8 @@
 // TODO: on Linux we should try to use bubblewrap to execute the muxers in a sandboxed environment,
 // along the lines of
 //
-//    bwrap --ro-bind /usr /usr --ro-bind /etc /etc --tmpfs /tmp ffmpeg -i audio.mp4 -i video.mp4 /tmp/muxed.mp4
+//  bwrap --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /etc /etc --dev /dev --tmpfs /tmp --bind ~/Vidéos/foo.mkv /tmp/video.mkv -- /usr/bin/ffprobe /tmp/video.mkv
+
 
 use std::io;
 use std::io::{Write, BufReader, BufWriter};

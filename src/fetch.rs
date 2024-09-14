@@ -149,61 +149,6 @@ pub struct DashDownloader {
 }
 
 
-// Parse a range specifier, such as Initialization@range or SegmentBase@indexRange attributes, of
-// the form "45-67"
-fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
-    let v: Vec<&str> = range.split_terminator('-').collect();
-    if v.len() != 2 {
-        return Err(DashMpdError::Parsing(format!("invalid range specifier: {range}")));
-    }
-    #[allow(clippy::indexing_slicing)]
-    let start: u64 = v[0].parse()
-        .map_err(|_| DashMpdError::Parsing(String::from("invalid start for range specifier")))?;
-    #[allow(clippy::indexing_slicing)]
-    let end: u64 = v[1].parse()
-        .map_err(|_| DashMpdError::Parsing(String::from("invalid end for range specifier")))?;
-    Ok((start, end))
-}
-
-#[derive(Debug)]
-struct MediaFragment {
-    period: u8,
-    url: Url,
-    start_byte: Option<u64>,
-    end_byte: Option<u64>,
-    is_init: bool,
-}
-
-fn make_fragment(period: u8, url: Url, start_byte: Option<u64>, end_byte: Option<u64>) -> MediaFragment {
-    MediaFragment{ period, url, start_byte, end_byte, is_init: false }
-}
-
-// This struct is used to share information concerning the media fragments identified while parsing
-// a Period as being wanted for download, alongside any diagnostics information that we collected
-// while parsing the Period (in particular, any ContentProtection details).
-#[derive(Debug, Default)]
-struct PeriodOutputs {
-    fragments: Vec<MediaFragment>,
-    diagnostics: Vec<String>,
-    subtitle_formats: Vec<SubtitleType>,
-}
-
-#[derive(Debug, Default)]
-struct PeriodDownloads {
-    audio_fragments: Vec<MediaFragment>,
-    video_fragments: Vec<MediaFragment>,
-    subtitle_fragments: Vec<MediaFragment>,
-    subtitle_formats: Vec<SubtitleType>,
-    period_counter: u8,
-    id: Option<String>,
-}
-
-fn period_fragment_count(pd: &PeriodDownloads) -> usize {
-    pd.audio_fragments.len() +
-        pd.video_fragments.len() +
-        pd.subtitle_fragments.len()
-}
-
 // We don't want to test this code example on the CI infrastructure as it's too expensive
 // and requires network access.
 #[cfg(not(doctest))]
@@ -806,11 +751,11 @@ impl DashDownloader {
     }
 
     /// Download DASH streaming media content to a file in the current working directory and return
-    /// the corresponding `PathBuf`. The name of the output file is derived from the manifest URL. The
-    /// output file will be overwritten if it already exists.
+    /// the corresponding `PathBuf`.
     ///
-    /// The downloaded media will be placed in an MPEG-4 container. To select another media container,
-    /// see the `download_to` function.
+    /// The name of the output file is derived from the manifest URL. The output file will be
+    /// overwritten if it already exists. The downloaded media will be placed in an MPEG-4
+    /// container. To select another media container, see the `download_to` function.
     pub async fn download(mut self) -> Result<PathBuf, DashMpdError> {
         let cwd = env::current_dir()
             .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
@@ -828,6 +773,64 @@ impl DashDownloader {
         fetch_mpd(&mut self).await
     }
 }
+
+
+// Parse a range specifier, such as Initialization@range or SegmentBase@indexRange attributes, of
+// the form "45-67"
+fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
+    let v: Vec<&str> = range.split_terminator('-').collect();
+    if v.len() != 2 {
+        return Err(DashMpdError::Parsing(format!("invalid range specifier: {range}")));
+    }
+    #[allow(clippy::indexing_slicing)]
+    let start: u64 = v[0].parse()
+        .map_err(|_| DashMpdError::Parsing(String::from("invalid start for range specifier")))?;
+    #[allow(clippy::indexing_slicing)]
+    let end: u64 = v[1].parse()
+        .map_err(|_| DashMpdError::Parsing(String::from("invalid end for range specifier")))?;
+    Ok((start, end))
+}
+
+#[derive(Debug)]
+struct MediaFragment {
+    period: u8,
+    url: Url,
+    start_byte: Option<u64>,
+    end_byte: Option<u64>,
+    is_init: bool,
+}
+
+fn make_fragment(period: u8, url: Url, start_byte: Option<u64>, end_byte: Option<u64>) -> MediaFragment {
+    MediaFragment{ period, url, start_byte, end_byte, is_init: false }
+}
+
+// This struct is used to share information concerning the media fragments identified while parsing
+// a Period as being wanted for download, alongside any diagnostics information that we collected
+// while parsing the Period (in particular, any ContentProtection details).
+#[derive(Debug, Default)]
+struct PeriodOutputs {
+    fragments: Vec<MediaFragment>,
+    diagnostics: Vec<String>,
+    subtitle_formats: Vec<SubtitleType>,
+}
+
+#[derive(Debug, Default)]
+struct PeriodDownloads {
+    audio_fragments: Vec<MediaFragment>,
+    video_fragments: Vec<MediaFragment>,
+    subtitle_fragments: Vec<MediaFragment>,
+    subtitle_formats: Vec<SubtitleType>,
+    period_counter: u8,
+    id: Option<String>,
+}
+
+fn period_fragment_count(pd: &PeriodDownloads) -> usize {
+    pd.audio_fragments.len() +
+        pd.video_fragments.len() +
+        pd.subtitle_fragments.len()
+}
+
+
 
 async fn throttle_download_rate(downloader: &DashDownloader, size: u32) -> Result<(), DashMpdError> {
     if downloader.rate_limit > 0 {
@@ -2051,10 +2054,13 @@ async fn do_period_audio(
             // encoders to allow clients to rewind and fast-forward a stream, and is not
             // necessary if we download the full content specified by BaseURL.
             //
-            // Our strategy: if there is a SegmentBase > Initialization > SourceURL node,
-            // download that first, respecting the byte range if it is specified. Otherwise,
-            // download the full content specified by the BaseURL for this segment (ignoring any
-            // indexRange attributes).
+            // Our strategy: if there is a SegmentBase > Initialization > SourceURL node, download
+            // that first, respecting the byte range if it is specified. Otherwise, download the
+            // full content specified by the BaseURL for this segment (ignoring any indexRange
+            // attributes). This should be fixed to request the file in chunks with byte ranges,
+            // because some servers block requests without limited byte ranges, and because the
+            // large segment download will fill up RAM if HTTP chunked download is not offered by
+            // the server.
             let mut start_byte: Option<u64> = None;
             let mut end_byte: Option<u64> = None;
             if let Some(init) = &sb.initialization {
@@ -3501,8 +3507,8 @@ async fn fetch_period_video(
                 args.push("--key".to_string());
                 args.push(format!("{k}:{v}"));
             }
-            args.push(String::from(tmppath.to_string_lossy()));
-            args.push(String::from(decrypted.to_string_lossy()));
+            args.push(tmppath.to_string_lossy().to_string());
+            args.push(decrypted.to_string_lossy().to_string());
             if downloader.verbosity > 1 {
                 info!("  Running mp4decrypt {}", args.join(" "));
             }
