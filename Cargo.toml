@@ -63,7 +63,7 @@ axum-auth = "0.7.0"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.7", default-features = false, features = ["cookies", "json"] }
 serde_json = "1.0.127"
-anyhow = "1.0.87"
+anyhow = "1.0.88"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
 json = "0.12.4"
