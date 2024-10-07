@@ -13,7 +13,7 @@ edition = "2021"
 
 [dependencies]
 base64 = "0.22.1"
-base64-serde = "0.7.0"
+base64-serde = "0.8.0"
 byteorder = "1.4"
 lazy_static = "1.5.0"
 serde = { version = "1.0.210", features = ["derive"] }
