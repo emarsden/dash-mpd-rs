@@ -21,12 +21,12 @@ use regex::Regex;
 use url::Url;
 use bytes::Bytes;
 use data_url::DataUrl;
-use reqwest::header::RANGE;
+use reqwest::header::{RANGE, CONTENT_TYPE};
 use backoff::{future::retry_notify, ExponentialBackoff};
 use governor::{Quota, RateLimiter};
 use async_recursion::async_recursion;
 use lazy_static::lazy_static;
-use crate::{MPD, Period, Representation, AdaptationSet, DashMpdError};
+use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
 use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
 use crate::{subtitle_type, content_protection_type, SubtitleType};
@@ -95,11 +95,22 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 
 /// The DashDownloader allows the download of streaming media content from a DASH MPD manifest.
 ///
-/// This involves fetching the manifest file, parsing it, identifying the relevant audio and video
-/// representations, downloading all the segments, concatenating them then muxing the audio and
-/// video streams to produce a single video file including audio. This should work with both
-/// MPEG-DASH MPD manifests (where the media segments are typically placed in fragmented MP4 or
-/// MPEG-2 TS containers) and for
+/// This involves:
+///    - fetching the manifest file
+///    - parsing its XML contents
+///    - identifying the different Periods, potentially filtering out Periods that contain undesired
+///      content such as advertising
+///    - selecting for each Period the desired audio and video representations, according to user
+///      preferences concerning the audio language, video dimensions and quality settings, and other
+///      attributes such as label and role
+///    - downloading all the audio and video segments for each Representation
+///    - concatenating the audio segments and video segments into a stream
+///    - potentially decrypting the audio and video content, if DRM is present
+///    - muxing the audio and video streams to produce a single video file including audio
+///    - concatenating the streams from each Period into a single media container.
+///
+/// This should work with both MPEG-DASH MPD manifests (where the media segments are typically
+/// placed in fragmented MP4 or MPEG-2 TS containers) and for
 /// [WebM-DASH](http://wiki.webmproject.org/adaptive-streaming/webm-dash-specification).
 pub struct DashDownloader {
     pub mpd_url: String,
@@ -127,6 +138,7 @@ pub struct DashDownloader {
     minimum_period_duration: Option<Duration>,
     content_type_checks: bool,
     conformity_checks: bool,
+    use_index_range: bool,
     fragment_retry_count: u32,
     max_error_count: u32,
     progress_observers: Vec<Arc<dyn ProgressObserver>>,
@@ -199,6 +211,7 @@ impl DashDownloader {
             minimum_period_duration: None,
             content_type_checks: true,
             conformity_checks: true,
+            use_index_range: true,
             fragment_retry_count: 10,
             max_error_count: 30,
             progress_observers: Vec::new(),
@@ -329,8 +342,11 @@ impl DashDownloader {
     /// also specify a quality preference for highest and the role=alternate stream has a higher
     /// quality.
     pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
-        assert!(role_preference.len() < u8::MAX.into());
-        self.role_preference = role_preference;
+        if role_preference.len() < u8::MAX.into() {
+            self.role_preference = role_preference;
+        } else {
+            warn!("Ignoring role_preference ordering due to excessive length");
+        }
         self
     }
 
@@ -479,6 +495,25 @@ impl DashDownloader {
         self
     }
 
+    /// Specify whether the use the sidx/Cue index for SegmentBase@indexRange addressing.
+    ///
+    /// If set to true (the default value), downloads of media whose manifest uses
+    /// SegmentBase@indexRange addressing will retrieve the index information (currently only sidx
+    /// information used in ISOBMFF/MP4 containers; Cue information for WebM containers is currently
+    /// not supported) with a byte range request, then retrieve and concatenate the different bytes
+    /// ranges indicated in the index. This is the download method used by most DASH players
+    /// (set-top box and browser-based). It avoids downloading the content identified by the
+    /// BaseURL as a very large chunk, which can fill up RAM and may be banned by certain content
+    /// servers.
+    ///
+    /// If set to false, the BaseURL content will be downloaded as a single large chunk. This may be
+    /// more robust on certain content streams that have been encoded in a manner which is not
+    /// suitable for byte range retrieval.
+    pub fn use_index_range(mut self, value: bool) -> DashDownloader {
+        self.use_index_range = value;
+        self
+    }
+
     /// The upper limit on the number of times to attempt to fetch a media segment, even in the
     /// presence of network errors. Transient network errors (such as timeouts) do not count towards
     /// this limit.
@@ -583,9 +618,11 @@ impl DashDownloader {
     }
 
     /// When muxing audio and video streams to a container of type `container`, try muxing
-    /// applications following the order given by `ordering`. This function may be called multiple
-    /// times to specify the ordering for different container types. If called more than once for
-    /// the same container type, the ordering specified in the last call is retained.
+    /// applications following the order given by `ordering`.
+    ///
+    /// This function may be called multiple times to specify the ordering for different container
+    /// types. If called more than once for the same container type, the ordering specified in the
+    /// last call is retained.
     ///
     /// # Arguments
     ///
@@ -607,9 +644,11 @@ impl DashDownloader {
     }
 
     /// When concatenating streams from a multi-period manifest to a container of type `container`,
-    /// try concat helper applications following the order given by `ordering`. This function may be
-    /// called multiple times to specify the ordering for different container types. If called more
-    /// than once for the same container type, the ordering specified in the last call is retained.
+    /// try concat helper applications following the order given by `ordering`.
+    ///
+    /// This function may be called multiple times to specify the ordering for different container
+    /// types. If called more than once for the same container type, the ordering specified in the
+    /// last call is retained.
     ///
     /// # Arguments
     ///
@@ -798,10 +837,52 @@ struct MediaFragment {
     start_byte: Option<u64>,
     end_byte: Option<u64>,
     is_init: bool,
+    timeout: Option<Duration>,
 }
 
-fn make_fragment(period: u8, url: Url, start_byte: Option<u64>, end_byte: Option<u64>) -> MediaFragment {
-    MediaFragment{ period, url, start_byte, end_byte, is_init: false }
+#[derive(Debug)]
+struct MediaFragmentBuilder {
+    period: u8,
+    url: Url,
+    start_byte: Option<u64>,
+    end_byte: Option<u64>,
+    is_init: bool,
+    timeout: Option<Duration>,
+}
+
+impl MediaFragmentBuilder {
+    pub fn new(period: u8, url: Url) -> MediaFragmentBuilder {
+        MediaFragmentBuilder {
+            period, url, start_byte: None, end_byte: None, is_init: false, timeout: None
+        }
+    }
+
+    pub fn with_range(mut self, start_byte: Option<u64>, end_byte: Option<u64>) -> MediaFragmentBuilder {
+        self.start_byte = start_byte;
+        self.end_byte = end_byte;
+        self
+    }
+
+    pub fn with_timeout(mut self, timeout: Duration) -> MediaFragmentBuilder {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    pub fn set_init(mut self) -> MediaFragmentBuilder {
+        self.is_init = true;
+        self
+    }
+
+    pub fn build(self) -> MediaFragment {
+        MediaFragment {
+            period: self.period,
+            url: self.url,
+            start_byte: self.start_byte,
+            end_byte: self.end_byte,
+            is_init: self.is_init,
+            timeout: self.timeout
+        }
+    }
 }
 
 // This struct is used to share information concerning the media fragments identified while parsing
@@ -1388,7 +1469,8 @@ fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
 
 
 // This would be easier with middleware such as https://lib.rs/crates/tower-reqwest or
-// https://lib.rs/crates/reqwest-retry or https://docs.rs/again/latest/again/.
+// https://lib.rs/crates/reqwest-retry or https://docs.rs/again/latest/again/
+// or https://github.com/naomijub/tokio-retry
 async fn reqwest_bytes_with_retries(
     client: &reqwest::Client,
     req: reqwest::Request,
@@ -1433,6 +1515,10 @@ async fn reqwest_bytes_with_retries(
 //
 // TODO: on Windows, could use NTFS Alternate Data Streams
 // https://en.wikipedia.org/wiki/NTFS#Alternate_data_stream_(ADS)
+//
+// We could also include a certain amount of metainformation (title, copyright) in the video
+// container metadata, though this would have to be implemented separately by each muxing helper and
+// each concat helper application in the ffmpeg module.
 #[allow(unused_variables)]
 fn maybe_record_metainformation(path: &Path, downloader: &DashDownloader, mpd: &MPD) {
     #[cfg(target_family = "unix")]
@@ -1614,7 +1700,8 @@ pub async fn parse_resolving_xlinks(
     doc.write(&mut buf)
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
     // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
-    // as a commandline filter application. Existing XSLT implementations in Rust are incomplete.
+    // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
+    // (but improving; hopefully we will one day be able to use the xrust crate).
     for ss in &downloader.xslt_stylesheets {
         if downloader.verbosity > 0 {
             info!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
@@ -1646,6 +1733,157 @@ pub async fn parse_resolving_xlinks(
         }
     }
     Ok(mpd)
+}
+
+async fn do_segmentbase_indexrange(
+    downloader: &DashDownloader,
+    period_counter: u8,
+    base_url: Url,
+    sb: &SegmentBase,
+    dict: &HashMap<&str, String>
+) -> Result<Vec<MediaFragment>, DashMpdError>
+{
+    // Something like the following
+    //
+    // <SegmentBase indexRange="839-3534" timescale="12288">
+    //   <Initialization range="0-838"/>
+    // </SegmentBase>
+    //
+    // The SegmentBase@indexRange attribute points to a byte range in the media file
+    // that contains index information (an sidx box for MPEG files, or a Cues entry for
+    // a DASH-WebM stream). There are two possible strategies to implement when downloading this content:
+    //
+    //   - Simply download the full content specified by the BaseURL element for this
+    //     segment (ignoring the indexRange attribute).
+    //
+    //   - Download the sidx box using a Range request, parse the segment references it
+    //     contains, and download each one using a different Range request, and
+    //     concatenate the full contents.
+    //
+    // The first option is what a browser-based player does. It avoids making a huge
+    // segment download that will fill up our RAM if chunked download is not offered by
+    // the server. It works with web servers that prevent direct access to the full
+    // MP4/WebM file by blocking requests without a limited byte range. Its more
+    // correct, because in theory the content at BaseURL might contain lots of
+    // irrelevant information which is not pointed to by any of the sidx byte ranges.
+    // However, it is a little more fragile because some MP4 elements that are necessary
+    // to create a valid MP4 file (e.g. trex, trun, tfhd boxes) might not be included in
+    // the sidx-referenced byte ranges.
+    //
+    // In practice, it seems that the indexRange information is mostly provided by DASH
+    // encoders to allow clients to rewind and fast-forward a stream, and both
+    // strategies work. We default to using the indexRange information, but include the
+    // option parse_index_range to allow fallback to the simpler "download-it-all"
+    // strategy.
+    let mut fragments = Vec::new();
+    let mut start_byte: Option<u64> = None;
+    let mut end_byte: Option<u64> = None;
+    let mut indexable_segments = false;
+    if downloader.use_index_range {
+        if let Some(ir) = &sb.indexRange {
+            // Fetch the octet slice corresponding to the (sidx) index.
+            let (s, e) = parse_range(ir)?;
+            trace!("Fetching sidx for {}", base_url.clone());
+            let mut req = downloader.http_client.as_ref()
+                .unwrap()
+                .get(base_url.clone())
+                .header(RANGE, format!("bytes={s}-{e}"))
+                .header("Referer", downloader.redirected_url.to_string())
+                .header("Sec-Fetch-Mode", "navigate");
+            if let Some(username) = &downloader.auth_username {
+                if let Some(password) = &downloader.auth_password {
+                    req = req.basic_auth(username, Some(password));
+                }
+            }
+            if let Some(token) = &downloader.auth_bearer_token {
+                req = req.bearer_auth(token);
+            }
+            let mut resp = req.send().await
+                .map_err(|e| network_error("fetching index data", e))?
+                .error_for_status()
+                .map_err(|e| network_error("fetching index data", e))?;
+            let headers = std::mem::take(resp.headers_mut());
+            if let Some(content_type) = headers.get(CONTENT_TYPE) {
+                let idx = resp.bytes().await
+                    .map_err(|e| network_error("fetching index data", e))?;
+                if idx.len() as u64 != e - s + 1 {
+                    warn!("  HTTP server does not support Range requests; can't use indexRange addressing");
+                } else {
+                    #[allow(clippy::collapsible_else_if)]
+                    if content_type.eq("video/mp4") ||
+                        content_type.eq("audio/mp4") {
+                            // Handle as ISOBMFF. First prepare to save the index data itself
+                            // and any leading bytes (from byte positions 0 to s) to the output
+                            // container, because it may contain other types of MP4 boxes than
+                            // only sidx boxes (eg. trex, trun tfhd boxes), which are necessary
+                            // to play the media content. Then prepare to save each referenced
+                            // segment chunk to the output container.
+                            let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                                .with_range(Some(0), Some(e))
+                                .build();
+                            fragments.push(mf);
+                            let mut max_chunk_pos = 0;
+                            if let Ok(segment_chunks) = crate::sidx::from_isobmff_sidx(&idx, e+1) {
+                                trace!("Have {} segment chunks in sidx data", segment_chunks.len());
+                                for chunk in segment_chunks {
+                                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                                        .with_range(Some(chunk.start), Some(chunk.end))
+                                        .build();
+                                    fragments.push(mf);
+                                    if chunk.end > max_chunk_pos {
+                                        max_chunk_pos = chunk.end;
+                                    }
+                                }
+                                indexable_segments = true;
+                            }
+                        }
+                    // In theory we should also be able to handle Cue data in a WebM media
+                    // stream similarly to chunks specified by an sidx box in an ISOBMFF/MP4
+                    // container. However, simply appending the content pointed to by the
+                    // different Cue elements in the WebM file leads to an invalid media
+                    // file. We need to implement more complicated logic to reconstruct a
+                    // valid WebM file from chunks of content.
+                }
+            }
+        }
+    }
+    if indexable_segments {
+        if let Some(init) = &sb.initialization
+        {
+            if let Some(range) = &init.range {
+                let (s, e) = parse_range(range)?;
+                start_byte = Some(s);
+                end_byte = Some(e);
+            }
+            if let Some(su) = &init.sourceURL {
+                let path = resolve_url_template(su, dict);
+                let u = merge_baseurls(&base_url, &path)?;
+                let mf = MediaFragmentBuilder::new(period_counter, u)
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
+                fragments.push(mf);
+            } else {
+                // Use the current BaseURL
+                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
+                fragments.push(mf);
+            }
+        }
+    } else {
+        // If anything prevented us from handling this SegmentBase@indexRange element using
+        // HTTP Range requests, just download the whole segment as a single chunk. This is
+        // likely to be a large HTTP request (for instance, the full video content as a
+        // single MP4 file), so we increase our network request timeout.
+        trace!("Falling back to retrieving full SegmentBase for {}", base_url.clone());
+        let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+            .with_timeout(Duration::new(10_000, 0))
+            .build();
+        fragments.push(mf);
+    }
+    Ok(fragments)
 }
 
 
@@ -1807,20 +2045,16 @@ async fn do_period_audio(
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
                     let init_url = merge_baseurls(&base_url, &path)?;
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: init_url,
-                        start_byte, end_byte,
-                        is_init: true
-                    };
+                    let mf = MediaFragmentBuilder::new(period_counter, init_url)
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: base_url.clone(),
-                        start_byte, end_byte,
-                        is_init: true
-                    };
+                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -1835,11 +2069,15 @@ async fn do_period_audio(
                 }
                 if let Some(m) = &su.media {
                     let u = merge_baseurls(&base_url, m)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 } else if let Some(bu) = audio_adaptation.BaseURL.first() {
                     let u = merge_baseurls(&base_url, &bu.base)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -1860,20 +2098,16 @@ async fn do_period_audio(
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
                     let init_url = merge_baseurls(&base_url, &path)?;
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: init_url,
-                        start_byte, end_byte,
-                        is_init: true,
-                    };
+                    let mf = MediaFragmentBuilder::new(period_counter, init_url)
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: base_url.clone(),
-                        start_byte, end_byte,
-                        is_init: true,
-                    };
+                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -1888,11 +2122,15 @@ async fn do_period_audio(
                 }
                 if let Some(m) = &su.media {
                     let u = merge_baseurls(&base_url, m)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 } else if let Some(bu) = audio_repr.BaseURL.first() {
                     let u = merge_baseurls(&base_url, &bu.base)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -1931,13 +2169,10 @@ async fn do_period_audio(
                 }
                 if let Some(init) = opt_init {
                     let path = resolve_url_template(&init, &dict);
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: merge_baseurls(&base_url, &path)?,
-                        start_byte: None,
-                        end_byte: None,
-                        is_init: true
-                    };
+                    let u = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
                 if let Some(media) = opt_media {
@@ -1955,8 +2190,7 @@ async fn do_period_audio(
                                                   ("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
-                        let mf = make_fragment(period_counter, u, None, None);
-                        fragments.push(mf);
+                        fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
                         number += 1;
                         if let Some(r) = s.r {
                             let mut count = 0i64;
@@ -1984,8 +2218,7 @@ async fn do_period_audio(
                                                           ("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = make_fragment(period_counter, u, None, None);
-                                fragments.push(mf);
+                                fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
                                 number += 1;
                             }
                         }
@@ -2005,13 +2238,10 @@ async fn do_period_audio(
                 let mut total_number = 0i64;
                 if let Some(init) = opt_init {
                     let path = resolve_url_template(&init, &dict);
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: merge_baseurls(&base_url, &path)?,
-                        start_byte: None,
-                        end_byte: None,
-                        is_init: true
-                    };
+                    let u = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
                 if let Some(media) = opt_media {
@@ -2035,8 +2265,7 @@ async fn do_period_audio(
                         let dict = HashMap::from([("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
-                        let mf = make_fragment(period_counter, u, None, None);
-                        fragments.push(mf);
+                        fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
                         number += 1;
                     }
                 }
@@ -2046,48 +2275,8 @@ async fn do_period_audio(
             if downloader.verbosity > 1 {
                 info!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
             }
-            // The SegmentBase@indexRange attribute points to a byte range in the media file
-            // that contains index information (an sidx box for MPEG files, or a Cues entry for
-            // a DASH-WebM stream). To be fully compliant, we should download and parse these
-            // (for example using the sidx crate) then download the referenced content segments.
-            // In practice, it seems that the indexRange information is mostly provided by DASH
-            // encoders to allow clients to rewind and fast-forward a stream, and is not
-            // necessary if we download the full content specified by BaseURL.
-            //
-            // Our strategy: if there is a SegmentBase > Initialization > SourceURL node, download
-            // that first, respecting the byte range if it is specified. Otherwise, download the
-            // full content specified by the BaseURL for this segment (ignoring any indexRange
-            // attributes). This should be fixed to request the file in chunks with byte ranges,
-            // because some servers block requests without limited byte ranges, and because the
-            // large segment download will fill up RAM if HTTP chunked download is not offered by
-            // the server.
-            let mut start_byte: Option<u64> = None;
-            let mut end_byte: Option<u64> = None;
-            if let Some(init) = &sb.initialization {
-                if let Some(range) = &init.range {
-                    let (s, e) = parse_range(range)?;
-                    start_byte = Some(s);
-                    end_byte = Some(e);
-                }
-                if let Some(su) = &init.sourceURL {
-                    let path = resolve_url_template(su, &dict);
-                    let mf = MediaFragment {
-                        period: period_counter,
-                        url: merge_baseurls(&base_url, &path)?,
-                        start_byte, end_byte,
-                        is_init: true,
-                    };
-                    fragments.push(mf);
-                }
-            }
-            let mf = MediaFragment {
-                period: period_counter,
-                url: base_url.clone(),
-                start_byte: None,
-                end_byte: None,
-                is_init: true,
-            };
-            fragments.push(mf);
+            let mf = do_segmentbase_indexrange(downloader, period_counter, base_url, sb, &dict).await?;
+            fragments.extend(mf);
          } else if fragments.is_empty() {
             if let Some(bu) = audio_repr.BaseURL.first() {
                 // (6) plain BaseURL addressing mode
@@ -2095,8 +2284,7 @@ async fn do_period_audio(
                     info!("  {}", "Using BaseURL addressing mode for audio representation".italic());
                 }
                 let u = merge_baseurls(&base_url, &bu.base)?;
-                let mf = make_fragment(period_counter, u, None, None);
-                fragments.push(mf);
+                fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
             }
         }
         if fragments.is_empty() {
@@ -2275,21 +2463,18 @@ async fn do_period_video(
                 }
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
-                    let mf = MediaFragment {
-                        period: period_counter,
-                        url: merge_baseurls(&base_url, &path)?,
-                        start_byte, end_byte,
-                        is_init: true,
-                    };
+                    let u = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
             } else {
-                let mf = MediaFragment {
-                    period: period_counter,
-                    url: base_url.clone(),
-                    start_byte, end_byte,
-                    is_init: true
-                };
+                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
                 fragments.push(mf);
             }
             for su in sl.segment_urls.iter() {
@@ -2303,11 +2488,15 @@ async fn do_period_video(
                 }
                 if let Some(m) = &su.media {
                     let u = merge_baseurls(&base_url, m)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 } else if let Some(bu) = video_adaptation.BaseURL.first() {
                     let u = merge_baseurls(&base_url, &bu.base)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -2327,20 +2516,17 @@ async fn do_period_video(
                 }
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
-                    let mf = MediaFragment {
-                        period: period_counter,
-                        url: merge_baseurls(&base_url, &path)?,
-                        start_byte, end_byte,
-                        is_init: true,
-                    };
+                    let u = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragment{
-                        period: period_counter,
-                        url: base_url.clone(),
-                        start_byte, end_byte,
-                        is_init: true
-                    };
+                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -2355,11 +2541,15 @@ async fn do_period_video(
                 }
                 if let Some(m) = &su.media {
                     let u = merge_baseurls(&base_url, m)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 } else if let Some(bu) = video_repr.BaseURL.first() {
                     let u = merge_baseurls(&base_url, &bu.base)?;
-                    let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_range(start_byte, end_byte)
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -2397,13 +2587,9 @@ async fn do_period_video(
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: u,
-                            start_byte: None,
-                            end_byte: None,
-                            is_init: true
-                        };
+                        let mf = MediaFragmentBuilder::new(period_counter, u)
+                            .set_init()
+                            .build();
                         fragments.push(mf);
                     }
                     if let Some(media) = opt_media {
@@ -2424,7 +2610,7 @@ async fn do_period_video(
                                                       ("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
                             let u = merge_baseurls(&base_url, &path)?;
-                            let mf = make_fragment(period_counter, u, None, None);
+                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
                             fragments.push(mf);
                             number += 1;
                             if let Some(r) = s.r {
@@ -2453,7 +2639,7 @@ async fn do_period_video(
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);
                                     let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = make_fragment(period_counter, u, None, None);
+                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
                                     fragments.push(mf);
                                     number += 1;
                                 }
@@ -2472,13 +2658,10 @@ async fn do_period_video(
                     let mut total_number = 0i64;
                     if let Some(init) = opt_init {
                         let path = resolve_url_template(&init, &dict);
-                        let mf = MediaFragment{
-                            period: period_counter,
-                            url: merge_baseurls(&base_url, &path)?,
-                            start_byte: None,
-                            end_byte: None,
-                            is_init: true
-                        };
+                        let u = merge_baseurls(&base_url, &path)?;
+                        let mf = MediaFragmentBuilder::new(period_counter, u)
+                            .set_init()
+                            .build();
                         fragments.push(mf);
                     }
                     if let Some(media) = opt_media {
@@ -2502,7 +2685,7 @@ async fn do_period_video(
                             let dict = HashMap::from([("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
                             let u = merge_baseurls(&base_url, &path)?;
-                            let mf = make_fragment(period_counter, u, None, None);
+                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
                             fragments.push(mf);
                             number += 1;
                         }
@@ -2513,34 +2696,8 @@ async fn do_period_video(
                 if downloader.verbosity > 1 {
                     info!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
                 }
-                let mut start_byte: Option<u64> = None;
-                let mut end_byte: Option<u64> = None;
-                if let Some(init) = &sb.initialization
-                {
-                    if let Some(range) = &init.range {
-                        let (s, e) = parse_range(range)?;
-                        start_byte = Some(s);
-                        end_byte = Some(e);
-                    }
-                    if let Some(su) = &init.sourceURL {
-                        let path = resolve_url_template(su, &dict);
-                        let mf = MediaFragment {
-                            period: period_counter,
-                            url: merge_baseurls(&base_url, &path)?,
-                            start_byte, end_byte,
-                            is_init: true
-                        };
-                        fragments.push(mf);
-                    }
-                }
-                let mf = MediaFragment {
-                    period: period_counter,
-                    url: base_url.clone(),
-                    start_byte: None,
-                    end_byte: None,
-                    is_init: true
-                };
-                fragments.push(mf);
+                let mf = do_segmentbase_indexrange(downloader, period_counter, base_url, sb, &dict).await?;
+                fragments.extend(mf);
             } else if fragments.is_empty()  {
                 if let Some(bu) = video_repr.BaseURL.first() {
                     // (6) BaseURL addressing mode
@@ -2548,7 +2705,9 @@ async fn do_period_video(
                         info!("  {}", "Using BaseURL addressing mode for video representation".italic());
                     }
                     let u = merge_baseurls(&base_url, &bu.base)?;
-                    let mf = make_fragment(period_counter, u, None, None);
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .with_timeout(Duration::new(10000, 0))
+                        .build();
                     fragments.push(mf);
                 }
             }
@@ -2746,20 +2905,17 @@ async fn do_period_subtitles(
                             }
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: merge_baseurls(&base_url, &path)?,
-                                    start_byte, end_byte,
-                                    is_init: true
-                                };
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             } else {
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: base_url.clone(),
-                                    start_byte, end_byte,
-                                    is_init: true
-                                };
+                                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                                    .with_range(start_byte, end_byte)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             }
                         }
@@ -2774,11 +2930,15 @@ async fn do_period_subtitles(
                             }
                             if let Some(m) = &su.media {
                                 let u = merge_baseurls(&base_url, m)?;
-                                let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .build();
                                 fragments.push(mf);
                             } else if let Some(bu) = subtitle_adaptation.BaseURL.first() {
                                 let u = merge_baseurls(&base_url, &bu.base)?;
-                                let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .build();
                                 fragments.push(mf);
                             }
                         }
@@ -2798,20 +2958,17 @@ async fn do_period_subtitles(
                             }
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: merge_baseurls(&base_url, &path)?,
-                                    start_byte, end_byte,
-                                    is_init: true,
-                                };
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             } else {
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: base_url.clone(),
-                                    start_byte, end_byte,
-                                    is_init: true,
-                                };
+                                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                                    .with_range(start_byte, end_byte)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             }
                         }
@@ -2826,11 +2983,15 @@ async fn do_period_subtitles(
                             }
                             if let Some(m) = &su.media {
                                 let u = merge_baseurls(&base_url, m)?;
-                                let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .build();
                                 fragments.push(mf);
                             } else if let Some(bu) = &rep.BaseURL.first() {
                                 let u = merge_baseurls(&base_url, &bu.base)?;
-                                let mf = make_fragment(period_counter, u, start_byte, end_byte);
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .build();
                                 fragments.push(mf);
                             };
                         }
@@ -2869,13 +3030,10 @@ async fn do_period_subtitles(
                             }
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: merge_baseurls(&base_url, &path)?,
-                                    start_byte: None,
-                                    end_byte: None,
-                                    is_init: true
-                                };
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             }
                             if let Some(media) = opt_media {
@@ -2893,7 +3051,7 @@ async fn do_period_subtitles(
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&sub_path, &dict);
                                     let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = make_fragment(period_counter, u, None, None);
+                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
                                     fragments.push(mf);
                                     number += 1;
                                     if let Some(r) = s.r {
@@ -2924,7 +3082,7 @@ async fn do_period_subtitles(
                                                                       ("Number", number.to_string())]);
                                             let path = resolve_url_template(&sub_path, &dict);
                                             let u = merge_baseurls(&base_url, &path)?;
-                                            let mf = make_fragment(period_counter, u, None, None);
+                                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
                                             fragments.push(mf);
                                             number += 1;
                                         }
@@ -2970,13 +3128,10 @@ async fn do_period_subtitles(
                             let mut total_number = 0i64;
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
-                                let mf = MediaFragment{
-                                    period: period_counter,
-                                    url: merge_baseurls(&base_url, &path)?,
-                                    start_byte: None,
-                                    end_byte: None,
-                                    is_init: true
-                                };
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             }
                             if let Some(media) = opt_media {
@@ -2999,7 +3154,7 @@ async fn do_period_subtitles(
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&sub_path, &dict);
                                     let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = make_fragment(period_counter, u, None, None);
+                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
                                     fragments.push(mf);
                                     number += 1;
                                 }
@@ -3021,22 +3176,17 @@ async fn do_period_subtitles(
                             }
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
-                                let mf = MediaFragment {
-                                    period: period_counter,
-                                    url: merge_baseurls(&base_url, &path)?,
-                                    start_byte, end_byte,
-                                    is_init: true,
-                                };
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u)
+                                    .with_range(start_byte, end_byte)
+                                    .set_init()
+                                    .build();
                                 fragments.push(mf);
                             }
                         }
-                        let mf = MediaFragment {
-                            period: period_counter,
-                            url: base_url.clone(),
-                            start_byte: None,
-                            end_byte: None,
-                            is_init: true,
-                        };
+                        let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
+                            .set_init()
+                            .build();
                         fragments.push(mf);
                         // TODO also implement SegmentBase addressing mode for subtitles
                         // (sample MPD: https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd)
@@ -3062,8 +3212,8 @@ struct DownloadState {
 // Network bandwidth is throttled according to downloader.rate_limit. Transient network failures are
 // retried.
 //
-// Note: We return a File instead of a Bytes buffer, because some streams use huge segments that can
-// fill up RAM.
+// Note: We return a File instead of a Bytes buffer, because some streams using SegmentBase indexing
+// have huge segments that can fill up RAM.
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_fragment(
     downloader: &DashDownloader,
@@ -3075,13 +3225,17 @@ async fn fetch_fragment(
         trace!("send_request {}", frag.url.clone());
         // Don't use only "audio/*" or "video/*" in Accept header because some web servers (eg.
         // media.axprod.net) are misconfigured and reject requests for valid audio content (eg .m4s)
-        let mut req = downloader.http_client.as_ref().unwrap().get(frag.url.clone())
+        let mut req = downloader.http_client.as_ref().unwrap()
+            .get(frag.url.clone())
             .header("Accept", format!("{}/*;q=0.9,*/*;q=0.5", fragment_type))
             .header("Sec-Fetch-Mode", "navigate");
         if let Some(sb) = &frag.start_byte {
             if let Some(eb) = &frag.end_byte {
                 req = req.header(RANGE, format!("bytes={sb}-{eb}"));
             }
+        }
+        if let Some(ts) = &frag.timeout {
+            req = req.timeout(*ts);
         }
         if let Some(referer) = &downloader.referer {
             req = req.header("Referer", referer);
@@ -3388,7 +3542,7 @@ async fn fetch_period_audio(
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
         } else {
-            return Err(DashMpdError::Other(String::from("unknown decryption application")));
+            return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
         fs::rename(decrypted, tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
@@ -3590,7 +3744,7 @@ async fn fetch_period_video(
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else {
-            return Err(DashMpdError::Other(String::from("unknown decryption application")));
+            return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
         fs::rename(decrypted, tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;

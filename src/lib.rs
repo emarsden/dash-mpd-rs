@@ -74,6 +74,8 @@ mod libav;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 mod ffmpeg;
 #[cfg(feature = "fetch")]
+pub mod sidx;
+#[cfg(feature = "fetch")]
 pub mod fetch;
 // Support for the SCTE-35 standard for insertion of alternate content
 #[cfg(feature = "scte35")]

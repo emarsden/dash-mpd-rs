@@ -1,6 +1,25 @@
 # Changelog
 
 
+## [0.17.3] - Unreleased
+
+- Downloading: support for the use of sidx index information for manifests that use
+  SegmentBase@indexRange addressing. Use of this download mode, which is enabled by default for
+  ISOBMFF/MP4 content, is controlled by a new method `use_index_range` on DashDownloader.
+
+  If set to true (the default value), downloads of media whose manifest uses SegmentBase@indexRange
+  addressing will retrieve the index information (currently only sidx information used in
+  ISOBMFF/MP4 containers; Cue information for WebM containers is currently not supported) with a
+  byte range request, then retrieve and concatenate the different bytes ranges indicated in the
+  index. This avoids downloading the content identified by the BaseURL as a very large chunk, which
+  can fill up RAM and is banned by certain content servers.
+
+  If set to false (which corresponds to the default download mode prior to this version of the
+  library), the BaseURL content will be downloaded as a single large chunk. This may be more robust
+  on certain content streams that have been encoded in a manner which is not suitable for byte range
+  retrieval.
+
+
 ## [0.17.2] - 2024-09-08
 
 - Downloading: fix duplicated merge of BaseURLS for video segments. Patch from @jonasgrosch.
