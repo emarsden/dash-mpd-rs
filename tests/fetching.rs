@@ -823,6 +823,86 @@ async fn test_dl_h265() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+// Content that is served with an invalid Content-type header.
+#[tokio::test]
+async fn test_dl_content_type() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://cdn.bitmovin.com/content/assets/playhouse-vr/mpds/105560.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("playhouse-content-type.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 19_639_475);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 136.14);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+
+
+// This is a test for "Content Steering" between different CDNs. The library doesn't currently
+// provide any support for content steering; when multiple BaseURL elements are present, it will
+// simply download from the first one. This test simply checks that this basic "ignore content
+// steering" behaviour is operational.
+//
+// The DASH standard section "5.6.5 Alternative base URLs" says
+//
+// If alternative base URLs are provided through the BaseURL element at any level, identical
+// Segments shall be accessible at multiple locations. In the absence of other criteria, the DASH
+// Client may use the first BaseURL element as “base URI". The DASH Client may use base URLs
+// provided in the BaseURL element as “base URI” and may implement any suitable algorithm to
+// determine which URLs it uses for requests.
+#[tokio::test]
+async fn test_dl_content_steering() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // This manifest is bizarre: it announces a worst quality 630x360 video stream, but when
+    // downloading it's actually 1920x1080.
+    let mpd_url = "https://www.content-steering.com/bbb/playlist_steering_cloudfront_https.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("content-steering.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 267_380_193);
+    let meta = ffprobe(&out).unwrap();
+    let video = meta.streams.iter()
+         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+         .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 634.15);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // This is a "pseudo-live" stream, a dynamic MPD manifest for which all media segments are already
 // available at the time of download. Though we are not able to correctly download a genuinely live
 // stream (we don't implement the clock functionality needed to wait until segments become
