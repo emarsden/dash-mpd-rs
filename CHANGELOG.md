@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.17.3] - Unreleased
+## [0.17.3] - 2024-10-13
 
 - Downloading: support for the use of sidx index information for manifests that use
   SegmentBase@indexRange addressing. Use of this download mode, which is enabled by default for
