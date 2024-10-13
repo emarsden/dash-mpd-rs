@@ -573,6 +573,14 @@ async fn test_parsing_online() {
     check_mpd(client.clone(),
               "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/schema-mpds/example_H2.mpd").await;
 
+    // Additional test files from https://github.com/claudiuolteanu/mpd-parser
+    check_mpd(client.clone(),
+              "https://github.com/claudiuolteanu/mpd-parser/raw/refs/heads/master/examples/car-20120827-manifest.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/claudiuolteanu/mpd-parser/raw/refs/heads/master/examples/feelings_vp9-20130806-manifest.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://github.com/claudiuolteanu/mpd-parser/raw/refs/heads/master/examples/oops-20120802-manifest.mpd").await;
 }
 
 
