@@ -34,7 +34,7 @@ bytes = "1.7.2"
 reqwest = { version = "0.12.8", default-features = false, features = ["cookies"], optional = true }
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
-governor = { version = "0.6.3", optional = true }
+governor = { version = "0.6.4", optional = true }
 xmltree = { version = "0.11.0", optional = true }
 async-recursion = { version = "1.1.1", optional = true }
 tempfile = { version = "3.13.0", optional = true }
@@ -65,13 +65,13 @@ hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.8", default-features = false, features = ["cookies", "json"] }
-serde_json = "1.0.128"
-anyhow = "1.0.89"
+serde_json = "1.0.131"
+anyhow = "1.0.90"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
 json = "0.12.4"
 mp4 = "0.14.0"
-image = "0.25.2"
+image = "0.25.3"
 pretty_assertions = "1.4.1"
 approx = "0.5.1"
 assert_cmd = "2.0.16"
