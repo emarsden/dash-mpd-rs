@@ -20,7 +20,7 @@ serde = { version = "1.0.213", features = ["derive"] }
 serde_path_to_error = "0.1.16"
 serde_ignored = { version = "0.1.10", optional = true }
 serde_with = { version = "3.10.0", features = ["base64"] }
-quick-xml = { version = "0.36.2", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.37.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.2"
 chrono = { version = "0.4.38", features = ["serde"] }
 num-traits = "0.2.19"
