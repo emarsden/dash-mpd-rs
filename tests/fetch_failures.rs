@@ -10,7 +10,7 @@ use dash_mpd::fetch::DashDownloader;
 
 
 #[tokio::test]
-#[should_panic(expected = "invalid digit found in string")]
+#[should_panic(expected = "Parsing")]
 async fn test_error_parsing() {
     // This DASH manifest is invalid because it contains a presentationDuration="25.7726666667" on a
     // SegmentBase node. The DASH XSD specification states that @presentationDuration is an
@@ -23,7 +23,7 @@ async fn test_error_parsing() {
 }
 
 #[tokio::test]
-#[should_panic(expected = "invalid digit found in string")]
+#[should_panic(expected = "Parsing")]
 async fn test_error_group_attribute() {
     // This DASH manifest is invalid because it contains an invalid valid "notAnInteger" for the
     // AdaptationSet.group attribute.
