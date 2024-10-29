@@ -709,7 +709,7 @@ async fn test_parsing_namespacing() {
 // specification states that this should be an SAPType, an integer (checked with
 // https://conformance.dashif.org/).
 #[tokio::test]
-#[should_panic(expected = "invalid digit found in string")]
+#[should_panic(expected = "Parsing")]
 async fn test_parsing_fail_invalid_int() {
     setup_logging();
     DashDownloader::new("https://dash.akamaized.net/akamai/test/jurassic-compact.mpd")
