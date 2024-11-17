@@ -43,11 +43,11 @@ colored = { version = "2.1.0", optional = true }
 ac-ffmpeg = { version = "0.18.1", optional = true }
 ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.26.0", features = ["reader"], optional = true }
-bstr = { version = "1.10.0", optional = true }
+bstr = { version = "1.11.0", optional = true }
 hex-literal = { version = "0.4.1", optional = true }
 pssh-box = { version = "0.1.10", optional = true }
 hxdmp = "0.2.1"
-webm-iterable = "0.6.2"
+webm-iterable = "0.6.3"
 
 [dev-dependencies]
 sha2 = "0.10.8"
@@ -60,12 +60,12 @@ tokio = { version = "1.41.1", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 proptest = "1.5.0"
 http = "1.1.0"
-axum = "0.7.7"
+axum = "0.7.9"
 hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.9", default-features = false, features = ["cookies", "json"] }
-serde_json = "1.0.132"
+serde_json = "1.0.133"
 anyhow = "1.0.93"
 roxmltree = "0.20.0"
 xmlem = "0.2.3"
