@@ -8,9 +8,9 @@ media content from a streaming server.
 
 [![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
 [![Released API docs](https://docs.rs/dash-mpd/badge.svg)](https://docs.rs/dash-mpd/)
-[![CI](https://github.com/emarsden/dash-mpd-rs/workflows/build/badge.svg)](https://github.com/emarsden/dash-mpd-rs/workflows/build/badge.svg)
+[![CI](https://github.com/emarsden/dash-mpd-rs/workflows/build/badge.svg)](https://github.com/emarsden/dash-mpd-rs/actions/workflows/ci.yml)
 [![Dependency status](https://deps.rs/repo/github/emarsden/dash-mpd-rs/status.svg)](https://deps.rs/repo/github/emarsden/dash-mpd-rs)
-[![Recent crates.io downloads](https://img.shields.io/crates/dr/dash-mpd?label=crates.io%20recent%20downloads)](https://img.shields.io/crates/dr/dash-mpd?label=crates.io%20recent%20downloads)
+[![Recent crates.io downloads](https://img.shields.io/crates/dr/dash-mpd?label=crates.io%20recent%20downloads)](https://crates.io/crates/dash-mpd)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
 [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
