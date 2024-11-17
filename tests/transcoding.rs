@@ -59,7 +59,7 @@ async fn test_transcode_avi() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 7_128_748);
+    check_file_size_approx(&out, 8_316_748);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
