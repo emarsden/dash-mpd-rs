@@ -40,8 +40,9 @@ impl SidxBox {
         let mut rdr = Cursor::new(data);
         let _box_size = rdr.read_u32::<BigEndian>()?;
         let mut box_header = [0u8; 4];
-        rdr.read_exact(&mut box_header)
-            .expect("reading box header");
+        if rdr.read_exact(&mut box_header).is_err() {
+            return Err("reading box header".into());
+        }
         if !box_header.eq(b"sidx") {
             return Err("expecting sidx BMFF header".into());
         }
