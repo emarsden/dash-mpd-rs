@@ -1369,13 +1369,17 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
                 }
                 // const PLAYREADY_SYSID: [u8; 16] = hex!("9a04f07998404286ab92e65be0885f95");
                 const WIDEVINE_SYSID: [u8; 16] = hex!("edef8ba979d64acea3c827dcd51d21ed");
-                if !segment_first_bytes[(offset+8)..(offset+24)].eq(&WIDEVINE_SYSID) {
-                    continue;
+                if let Some(sysid) = segment_first_bytes.get((offset+8)..(offset+24)) {
+                    if !sysid.eq(&WIDEVINE_SYSID) {
+                        continue;
+                    }
                 }
-                let start = offset - 4;
-                let end = start + segment_first_bytes[offset-1] as usize;
-                if let Some(pssh) = &segment_first_bytes.get(start..end) {
-                    return Some(pssh.to_vec());
+                if let Some(length) = segment_first_bytes.get(offset-1) {
+                    let start = offset - 4;
+                    let end = start + *length as usize;
+                    if let Some(pssh) = &segment_first_bytes.get(start..end) {
+                        return Some(pssh.to_vec());
+                    }
                 }
             }
         }
@@ -1415,9 +1419,10 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
         if let Some(cap) = rx.captures(&result) {
             if let Some(value) = params.get(k as &str) {
                 if let Ok(width) = cap[1].parse::<usize>() {
-                    let count = format!("{value:0>width$}");
-                    let m = rx.find(&result).unwrap();
-                    result = result[..m.start()].to_owned() + &count + &result[m.end()..];
+                    if let Some(m) = rx.find(&result) {
+                        let count = format!("{value:0>width$}");
+                        result = result[..m.start()].to_owned() + &count + &result[m.end()..];
+                    }
                 }
             }
         }
