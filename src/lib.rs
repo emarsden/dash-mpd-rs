@@ -1253,7 +1253,7 @@ pub struct MsprKid {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ContentProtection {
-    /// The the robustness level required for this content protection scheme.
+    /// The robustness level required for this content protection scheme.
     #[serde(rename = "@robustness")]
     pub robustness: Option<String>,
     /// An xs:IDREF that references an identifier in this MPD.
@@ -1262,8 +1262,6 @@ pub struct ContentProtection {
     /// References an identifier in this MPD.
     #[serde(rename = "@refId")]
     pub refId: Option<String>,
-    #[serde(rename = "@ref")]
-    pub cpref: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: Option<String>,
     /// The DRM initialization data (Protection System Specific Header).
