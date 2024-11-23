@@ -1,4 +1,3 @@
-
 /// Muxing support using mkvmerge/ffmpeg/vlc/mp4box as a subprocess.
 ///
 /// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
@@ -164,10 +163,10 @@ fn mux_audio_video_ffmpeg(
     }
     // The muxing may have failed only due to the "-c:v copy -c:a copy" argument to ffmpeg, which
     // instructs it to copy the audio and video streams without any reencoding. That is not possible
-    // for certain output containers; for instance a WebM container must contain video using VP8,
+    // for certain output containers: for instance a WebM container must contain video using VP8,
     // VP9 or AV1 codecs and Vorbis or Opus audio codecs. (Unfortunately, ffmpeg doesn't seem to
-    // return a recognizable error message in this specific case.)  So we try invoking ffmpeg again,
-    // this time allowing reencoding.
+    // return a distinct recognizable error message in this specific case.) So we try invoking
+    // ffmpeg again, this time allowing reencoding.
     let mut args = vec![
         "-hide_banner",
         "-nostats",
