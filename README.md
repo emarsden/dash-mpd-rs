@@ -126,7 +126,7 @@ default configuration (using an external application as a subprocess).
 ## Priority of different stream preference options
 
 The library allows you to express a preference ordering for several characteristics of streams in a
-DASH manifest (audio language, video resolution, bandwidth/quality, role label). The list belows
+DASH manifest (audio language, video resolution, bandwidth/quality, role label). The list below
 specifies the order in which these preferences are handled:
 
 - First filter out AdaptationSets in the manifest that do not correspond to our language
@@ -254,14 +254,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.17.3"
+dash-mpd = "0.17.4"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.17.3", default-features = false }
+dash-mpd = { version = "0.17.4", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major

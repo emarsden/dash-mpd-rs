@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.17.4] - Unreleased
+## [0.17.4] - 2024-11-23
 
 - Serialization: add support for the XML namespace prefix that is traditionally used for the
   Microsoft PlayReady scheme (`mspr:`). Patch from @bwjun-tving.

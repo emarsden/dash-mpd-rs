@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.17.3"
+version = "0.17.4"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -64,7 +64,7 @@ axum = "0.7.9"
 hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
-reqwest = { version = "0.12.9", default-features = false, features = ["cookies", "json"] }
+reqwest = { version = "0.12.9", default-features = false, features = ["cookies", "json", "blocking"] }
 serde_json = "1.0.133"
 anyhow = "1.0.93"
 roxmltree = "0.20.0"
