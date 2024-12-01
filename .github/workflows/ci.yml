@@ -29,7 +29,7 @@ jobs:
       - name: Install ffmpeg + GPAC + mediainfo
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac mediainfo
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac mediainfo 
           MP4Box -version
 
       - name: Install mkvmerge
@@ -48,7 +48,7 @@ jobs:
           chmod +x /usr/local/bin/shaka-packager
 
       - name: Install xsltproc + protoc
-        run: sudo apt install xsltproc protobuf-compiler cmake
+        run: sudo apt install xsltproc protobuf-compiler cmake libxml2-utils
 
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
       - run: RUST_LOG=info cargo test --jobs 1

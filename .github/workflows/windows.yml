@@ -56,6 +56,7 @@ jobs:
       run: |
           Invoke-WebRequest -Uri "https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-win-x64.exe" -OutFile c:\tools\shaka-packager.exe
 
+    # Note: this also installs the xmllint executable that we need for the serialization tests.
     - name: install xsltproc
       run: choco install --yes --limit-output xsltproc
 

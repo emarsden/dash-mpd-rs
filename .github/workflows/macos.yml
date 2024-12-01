@@ -47,8 +47,9 @@ jobs:
         mv /tmp/shaka-packager /usr/local/bin
         chmod +x /usr/local/bin/shaka-packager
 
+    # We need libxml2 for xmllint, used in the serialization tests.
     - name: install xsltproc
-      run: brew install libxslt
+      run: brew install libxslt libxml2
 
     - name: install protobuf compiler
       run: brew install protobuf cmake
