@@ -59,10 +59,7 @@ async fn test_content_protection_parsing() {
                     if let Some(v) = &cp.value {
                         assert!(known_cp_name(v));
                     }
-                    assert!(cp.schemeIdUri.is_some());
-                    if let Some(s) = &cp.schemeIdUri {
-                        assert!(known_cp_scheme(s));
-                    }
+                    assert!(known_cp_scheme(&cp.schemeIdUri));
                 }
             }
         }

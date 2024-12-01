@@ -522,6 +522,30 @@ where S: serde::Serializer {
 }
 
 
+// These default_* functions are needed to provide defaults for serde deserialization of certain
+// elements, where the Default function for that type doesn't return a value compatible with the
+// default specified in the XSD specification.
+fn default_optstring_on_request() -> Option<String> {
+    Some("onRequest".to_string())
+}
+
+fn default_optstring_one() -> Option<String> {
+    Some(String::from("1"))
+}
+
+fn default_optstring_encoder() -> Option<String> {
+    Some(String::from("encoder"))
+}
+
+fn default_optbool_false() -> Option<bool> {
+    Some(false)
+}
+
+fn default_optu64_zero() -> Option<u64> {
+    Some(0)
+}
+
+
 // The MPD format is documented by ISO using an XML Schema at
 // https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD-edition2.xsd
 // Historical spec: https://ptabdata.blob.core.windows.net/files/2020/IPR2020-01688/v67_EXHIBIT%201067%20-%20ISO-IEC%2023009-1%202019(E)%20-%20Info.%20Tech.%20-%20Dynamic%20Adaptive%20Streaming%20Over%20HTTP%20(DASH).pdf
@@ -565,16 +589,15 @@ pub struct Copyright {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ProgramInformation {
-    pub Title: Option<Title>,
-    pub Source: Option<Source>,
-    pub Copyright: Option<Copyright>,
     /// Language in RFC 5646 format
     #[serde(rename = "@lang")]
     pub lang: Option<String>,
     #[serde(rename = "@moreInformationURL")]
     pub moreInformationURL: Option<String>,
-    #[serde(rename(serialize = "scte214:ContentIdentifier"))]
-    #[serde(rename(deserialize = "ContentIdentifier"))]
+    pub Title: Option<Title>,
+    pub Source: Option<Source>,
+    pub Copyright: Option<Copyright>,
+    #[serde(rename(serialize = "scte214:ContentIdentifier", deserialize = "ContentIdentifier"))]
     pub scte214ContentIdentifier: Option<Scte214ContentIdentifier>,
 }
 
@@ -618,6 +641,7 @@ pub struct S {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct SegmentTimeline {
+    /// There must be at least one S element.
     #[serde(rename = "S")]
     pub segments: Vec<S>,
 }
@@ -667,19 +691,18 @@ pub struct RepresentationIndex {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SegmentTemplate {
-    #[serde(rename = "@initialization")]
-    pub initialization: Option<String>,
     #[serde(rename = "@media")]
     pub media: Option<String>,
     #[serde(rename = "@index")]
     pub index: Option<String>,
+    #[serde(rename = "@initialization")]
+    pub initialization: Option<String>,
+    #[serde(rename = "@bitstreamSwitching")]
+    pub bitstreamSwitching: Option<String>,
     #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
-    pub SegmentTimeline: Option<SegmentTimeline>,
-    pub BitstreamSwitching: Option<BitstreamSwitching>,
-    pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
     // note: the spec says this is an unsigned int, not an xs:duration. In practice, some manifests
@@ -698,17 +721,20 @@ pub struct SegmentTemplate {
     pub pbDelta: Option<i64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
-    #[serde(rename = "@bitstreamSwitching")]
-    pub bitstreamSwitching: Option<String>,
     #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
+    pub Initialization: Option<Initialization>,
+    #[serde(rename = "RepresentationIndex")]
+    pub representation_index: Option<RepresentationIndex>,
     // The XSD included in the DASH specification only includes a FailoverContent element on the
     // SegmentBase element, but also includes it on a SegmentTemplate element in one of the
     // examples. Even if examples are not normative, we choose to be tolerant in parsing.
     #[serde(rename = "FailoverContent")]
     pub failover_content: Option<FailoverContent>,
+    pub SegmentTimeline: Option<SegmentTimeline>,
+    pub BitstreamSwitching: Option<BitstreamSwitching>,
 }
 
 /// A URI string to which a new request for an updated manifest should be made.
@@ -791,22 +817,10 @@ pub struct FailoverContent {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct SegmentBase {
-    #[serde(rename = "Initialization")]
-    pub initialization: Option<Initialization>,
-    pub RepresentationIndex: Option<RepresentationIndex>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
-    #[serde(rename = "@presentationDuration")]
-    pub presentationDuration: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
-    /// Indicates a possible offset between media segment start/end points and period start/end points.
-    #[serde(rename = "@eptDelta")]
-    pub eptDelta: Option<i64>,
-    /// Specifies the difference between the presentation duration of this Representation and the
-    /// Period duration. Expressed in units of @timescale.
-    #[serde(rename = "@pdDelta")]
-    pub pbDelta: Option<i64>,
     #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
@@ -815,6 +829,18 @@ pub struct SegmentBase {
     pub availabilityTimeOffset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availabilityTimeComplete: Option<bool>,
+    #[serde(rename = "@presentationDuration")]
+    pub presentationDuration: Option<u64>,
+    /// Indicates a possible offset between media segment start/end points and period start/end points.
+    #[serde(rename = "@eptDelta")]
+    pub eptDelta: Option<i64>,
+    /// Specifies the difference between the presentation duration of this Representation and the
+    /// Period duration. Expressed in units of @timescale.
+    #[serde(rename = "@pdDelta")]
+    pub pbDelta: Option<i64>,
+    pub Initialization: Option<Initialization>,
+    #[serde(rename = "RepresentationIndex")]
+    pub representation_index: Option<RepresentationIndex>,
     #[serde(rename = "FailoverContent")]
     pub failover_content: Option<FailoverContent>,
 }
@@ -849,23 +875,19 @@ pub struct SegmentList {
     #[serde(rename = "@indexRangeExact")]
     pub indexRangeExact: Option<bool>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href")]
-    #[serde(alias = "@href")]
+    #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate")]
-    #[serde(alias = "@actuate")]
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default="default_optstring_on_request")]
     pub actuate: Option<String>,
-    #[serde(rename = "@xlink:type")]
-    #[serde(alias = "@type")]
+    #[serde(rename = "@xlink:type", alias = "@type")]
     pub sltype: Option<String>,
-    #[serde(rename = "@xlink:show")]
-    #[serde(alias = "@show")]
+    #[serde(rename = "@xlink:show", alias = "@show")]
     pub show: Option<String>,
     pub Initialization: Option<Initialization>,
-    #[serde(rename = "SegmentURL")]
-    pub segment_urls: Vec<SegmentURL>,
     pub SegmentTimeline: Option<SegmentTimeline>,
     pub BitstreamSwitching: Option<BitstreamSwitching>,
+    #[serde(rename = "SegmentURL")]
+    pub segment_urls: Vec<SegmentURL>,
 }
 
 #[skip_serializing_none]
@@ -890,7 +912,7 @@ pub struct AudioChannelConfiguration {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -913,8 +935,14 @@ pub struct Language {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Preselection {
-    #[serde(rename = "@id")]
+    #[serde(rename = "@id", default = "default_optstring_one")]
     pub id: Option<String>,
+    /// Specifies the ids of the contained elements/content components of this Preselection list as
+    /// white space separated list in processing order. The first id defines the main element.
+    #[serde(rename = "@preselectionComponents")]
+    pub preselectionComponents: String,
+    #[serde(rename = "@lang")]
+    pub lang: Option<String>,
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<String>,
     /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
@@ -922,22 +950,18 @@ pub struct Preselection {
     pub codecs: String,
     #[serde(rename = "@selectionPriority")]
     pub selectionPriority: Option<u64>,
-    /// Specifies the ids of the contained elements/content components of this Preselection list as
-    /// white space separated list in processing order. The first id defines the main element.
-    #[serde(rename = "@preselectionComponents")]
-    pub preselectionComponents: String,
     #[serde(rename = "@tag")]
     pub tag: String,
-    #[serde(rename = "Language")]
-    pub languages: Vec<Language>,
-    #[serde(rename = "Role")]
-    pub roles: Vec<Role>,
     #[serde(rename = "Accessibility")]
     pub accessibilities: Vec<Accessibility>,
-    #[serde(rename = "Viewpoint")]
-    pub viewpoints: Vec<Viewpoint>,
+    #[serde(rename = "Role")]
+    pub roles: Vec<Role>,
     #[serde(rename = "Rating")]
     pub ratings: Vec<Rating>,
+    #[serde(rename = "Viewpoint")]
+    pub viewpoints: Vec<Viewpoint>,
+    #[serde(rename = "Language")]
+    pub languages: Vec<Language>,
     #[serde(rename = "Label")]
     pub labels: Vec<Label>,
     #[serde(rename = "AudioChannelConfiguration")]
@@ -957,7 +981,7 @@ pub struct Rating {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -970,7 +994,7 @@ pub struct FramePacking {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -985,6 +1009,7 @@ pub struct FramePacking {
 pub struct Switching {
     #[serde(rename = "@interval")]
     pub interval: Option<u64>,
+    /// Valid values are "media" and "bitstream".
     #[serde(rename = "@type")]
     pub stype: Option<String>,
 }
@@ -997,7 +1022,7 @@ pub struct Accessibility {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -1010,7 +1035,7 @@ pub struct Scope {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -1066,9 +1091,23 @@ pub struct SubRepresentation {
     pub startWithSAP: Option<u64>,
     #[serde(rename = "@maximumSAPPeriod", serialize_with="serialize_opt_xsd_double")]
     pub maximumSAPPeriod: Option<f64>,
+    pub FramePacking: Vec<FramePacking>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
-    pub FramePacking: Vec<FramePacking>,
+    // TODO: missing OutputProtection element
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    pub InbandEventStream: Vec<InbandEventStream>,
+    pub Switching: Vec<Switching>,
+    // TODO: missing RandomAccess element
+    #[serde(rename = "GroupLabel")]
+    pub group_label: Vec<Label>,
+    pub Label: Vec<Label>,
+    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
+    // TODO: missing ContentPopularityRate element
+    pub Resync: Option<Resync>,
 }
 
 /// A Representation describes a version of the content, using a specific encoding and bitrate.
@@ -1082,12 +1121,30 @@ pub struct Representation {
     // no id for a linked Representation (with xlink:href), so this attribute is optional
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    #[serde(rename = "@xlink:href", alias = "@href")]
+    pub href: Option<String>,
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default = "default_optstring_on_request")]
+    pub actuate: Option<String>,
+    /// The average bandwidth of the Representation.
+    #[serde(rename = "@bandwidth")]
+    pub bandwidth: Option<u64>,
+    /// Specifies a quality ranking of this Representation relative to others in the same
+    /// AdaptationSet. Lower values represent higher quality content. If not present, then no
+    /// ranking is defined.
+    #[serde(rename = "@qualityRanking")]
+    pub qualityRanking: Option<u8>,
     /// Identifies the base layer representation of this enhancement layer representation.
     /// Separation between a base layer and a number of enhancement layers is used by certain
     /// content encoding mechanisms, such as HEVC Scalable and Dolby Vision.
     #[serde(rename = "@dependencyId")]
     pub dependencyId: Option<String>,
-    pub BaseURL: Vec<BaseURL>,
+    #[serde(rename = "@mediaStreamStructureId")]
+    pub mediaStreamStructureId: Option<String>,
+    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
+    pub scte214_supplemental_profiles: Option<String>,
+    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
+    pub scte214_supplemental_codecs: Option<String>,
     // The specification says that @mimeType is mandatory, but it's not always present on
     // akamaized.net MPDs
     #[serde(rename = "@mimeType")]
@@ -1102,6 +1159,13 @@ pub struct Representation {
     pub lang: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
+    #[serde(rename = "@width")]
+    pub width: Option<u64>,
+    #[serde(rename = "@height")]
+    pub height: Option<u64>,
+    /// The Sample Aspect Ratio, eg. "1:1".
+    #[serde(rename = "@sar")]
+    pub sar: Option<String>,
     #[serde(rename = "@segmentProfiles")]
     /// Specifies the profiles of Segments that are essential to process the Representation. The
     /// semantics depend on the value of the @mimeType attribute.
@@ -1111,17 +1175,6 @@ pub struct Representation {
     pub scanType: Option<String>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // can be something like "15/2"
-    /// The Sample Aspect Ratio, eg. "1:1".
-    #[serde(rename = "@sar")]
-    pub sar: Option<String>,
-    /// Specifies a quality ranking of this Representation relative to others in the same
-    /// AdaptationSet. Lower values represent higher quality content. If not present, then no
-    /// ranking is defined.
-    #[serde(rename = "@qualityRanking")]
-    pub qualityRanking: Option<u8>,
-    /// The average bandwidth of the Representation.
-    #[serde(rename = "@bandwidth")]
-    pub bandwidth: Option<u64>,
     #[serde(rename = "@sampleRate")]
     pub sampleRate: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
@@ -1133,39 +1186,32 @@ pub struct Representation {
     pub numChannels: Option<u32>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
-    #[serde(rename = "@width")]
-    pub width: Option<u64>,
-    #[serde(rename = "@height")]
-    pub height: Option<u64>,
     #[serde(rename = "@startWithSAP")]
     pub startWithSAP: Option<u64>,
-    pub Label: Vec<Label>,
-    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
-    pub ContentProtection: Vec<ContentProtection>,
-    pub FramePacking: Vec<FramePacking>,
-    #[serde(rename = "@mediaStreamStructureId")]
-    pub mediaStreamStructureId: Option<String>,
-    pub InbandEventStream: Vec<InbandEventStream>,
+    pub BaseURL: Vec<BaseURL>,
     pub SubRepresentation: Vec<SubRepresentation>,
-    pub SegmentTemplate: Option<SegmentTemplate>,
     pub SegmentBase: Option<SegmentBase>,
     pub SegmentList: Option<SegmentList>,
-    pub RepresentationIndex: Option<RepresentationIndex>,
-    pub Resync: Option<Resync>,
-    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
-    #[serde(rename = "SupplementalProperty")]
-    pub supplemental_property: Vec<SupplementalProperty>,
+    pub SegmentTemplate: Option<SegmentTemplate>,
+    pub FramePacking: Vec<FramePacking>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub ContentProtection: Vec<ContentProtection>,
+    // TODO: missing OutputProtection element
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
-    /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href", alias = "@href")]
-    pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate", alias = "@actuate")]
-    pub actuate: Option<String>,
-    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
-    pub scte214_supplemental_profiles: Option<String>,
-    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
-    pub scte214_supplemental_codecs: Option<String>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    pub InbandEventStream: Vec<InbandEventStream>,
+    pub Switching: Vec<Switching>,
+    // TODO: missing RandomAccess element
+    #[serde(rename = "GroupLabel")]
+    pub group_label: Vec<Label>,
+    pub Label: Vec<Label>,
+    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
+    // TODO: missing ContentPopularityRate element
+    pub Resync: Option<Resync>,
+    #[serde(rename = "RepresentationIndex")]
+    pub representation_index: Option<RepresentationIndex>,
 }
 
 /// Describes a media content component.
@@ -1263,7 +1309,7 @@ pub struct ContentProtection {
     #[serde(rename = "@refId")]
     pub refId: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     /// The DRM initialization data (Protection System Specific Header).
     #[serde(rename="cenc:pssh", alias="pssh")]
     pub cenc_pssh: Vec<CencPssh>,
@@ -1303,7 +1349,7 @@ pub struct Role {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -1315,7 +1361,7 @@ pub struct Viewpoint {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -1332,7 +1378,7 @@ pub struct Viewpoint {
 pub struct Event {
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    #[serde(rename = "@presentationTime")]
+    #[serde(rename = "@presentationTime", default = "default_optu64_zero")]
     pub presentationTime: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
@@ -1356,8 +1402,8 @@ pub struct Event {
     #[serde(rename = "scte35:SpliceInfoSection", alias="SpliceInfoSection")]
     #[cfg(feature = "scte35")]
     pub splice_info_section: Vec<SpliceInfoSection>,
-    #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    // #[serde(rename = "@schemeIdUri")]
+    // pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
     // The content may be base64 encoded, but may also be text. See for example
@@ -1370,16 +1416,24 @@ pub struct Event {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct EventStream {
-    #[serde(rename = "@timescale")]
-    pub timescale: Option<u64>,
+    #[serde(rename = "@xlink:href")]
+    #[serde(alias = "@href")]
+    pub href: Option<String>,
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default = "default_optstring_on_request")]
+    pub actuate: Option<String>,
+    #[serde(rename = "@messageData")]
+    // actually an xs:anyURI
+    pub messageData: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
-    #[serde(rename = "Event")]
-    pub event: Vec<Event>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename = "@timescale")]
+    pub timescale: Option<u64>,
     #[serde(rename = "@presentationTimeOffset")]
     pub presentationTimeOffset: Option<u64>,
+    #[serde(rename = "Event")]
+    pub event: Vec<Event>,
 }
 
 /// "Inband" events are materialized by the presence of DASHEventMessageBoxes (emsg) in the media
@@ -1394,7 +1448,7 @@ pub struct InbandEventStream {
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "Event")]
     pub event: Vec<Event>,
     #[serde(rename = "@value")]
@@ -1462,13 +1516,10 @@ pub struct AdaptationSet {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href")]
-    #[serde(alias = "@href")]
+    #[serde(rename = "@xlink:href", alias = "@href")]
     pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate")]
-    #[serde(alias = "@actuate")]
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default = "default_optstring_on_request")]
     pub actuate: Option<String>,
-    pub BaseURL: Vec<BaseURL>,
     #[serde(rename = "@group")]
     pub group: Option<i64>,
     #[serde(rename = "@selectionPriority")]
@@ -1539,26 +1590,33 @@ pub struct AdaptationSet {
     pub startWithSAP: Option<u64>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
+    pub FramePacking: Vec<FramePacking>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub ContentProtection: Vec<ContentProtection>,
+    // TODO OutputProtection element
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    pub InbandEventStream: Vec<InbandEventStream>,
+    pub Switching: Vec<Switching>,
+    // TODO RandomAccess element
+    pub GroupLabel: Vec<Label>,
+    pub Label: Vec<Label>,
+    pub ProducerReferenceTime: Vec<ProducerReferenceTime>,
+    // TODO ContentPopularityRate element
+    pub Resync: Vec<Resync>,
+    pub Accessibility: Vec<Accessibility>,
     pub Role: Vec<Role>,
     pub Rating: Vec<Rating>,
     pub Viewpoint: Vec<Viewpoint>,
-    pub Label: Vec<Label>,
-    pub SegmentTemplate: Option<SegmentTemplate>,
-    pub SegmentList: Option<SegmentList>,
     pub ContentComponent: Vec<ContentComponent>,
-    pub ContentProtection: Vec<ContentProtection>,
-    pub Switching: Vec<Switching>,
-    pub Resync: Option<Resync>,
-    pub Accessibility: Vec<Accessibility>,
-    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
-    pub InbandEventStream: Vec<InbandEventStream>,
-    #[serde(rename = "SupplementalProperty")]
-    pub supplemental_property: Vec<SupplementalProperty>,
-    #[serde(rename = "EssentialProperty")]
-    pub essential_property: Vec<EssentialProperty>,
+    pub BaseURL: Vec<BaseURL>,
+    pub SegmentBase: Option<SegmentBase>,
+    pub SegmentList: Option<SegmentList>,
+    pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "Representation")]
     pub representations: Vec<Representation>,
-    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
     #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
     pub scte214_supplemental_profiles: Option<String>,
     #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
@@ -1574,7 +1632,7 @@ pub struct AdaptationSet {
 #[serde(default)]
 pub struct AssetIdentifier {
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
     #[serde(rename(serialize = "scte214:ContentIdentifier"))]
@@ -1607,6 +1665,13 @@ pub struct Subset {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Period {
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    #[serde(rename = "@xlink:href", alias = "@href")]
+    pub href: Option<String>,
+
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default="default_optstring_on_request")]
+    pub actuate: Option<String>,
+
     #[serde(rename = "@id")]
     pub id: Option<String>,
 
@@ -1624,20 +1689,15 @@ pub struct Period {
             default)]
     pub duration: Option<Duration>,
 
-    #[serde(rename = "@bitstreamSwitching")]
+    // The default for the bitstreamSwitching attribute is specified to be "false".
+    #[serde(rename = "@bitstreamSwitching", default)]
     pub bitstreamSwitching: Option<bool>,
-
-    /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href", alias = "@href")]
-    pub href: Option<String>,
-
-    #[serde(rename = "@xlink:actuate", alias = "@actuate")]
-    pub actuate: Option<String>,
 
     pub BaseURL: Vec<BaseURL>,
 
-    #[serde(rename = "EssentialProperty")]
-    pub essential_property: Vec<EssentialProperty>,
+    pub SegmentBase: Option<SegmentBase>,
+
+    pub SegmentList: Option<SegmentList>,
 
     pub SegmentTemplate: Option<SegmentTemplate>,
 
@@ -1646,6 +1706,9 @@ pub struct Period {
 
     #[serde(rename = "EventStream")]
     pub event_streams: Vec<EventStream>,
+
+    #[serde(rename = "ServiceDescription")]
+    pub service_description: Vec<ServiceDescription>,
 
     pub ContentProtection: Vec<ContentProtection>,
 
@@ -1658,8 +1721,17 @@ pub struct Period {
     #[serde(rename = "SupplementalProperty")]
     pub supplemental_property: Vec<SupplementalProperty>,
 
+    #[serde(rename = "EmptyAdaptationSet")]
+    pub empty_adaptations: Vec<AdaptationSet>,
+
+    #[serde(rename = "GroupLabel")]
+    pub group_label: Vec<Label>,
+
     #[serde(rename = "Preselection")]
     pub pre_selections: Vec<Preselection>,
+
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
 }
 
 #[skip_serializing_none]
@@ -1669,7 +1741,7 @@ pub struct Reporting {
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
     #[serde(rename = "@dvb:reportingUrl", alias = "@reportingUrl")]
@@ -1750,7 +1822,7 @@ pub struct UTCTiming {
     // prefixed with urn:mpeg:dash:utc, one of http-xsdate:2014, http-iso:2014,
     // http-ntp:2014, ntp:2014, http-head:2014, direct:2014
     #[serde(rename = "@schemeIdUri")]
-    pub schemeIdUri: Option<String>,
+    pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
 }
@@ -1763,22 +1835,25 @@ pub struct UTCTiming {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct ProducerReferenceTime {
+    // This attribute is required according to the specification XSD.
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    #[serde(rename = "@inband")]
+    #[serde(rename = "@inband", default = "default_optbool_false")]
     pub inband: Option<bool>,
+    // This attribute is required according to the specification XSD.
     #[serde(rename = "@presentationTime")]
     pub presentationTime: Option<u64>,
-    #[serde(rename = "@type")]
+    #[serde(rename = "@type", default = "default_optstring_encoder")]
     pub prtType: Option<String>,
     // There are two capitalizations for this attribute in the specification at
-    // https://dashif.org/docs/CR-Low-Latency-Live-r8.pdf
-    #[serde(rename = "@wallclockTime",
-            alias="@wallClockTime",
+    // https://dashif.org/docs/CR-Low-Latency-Live-r8.pdf. The attribute is required according to
+    // the specification XSD.
+    #[serde(rename = "@wallClockTime",
+            alias="@wallclockTime",
             deserialize_with = "deserialize_xs_datetime",
             default)]
     pub wallClockTime: Option<XsDatetime>,
-    pub UTCTiming: Vec<UTCTiming>,
+    pub UTCTiming: Option<UTCTiming>,
 }
 
 #[skip_serializing_none]
@@ -1818,10 +1893,63 @@ pub struct PatchLocation {
 pub struct MPD {
     #[serde(rename = "@id")]
     pub id: Option<String>,
+    #[serde(rename = "@profiles")]
+    pub profiles: Option<String>,
     /// The Presentation Type, either "static" or "dynamic" (a live stream for which segments become
     /// available over time).
     #[serde(rename = "@type")]
     pub mpdtype: Option<String>,
+    #[serde(rename = "@availabilityStartTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
+    pub availabilityStartTime: Option<XsDatetime>,
+    #[serde(rename = "@availabilityEndTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
+    pub availabilityEndTime: Option<XsDatetime>,
+    #[serde(rename = "@publishTime",
+            deserialize_with = "deserialize_xs_datetime",
+            default)]
+    pub publishTime: Option<XsDatetime>,
+    #[serde(rename = "@mediaPresentationDuration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub mediaPresentationDuration: Option<Duration>,
+    #[serde(rename = "@minimumUpdatePeriod",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub minimumUpdatePeriod: Option<Duration>,
+    // This attribute is actually required by the XSD specification, but we make it optional.
+    #[serde(rename = "@minBufferTime",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub minBufferTime: Option<Duration>,
+    /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
+    /// under ideal network conditions with bandwidth matching the @bandwidth attribute.
+    #[serde(rename = "@timeShiftBufferDepth",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub timeShiftBufferDepth: Option<Duration>,
+    /// A suggested delay of the presentation compared to the Live edge.
+    #[serde(rename = "@suggestedPresentationDelay",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub suggestedPresentationDelay: Option<Duration>,
+    #[serde(rename = "@maxSegmentDuration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub maxSegmentDuration: Option<Duration>,
+    #[serde(rename = "@maxSubsegmentDuration",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub maxSubsegmentDuration: Option<Duration>,
     /// The XML namespace prefix used by convention for the XML Schema Instance namespace.
     #[serialize_always]
     #[serde(rename="@xmlns:xsi", alias="@xsi", serialize_with="serialize_xsi_ns")]
@@ -1858,53 +1986,6 @@ pub struct MPD {
     // scte214 namespace
     #[serde(alias = "@scte214", rename = "@xmlns:scte214")]
     pub scte214: Option<String>,
-    #[serde(rename = "@profiles")]
-    pub profiles: Option<String>,
-    /// Prescribes how many seconds of buffer a client should keep to avoid stalling when streaming
-    /// under ideal network conditions with bandwidth matching the @bandwidth attribute.
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@minBufferTime")]
-    pub minBufferTime: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@minimumUpdatePeriod")]
-    pub minimumUpdatePeriod: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@timeShiftBufferDepth")]
-    pub timeShiftBufferDepth: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@mediaPresentationDuration")]
-    pub mediaPresentationDuration: Option<Duration>,
-    #[serde(deserialize_with = "deserialize_xs_duration", default)]
-    #[serde(serialize_with = "serialize_xs_duration")]
-    #[serde(rename = "@maxSegmentDuration")]
-    pub maxSegmentDuration: Option<Duration>,
-    #[serde(rename = "@maxSubsegmentDuration",
-            serialize_with = "serialize_xs_duration",
-            deserialize_with = "deserialize_xs_duration",
-            default)]
-    pub maxSubsegmentDuration: Option<Duration>,
-    /// A suggested delay of the presentation compared to the Live edge.
-    #[serde(rename = "@suggestedPresentationDelay",
-            serialize_with = "serialize_xs_duration",
-            deserialize_with = "deserialize_xs_duration",
-            default)]
-    pub suggestedPresentationDelay: Option<Duration>,
-    #[serde(rename = "@publishTime",
-            deserialize_with = "deserialize_xs_datetime",
-            default)]
-    pub publishTime: Option<XsDatetime>,
-    #[serde(rename = "@availabilityStartTime",
-            deserialize_with = "deserialize_xs_datetime",
-            default)]
-    pub availabilityStartTime: Option<XsDatetime>,
-    #[serde(rename = "@availabilityEndTime",
-            deserialize_with = "deserialize_xs_datetime",
-            default)]
-    pub availabilityEndTime: Option<XsDatetime>,
     pub ProgramInformation: Option<ProgramInformation>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
@@ -1915,6 +1996,7 @@ pub struct MPD {
     /// certain parts of the MPD manifest with updated information.
     pub PatchLocation: Vec<PatchLocation>,
     pub ServiceDescription: Option<ServiceDescription>,
+    // TODO: elements InitializationSet, InitializationGroup, InitializationPresentation
     pub ContentProtection: Vec<ContentProtection>,
     #[serde(rename = "Period", default)]
     pub periods: Vec<Period>,
@@ -2203,54 +2285,53 @@ fn content_protection_type(cp: &ContentProtection) -> String {
         }
     }
     // See list at https://dashif.org/identifiers/content_protection/
-    if let Some(uri) = &cp.schemeIdUri {
-        let uri = uri.to_lowercase();
-        if uri.eq("urn:mpeg:dash:mp4protection:2011") {
-            return String::from("cenc");
-        }
-        if uri.eq("urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed") {
-            return String::from("Widevine");
-        }
-        if uri.eq("urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95") {
-            return String::from("PlayReady");
-        }
-        if uri.eq("urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2") {
-            return String::from("FairPlay");
-        }
-        if uri.eq("urn:uuid:3ea8778f-7742-4bf9-b18b-e834b2acbd47") {
-            return String::from("Clear Key AES-128");
-        }
-        if uri.eq("urn:uuid:be58615b-19c4-4684-88b3-c8c57e99e957") {
-            return String::from("Clear Key SAMPLE-AES");
-        }
-        if uri.eq("urn:uuid:adb41c24-2dbf-4a6d-958b-4457c0d27b95") {
-            return String::from("Nagra");
-        }
-        if uri.eq("urn:uuid:5e629af5-38da-4063-8977-97ffbd9902d4") {
-            return String::from("Marlin");
-        }
-        if uri.eq("urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb") {
-            return String::from("Adobe PrimeTime");
-        }
-        if uri.eq("urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b") {
-            return String::from("W3C Common PSSH box");
-        }
-        if uri.eq("urn:uuid:80a6be7e-1448-4c37-9e70-d5aebe04c8d2") {
-            return String::from("Irdeto Content Protection");
-        }
-        if uri.eq("urn:uuid:3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c") {
-            return String::from("WisePlay-ChinaDRM");
-        }
-        if uri.eq("urn:uuid:616c7469-6361-7374-2d50-726f74656374") {
-            return String::from("Alticast");
-        }
-        if uri.eq("urn:uuid:6dd8b3c3-45f4-4a68-bf3a-64168d01a4a6") {
-            return String::from("ABV DRM");
-        }
-        // Segment encryption
-        if uri.eq("urn:mpeg:dash:sea:2012") {
-            return String::from("SEA");
-        }
+    let uri = &cp.schemeIdUri;
+    let uri = uri.to_lowercase();
+    if uri.eq("urn:mpeg:dash:mp4protection:2011") {
+        return String::from("cenc");
+    }
+    if uri.eq("urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed") {
+        return String::from("Widevine");
+    }
+    if uri.eq("urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95") {
+        return String::from("PlayReady");
+    }
+    if uri.eq("urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2") {
+        return String::from("FairPlay");
+    }
+    if uri.eq("urn:uuid:3ea8778f-7742-4bf9-b18b-e834b2acbd47") {
+        return String::from("Clear Key AES-128");
+    }
+    if uri.eq("urn:uuid:be58615b-19c4-4684-88b3-c8c57e99e957") {
+        return String::from("Clear Key SAMPLE-AES");
+    }
+    if uri.eq("urn:uuid:adb41c24-2dbf-4a6d-958b-4457c0d27b95") {
+        return String::from("Nagra");
+    }
+    if uri.eq("urn:uuid:5e629af5-38da-4063-8977-97ffbd9902d4") {
+        return String::from("Marlin");
+    }
+    if uri.eq("urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb") {
+        return String::from("Adobe PrimeTime");
+    }
+    if uri.eq("urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b") {
+        return String::from("W3C Common PSSH box");
+    }
+    if uri.eq("urn:uuid:80a6be7e-1448-4c37-9e70-d5aebe04c8d2") {
+        return String::from("Irdeto Content Protection");
+    }
+    if uri.eq("urn:uuid:3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c") {
+        return String::from("WisePlay-ChinaDRM");
+    }
+    if uri.eq("urn:uuid:616c7469-6361-7374-2d50-726f74656374") {
+        return String::from("Alticast");
+    }
+    if uri.eq("urn:uuid:6dd8b3c3-45f4-4a68-bf3a-64168d01a4a6") {
+        return String::from("ABV DRM");
+    }
+    // Segment encryption
+    if uri.eq("urn:mpeg:dash:sea:2012") {
+        return String::from("SEA");
     }
     String::from("<unknown>")
 }
@@ -2429,7 +2510,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                     }
                 }
                 if let Some(sb) = &r.SegmentBase {
-                    if let Some(init) = &sb.initialization {
+                    if let Some(init) = &sb.Initialization {
                         if let Some(su) = &init.sourceURL {
                             if !valid_url_p(su) {
                                 errors.push(format!("invalid URL {su}"));
@@ -2442,7 +2523,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
                             }
                         }
                     }
-                    if let Some(ri) = &sb.RepresentationIndex {
+                    if let Some(ri) = &sb.representation_index {
                         if let Some(su) = &ri.sourceURL {
                             if !valid_url_p(su) {
                                 errors.push(format!("invalid URL {su}"));

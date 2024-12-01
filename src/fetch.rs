@@ -1853,8 +1853,7 @@ async fn do_segmentbase_indexrange(
         }
     }
     if indexable_segments {
-        if let Some(init) = &sb.initialization
-        {
+        if let Some(init) = &sb.Initialization {
             if let Some(range) = &init.range {
                 let (s, e) = parse_range(range)?;
                 start_byte = Some(s);
@@ -3173,7 +3172,7 @@ async fn do_period_subtitles(
                         }
                         let mut start_byte: Option<u64> = None;
                         let mut end_byte: Option<u64> = None;
-                        if let Some(init) = &sb.initialization {
+                        if let Some(init) = &sb.Initialization {
                             if let Some(range) = &init.range {
                                 let (s, e) = parse_range(range)?;
                                 start_byte = Some(s);

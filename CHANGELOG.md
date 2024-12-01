@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.18.0-beta.0] - Unreleased
+
+- Serialization: The order of elements in the Rust structures used for serialization and
+  deserialization of an MPD now follows that of the XML schema for DASH. This means that serialized
+  XML manifests should now be compliant with the specification (assuming that you specify values for
+  any mandatory elements). It is not expected that this will produce any changes for software that
+  consumes DASH manifests; few consumers seem to care about the order of elements.
+  We are currently following the XSD for the 5th version of the DASH specification, available at
+  https://github.com/MPEGGroup/DASHSchema/blob/5th-Ed-AMD1/DASH-MPD.xsd.
+
+- `SegmentBase.Initialization` is now represented as a Vec, rather than an Option type.
+
+- `RepresentationIndex` elements are all renamed to `representation_index`.
+
+- `Period` elements now contain optional `SegmentBase` and `SegmentList` elements (rarely used in
+  practice).
+
+- `AdaptationSet` elements now contain a vector of `FramePacking` elements.
+
+- `EventStream` elements now contain a `messageData` attribute, as per the specification.
+
+- All `schemeIdUri` attributes on DASH elements are now required, rather than optional, as per the
+  XSD specification.
+
+- `ProducerReferenceTime.UTCTiming` is an Option rather than a Vec.
+
+
+
+
 ## [0.17.4] - 2024-11-23
 
 - Serialization: add support for the XML namespace prefix that is traditionally used for the
@@ -44,7 +73,7 @@
   advertising segments (using `minimum_period_duration()` or using an XSLT filter on Period
   elements), the content segments are likely to all use the same codecs and encoding parameters, so
   this concat helper should work well.
-  
+
   Use it with `--concat-preference mp4:ffmpegdemuxer` for example.
 
 - Downloading: fix an additional possible off-by-one error in calculating the segment count for
@@ -197,7 +226,7 @@
 
 - Add support for `MPD.ContentProtection` elements, as per the fifth edition of the DASH specification
   (ISO/IEC 23009-1:2021).
-  
+
 - Add support for `Period.Subset` elements.
 
 - Add support for a `FailoverContent` element in a `SegmentTemplate` element. The XSD included in
@@ -214,14 +243,14 @@
 ## [0.14.9] - 2024-02-18
 
 - The tokio crate is now an optional feature, only needed when the `fetch` feature is enabled. This
-  oversight was pointed out by @pando-fredrik. 
+  oversight was pointed out by @pando-fredrik.
 
-- Add `SegmentTimeline` element to `SegmentList` elements (from @erik-moqvist). 
+- Add `SegmentTimeline` element to `SegmentList` elements (from @erik-moqvist).
 
 - Add definition for `BitstreamSwitching` elements to `SegmentTemplate` and `SegmentList` nodes.
 
 - Fix type of `@bitstreamSwitching` attribute on `SegmentTemplate` elements (xs:string rather than
-  xs:bool as for all other uses of the `@bitstreamSwitching` attribute). 
+  xs:bool as for all other uses of the `@bitstreamSwitching` attribute).
 
 - Fix type of `@audioSamplingRate` attributes on various elements (xs:string rather than u64).
 
@@ -348,7 +377,7 @@
   the `xsltproc` commandline tool (which supports XSLT v1.0). This allows complex rewrite rules to
   be expressed using a standard (if a little finicky) stylesheet language. See the
   `with_xslt_stylesheet()` method on `DashDownloader`.
-  
+
   This functionality and API are experimental, and may evolve to use a different XSLT processor, such as
   Saxon-HE (https://github.com/Saxonica/Saxon-HE/) which has support for XSLT v3.0, but is
   implemented in Java. Alternatively, a more general filtering functionality based on WASM bytecode
@@ -702,7 +731,7 @@
 ### New
 - We now check that the HTTP content-type of downloaded segments corresponds to audio or video content.
   New function `without_content_type_checks` on `DashDownloader` to disable these checks (may be
-  necessary with poorly configured HTTP servers). 
+  necessary with poorly configured HTTP servers).
 - Added functions `keep_video` and `keep_audio` on `DashDownloader` to retain video and audio
   streams on disk after muxing.
 - Added attribute `Representation@mediaStreamStructureId`.
@@ -726,7 +755,7 @@
 ## [0.6.0] - 2022-10-02
 ### New
 - Serialization support to allow programmatic generation of an MPD manifest (in XML format) from Rust
-  structs. See `examples/serialize.rs` for some example code. 
+  structs. See `examples/serialize.rs` for some example code.
 
 
 ## [0.5.1] - 2022-09-10
@@ -737,7 +766,7 @@
 
 ### Changed
 - The default path for the external muxing applications now depends on the platform (for instance
-  "ffmpeg.exe" on Windows and "ffmpeg" elsewhere). 
+  "ffmpeg.exe" on Windows and "ffmpeg" elsewhere).
 - The `download_to()` function returns the path that the media was downloaded to, instead of `()`.
 
 
@@ -788,7 +817,7 @@
 ### Fixed
 - Fixes to allow download of DASH streams with SegmentList addressing where the `SegmentURL` nodes
   use `BaseURL` instead of `@media` paths (e.g.
-  http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-single/mp4-main-single-mpd-AV-BS.mpd) 
+  http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-single/mp4-main-single-mpd-AV-BS.mpd)
 - Downloading: muxing using VLC should now work correctly.
 - Downloading: improve handling of transient and permanent HTTP errors.
 
@@ -802,7 +831,7 @@
   length, due to this parsing bug).
 - Optional `SegmentTemplate@duration` field changed from u64 to f64 type. It is specified to
   be an unsigned int, but some manifests in the wild use a floating point value (e.g.
-  https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd). 
+  https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd).
 
 
 ## [0.4.2] - 2022-03-19
@@ -842,7 +871,7 @@
 
 ## [0.3.0] - 2021-12-28
 ### Changed
-- Downloading: support multi-period MPD manifests. 
+- Downloading: support multi-period MPD manifests.
 - Downloading: support remote resources using XLink (`xlink:href` attributes).
 - The `id` and `bandwidth` attributes of a `Representation` node are now optional (for XLink
 support).

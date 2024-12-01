@@ -14,7 +14,7 @@ jobs:
       - name: Install ffmpeg + protoc
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake
+          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake libxml2-utils
       - run: cargo check
       - run: cargo hack check --feature-powerset --no-dev-deps
 
