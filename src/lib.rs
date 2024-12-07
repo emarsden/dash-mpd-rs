@@ -896,17 +896,19 @@ pub struct SegmentList {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Resync {
+    #[serde(rename = "@type")]
+    pub rtype: Option<String>,
     #[serde(rename = "@dT")]
     pub dT: Option<u64>,
     #[serde(rename = "@dImax")]
-    pub dImax: Option<u64>,
+    pub dImax: Option<f64>,
     #[serde(rename = "@dImin")]
-    pub dImin: Option<u64>,
-    #[serde(rename = "@type")]
-    pub rtype: Option<String>,
+    pub dImin: Option<f64>,
+    #[serde(rename = "@marker")]
+    pub marker: Option<bool>,
 }
 
 /// Specifies information concerning the audio channel (e.g. stereo, multichannel).
@@ -1385,6 +1387,29 @@ pub struct Viewpoint {
     pub value: Option<String>,
 }
 
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[serde(default)]
+pub struct Selection {
+    #[serde(rename = "@dataEncoding")]
+    pub dataEncoding: Option<String>,
+    #[serde(rename = "@parameter")]
+    pub parameter: Option<String>,
+    #[serde(rename = "@data")]
+    pub data: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[serde(default)]
+pub struct SelectionInfo {
+    #[serde(rename = "@selectionInfo")]
+    pub selectionInfo: Option<String>,
+    #[serde(rename = "@contactURL")]
+    pub contactURL: Option<String>,
+    pub Selection: Vec<Selection>,
+}
+
 /// A mechanism allowing the server to send additional information to the DASH client which is
 /// synchronized with the media stream.
 ///
@@ -1413,6 +1438,7 @@ pub struct Event {
     /// compatibility; message content should be included in the Event element instead.
     #[serde(rename = "@messageData")]
     pub messageData: Option<String>,
+    pub SelectionInfo: Option<SelectionInfo>,
     #[cfg(feature = "scte35")]
     #[serde(rename = "scte35:Signal", alias="Signal")]
     #[cfg(feature = "scte35")]

@@ -22,11 +22,16 @@
 
 - `AdaptationSet` elements now contain a vector of `FramePacking` elements.
 
+- `Event` elements now contain an optional `SelectionInfo` element.
+
 - `EventStream` elements now contain a `messageData` attribute, as per the specification.
 
 - `BaseURL` elements now contain an optional attribute `timeShiftBufferDepth`.
 
 - `Representation` and `SubRepresentation` elements contain optional `OutputProtection` elements.
+
+- `Resync` attributes `dImax` and `dImin` are of type f64 instead of u64. An additional attribute
+  `marker` has been added.
 
 - All `schemeIdUri` attributes on DASH elements are now required, rather than optional, as per the
   XSD specification.
