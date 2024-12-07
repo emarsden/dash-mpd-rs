@@ -26,6 +26,8 @@
 
 - `BaseURL` elements now contain an optional attribute `timeShiftBufferDepth`.
 
+- `Representation` and `SubRepresentation` elements contain optional `OutputProtection` elements.
+
 - All `schemeIdUri` attributes on DASH elements are now required, rather than optional, as per the
   XSD specification.
 

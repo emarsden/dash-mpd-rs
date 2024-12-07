@@ -914,12 +914,12 @@ pub struct Resync {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct AudioChannelConfiguration {
-    #[serde(rename = "@id")]
-    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
 }
 
 // This element is not specified in ISO/IEC 23009-1:2022; exact format is unclear.
@@ -1024,12 +1024,12 @@ pub struct Switching {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Accessibility {
-    #[serde(rename = "@id")]
-    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
 }
 
 /// Scope of a namespace.
@@ -1037,12 +1037,12 @@ pub struct Accessibility {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct Scope {
-    #[serde(rename = "@id")]
-    pub id: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
     #[serde(rename = "@value")]
     pub value: Option<String>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
 }
 
 /// A SubRepresentation contains information that only applies to one media stream in a Representation.
@@ -1099,7 +1099,7 @@ pub struct SubRepresentation {
     pub FramePacking: Vec<FramePacking>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
-    // TODO: missing OutputProtection element
+    pub OutputProtection: Option<OutputProtection>,
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "SupplementalProperty")]
@@ -1201,7 +1201,7 @@ pub struct Representation {
     pub FramePacking: Vec<FramePacking>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
-    // TODO: missing OutputProtection element
+    pub OutputProtection: Option<OutputProtection>,
     #[serde(rename = "EssentialProperty")]
     pub essential_property: Vec<EssentialProperty>,
     #[serde(rename = "SupplementalProperty")]
@@ -1294,6 +1294,18 @@ pub struct MsprIVSize {
 pub struct MsprKid {
     #[serde(rename = "$text")]
     pub content: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[serde(default)]
+pub struct OutputProtection {
+    #[serde(rename = "@schemeIdUri")]
+    pub schemeIdUri: String,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
 }
 
 /// Contains information on DRM (rights management / encryption) mechanisms used in the stream.
