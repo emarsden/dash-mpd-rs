@@ -1537,7 +1537,7 @@ fn maybe_record_metainformation(path: &Path, downloader: &DashDownloader, mpd: &
                     info!("Failed to set user.xdg.origin.url xattr on output file");
                 }
             }
-            if let Some(pi) = &mpd.ProgramInformation {
+            for pi in &mpd.ProgramInformation {
                 if let Some(t) = &pi.Title {
                     if let Some(tc) = &t.content {
                         if xattr::set(path, "user.dublincore.title", tc.as_bytes()).is_err() {

@@ -1986,7 +1986,7 @@ pub struct MPD {
     // scte214 namespace
     #[serde(alias = "@scte214", rename = "@xmlns:scte214")]
     pub scte214: Option<String>,
-    pub ProgramInformation: Option<ProgramInformation>,
+    pub ProgramInformation: Vec<ProgramInformation>,
     /// There may be several BaseURLs, for redundancy (for example multiple CDNs)
     #[serde(rename = "BaseURL")]
     pub base_url: Vec<BaseURL>,
@@ -2571,7 +2571,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
             }
         }
     }
-    if let Some(pi) = &mpd.ProgramInformation {
+    for pi in &mpd.ProgramInformation {
         if let Some(u) = &pi.moreInformationURL {
             if !valid_url_p(u) {
                 errors.push(format!("invalid URL {u}"));
