@@ -24,6 +24,8 @@
 
 - `EventStream` elements now contain a `messageData` attribute, as per the specification.
 
+- `BaseURL` elements now contain an optional attribute `timeShiftBufferDepth`.
+
 - All `schemeIdUri` attributes on DASH elements are now required, rather than optional, as per the
   XSD specification.
 

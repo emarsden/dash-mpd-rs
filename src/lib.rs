@@ -756,18 +756,21 @@ pub struct Location {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct BaseURL {
-    #[serde(rename = "$text")]
-    pub base: String,
-    /// Elements with the same `@serviceLocation` value are likely to have their URLs resolve to
-    /// services at a common network location, for example the same CDN.
     #[serde(rename = "@serviceLocation")]
     pub serviceLocation: Option<String>,
     #[serde(rename = "@byteRange")]
     pub byte_range: Option<String>,
+    /// Elements with the same `@serviceLocation` value are likely to have their URLs resolve to
+    /// services at a common network location, for example the same CDN.
     #[serde(rename = "@availabilityTimeOffset", serialize_with="serialize_opt_xsd_double")]
     pub availability_time_offset: Option<f64>,
     #[serde(rename = "@availabilityTimeComplete")]
     pub availability_time_complete: Option<bool>,
+    #[serde(rename = "@timeShiftBufferDepth",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub timeShiftBufferDepth: Option<Duration>,
     /// Lowest value indicates the highest priority.
     #[serde(rename = "@dvb:priority", alias = "@priority")]
     pub priority: Option<u64>,
@@ -776,6 +779,8 @@ pub struct BaseURL {
     /// value divided by the sum of all @weight values.
     #[serde(rename = "@dvb:weight", alias = "@weight")]
     pub weight: Option<i64>,
+    #[serde(rename = "$text")]
+    pub base: String,
 }
 
 /// Failover Content Segment (FCS).
@@ -1302,14 +1307,18 @@ pub struct ContentProtection {
     /// The robustness level required for this content protection scheme.
     #[serde(rename = "@robustness")]
     pub robustness: Option<String>,
+    #[serde(rename = "@refId")]
+    pub refId: Option<String>,
     /// An xs:IDREF that references an identifier in this MPD.
     #[serde(rename = "@ref")]
     pub r#ref: Option<String>,
     /// References an identifier in this MPD.
-    #[serde(rename = "@refId")]
-    pub refId: Option<String>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
+    #[serde(rename = "@value")]
+    pub value: Option<String>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
     /// The DRM initialization data (Protection System Specific Header).
     #[serde(rename="cenc:pssh", alias="pssh")]
     pub cenc_pssh: Vec<CencPssh>,
@@ -1333,8 +1342,6 @@ pub struct ContentProtection {
     pub mspr_iv_size: Option<MsprIVSize>,
     #[serde(rename = "mspr:kid", alias = "kid")]
     pub mspr_kid: Option<MsprKid>,
-    #[serde(rename = "@value")]
-    pub value: Option<String>,
 }
 
 /// The Role specifies the purpose of this media stream (caption, subtitle, main content, etc.).
