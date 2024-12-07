@@ -1995,7 +1995,7 @@ pub struct MPD {
     /// Specifies the location of an MPD “patch document”, a set of instructions for replacing
     /// certain parts of the MPD manifest with updated information.
     pub PatchLocation: Vec<PatchLocation>,
-    pub ServiceDescription: Option<ServiceDescription>,
+    pub ServiceDescription: Vec<ServiceDescription>,
     // TODO: elements InitializationSet, InitializationGroup, InitializationPresentation
     pub ContentProtection: Vec<ContentProtection>,
     #[serde(rename = "Period", default)]

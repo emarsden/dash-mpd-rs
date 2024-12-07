@@ -10,7 +10,8 @@
   We are currently following the XSD for the 5th version of the DASH specification, available at
   https://github.com/MPEGGroup/DASHSchema/blob/5th-Ed-AMD1/DASH-MPD.xsd.
 
-- `MPD.ProgramInformation` is now represented as a Vec, rather than as an Option type.
+- `MPD.ProgramInformation` and `MPD.ServiceDescription` are now represented as a Vec, rather than as
+  an Option type.
 
 - `SegmentBase.Initialization` is now represented as a Vec, rather than an Option type.
 
