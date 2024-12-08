@@ -28,13 +28,13 @@ fn test_mpd_parser () {
     let res = parse(case1);
     let mpd = res.unwrap();
     assert_eq!(mpd.periods.len(), 1);
-    assert!(mpd.ProgramInformation.is_none());
+    assert_eq!(mpd.ProgramInformation.len(), 0);
 
     let case2 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD foo="foo"><Period></Period><foo></foo></MPD>"#;
     let res = parse(case2);
     let mpd = res.unwrap();
     assert_eq!(mpd.periods.len(), 1);
-    assert!(mpd.ProgramInformation.is_none());
+    assert_eq!(mpd.ProgramInformation.len(), 0);
 
     let case3 = r#"<?xml version="1.0" encoding="UTF-8"?><MPD><Period></PeriodZ></MPD>"#;
     let res = parse(case3);
@@ -142,22 +142,22 @@ fn test_unknown_elements () {
      </ProgramInformation></MPD>"#;
     let res = parse(case3);
     let mpd = res.unwrap();
-    assert!(mpd.ProgramInformation.is_some());
-    let pi = mpd.ProgramInformation.unwrap();
-    assert!(pi.Title.is_some());
-    let title = pi.Title.unwrap();
-    assert_eq!(title.content.unwrap(), "Foobles");
+    assert!(mpd.ProgramInformation.len() > 0);
+    let pi = &mpd.ProgramInformation.first().unwrap();
+    assert!(&pi.Title.is_some());
+    let title = pi.Title.as_ref().unwrap();
+    assert_eq!(title.content.clone().unwrap().clone(), "Foobles");
 
     let case4 = r#"<MPD><ProgramInformation>
        <Title>Foobles<upfx:UnknownElement/></Title>
      </ProgramInformation></MPD>"#;
     let res = parse(case4);
     let mpd = res.unwrap();
-    assert!(mpd.ProgramInformation.is_some());
-    let pi = mpd.ProgramInformation.unwrap();
+    assert!(mpd.ProgramInformation.len() > 0);
+    let pi = &mpd.ProgramInformation.first().unwrap();
     assert!(pi.Title.is_some());
-    let title = pi.Title.unwrap();
-    assert_eq!(title.content.unwrap(), "Foobles");
+    let title = pi.Title.as_ref().unwrap();
+    assert_eq!(title.content.clone().unwrap(), "Foobles");
 }
 
 #[test]
@@ -337,11 +337,11 @@ fn test_parse_low_latency() {
     let res = parse(&xml);
     let mpd = res.unwrap();
     assert_eq!(mpd.mpdtype, Some(String::from("dynamic")));
-    assert!(mpd.ServiceDescription.as_ref().is_some_and(
+    assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
         |sd| sd.Latency.as_ref().is_some_and(
             |l| l.max.is_some_and(
                 |m| 6999.9 < m && m < 7000.1))));
-    assert!(mpd.ServiceDescription.as_ref().is_some_and(
+    assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
         |sd| sd.PlaybackRate.as_ref().is_some_and(
             |pbr| 0.95 < pbr.min && pbr.min < 0.97)));
     assert!(mpd.UTCTiming.iter().all(
