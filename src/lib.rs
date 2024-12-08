@@ -809,12 +809,12 @@ pub struct Fcs {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
 #[serde(default)]
 pub struct FailoverContent {
-    #[serde(rename = "FCS")]
-    pub fcs_list: Vec<Fcs>,
     // If true, the FCS represents failover content; if false, it represents a gap
     // where there are no segments at all.
     #[serde(rename = "@valid")]
     pub valid: Option<bool>,
+    #[serde(rename = "FCS")]
+    pub fcs_list: Vec<Fcs>,
 }
 
 /// Specifies some common information concerning media segments.
@@ -939,7 +939,7 @@ pub struct Language {
 /// television broadcasting. Details are specified by the “DASH-IF Interoperability Point for ATSC
 /// 3.0” document.
 #[skip_serializing_none]
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Preselection {
     #[serde(rename = "@id", default = "default_optstring_one")]
@@ -959,6 +959,23 @@ pub struct Preselection {
     pub selectionPriority: Option<u64>,
     #[serde(rename = "@tag")]
     pub tag: String,
+    pub FramePacking: Vec<FramePacking>,
+    pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
+    pub ContentProtection: Vec<ContentProtection>,
+    pub OutputProtection: Option<OutputProtection>,
+    #[serde(rename = "EssentialProperty")]
+    pub essential_property: Vec<EssentialProperty>,
+    #[serde(rename = "SupplementalProperty")]
+    pub supplemental_property: Vec<SupplementalProperty>,
+    pub InbandEventStream: Vec<InbandEventStream>,
+    pub Switching: Vec<Switching>,
+    // TODO: missing RandomAccess element
+    #[serde(rename = "GroupLabel")]
+    pub group_label: Vec<Label>,
+    pub Label: Vec<Label>,
+    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
+    // TODO: missing ContentPopularityRate element
+    pub Resync: Option<Resync>,
     #[serde(rename = "Accessibility")]
     pub accessibilities: Vec<Accessibility>,
     #[serde(rename = "Role")]
@@ -967,16 +984,9 @@ pub struct Preselection {
     pub ratings: Vec<Rating>,
     #[serde(rename = "Viewpoint")]
     pub viewpoints: Vec<Viewpoint>,
+    // end PreselectionType specific elements
     #[serde(rename = "Language")]
     pub languages: Vec<Language>,
-    #[serde(rename = "Label")]
-    pub labels: Vec<Label>,
-    #[serde(rename = "AudioChannelConfiguration")]
-    pub audio_channel_configurations: Vec<AudioChannelConfiguration>,
-    #[serde(rename = "EssentialProperty")]
-    pub essential_properties: Vec<EssentialProperty>,
-    #[serde(rename = "SupplementalProperty")]
-    pub supplemental_properties: Vec<SupplementalProperty>,
 }
 
 /// Specifies that content is suitable for presentation to audiences for which that rating is known to be
@@ -1128,11 +1138,6 @@ pub struct Representation {
     // no id for a linked Representation (with xlink:href), so this attribute is optional
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    /// A "remote resource", following the XML Linking Language (XLink) specification.
-    #[serde(rename = "@xlink:href", alias = "@href")]
-    pub href: Option<String>,
-    #[serde(rename = "@xlink:actuate", alias = "@actuate", default = "default_optstring_on_request")]
-    pub actuate: Option<String>,
     /// The average bandwidth of the Representation.
     #[serde(rename = "@bandwidth")]
     pub bandwidth: Option<u64>,
@@ -1146,24 +1151,12 @@ pub struct Representation {
     /// content encoding mechanisms, such as HEVC Scalable and Dolby Vision.
     #[serde(rename = "@dependencyId")]
     pub dependencyId: Option<String>,
+    #[serde(rename = "@associationId")]
+    pub associationId: Option<String>,
+    #[serde(rename = "@associationType")]
+    pub associationType: Option<String>,
     #[serde(rename = "@mediaStreamStructureId")]
     pub mediaStreamStructureId: Option<String>,
-    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
-    pub scte214_supplemental_profiles: Option<String>,
-    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
-    pub scte214_supplemental_codecs: Option<String>,
-    // The specification says that @mimeType is mandatory, but it's not always present on
-    // akamaized.net MPDs
-    #[serde(rename = "@mimeType")]
-    pub mimeType: Option<String>,
-    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
-    #[serde(rename = "@codecs")]
-    pub codecs: Option<String>,
-    #[serde(rename = "@contentType")]
-    pub contentType: Option<String>,
-    /// Language in RFC 5646 format.
-    #[serde(rename = "@lang")]
-    pub lang: Option<String>,
     #[serde(rename = "@profiles")]
     pub profiles: Option<String>,
     #[serde(rename = "@width")]
@@ -1173,33 +1166,57 @@ pub struct Representation {
     /// The Sample Aspect Ratio, eg. "1:1".
     #[serde(rename = "@sar")]
     pub sar: Option<String>,
-    #[serde(rename = "@segmentProfiles")]
-    /// Specifies the profiles of Segments that are essential to process the Representation. The
-    /// semantics depend on the value of the @mimeType attribute.
-    pub segmentProfiles: Option<String>,
-    /// If present, this attribute is expected to be set to "progressive".
-    #[serde(rename = "@scanType")]
-    pub scanType: Option<String>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // can be something like "15/2"
-    #[serde(rename = "@sampleRate")]
-    pub sampleRate: Option<u64>,
     #[serde(rename = "@audioSamplingRate")]
     pub audioSamplingRate: Option<String>,
+    // The specification says that @mimeType is mandatory, but it's not always present on
+    // akamaized.net MPDs
+    #[serde(rename = "@mimeType")]
+    pub mimeType: Option<String>,
+    /// Specifies the profiles of Segments that are essential to process the Representation. The
+    /// semantics depend on the value of the @mimeType attribute.
+    #[serde(rename = "@segmentProfiles")]
+    pub segmentProfiles: Option<String>,
+    /// A "remote resource", following the XML Linking Language (XLink) specification.
+    /// An RFC6381 string, <https://tools.ietf.org/html/rfc6381>
+    #[serde(rename = "@codecs")]
+    pub codecs: Option<String>,
+    #[serde(rename = "@containerProfiles")]
+    pub containerProfiles: Option<String>,
+    #[serde(rename = "@maximumSAPPeriod")]
+    pub maximumSAPPeriod: Option<f64>,
+    #[serde(rename = "@startWithSAP")]
+    pub startWithSAP: Option<u64>,
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.
     #[serde(rename = "@maxPlayoutRate", serialize_with="serialize_opt_xsd_double")]
     pub maxPlayoutRate: Option<f64>,
-    #[serde(rename = "@numChannels")]
-    pub numChannels: Option<u32>,
     #[serde(rename = "@codingDependency")]
     pub codingDependency: Option<bool>,
-    #[serde(rename = "@startWithSAP")]
-    pub startWithSAP: Option<u64>,
-    pub BaseURL: Vec<BaseURL>,
-    pub SubRepresentation: Vec<SubRepresentation>,
-    pub SegmentBase: Option<SegmentBase>,
-    pub SegmentList: Option<SegmentList>,
-    pub SegmentTemplate: Option<SegmentTemplate>,
+    /// If present, this attribute is expected to be set to "progressive".
+    #[serde(rename = "@scanType")]
+    pub scanType: Option<String>,
+    #[serde(rename = "@selectionPriority")]
+    pub selectionPriority: Option<u64>,
+    #[serde(rename = "@tag")]
+    pub tag: Option<String>,
+    #[serde(rename = "@contentType")]
+    pub contentType: Option<String>,
+    /// Language in RFC 5646 format.
+    #[serde(rename = "@lang")]
+    pub lang: Option<String>,
+    #[serde(rename = "@sampleRate")]
+    pub sampleRate: Option<u64>,
+    #[serde(rename = "@numChannels")]
+    pub numChannels: Option<u32>,
+    #[serde(rename = "@xlink:href", alias = "@href")]
+    pub href: Option<String>,
+    #[serde(rename = "@xlink:actuate", alias = "@actuate", default = "default_optstring_on_request")]
+    pub actuate: Option<String>,
+    #[serde(rename = "@scte214:supplementalProfiles", alias = "@supplementalProfiles")]
+    pub scte214_supplemental_profiles: Option<String>,
+    #[serde(rename = "@scte214:supplementalCodecs", alias = "@supplementalCodecs")]
+    pub scte214_supplemental_codecs: Option<String>,
     pub FramePacking: Vec<FramePacking>,
     pub AudioChannelConfiguration: Vec<AudioChannelConfiguration>,
     pub ContentProtection: Vec<ContentProtection>,
@@ -1214,9 +1231,15 @@ pub struct Representation {
     #[serde(rename = "GroupLabel")]
     pub group_label: Vec<Label>,
     pub Label: Vec<Label>,
-    pub ProducerReferenceTime: Option<ProducerReferenceTime>,
+    pub ProducerReferenceTime: Vec<ProducerReferenceTime>,
     // TODO: missing ContentPopularityRate element
-    pub Resync: Option<Resync>,
+    pub Resync: Vec<Resync>,
+    pub BaseURL: Vec<BaseURL>,
+    // TODO: missing ExtendedBandwidth element
+    pub SubRepresentation: Vec<SubRepresentation>,
+    pub SegmentBase: Option<SegmentBase>,
+    pub SegmentList: Option<SegmentList>,
+    pub SegmentTemplate: Option<SegmentTemplate>,
     #[serde(rename = "RepresentationIndex")]
     pub representation_index: Option<RepresentationIndex>,
 }
