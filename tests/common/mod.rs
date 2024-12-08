@@ -2,6 +2,7 @@
 
 
 use fs_err as fs;
+use fs::File;
 use std::env;
 use std::path::Path;
 use std::process::Command;
@@ -243,3 +244,11 @@ pub fn ffprobe_metadata_title(mp4: &Path) -> Result<u8> {
 }
 
 
+pub fn curl(url: &str, output: &Path) -> Result<()> {
+    let mut response = reqwest::blocking::get(url)?;
+    let mut out = File::create(output)
+        .context("failed to create file")?;
+    std::io::copy(&mut response, &mut out)
+        .context("copying reqwest data to file")?;
+    Ok(())
+}

@@ -1,8 +1,8 @@
-/// Tests for subtitle support
-///
-/// We can run these tests on CI infrastructure because they are only downloading modest quantites
-/// of data, corresponding to the subtitle files/MP4 fragments. This requires MP4Box (from GPAC) to
-/// be installed on CI machines, however.
+// Tests for subtitle support
+//
+// We can run these tests on CI infrastructure because they are only downloading modest quantites
+// of data, corresponding to the subtitle files/MP4 fragments. This requires MP4Box (from GPAC) to
+// be installed on CI machines, however.
 
 // To run tests while enabling printing to stdout/stderr, "cargo test -- --show-output" (from the
 // root crate directory).
