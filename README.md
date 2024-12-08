@@ -177,7 +177,7 @@ fn main() {
         .expect("fetching MPD content");
     let mpd: MPD = parse(&xml)
         .expect("parsing MPD");
-    if let Some(pi) = mpd.ProgramInformation {
+    for pi in &mpd.ProgramInformation {
         if let Some(title) = pi.Title {
             println!("Title: {:?}", title.content);
         }
@@ -213,7 +213,7 @@ fn main() {
    let mpd = MPD {
        mpdtype: Some("static".into()),
        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".into()),
-       ProgramInformation: Some(pi),
+       ProgramInformation: vec!(pi),
        ..Default::default()
    };
 
@@ -254,14 +254,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.17.4"
+dash-mpd = "0.18.0"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.17.4", default-features = false }
+dash-mpd = { version = "0.18.0", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major

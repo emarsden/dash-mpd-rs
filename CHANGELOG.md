@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.18.0-beta.0] - Unreleased
+## [0.18.0-beta.0] - 2024-12-08
 
 - Serialization: The order of elements in the Rust structures used for serialization and
   deserialization of an MPD now follows that of the XML schema for DASH. This means that serialized
@@ -9,6 +9,9 @@
   consumes DASH manifests; few consumers seem to care about the order of elements.
   We are currently following the XSD for the 5th version of the DASH specification, available at
   https://github.com/MPEGGroup/DASHSchema/blob/5th-Ed-AMD1/DASH-MPD.xsd.
+
+  We are make a beta release due to the breaking changes in this release. Testing is very welcome;
+  please report any validation bugs you may encounter.
 
 - `MPD.ProgramInformation` and `MPD.ServiceDescription` are now represented as a Vec, rather than as
   an Option type.
@@ -37,8 +40,6 @@
   XSD specification.
 
 - `ProducerReferenceTime.UTCTiming` is an Option rather than a Vec.
-
-
 
 
 ## [0.17.4] - 2024-11-23
