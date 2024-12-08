@@ -36,11 +36,11 @@ async fn main() -> Result<()> {
         .context("fetching MPD content")?;
     let mpd: MPD = parse(&xml)
         .context("parsing MPD")?;
-    if let Some(pi) = mpd.ProgramInformation {
-        if let Some(t) = pi.Title {
+    for pi in &mpd.ProgramInformation {
+        if let Some(t) = &pi.Title {
             println!("Title: {:?}", t.content);
         }
-        if let Some(source) = pi.Source {
+        if let Some(source) = &pi.Source {
             println!("Source: {:?}", source.content);
         }
     }

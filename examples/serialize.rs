@@ -59,7 +59,7 @@ fn main () {
         mpdtype: Some("static".to_string()),
         xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         periods: vec!(period),
-        ProgramInformation: Some(pi),
+        ProgramInformation: vec!(pi),
         publishTime: Some(Utc::now()),
         ..Default::default()
     };
