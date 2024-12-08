@@ -24,7 +24,8 @@ with file segments using either MPEG-2 Transport Stream (M2TS) container format 
 [howvideo.works](https://howvideo.works/#dash).
 
 This library provides a serde-based parser (deserializer) and serializer for the DASH MPD format, as
-formally defined in ISO/IEC standard 23009-1:2019. XML schema files are [available for no cost from
+formally defined in ISO/IEC standard 23009-1:2022 (this is the fifth edition). XML schema files are
+[available for no cost from
 ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). The library
 also provides non-exhaustive support for certain DASH extensions such as the DVB-DASH and HbbTV
 (Hybrid Broadcast Broadband TV) profiles. When MPD files in practical use diverge from the formal
