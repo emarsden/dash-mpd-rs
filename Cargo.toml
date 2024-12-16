@@ -68,7 +68,7 @@ reqwest = { version = "0.12.9", default-features = false, features = ["cookies",
 serde_json = "1.0.133"
 anyhow = "1.0.94"
 roxmltree = "0.20.0"
-xmlem = "0.2.3"
+xmlem = "0.3.0"
 json = "0.12.4"
 mp4 = "0.14.0"
 image = "0.25.5"
