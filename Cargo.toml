@@ -61,7 +61,7 @@ tokio = { version = "1.42.0", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 proptest = "1.6.0"
 http = "1.2.0"
-axum = "0.7.9"
+axum = "0.8.1"
 hyper-serve = { version = "0.6.2" }
 axum-auth = "0.7.0"
 noxious-client = "1.0.4"
