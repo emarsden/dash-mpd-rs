@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.18.0] - 2025-01-12
+
+- No changes from the 0.18.0-beta.0 release, other than updates to dependencies.
+
+
 ## [0.18.0-beta.0] - 2024-12-08
 
 - Serialization: The order of elements in the Rust structures used for serialization and
