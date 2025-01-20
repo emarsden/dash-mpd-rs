@@ -63,7 +63,7 @@ proptest = "1.6.0"
 http = "1.2.0"
 axum = "0.7.9"
 hyper-serve = { version = "0.6.2" }
-axum-auth = "0.7.0"
+axum-auth = "0.8.1"
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.12", default-features = false, features = ["cookies", "json", "blocking"] }
 serde_json = "1.0.135"
