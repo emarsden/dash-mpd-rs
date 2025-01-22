@@ -676,6 +676,34 @@ async fn test_parsing_supplementalproperty() {
 }
 
 
+#[tokio::test]
+async fn test_parsing_essentialproperty() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "http://dash.edgesuite.net/dash264/TestCasesNegative/1/1.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = dash_mpd::parse(&xml);
+    let mpd = mpd.unwrap();
+    assert!(mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |r| r.representations.iter().any(
+                |a| a.essential_property.iter().any(
+                    |ep| ep.value.as_ref().is_some_and(|v| v.eq("Negative Test EssentialProperty 1")))))));
+}
+
+
 // This manifest has some unusual use of XML namespacing
 //   <g1:MPD xmlns="urn:MPEG:ns:DASH" xmlns:g1="urn:mpeg:DASH:schema:MPD:2011"
 #[tokio::test]
