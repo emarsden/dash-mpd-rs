@@ -9,6 +9,7 @@
 //  bwrap --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /etc /etc --dev /dev --tmpfs /tmp --bind ~/Vidéos/foo.mkv /tmp/video.mkv -- /usr/bin/ffprobe /tmp/video.mkv
 
 
+use std::env;
 use std::io;
 use std::io::{Write, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
@@ -38,7 +39,7 @@ fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
             Ok(0.0)
         },
         Err(e) => {
-            warn!("Error probing metadata: {e:?}");
+            warn!("Error probing metadata on {}: {e:?}", input.display());
             Ok(0.0)
         },
     }
@@ -65,6 +66,7 @@ fn mux_audio_video_ffmpeg(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
+        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -83,6 +85,15 @@ fn mux_audio_video_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
             String::from("")))?;
+    if downloader.verbosity > 0 {
+        info!("  Muxing audio and video content with ffmpeg");
+        if let Ok(attr) = fs::metadata(audio_path) {
+            info!("  Audio file {} of size {} octets", audio_path.display(), attr.len());
+        }
+        if let Ok(attr) = fs::metadata(video_path) {
+            info!("  Video file {} of size {} octets", video_path.display(), attr.len());
+        }
+    }
     let mut audio_delay = 0.0;
     let mut video_delay = 0.0;
     if let Ok(audio_start_time) = ffprobe_start_time(audio_path) {
@@ -156,8 +167,10 @@ fn mux_audio_video_ffmpeg(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
-	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary ffmpeg output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary ffmpeg output: {e}");
+            }
         }
         return Ok(());
     }
@@ -223,8 +236,10 @@ fn mux_audio_video_ffmpeg(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
-	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary ffmpeg output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary ffmpeg output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -264,6 +279,7 @@ fn mux_stream_ffmpeg(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
+        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -320,8 +336,10 @@ fn mux_stream_ffmpeg(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
         }
-	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary ffmpeg output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary ffmpeg output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -354,6 +372,7 @@ fn mux_audio_video_vlc(
         .prefix("dashmpdrs")
         .suffix(".mp4")
         .rand_bytes(5)
+        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -411,8 +430,10 @@ fn mux_audio_video_vlc(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying VLC output to output file")))?;
         }
-        if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary VLC output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary VLC output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -438,6 +459,7 @@ fn mux_audio_video_mp4box(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
+        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -483,8 +505,10 @@ fn mux_audio_video_mp4box(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
         }
-	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary MP4Box output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary MP4Box output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -544,8 +568,10 @@ fn mux_stream_mp4box(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying MP4Box output to output file")))?;
         }
-	if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary MP4Box output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary MP4Box output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -598,8 +624,10 @@ fn mux_audio_video_mkvmerge(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
-        if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary mkvmerge output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary mkvmerge output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -644,8 +672,10 @@ fn mux_video_mkvmerge(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
-        if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary mkvmerge output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary mkvmerge output: {e}");
+            }
         }
         Ok(())
     } else {
@@ -691,8 +721,10 @@ fn mux_audio_mkvmerge(
             io::copy(&mut muxed, &mut sink)
                 .map_err(|e| DashMpdError::Io(e, String::from("copying mkvmerge output to output file")))?;
         }
-        if let Err(e) = fs::remove_file(tmppath) {
-            warn!("  Error deleting temporary mkvmerge output: {e}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary mkvmerge output: {e}");
+            }
         }
         Ok(())
     } else {
