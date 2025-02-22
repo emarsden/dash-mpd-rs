@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::{routing::get, Router};
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
@@ -45,19 +45,12 @@ async fn test_xslt_rewrite_media() -> Result<()> {
     // State shared between the request handlers.
     let shared_state = Arc::new(AppState::new());
 
-
-    async fn send_init(State(state): State<Arc<AppState>>) -> Response {
-        state.count_init.fetch_add(1, Ordering::SeqCst);
-        let mp4 = generate_minimal_mp4();
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "video/mp4")
-            .body(Body::from(mp4))
-            .unwrap()
-    }
-
-    async fn send_media(State(state): State<Arc<AppState>>) -> Response {
-        state.count_media.fetch_add(1, Ordering::SeqCst);
+    async fn send_media(Path(segment): Path<String>, State(state): State<Arc<AppState>>) -> Response {
+        if segment.eq("init.mp4") {
+            state.count_init.fetch_add(1, Ordering::SeqCst);
+        } else {
+            state.count_media.fetch_add(1, Ordering::SeqCst);
+        }
         let mp4 = generate_minimal_mp4();
         Response::builder()
             .status(StatusCode::OK)
@@ -82,8 +75,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
-        .route("/media/init.mp4", get(send_init))
-        .route("/media/segment-:id.mp4", get(send_media))
+        .route("/media/{segment}", get(send_media))
         .route("/status", get(send_status))
         .with_state(shared_state);
     let server_handle = hyper_serve::Handle::new();

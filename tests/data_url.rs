@@ -159,6 +159,7 @@ async fn test_data_url() -> Result<()> {
         ..Default::default()
     };
     let mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         periods: vec!(period),
         ..Default::default()

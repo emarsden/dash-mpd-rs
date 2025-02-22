@@ -129,6 +129,8 @@ async fn test_decryption_webm() {
 }
 
 
+// This manifest a 404 from 2025-02.
+#[ignore]
 #[tokio::test]
 async fn test_decryption_cra () {
     setup_logging();

@@ -80,6 +80,7 @@ async fn test_bearer_auth() -> Result<()> {
             ..Default::default()
         };
         let mpd = MPD {
+            xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
             mpdtype: Some("static".to_string()),
             periods: vec!(period),
             ..Default::default()
@@ -111,7 +112,7 @@ async fn test_bearer_auth() -> Result<()> {
     setup_logging();
     let app = Router::new()
         .route("/mpd", get(send_mpd))
-        .route("/media/:seg", get(send_mp4))
+        .route("/media/{seg}", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
     let server_handle = hyper_serve::Handle::new();

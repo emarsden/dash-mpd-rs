@@ -38,9 +38,8 @@ use std::time::Duration;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use url::Url;
 use axum::{routing::get, Router};
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
@@ -182,6 +181,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         ..Default::default()
     };
     let mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         xlink: Some("http://www.w3.org/1999/xlink".to_string()),
         periods: vec!(period1, period2, period3),
@@ -196,13 +196,16 @@ async fn test_xlink_retrieval() -> Result<()> {
     let remote_period_xml = remote_period1_xml.clone() + &remote_period2_xml;
     let remote_rep = quick_xml::se::to_string(&remote_rep)?;
     let remote_representation_xml = add_xml_namespaces(&remote_rep)?;
+    // TMP TMP
+    println!("xlink3 XML> {}", remote_representation_xml);
+    // TMP TMP
 
     // State shared between the request handlers. We are simply maintaining a counter of the number
     // of requests made, to check that each XLink reference has been resolved.
     let shared_state = Arc::new(AppState::new());
 
     // Create a minimal sufficiently-valid MP4 file to use for this period.
-    async fn send_mp4(State(state): State<Arc<AppState>>) -> Response {
+    async fn send_mp4(Path(_): Path<String>, State(state): State<Arc<AppState>>) -> Response {
         state.counter.fetch_add(1, Ordering::SeqCst);
         let data = generate_minimal_mp4();
         Response::builder()
@@ -223,7 +226,7 @@ async fn test_xlink_retrieval() -> Result<()> {
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], remote_period_xml) }))
         .route("/remote/representation.xml", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], remote_representation_xml) }))
-        .route("/media/:seg", get(send_mp4))
+        .route("/media/{segment}", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
     let server_handle = hyper_serve::Handle::new();
@@ -250,17 +253,16 @@ async fn test_xlink_retrieval() -> Result<()> {
 
     // Now fetch the manifest and parse with our XLink resolution semantics and count the number of
     // Period elements.
-    let mpd_urls = "http://localhost:6666/mpd";
-    let mpd_url = Url::parse(mpd_urls)?;
-    let dl = DashDownloader::new(mpd_urls)
+    let mpd_url = "http://localhost:6666/mpd";
+    let dl = DashDownloader::new(mpd_url)
         .with_http_client(client.clone());
-    let xml = client.get(mpd_url.clone())
+    let xml = client.get(mpd_url)
         .send().await?
         .error_for_status()?
         .bytes().await
-        .context("fetching status")?;
+        .context("fetching MPD")?;
     let mpd: MPD = parse_resolving_xlinks(&dl, &xml).await
-        .context("parsing DASH XML")?;
+        .context("parsing DASH XML resolving xlinks")?;
     // We expect to have period1, remote_period1 and remote_period2 which were xlinked from period2,
     // and nothing from period3 which resolved to zero.
     assert_eq!(mpd.periods.len(), 3);
@@ -269,7 +271,7 @@ async fn test_xlink_retrieval() -> Result<()> {
     // Now download the media content from the MPD and check that the expected number of segments
     // were requested.
     let outpath = env::temp_dir().join("xlinked.mp4");
-    DashDownloader::new(mpd_urls)
+    DashDownloader::new(mpd_url)
         .verbosity(0)
         .download_to(outpath.clone()).await
         .unwrap();
@@ -311,6 +313,7 @@ async fn test_xlink_errors() -> Result<()> {
         ..Default::default()
     };
     let mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         xlink: Some("http://www.w3.org/1999/xlink".to_string()),
         periods: vec!(period1),

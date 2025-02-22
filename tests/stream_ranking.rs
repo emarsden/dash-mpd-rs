@@ -104,6 +104,7 @@ async fn test_preference_ranking() -> Result<()> {
         ..Default::default()
     };
     let mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         xlink: Some("http://www.w3.org/1999/xlink".to_string()),
         periods: vec!(period),
@@ -134,7 +135,7 @@ async fn test_preference_ranking() -> Result<()> {
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
-        .route("/media/:id", get(send_segment))
+        .route("/media/{id}", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
     let server_handle = hyper_serve::Handle::new();

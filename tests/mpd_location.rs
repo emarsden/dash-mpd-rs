@@ -64,12 +64,14 @@ async fn test_mpd_location() -> Result<()> {
     };
     let elsewhere = Location { url: "http://localhost:6667/relocated.mpd".to_string() };
     let orig_mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         locations: vec!(elsewhere),
         periods: vec!(),
         ..Default::default()
     };
     let relocated_mpd = MPD {
+        xmlns: Some("urn:mpeg:dash:schema:mpd:2011".to_string()),
         mpdtype: Some("static".to_string()),
         periods: vec!(period),
         ..Default::default()
@@ -102,7 +104,7 @@ async fn test_mpd_location() -> Result<()> {
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml1) }))
         .route("/relocated.mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml2) }))
-        .route("/media/:id", get(send_segment))
+        .route("/media/{id}", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
     let server_handle = hyper_serve::Handle::new();

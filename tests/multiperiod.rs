@@ -133,8 +133,8 @@ async fn test_multiperiod_withsubs_ffmpeg() {
     if env::var("CI").is_ok() {
         return;
     }
-    // This manifest has 2 periods, each containing audio, video and subtitle streams. The periods
-    // should be concatenated into a single output file.
+    // This manifest has 2 periods, each containing audio, video and WVTT subtitle streams. The
+    // periods should be concatenated into a single output file.
     let mpd_url = "http://media.axprod.net/TestVectors/v6-Clear/MultiPeriod_Manifest_1080p.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("multiperiod-withsubs.mp4");

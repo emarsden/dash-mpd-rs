@@ -514,6 +514,35 @@ async fn test_dl_segment_timeline() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+// A test for SegmentTemplate+SegmentTimeline addressing with audio-only HE-AACv2 stream.
+#[tokio::test]
+async fn test_dl_segment_timeline_heaacv2() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/dash264/CTA/ContentModel/SinglePeriod/Fragmented/ToS_HEAACv2_fragmented.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("segment-timeline-heaacv2.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 3_060_741);
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Audio);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
 // A test for SegmentList addressing
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
@@ -925,6 +954,72 @@ async fn test_dl_dynamic_stream() {
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 1_591_916);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+// A second dynamic (live) stream to test.
+#[tokio::test]
+async fn test_dl_dynamic_vos360() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://cdn-vos-ppp-01.vos360.video/Content/DASH_DASHCLEAR2/Live/channel(PPP-LL-2DASH)/master.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-vos360.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 16_741_513);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("video")));
+    assert_eq!(stream.codec_name, Some(String::from("h264")));
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+// A third dynamic (live) stream to test. Disabled because the received content length is unreliable.
+#[ignore]
+#[tokio::test]
+async fn test_dl_dynamic_5cents() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://wj78dp5elq5r-hls-live.5centscdn.com/72_push_4276_001/streamtester/manifest.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-5cents.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 6_473_630);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let stream = &meta.streams[0];
