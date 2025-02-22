@@ -1959,6 +1959,8 @@ pub struct PatchLocation {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct MPD {
+    #[serde(rename = "@xmlns", serialize_with="serialize_xmlns")]
+    pub xmlns: Option<String>,
     #[serde(rename = "@id")]
     pub id: Option<String>,
     #[serde(rename = "@profiles")]
@@ -2047,8 +2049,6 @@ pub struct MPD {
     #[serialize_always]
     #[serde(rename="@xmlns:dvb", alias="@dvb", serialize_with="serialize_dvb_ns")]
     pub dvb: Option<String>,
-    #[serde(rename = "@xmlns", serialize_with="serialize_xmlns")]
-    pub xmlns: Option<String>,
     #[serde(rename = "@xsi:schemaLocation", alias = "@schemaLocation")]
     pub schemaLocation: Option<String>,
     // scte214 namespace
