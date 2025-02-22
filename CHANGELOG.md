@@ -5,6 +5,10 @@
 
 - ffmpeg muxing support supports the use of the `DASHMPD_PERSIST_FILES` environment variable to retain
   the temporary files created during muxing.
+  
+- The ffmpeg demuxer concat helper uses absolute paths in the ffconcat file, rather than relative
+  paths, because ffmpeg interprets relative paths with respect to the location of the ffconcat file,
+  rather than with respect to CWD. Fixes #93 reported by @Cocalus.
 
 
 ## [0.18.0] - 2025-01-12

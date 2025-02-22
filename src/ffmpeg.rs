@@ -1178,13 +1178,14 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
     // https://ffmpeg.org/ffmpeg-formats.html#concat
     writeln!(&demuxlist, "ffconcat version 1.0")
         .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
-    let mut inputs = Vec::<PathBuf>::new();
-    inputs.push(tmppath.into());
-    writeln!(&demuxlist, "file '{}'", tmppath)
+    let canonical = fs::canonicalize(tmppath)
+        .map_err(|e| DashMpdError::Io(e, String::from("canonicalizing temporary filename")))?;
+    writeln!(&demuxlist, "file '{}'", canonical.display())
         .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
     for p in &paths[1..] {
-        inputs.push(p.to_path_buf());
-        writeln!(&demuxlist, "file '{}'", p.to_path_buf().display())
+        let canonical = fs::canonicalize(p)
+            .map_err(|e| DashMpdError::Io(e, String::from("canonicalizing temporary filename")))?;
+        writeln!(&demuxlist, "file '{}'", canonical.display())
             .map_err(|e| DashMpdError::Io(e, String::from("writing to demuxer cmd file")))?;
     }
     let demuxlistpath = &demuxlist
