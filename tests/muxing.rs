@@ -499,7 +499,7 @@ async fn test_muxing_mp4box_audio() {
 #[cfg(not(feature = "libav"))]
 #[should_panic(expected = "all muxers failed")]
 async fn test_muxing_unavailable() {
-    let mpd_url = "https://m.dtv.fi/dash/dasherh264/manifest.mpd";
+    let mpd_url = "https://turtle-tube.appspot.com/t/t2/dash.mpd";
     let out = env::temp_dir().join("unexist.mp3");
     DashDownloader::new(mpd_url)
         .with_muxer_preference("mp3", "unavailable,nothere")

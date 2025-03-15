@@ -508,9 +508,15 @@ async fn test_decryption_axinom_cbcs () {
 }
 
 
+// List of Shaka test assets:
+//  https://github.com/shaka-project/shaka-player/blob/1f336dd319ad23a6feb785f2ab05a8bc5fc8e2a2/demo/common/assets.js
+
+
 // A small decryption test case that we can run on the CI infrastructure.
+// This test disabled from 2025-03 because the manifest URL is unreachable.
+#[ignore]
 #[tokio::test]
-async fn test_decryption_small () {
+async fn test_decryption_oldsmall () {
     setup_logging();
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes.mp4");
@@ -527,26 +533,34 @@ async fn test_decryption_small () {
     assert!(ffmpeg_approval(&outpath));
 }
 
-
 #[tokio::test]
-async fn test_decryption_small_shaka () {
+async fn test_decryption_small () {
     setup_logging();
-    let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
-    let outpath = env::temp_dir().join("caminandes-shaka.mp4");
+    let mpd = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
+    let outpath = env::temp_dir().join("angel.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
     }
     DashDownloader::new(mpd)
         .worst_quality()
-        .verbosity(2)
-        .add_decryption_key(String::from("43215678123412341234123412341234"),
-                            String::from("12341234123412341234123412341234"))
+        .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
+                            String::from("429ec76475e7a952d224d8ef867f12b6"))
+        .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
+                            String::from("150a6c7d7dee6a91b74dccfce5b31928"))
+        .add_decryption_key(String::from("6f1729072b4a5cd288c916e11846b89e"),
+                            String::from("a84b4bd66901874556093454c075e2c6"))
+        .add_decryption_key(String::from("800aacaa522958ae888062b5695db6bf"),
+                            String::from("775dbf7289c4cc5847becd571f536ff2"))
+        .add_decryption_key(String::from("67b30c86756f57c5a0a38a23ac8c9178"),
+                            String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
+        .with_muxer_preference("webm", "ffmpeg")
         .with_decryptor_preference("shaka")
         .download_to(outpath.clone()).await
         .unwrap();
-    check_file_size_approx(&outpath, 6_975_147);
+    check_file_size_approx(&outpath, 1_316_391);
     assert!(ffmpeg_approval(&outpath));
 }
+
 
 // Content that isn't encrypted should be downloaded normally even if unnecessary decryption keys are
 // specified.
@@ -610,7 +624,7 @@ async fn test_decryption_unencrypted_shaka () {
 async fn test_decryption_invalid_decryptor () {
     // Don't set up logging, because we know that an error will be logged to the terminal.
     // setup_logging();
-    let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
+    let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("failing.mp4");
     DashDownloader::new(mpd)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
@@ -625,7 +639,7 @@ async fn test_decryption_invalid_decryptor () {
 #[tokio::test]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_mp4decrypt () {
-    let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
+    let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("failing.mp4");
     DashDownloader::new(mpd)
         .add_decryption_key(String::from("66"),
@@ -640,7 +654,7 @@ async fn test_decryption_invalid_key_mp4decrypt () {
 #[tokio::test]
 #[should_panic(expected = "Decrypting")]
 async fn test_decryption_invalid_key_shaka () {
-    let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
+    let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("failing.mp4");
     DashDownloader::new(mpd)
         .add_decryption_key(String::from("66"),

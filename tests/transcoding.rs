@@ -53,13 +53,13 @@ async fn test_transcode_avi() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://m.dtv.fi/dash/dasherh264/manifest.mpd";
-    let out = env::temp_dir().join("caminandes.avi");
+    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let out = env::temp_dir().join("cf.avi");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
-    check_file_size_approx(&out, 8_316_748);
+    check_file_size_approx(&out, 513_308);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
