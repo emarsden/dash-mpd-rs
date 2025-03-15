@@ -24,8 +24,8 @@ use data_url::DataUrl;
 use reqwest::header::{RANGE, CONTENT_TYPE};
 use backoff::{future::retry_notify, ExponentialBackoff};
 use governor::{Quota, RateLimiter};
-use async_recursion::async_recursion;
 use lazy_static::lazy_static;
+use xot::{xmlname, Xot};
 use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
 use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
@@ -70,6 +70,7 @@ fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdErro
             .prefix(prefix)
             .suffix(suffix)
             .rand_bytes(7)
+            .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
             .tempfile()
             .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
         Ok(file.path().to_path_buf())
@@ -523,10 +524,11 @@ impl DashDownloader {
     }
 
     /// The upper limit on the number of non-transient network errors encountered for this download
-    /// before we abort the download. Transient network errors such as an HTTP 408 “request timeout”
-    /// are retried automatically with an exponential backoff mechanism, and do not count towards
-    /// this upper limit. The default is to fail after 30 non-transient network errors over the
-    /// whole download.
+    /// before we abort the download.
+    ///
+    /// Transient network errors such as an HTTP 408 “request timeout” are retried automatically
+    /// with an exponential backoff mechanism, and do not count towards this upper limit. The
+    /// default is to fail after 30 non-transient network errors over the whole download.
     pub fn max_error_count(mut self, count: u32) -> DashDownloader {
         self.max_error_count = count;
         self
@@ -555,9 +557,10 @@ impl DashDownloader {
     }
 
     /// Specify the number of seconds to capture from the media stream, overriding the duration
-    /// specified in the DASH manifest. This is mostly useful for live streams, for which the
-    /// duration is often not specified. It can also be used to capture only the first part of a
-    /// normal (static/on-demand) media stream.
+    /// specified in the DASH manifest.
+    ///
+    /// This is mostly useful for live streams, for which the duration is often not specified. It
+    /// can also be used to capture only the first part of a normal (static/on-demand) media stream.
     pub fn force_duration(mut self, seconds: f64) -> DashDownloader {
         self.force_duration = Some(seconds);
         self
@@ -565,6 +568,7 @@ impl DashDownloader {
 
     /// A maximal limit on the network bandwidth consumed to download media segments, expressed in
     /// octets (bytes) per second. No limit on bandwidth if set to zero (the default value).
+    ///
     /// Limiting bandwidth below 50kB/s is not recommended, as the downloader may fail to respect
     /// this limit.
     pub fn with_rate_limit(mut self, bps: u64) -> DashDownloader {
@@ -1571,118 +1575,149 @@ fn fetchable_xlink_href(href: &str) -> bool {
     (!href.is_empty()) && href.ne("urn:mpeg:dash:resolve-to-zero:2013")
 }
 
-fn element_resolves_to_zero(element: &xmltree::Element) -> bool {
-    element.attributes.get("href")
-        .is_some_and(|hr| hr.eq("urn:mpeg:dash:resolve-to-zero:2013"))
+fn element_resolves_to_zero(xot: &mut Xot, element: xot::Node) -> bool {
+    let xlink_ns = xmlname::CreateNamespace::new(xot, "xlink", "http://www.w3.org/1999/xlink");
+    let xlink_href_name = xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
+    if let Some(href) = xot.get_attribute(element, xlink_href_name.into()) {
+        return href.eq("urn:mpeg:dash:resolve-to-zero:2013");
+    }
+    false
 }
 
-#[derive(Debug)]
-struct PendingInsertion {
-    target: xmltree::XMLNode,
-    insertions: Vec<xmltree::XMLNode>,
-}
-
-
-fn do_pending_insertions_recurse(
-    element: &mut xmltree::Element,
-    pending: &Vec<PendingInsertion>)
-{
-    for pi in pending {
-        if let Some(idx) = element.children.iter().position(|c| *c == pi.target) {
-            if pi.insertions.len() == 1 {
-                element.children[idx] = pi.insertions[0].clone();
-            } else {
-                element.children[idx] = pi.insertions[0].clone();
-                for (i, ins) in pi.insertions[1..].iter().enumerate() {
-                    element.children.insert(idx+i, ins.clone());
-                }
-            }
+fn skip_xml_preamble(input: &str) -> &str {
+    if input.starts_with("<?xml") {
+        if let Some(end_pos) = input.find("?>") {
+            // Return the part of the string after the XML declaration
+            return &input[end_pos + 2..]; // Skip past "?>"
         }
     }
-    for child in element.children.iter_mut() {
-        if let Some(ce) = child.as_mut_element() {
-            do_pending_insertions_recurse(ce, pending);
-        }
-    }
+    // If no XML preamble, return the original string
+    input
 }
 
-// Walk the XML tree recursively to resolve any XLink references in any nodes.
-//
-// Maintenance note: the xot crate might be a good alternative to the xmltree crate.
-#[async_recursion]
-async fn resolve_xlink_references_recurse(
+// Walk all descendents of the root node, looking for target nodes with an xlink:href and collect
+// into a Vec. For each of these, retrieve the remote content, insert_after() the target node, then
+// delete the target node.
+async fn resolve_xlink_references(
     downloader: &DashDownloader,
-    element: &mut xmltree::Element) -> Result<Vec<PendingInsertion>, DashMpdError>
+    xot: &mut Xot,
+    node: xot::Node) -> Result<(), DashMpdError>
 {
-    let mut pending_insertions = Vec::new();
-    if let Some(href) = element.attributes.remove("href") {
-        if fetchable_xlink_href(&href) {
-            let xlink_url = if is_absolute_url(&href) {
-                Url::parse(&href)
-                    .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?
-            } else {
-                // Note that we are joining against the original/redirected URL for the MPD, and
-                // not against the currently scoped BaseURL
-                let mut merged = downloader.redirected_url.join(&href)
-                    .map_err(|e| parse_error(&format!("parsing XLink on {}", element.name), e))?;
-                merged.set_query(downloader.redirected_url.query());
-                merged
-            };
-            let client = downloader.http_client.as_ref().unwrap();
-            trace!("Fetching XLinked element {}", xlink_url.clone());
-            let mut req = client.get(xlink_url.clone())
-                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-                .header("Accept-Language", "en-US,en")
-                .header("Sec-Fetch-Mode", "navigate");
-            if let Some(referer) = &downloader.referer {
-                req = req.header("Referer", referer);
-            } else {
-                req = req.header("Referer", downloader.redirected_url.to_string());
+    let xlink_ns = xmlname::CreateNamespace::new(xot, "xlink", "http://www.w3.org/1999/xlink");
+    let xlink_href_name = xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
+    let xlinked = xot.descendants(node)
+        .filter(|d| xot.get_attribute(*d, xlink_href_name.into()).is_some())
+        .collect::<Vec<_>>();
+    for xl in xlinked {
+        if element_resolves_to_zero(xot, xl) {
+            trace!("Removing node with resolve-to-zero xlink:href {xl:?}");
+            if let Err(e) = xot.remove(xl) {
+                return Err(parse_error("Failed to remove resolve-to-zero XML node", e));
             }
-            if let Some(username) = &downloader.auth_username {
-                if let Some(password) = &downloader.auth_password {
-                    req = req.basic_auth(username, Some(password));
+        } else if let Some(href) = xot.get_attribute(xl, xlink_href_name.into()) {
+            if fetchable_xlink_href(href) {
+                let xlink_url = if is_absolute_url(href) {
+                    Url::parse(href)
+                        .map_err(|e|
+                            if let Ok(ns) = xot.to_string(node) {
+                                parse_error(&format!("parsing XLink on {ns}"), e)
+                            } else {
+                                parse_error("parsing XLink", e)
+                            }
+                        )?
+                } else {
+                    // Note that we are joining against the original/redirected URL for the MPD, and
+                    // not against the currently scoped BaseURL
+                    let mut merged = downloader.redirected_url.join(href)
+                        .map_err(|e|
+                            if let Ok(ns) = xot.to_string(node) {
+                                parse_error(&format!("parsing XLink on {ns}"), e)
+                            } else {
+                                parse_error("parsing XLink", e)
+                            }
+                        )?;
+                    merged.set_query(downloader.redirected_url.query());
+                    merged
+                };
+                let client = downloader.http_client.as_ref().unwrap();
+                trace!("Fetching XLinked element {}", xlink_url.clone());
+                let mut req = client.get(xlink_url.clone())
+                    .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                    .header("Accept-Language", "en-US,en")
+                    .header("Sec-Fetch-Mode", "navigate");
+                if let Some(referer) = &downloader.referer {
+                    req = req.header("Referer", referer);
+                } else {
+                    req = req.header("Referer", downloader.redirected_url.to_string());
                 }
+                if let Some(username) = &downloader.auth_username {
+                    if let Some(password) = &downloader.auth_password {
+                        req = req.basic_auth(username, Some(password));
+                    }
+                }
+                if let Some(token) = &downloader.auth_bearer_token {
+                    req = req.bearer_auth(token);
+                }
+                let xml = req.send().await
+                    .map_err(|e|
+                             if let Ok(ns) = xot.to_string(node) {
+                                 network_error(&format!("fetching XLink for {ns}"), e)
+                             } else {
+                                 network_error("fetching XLink", e)
+                             }
+                        )?
+                    .error_for_status()
+                    .map_err(|e|
+                             if let Ok(ns) = xot.to_string(node) {
+                                 network_error(&format!("fetching XLink for {ns}"), e)
+                             } else {
+                                 network_error("fetching XLink", e)
+                             }
+                        )?
+                    .text().await
+                    .map_err(|e|
+                             if let Ok(ns) = xot.to_string(node) {
+                                 network_error(&format!("resolving XLink for {ns}"), e)
+                             } else {
+                                 network_error("resolving XLink", e)
+                             }
+                        )?;
+                if downloader.verbosity > 2 {
+                    if let Ok(ns) = xot.to_string(node) {
+                        info!("  Resolved onLoad XLink {xlink_url} on {ns} -> {} octets", xml.len());
+                    } else {
+                        info!("  Resolved onLoad XLink {xlink_url} -> {} octets", xml.len());
+                    }
+                }
+                // The difficulty here is that the XML fragment received may contain multiple elements,
+                // for example a Period with xlink resolves to two Period elements. For a single
+                // resolved element we can simply replace the original element by its resolved
+                // counterpart. When the xlink resolves to multiple elements, we can't insert them back
+                // into the parent node directly, but need to return them to the caller for later insertion.
+                let wrapped_xml = r#"<?xml version="1.0" encoding="utf-8"?>"#.to_owned() +
+                    r#"<wrapper xmlns="urn:mpeg:dash:schema:mpd:2011" "# +
+                    r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" "# +
+                    r#"xmlns:cenc="urn:mpeg:cenc:2013" "# +
+                    r#"xmlns:mspr="urn:microsoft:playready" "# +
+                    r#"xmlns:xlink="http://www.w3.org/1999/xlink">"# +
+                    skip_xml_preamble(&xml) +
+                    r#"</wrapper>"#;
+                let wrapper_doc = xot.parse(&wrapped_xml)
+                    .map_err(|e| parse_error("parsing xlinked content", e))?;
+                let wrapper_doc_el = xot.document_element(wrapper_doc)
+                    .map_err(|e| parse_error("extracting XML document element", e))?;
+                for needs_insertion in xot.children(wrapper_doc_el).collect::<Vec<_>>() {
+                    // FIXME we are inserting nodes that serialize to nothing (namespace nodes?)
+                    println!("Inserting new node {}", xot.to_string(needs_insertion).unwrap());
+                    xot.insert_after(xl, needs_insertion)
+                        .map_err(|e| parse_error("inserting XLinked content", e))?;
+                }
+                xot.remove(xl)
+                    .map_err(|e| parse_error("removing XLink node", e))?;
             }
-            if let Some(token) = &downloader.auth_bearer_token {
-                req = req.bearer_auth(token);
-            }
-            let xml = req.send().await
-                .map_err(|e| network_error(&format!("fetching XLink for {}", element.name), e))?
-                .error_for_status()
-                .map_err(|e| network_error(&format!("fetching XLink for {}", element.name), e))?
-                .text().await
-                .map_err(|e| network_error(&format!("resolving XLink on {}", element.name), e))?;
-            if downloader.verbosity > 2 {
-                info!("  Resolved onLoad XLink {xlink_url} on {} -> {} octets",
-                         element.name, xml.len());
-            }
-            // The difficulty here is that the XML fragment received may contain multiple elements,
-            // for example a Period with xlink resolves to two Period elements. For a single
-            // resolved element we can simply replace the original element by its resolved
-            // counterpart. When the xlink resolves to multiple elements, we can't insert them back
-            // into the parent node directly, but need to return them to the caller for later insertion.
-            let nodes = xmltree::Element::parse_all(xml.as_bytes())
-                .map_err(|e| parse_error("xmltree parsing", e))?;
-            pending_insertions.push(PendingInsertion {
-                target: xmltree::XMLNode::Element(element.clone()),
-                insertions: nodes,
-            });
         }
     }
-    // Delete any child Elements that have XLink resolve-to-zero semantics.
-    element.children.retain(
-        |n| n.as_element().is_none() ||
-            n.as_element().is_some_and(|e| !element_resolves_to_zero(e)));
-    for child in element.children.iter_mut() {
-        if let Some(ce) = child.as_mut_element() {
-            let pending = resolve_xlink_references_recurse(downloader, ce).await?;
-            for p in pending {
-                pending_insertions.push(p);
-            }
-        }
-    }
-    Ok(pending_insertions)
+    Ok(())
 }
 
 #[tracing::instrument(level="trace", skip_all)]
@@ -1690,19 +1725,30 @@ pub async fn parse_resolving_xlinks(
     downloader: &DashDownloader,
     xml: &[u8]) -> Result<MPD, DashMpdError>
 {
-    let mut doc = xmltree::Element::parse(xml)
-        .map_err(|e| parse_error("xmltree parsing", e))?;
-    if !doc.name.eq("MPD") {
-        return Err(DashMpdError::Parsing(format!("root element is {}, expecting <MPD>", doc.name)));
+    use xot::xmlname::NameStrInfo;
+
+    let mut xot = Xot::new();
+    let doc = xot.parse_bytes(xml)
+        .map_err(|e| parse_error("XML parsing", e))?;
+    let doc_el = xot.document_element(doc)
+        .map_err(|e| parse_error("extracting XML document element", e))?;
+    let doc_name = match xot.node_name(doc_el) {
+        Some(n) => n,
+        None => return Err(DashMpdError::Parsing(String::from("missing root node name"))),
+    };
+    let root_name = xot.name_ref(doc_name, doc_el)
+        .map_err(|e| parse_error("extracting root node name", e))?;
+    let root_local_name = root_name.local_name();
+    if !root_local_name.eq("MPD") {
+        return Err(DashMpdError::Parsing(format!("root element is {}, expecting <MPD>", root_local_name)));
     }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
     for _ in 1..5 {
-        let pending = resolve_xlink_references_recurse(downloader, &mut doc).await?;
-        do_pending_insertions_recurse(&mut doc, &pending);
+        resolve_xlink_references(downloader, &mut xot, doc).await?;
     }
     let mut buf = Vec::new();
-    doc.write(&mut buf)
+    xot.write(doc, &mut buf)
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
     // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
     // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
@@ -1721,10 +1767,12 @@ pub async fn parse_resolving_xlinks(
         if !xsltproc.status.success() {
             let msg = format!("xsltproc returned {}", xsltproc.status);
             let out = partial_process_output(&xsltproc.stderr).to_string();
-            return Err(DashMpdError::Io(std::io::Error::new(std::io::ErrorKind::Other, msg), out));
+            return Err(DashMpdError::Io(std::io::Error::other(msg), out));
         }
-        if let Err(e) = fs::remove_file(&tmpmpd) {
-            warn!("Error removing temporary MPD after XSLT processing: {e:?}");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(&tmpmpd) {
+                warn!("Error removing temporary MPD after XSLT processing: {e:?}");
+            }
         }
         buf.clone_from(&xsltproc.stdout);
     }
@@ -2838,11 +2886,11 @@ async fn do_period_subtitles(
                                 .output()
                             {
                                 let msg = partial_process_output(&mp4box.stdout);
-                                if msg.len() > 0 {
+                                if !msg.is_empty() {
                                     info!("MP4Box stdout: {msg}");
                                 }
                                 let msg = partial_process_output(&mp4box.stderr);
-                                if msg.len() > 0 {
+                                if !msg.is_empty() {
                                     info!("MP4Box stderr: {msg}");
                                 }
                                 if mp4box.status.success() {
@@ -3282,7 +3330,7 @@ async fn fetch_fragment(
                         if let Some(ref fragment_path) = downloader.fragment_path {
                             if let Some(path) = frag.url.path_segments()
                                 .unwrap_or_else(|| "".split(' '))
-                                .last()
+                                .next_back()
                             {
                                 let vf_file = fragment_path.clone().join(fragment_type).join(path);
                                 if let Ok(f) = File::create(vf_file) {
@@ -3482,11 +3530,11 @@ async fn fetch_period_audio(
             if !out.status.success() || no_output {
                 warn!("  mp4decrypt subprocess failed");
                 let msg = partial_process_output(&out.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  mp4decrypt stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  mp4decrypt stderr: {msg}");
                 }
             }
@@ -3532,11 +3580,11 @@ async fn fetch_period_audio(
             if !out.status.success() || no_output {
                 warn!("  shaka-packager subprocess failed");
                 let msg = partial_process_output(&out.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  shaka-packager stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
-                if msg.len() > 0 {
+                if msg.is_empty() {
                     warn!("  shaka-packager stderr: {msg}");
                 }
             }
@@ -3688,11 +3736,11 @@ async fn fetch_period_video(
             if !out.status.success() || no_output {
                 error!("  mp4decrypt subprocess failed");
                 let msg = partial_process_output(&out.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  mp4decrypt stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  mp4decrypt stderr: {msg}");
                 }
             }
@@ -3734,11 +3782,11 @@ async fn fetch_period_video(
             if !out.status.success() || no_output {
                 warn!("  shaka-packager subprocess failed");
                 let msg = partial_process_output(&out.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  shaka-packager stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     warn!("  shaka-packager stderr: {msg}");
                 }
             }
@@ -3918,11 +3966,11 @@ async fn fetch_period_subtitles(
                 .output()
             {
                 let msg = partial_process_output(&mp4box.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     info!("  MP4Box stdout: {msg}");
                 }
                 let msg = partial_process_output(&mp4box.stderr);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     info!("  MP4Box stderr: {msg}");
                 }
                 if mp4box.status.success() {
@@ -3961,11 +4009,11 @@ async fn fetch_period_subtitles(
                 .output()
             {
                 let msg = partial_process_output(&ffmpeg.stdout);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     info!("  ffmpeg stdout: {msg}");
                 }
                 let msg = partial_process_output(&ffmpeg.stderr);
-                if msg.len() > 0 {
+                if !msg.is_empty() {
                     info!("  ffmpeg stderr: {msg}");
                 }
                 if ffmpeg.status.success() {
@@ -4314,11 +4362,11 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                         .output()
                     {
                         let msg = partial_process_output(&mp4box.stdout);
-                        if msg.len() > 0 {
+                        if !msg.is_empty() {
                             info!("  MP4Box stdout: {msg}");
                         }
                         let msg = partial_process_output(&mp4box.stderr);
-                        if msg.len() > 0 {
+                        if !msg.is_empty() {
                             info!("  MP4Box stderr: {msg}");
                         }
                         if mp4box.status.success() {
@@ -4383,8 +4431,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                                         .map_err(|e| DashMpdError::Io(
                                             e, String::from("copying mkvmerge output to output file")))?;
                                 }
-	                        if let Err(e) = fs::remove_file(tmppath) {
-                                    warn!("  Error deleting temporary mkvmerge output: {e}");
+                                if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	                            if let Err(e) = fs::remove_file(tmppath) {
+                                        warn!("  Error deleting temporary mkvmerge output: {e}");
+                                    }
                                 }
                             } else {
                                 warn!("  Error running mkvmerge to merge subtitles");
@@ -4406,19 +4456,25 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_audio.is_none() && downloader.fetch_audio {
-            if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
-                info!("  Failed to delete temporary file for audio stream");
+            if env::var("DASHMPD_PERSIST_FILES").is_err() {
+                if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
+                    info!("  Failed to delete temporary file for audio stream");
+                }
             }
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_video.is_none() && downloader.fetch_video {
-            if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
-                info!("  Failed to delete temporary file for video stream");
+            if env::var("DASHMPD_PERSIST_FILES").is_err() {
+                if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
+                    info!("  Failed to delete temporary file for video stream");
+                }
             }
         }
         #[allow(clippy::collapsible_if)]
-        if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
-            info!("  Failed to delete temporary file for subtitles");
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
+                info!("  Failed to delete temporary file for subtitles");
+            }
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
