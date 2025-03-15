@@ -66,7 +66,8 @@ async fn test_content_protection_parsing() {
     }
 
     check_cp("https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd").await;
-    check_cp("https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd").await;
+    // This URL offline from 2025-02
+    // check_cp("https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd").await;
 }
 
 
@@ -137,7 +138,7 @@ async fn test_decryption_cra () {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd = "https://devs.origin.cdn.cra.cz/dashmultikey/manifest.mpd ";
+    let mpd = "https://devs.origin.cdn.cra.cz/dashmultikey/manifest.mpd";
     let outpath = env::temp_dir().join("cra.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
