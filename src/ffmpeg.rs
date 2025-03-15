@@ -1,7 +1,7 @@
-/// Muxing support using mkvmerge/ffmpeg/vlc/mp4box as a subprocess.
-///
-/// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
-/// in file "libav.rs".
+//! Muxing support using mkvmerge/ffmpeg/vlc/mp4box as a subprocess.
+//
+// Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
+// in file "libav.rs".
 
 // TODO: on Linux we should try to use bubblewrap to execute the muxers in a sandboxed environment,
 // along the lines of
@@ -33,7 +33,7 @@ fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
         Ok(info) => if let Some(st) = info.format.start_time {
             Ok(st.parse::<f64>()
                 .map_err(|_| DashMpdError::Io(
-                    io::Error::new(io::ErrorKind::Other, "reading start_time"),
+                    io::Error::other("reading start_time"),
                     String::from("")))?)
         } else {
             Ok(0.0)
@@ -73,17 +73,17 @@ fn mux_audio_video_ffmpeg(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let audio_str = audio_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     if downloader.verbosity > 0 {
         info!("  Muxing audio and video content with ffmpeg");
@@ -286,12 +286,12 @@ fn mux_stream_ffmpeg(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let input = input_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining input name"),
+            io::Error::other("obtaining input name"),
             String::from("")))?;
     let cn: String;
     let mut args = vec!("-hide_banner",
@@ -379,17 +379,17 @@ fn mux_audio_video_vlc(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let audio_str = audio_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let transcode = if container.eq("webm") {
         "transcode{vcodec=VP90,acodec=vorb}:"
@@ -466,17 +466,17 @@ fn mux_audio_video_mp4box(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let audio_str = audio_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let args = vec![
         "-flat",
@@ -538,12 +538,12 @@ fn mux_stream_mp4box(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let input = input_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining input stream name"),
+            io::Error::other("obtaining input stream name"),
             String::from("")))?;
     let args = vec!["-add", input, "-new", tmppath];
     if downloader.verbosity > 0 {
@@ -592,12 +592,12 @@ fn mux_audio_video_mkvmerge(
     let audio_str = audio_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let args = vec!["--output", &tmppath,
                     "--no-video", audio_str,
@@ -647,7 +647,7 @@ fn mux_video_mkvmerge(
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let args = vec!["--output", &tmppath, "--no-audio", video_str];
     if downloader.verbosity > 0 {
@@ -696,7 +696,7 @@ fn mux_audio_mkvmerge(
     let audio_str = audio_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let args = vec!["--output", &tmppath, "--no-video", audio_str];
     if downloader.verbosity > 0 {
@@ -1073,7 +1073,7 @@ pub(crate) fn concat_output_files_ffmpeg_filter(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     fs::copy(paths[0].clone(), tmppath)
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
@@ -1160,7 +1160,7 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     fs::copy(paths[0].clone(), tmppath)
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
@@ -1192,7 +1192,7 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     args.push("-f");
     args.push("concat");
@@ -1258,7 +1258,7 @@ pub(crate) fn concat_output_files_mp4box(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let mut tmpoutb = BufWriter::new(&tmpout);
     let overwritten = File::open(paths[0].clone())
@@ -1322,7 +1322,7 @@ pub(crate) fn concat_output_files_mkvmerge(
         .path()
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining tmpfile name"),
+            io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let mut tmpoutb = BufWriter::new(&tmpout);
     let overwritten = File::open(paths[0].clone())
