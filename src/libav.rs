@@ -1,21 +1,21 @@
-/// libav.rs
-///
-/// Muxing support, using libav (ffmpeg as a shared library) via the ac_ffmpeg crate. This support
-/// is only compiled in if the "libav" feature is enabled, which is not the default (default is to
-/// use ffmpeg as a commandline application, see file "ffmpeg.rs").
-///
-/// This use of libav via the library API is a little fiddly, because the ffmpeg commandline
-/// application implements a number of checks and workarounds to fix invalid input streams that you
-/// tend to encounter in the wild. We have implemented some of these workarounds here, but not all
-/// those implemented in the ffmpeg commandline application.
-///
-/// Our code is adapted from the muxing example in the ac_ffmpeg crate
-///
-///    https://github.com/angelcam/rust-ac-ffmpeg/blob/master/examples/muxing.rs
-///
-/// and muxing examples in ffmpeg/libav in C
-///
-///    https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/muxing.c
+// libav.rs
+//
+// Muxing support, using libav (ffmpeg as a shared library) via the ac_ffmpeg crate. This support
+// is only compiled in if the "libav" feature is enabled, which is not the default (default is to
+// use ffmpeg as a commandline application, see file "ffmpeg.rs").
+//
+// This use of libav via the library API is a little fiddly, because the ffmpeg commandline
+// application implements a number of checks and workarounds to fix invalid input streams that you
+// tend to encounter in the wild. We have implemented some of these workarounds here, but not all
+// those implemented in the ffmpeg commandline application.
+//
+// Our code is adapted from the muxing example in the ac_ffmpeg crate
+//
+//    https://github.com/angelcam/rust-ac-ffmpeg/blob/master/examples/muxing.rs
+//
+// and muxing examples in ffmpeg/libav in C
+//
+//    https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/muxing.c
 
 
 use std::io;
