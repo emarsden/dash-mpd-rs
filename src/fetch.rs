@@ -4406,11 +4406,11 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                             .output()
                         {
                             let msg = partial_process_output(&mkvmerge.stdout);
-                            if msg.len() > 0 {
+                            if !msg.is_empty() {
                                 info!("  mkvmerge stdout: {msg}");
                             }
                             let msg = partial_process_output(&mkvmerge.stderr);
-                            if msg.len() > 0 {
+                            if !msg.is_empty() {
                                 info!("  mkvmerge stderr: {msg}");
                             }
                             if mkvmerge.status.success() {
