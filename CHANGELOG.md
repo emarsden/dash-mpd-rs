@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.18.1] - Unreleased
+## [0.18.1] - 2025-03-16
 
 - ffmpeg muxing support supports the use of the `DASHMPD_PERSIST_FILES` environment variable to retain
   the temporary files created during muxing.
