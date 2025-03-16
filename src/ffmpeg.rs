@@ -148,11 +148,11 @@ fn mux_audio_video_ffmpeg(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
@@ -217,11 +217,11 @@ fn mux_audio_video_ffmpeg(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
@@ -317,11 +317,11 @@ fn mux_stream_ffmpeg(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
@@ -416,7 +416,7 @@ fn mux_audio_video_vlc(
     // VLC is erroneously returning a 0 (success) return code even when it fails to mux, so we need
     // to look for a specific error message to check for failure.
     let msg = partial_process_output(&vlc.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  vlc stderr: {msg}");
     }
     if vlc.status.success() && (!msg.contains("mp4 mux error")) {
@@ -491,7 +491,7 @@ fn mux_audio_video_mp4box(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     let msg = partial_process_output(&cmd.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  MP4Box stderr: {msg}");
     }
     if cmd.status.success() {
@@ -554,7 +554,7 @@ fn mux_stream_mp4box(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     let msg = partial_process_output(&cmd.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  MP4box stderr: {msg}");
     }
     if cmd.status.success() {
@@ -610,7 +610,7 @@ fn mux_audio_video_mkvmerge(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     let msg = partial_process_output(&mkv.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  mkvmerge stderr: {msg}");
     }
     if mkv.status.success() {
@@ -658,7 +658,7 @@ fn mux_video_mkvmerge(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     let msg = partial_process_output(&mkv.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  mkvmerge stderr: {msg}");
     }
     if mkv.status.success() {
@@ -707,7 +707,7 @@ fn mux_audio_mkvmerge(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge subprocess")))?;
     let msg = partial_process_output(&mkv.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  mkvmerge stderr: {msg}");
     }
     if mkv.status.success() {
@@ -1102,11 +1102,11 @@ pub(crate) fn concat_output_files_ffmpeg_filter(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
@@ -1218,11 +1218,11 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stdout: {msg}");
     }
     let msg = partial_process_output(&ffmpeg.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  ffmpeg stderr: {msg}");
     }
     if ffmpeg.status.success() {
@@ -1286,11 +1286,11 @@ pub(crate) fn concat_output_files_mp4box(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box subprocess")))?;
     let msg = partial_process_output(&mp4box.stdout);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  MP4Box stdout: {msg}");
     }
     let msg = partial_process_output(&mp4box.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  MP4Box stderr: {msg}");
     }
     if mp4box.status.success() {
@@ -1356,12 +1356,12 @@ pub(crate) fn concat_output_files_mkvmerge(
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mkvmerge")))?;
     let msg = partial_process_output(&mkvmerge.stdout);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  mkvmerge stdout: {msg}");
         println!("  mkvmerge stdout: {msg}");
     }
     let msg = partial_process_output(&mkvmerge.stderr);
-    if downloader.verbosity > 0 && msg.len() > 0 {
+    if downloader.verbosity > 0 && !msg.is_empty() {
         info!("  mkvmerge stderr: {msg}");
         println!("  mkvmerge stderr: {msg}");
     }
