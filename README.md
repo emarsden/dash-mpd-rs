@@ -281,6 +281,10 @@ be enabled:
   most of the code size of the library, so disable it if you only need the struct definitions for
   serializing and deserializing MPDs.
 
+- `http2` *(enabled by default)*: enables the `http2` feature on our `reqwest` dependency, which
+  means that HTTP requests will try to establish HTTP/2 (instead of HTTP/1.1) connections if the
+  functionality is advertised by an HTTP server, using the `Upgrade` header.
+
 - `socks` *(enabled by default)*: enables the `socks` feature on our `reqwest` dependency, which
   provides SOCKS5 proxy support for HTTP/HTTPS requests.
 

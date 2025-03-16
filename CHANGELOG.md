@@ -10,6 +10,11 @@
   paths, because ffmpeg interprets relative paths with respect to the location of the ffconcat file,
   rather than with respect to CWD. Fixes #93 reported by @Cocalus.
 
+- The `http2` feature on the reqwest crate is enabled, meaning that HTTP requests will now try to
+  establish HTTP/2 connections if the functionality is advertised by an HTTP server, using the
+  `Upgrade` header. Disable this by setting `default-features` to false and not including `http2` in
+  the list of features when building the crate.
+
 
 ## [0.18.0] - 2025-01-12
 
