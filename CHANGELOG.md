@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.18.2] - Unreleased
+
+- Downloading: a Base URL can be specified when instantiating a `DashDownloader`. This may be useful
+  when downloading content from a manifest specified as a `file://` URL.
+
+
 ## [0.18.1] - 2025-03-16
 
 - ffmpeg muxing support supports the use of the `DASHMPD_PERSIST_FILES` environment variable to retain

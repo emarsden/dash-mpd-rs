@@ -116,6 +116,7 @@ pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 pub struct DashDownloader {
     pub mpd_url: String,
     pub redirected_url: Url,
+    base_url: Option<String>,
     referer: Option<String>,
     auth_username: Option<String>,
     auth_password: Option<String>,
@@ -189,6 +190,7 @@ impl DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
             redirected_url: Url::parse(mpd_url).unwrap(),
+            base_url: None,
             referer: None,
             auth_username: None,
             auth_password: None,
@@ -246,6 +248,14 @@ impl DashDownloader {
             shaka_packager_location: String::from("shaka-packager"),
         }
     }
+
+    /// Specify the base URL to use when downloading content from the manifest. This may be useful
+    /// when downloading from a file:// URL.
+    pub fn with_base_url(mut self, base_url: String) -> DashDownloader {
+        self.base_url = Some(base_url);
+        self
+    }
+
 
     /// Specify the reqwest Client to be used for HTTP requests that download the DASH streaming
     /// media content. Allows you to specify a proxy, the user agent, custom request headers,
@@ -343,7 +353,7 @@ impl DashDownloader {
     /// also specify a quality preference for highest and the role=alternate stream has a higher
     /// quality.
     pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
-        if role_preference.len() < u8::MAX.into() {
+        if role_preference.len() < u8::MAX as usize {
             self.role_preference = role_preference;
         } else {
             warn!("Ignoring role_preference ordering due to excessive length");
@@ -585,7 +595,7 @@ impl DashDownloader {
         // corresponds to the size (in kB) of the largest media segments we are going to be retrieving,
         // because that's the number of bucket cells that will be consumed for each downloaded segment.
         let mut kps = 1 + bps / 1024;
-        if kps > u32::MAX.into() {
+        if kps > u32::MAX as u64 {
             warn!("Throttling bandwidth limit");
             kps = u32::MAX.into();
         }
@@ -1708,7 +1718,6 @@ async fn resolve_xlink_references(
                     .map_err(|e| parse_error("extracting XML document element", e))?;
                 for needs_insertion in xot.children(wrapper_doc_el).collect::<Vec<_>>() {
                     // FIXME we are inserting nodes that serialize to nothing (namespace nodes?)
-                    println!("Inserting new node {}", xot.to_string(needs_insertion).unwrap());
                     xot.insert_after(xl, needs_insertion)
                         .map_err(|e| parse_error("inserting XLinked content", e))?;
                 }
@@ -3214,7 +3223,7 @@ async fn do_period_subtitles(
                         }
                     } else if let Some(sb) = &rep.SegmentBase {
                         // SegmentBase@indexRange addressing mode
-                        println!("Using SegmentBase@indexRange for subs");
+                        info!("  Using SegmentBase@indexRange for subs");
                         if downloader.verbosity > 1 {
                             info!("  {}", "Using SegmentBase@indexRange addressing mode for subtitle representation".italic());
                         }
@@ -4164,6 +4173,11 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
     if let Some(bu) = &mpd.base_url.first() {
         toplevel_base_url = merge_baseurls(&downloader.redirected_url, &bu.base)?;
+    }
+    // A BaseURL specified explicitly when instantiating the DashDownloader overrides the BaseURL
+    // specified in the manifest.
+    if let Some(base) = &downloader.base_url {
+        toplevel_base_url = merge_baseurls(&downloader.redirected_url, base)?;
     }
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
