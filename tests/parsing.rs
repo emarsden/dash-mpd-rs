@@ -581,6 +581,9 @@ async fn test_parsing_online() {
 
     check_mpd(client.clone(),
               "https://github.com/claudiuolteanu/mpd-parser/raw/refs/heads/master/examples/oops-20120802-manifest.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://content.media24.link/drm/manifest.mpd").await;
 }
 
 
