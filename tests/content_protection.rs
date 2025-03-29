@@ -508,6 +508,34 @@ async fn test_decryption_axinom_cbcs () {
 }
 
 
+// URL and key from https://github.com/Axinom/public-test-vectors/tree/conservative
+#[tokio::test]
+async fn test_decryption_axinom_widevine () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "http://media.axprod.net/TestVectors/v6.1-MultiDRM/Manifest_1080p.mpd";
+    let outpath = env::temp_dir().join("axinom-widevine.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("6e5a1d26275747d78046eaa5d1d34b5a"),
+                            // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
+                            String::from("197f26f572c864d2338b3ae5d114ea9c"))
+        .with_decryptor_preference("shaka")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 47_396_046);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+}
+
+
 // List of Shaka test assets:
 //  https://github.com/shaka-project/shaka-player/blob/1f336dd319ad23a6feb785f2ab05a8bc5fc8e2a2/demo/common/assets.js
 
