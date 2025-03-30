@@ -63,11 +63,11 @@ axum = "0.8.3"
 axum-auth = "0.8.1"
 hyper-serve = { version = "0.6.2" }
 noxious-client = "1.0.4"
-reqwest = { version = "0.12.14", default-features = false, features = ["cookies", "json", "blocking"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["cookies", "json", "blocking"] }
 serde_json = "1.0.140"
 anyhow = "1.0.97"
 roxmltree = "0.20.0"
-xmlem = "0.3.1"
+xmlem = "0.3.3"
 json = "0.12.4"
 mp4 = "0.14.0"
 image = "0.25.6"
