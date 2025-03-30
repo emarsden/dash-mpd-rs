@@ -25,7 +25,8 @@ use crate::media::{
     video_container_type,
     container_has_video,
     container_has_audio,
-    temporary_outpath
+    temporary_outpath,
+    AudioTrack,
 };
 
 fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
@@ -43,6 +44,124 @@ fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
             Ok(0.0)
         },
     }
+}
+
+// Mux one video track with multiple audio tracks
+#[tracing::instrument(level="trace", skip(downloader))]
+fn mux_multiaudio_video_ffmpeg(
+    downloader: &DashDownloader,
+    output_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
+    video_path: &Path) -> Result<(), DashMpdError> {
+    let container = match output_path.extension() {
+        Some(ext) => ext.to_str().unwrap_or("mp4"),
+        None => "mp4",
+    };
+    // See output from "ffmpeg -muxers"
+    let muxer = match container {
+        "mkv" => "matroska",
+        "ts" => "mpegts",
+        _ => container,
+    };
+    let tmpout = tempfile::Builder::new()
+        .prefix("dashmpdrs")
+        .suffix(&format!(".{container}"))
+        .rand_bytes(5)
+        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .tempfile()
+        .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
+    let tmppath = tmpout
+        .path()
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::other("obtaining tmpfile name"),
+            String::from("")))?;
+    let video_str = video_path
+        .to_str()
+        .ok_or_else(|| DashMpdError::Io(
+            io::Error::other("obtaining videopath name"),
+            String::from("")))?;
+    if downloader.verbosity > 0 {
+        info!("  Muxing audio ({} track{}) and video content with ffmpeg",
+              audio_tracks.len(),
+              if audio_tracks.len() == 1 { "" } else { "s" });
+        if let Ok(attr) = fs::metadata(video_path) {
+            info!("  Video file {} of size {} octets", video_path.display(), attr.len());
+        }
+    }
+    let mut args = vec![
+        String::from("-hide_banner"),
+        String::from("-nostats"),
+        String::from("-loglevel"), String::from("error"),  // or "warning", "info"
+        String::from("-y"),  // overwrite output file if it exists
+        String::from("-nostdin")];
+    args.push(String::from("-i"));
+    args.push(String::from(video_str));
+    args.push(String::from("-map"));
+    args.push(String::from("0:v"));
+    // https://superuser.com/questions/1078298/ffmpeg-combine-multiple-audio-files-and-one-video-in-to-the-multi-language-vid
+    for (i, at) in audio_tracks.iter().enumerate() {
+        args.push(String::from("-i"));
+        let audio_str = at.path
+            .to_str()
+            .ok_or_else(|| DashMpdError::Io(
+                io::Error::other("obtaining audiopath name"),
+                String::from("")))?;
+        args.push(String::from(audio_str));
+        args.push(String::from("-map"));
+        args.push(format!("{}:a", i+1));
+        args.push(format!("-metadata:s:a:{}", i+1));
+        args.push(format!("language={}", at.language));
+    }
+    args.push(String::from("-c:v"));
+    args.push(String::from("copy"));
+    args.push(String::from("-c:a"));
+    args.push(String::from("copy"));
+    args.push(String::from("-movflags"));
+    args.push(String::from("faststart"));
+    args.push(String::from("-preset"));
+    args.push(String::from("veryfast"));
+    // select the muxer explicitly (debatable whether this is better than ffmpeg's
+    // heuristics based on output filename)
+    args.push(String::from("-f"));
+    args.push(String::from(muxer));
+    args.push(String::from(tmppath));
+    if downloader.verbosity > 0 {
+        info!("  Running ffmpeg {}", args.join(" "));
+    }
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
+        .args(args)
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
+    let msg = partial_process_output(&ffmpeg.stdout);
+    if !msg.is_empty() {
+        info!("  ffmpeg stdout: {msg}");
+    }
+    let msg = partial_process_output(&ffmpeg.stderr);
+    if !msg.is_empty() {
+        info!("  ffmpeg stderr: {msg}");
+    }
+    if ffmpeg.status.success() {
+        // local scope so that tmppath is not busy on Windows and can be deleted
+        {
+            let tmpfile = File::open(tmppath)
+                .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path)
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink)
+                .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+        }
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath) {
+                warn!("  Error deleting temporary ffmpeg output: {e}");
+            }
+        }
+        return Ok(());
+    }
+    // TODO: try again without -c:a copy and -c:v copy
+    Err(DashMpdError::Muxing(String::from("running ffmpeg")))
 }
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
@@ -301,7 +420,7 @@ fn mux_stream_ffmpeg(
                         "-nostdin",
                         "-i", input,
                         "-movflags", "faststart", "-preset", "veryfast");
-    // We can select the muxer explicitly (otherwise it is determined using heuristics based in the
+    // We can select the muxer explicitly (otherwise it is determined using heuristics based on the
     // filename extension).
     if let Some(container_name) = ffmpeg_container_name(container) {
         args.push("-f");

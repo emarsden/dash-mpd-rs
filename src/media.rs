@@ -14,6 +14,12 @@ use crate::DashMpdError;
 use crate::fetch::DashDownloader;
 
 
+#[derive(Debug, Clone)]
+pub struct AudioTrack {
+    pub language: String,
+    pub path: PathBuf,
+}
+
 
 // Returns "mp4", "mkv", "avi" etc. Based on analyzing the media content rather than on the filename
 // extension.
