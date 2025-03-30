@@ -1605,6 +1605,74 @@ fn skip_xml_preamble(input: &str) -> &str {
     input
 }
 
+// Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
+// as a commandline filter application. Existing XSLT implementations in Rust are incomplete
+// (but improving; hopefully we will one day be able to use the xrust crate).
+fn apply_xslt_stylesheets_xsltproc(
+    downloader: &DashDownloader,
+    xot: &mut Xot,
+    doc: xot::Node) -> Result<String, DashMpdError> {
+    let mut buf = Vec::new();
+    xot.write(doc, &mut buf)
+        .map_err(|e| parse_error("serializing rewritten manifest", e))?;
+    for ss in &downloader.xslt_stylesheets {
+        if downloader.verbosity > 0 {
+            info!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
+        }
+        let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
+        fs::write(&tmpmpd, &buf)
+            .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
+        let xsltproc = Command::new("xsltproc")
+            .args([ss, &tmpmpd])
+            .output()
+            .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
+        if !xsltproc.status.success() {
+            let msg = format!("xsltproc returned {}", xsltproc.status);
+            let out = partial_process_output(&xsltproc.stderr).to_string();
+            return Err(DashMpdError::Io(std::io::Error::other(msg), out));
+        }
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+            if let Err(e) = fs::remove_file(&tmpmpd) {
+                warn!("Error removing temporary MPD after XSLT processing: {e:?}");
+            }
+        }
+        buf.clone_from(&xsltproc.stdout);
+    }
+    String::from_utf8(buf)
+        .map_err(|e| parse_error("parsing UTF-8", e))
+}
+
+// Try to use the xee crate functionality for XSLT processing. We need an alternative utility
+// function to evaluate that accepts a full XSLT stylehseet, rather than only the XML for a
+// transform.
+/*
+fn apply_xslt_stylesheets_xee(
+    downloader: &DashDownloader,
+    xot: &mut Xot,
+    doc: xot::Node) -> Result<String, DashMpdError> {
+    use xee_xslt_compiler::evaluate;
+    use std::fmt::Write;
+
+    let mut xml = xot.to_string(doc)
+        .map_err(|e| parse_error("serializing rewritten manifest", e))?;
+    for ss in &downloader.xslt_stylesheets {
+        if downloader.verbosity > 0 {
+            info!("  Applying XSLT stylesheet {} with xee", ss.display());
+        }
+        let xslt = fs::read_to_string(ss)
+            .map_err(|_| DashMpdError::Other(String::from("reading XSLT stylesheet")))?;
+        let seq = evaluate(xot, &xml, &xslt).unwrap();
+        let mut f = String::new();
+        for item in seq.iter() {
+            f.write_str(&xot.to_string(item.to_node().unwrap()).unwrap())
+                .unwrap();
+        }
+        xml = f;
+    }
+    Ok(xml)
+}
+*/
+
 // Walk all descendents of the root node, looking for target nodes with an xlink:href and collect
 // into a Vec. For each of these, retrieve the remote content, insert_after() the target node, then
 // delete the target node.
@@ -1756,39 +1824,9 @@ pub async fn parse_resolving_xlinks(
     for _ in 1..5 {
         resolve_xlink_references(downloader, &mut xot, doc).await?;
     }
-    let mut buf = Vec::new();
-    xot.write(doc, &mut buf)
-        .map_err(|e| parse_error("serializing rewritten manifest", e))?;
-    // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
-    // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
-    // (but improving; hopefully we will one day be able to use the xrust crate).
-    for ss in &downloader.xslt_stylesheets {
-        if downloader.verbosity > 0 {
-            info!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
-        }
-        let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
-        fs::write(&tmpmpd, &buf)
-            .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
-        let xsltproc = Command::new("xsltproc")
-            .args([ss, &tmpmpd])
-            .output()
-            .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
-        if !xsltproc.status.success() {
-            let msg = format!("xsltproc returned {}", xsltproc.status);
-            let out = partial_process_output(&xsltproc.stderr).to_string();
-            return Err(DashMpdError::Io(std::io::Error::other(msg), out));
-        }
-        if env::var("DASHMPD_PERSIST_FILES").is_err() {
-            if let Err(e) = fs::remove_file(&tmpmpd) {
-                warn!("Error removing temporary MPD after XSLT processing: {e:?}");
-            }
-        }
-        buf.clone_from(&xsltproc.stdout);
-    }
-    let rewritten = std::str::from_utf8(&buf)
-        .map_err(|e| parse_error("parsing UTF-8", e))?;
+    let rewritten = apply_xslt_stylesheets_xsltproc(downloader, &mut xot, doc)?;
     // Here using the quick-xml serde support to deserialize into Rust structs.
-    let mpd = parse(rewritten)?;
+    let mpd = parse(&rewritten)?;
     if downloader.conformity_checks {
         for emsg in check_conformity(&mpd) {
             warn!("DASH conformity error in manifest: {emsg}");
