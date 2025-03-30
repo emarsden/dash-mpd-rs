@@ -250,3 +250,34 @@ async fn test_xslt_stylesheet_error() {
         .unwrap();
 }
 
+
+// https://github.com/Paligo/xee/blob/a767117c0e3e51b5bb6b8c37f2b8397df77f7117/xee-xslt-ast/src/staticeval.rs#L287
+/*
+#[tokio::test]
+async fn test_xslt_xee () {
+    use xot::{NameId, Node, Xot};
+    use xee_xpath_compiler::{compile, context::Variables, sequence::Sequence};
+    
+    let xml = r#"
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+            <xsl:param name="x" static="yes" select="'foo'"/>
+        </xsl:stylesheet>
+        "#;
+    let mut xot = Xot::new();
+    let (root, span_info) = xot.parse_with_span_info(xml).unwrap();
+    let names = Names::new(&mut xot);
+    let document_element = xot.document_element(root).unwrap();
+    
+    let name = xpath_ast::Name::name("x");
+    let static_parameters = Variables::new();
+    
+    let mut state = State::new(xot, span_info, names);
+    
+    let mut xot = Xot::new();
+    let variables =
+        static_evaluate(&mut state, document_element, static_parameters, &mut xot).unwrap();
+    assert_eq!(variables.len(), 1);
+    
+    assert_eq!(variables.get(&name), Some(&Item::from("foo").into()));
+}
+*/
