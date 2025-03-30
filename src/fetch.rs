@@ -149,6 +149,8 @@ pub struct DashDownloader {
     force_duration: Option<f64>,
     rate_limit: u64,
     bw_limiter: Option<DirectRateLimiter>,
+    bw_estimator_started: Instant,
+    bw_estimator_bytes: usize,
     pub verbosity: u8,
     record_metainformation: bool,
     pub muxer_preference: HashMap<String, String>,
@@ -223,6 +225,8 @@ impl DashDownloader {
             force_duration: None,
             rate_limit: 0,
             bw_limiter: None,
+            bw_estimator_started: Instant::now(),
+            bw_estimator_bytes: 0,
             verbosity: 0,
             record_metainformation: true,
             muxer_preference: HashMap::new(),
@@ -3315,7 +3319,7 @@ struct DownloadState {
 // have huge segments that can fill up RAM.
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_fragment(
-    downloader: &DashDownloader,
+    downloader: &mut DashDownloader,
     frag: &MediaFragment,
     fragment_type: &str,
     progress_percent: u32) -> Result<std::fs::File, DashMpdError>
@@ -3354,11 +3358,6 @@ async fn fetch_fragment(
             .error_for_status()
             .map_err(categorize_reqwest_error)
     };
-    // FIXME we should be tracking this in our DashDownloader, rather than here. If each fragment
-    // takes very little time to download, we will not be reporting recent bandwidth in a
-    // satisfactory manner.
-    let mut bw_estimator_started = Instant::now();
-    let mut bw_estimator_bytes = 0;
     match retry_notify(ExponentialBackoff::default(), send_request, notify_transient).await {
         Ok(response) => {
             match response.error_for_status() {
@@ -3395,7 +3394,7 @@ async fn fetch_fragment(
                             .map_err(|e| network_error(&format!("fetching DASH {fragment_type} segment"), e))?
                         {
                             segment_size += chunk.len();
-                            bw_estimator_bytes += chunk.len();
+                            downloader.bw_estimator_bytes += chunk.len();
                             let size = min((chunk.len()/1024+1) as u32, u32::MAX);
                             throttle_download_rate(downloader, size).await?;
                             if let Err(e) = tmp_out.write_all(&chunk) {
@@ -3405,9 +3404,9 @@ async fn fetch_fragment(
                                 fout.write_all(&chunk)
                                     .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))?;
                             }
-                            let elapsed = bw_estimator_started.elapsed().as_secs_f64();
-                            if (elapsed > 1.5) || (bw_estimator_bytes > 100_000) {
-                                let bw = bw_estimator_bytes as f64 / (1e6 * elapsed);
+                            let elapsed = downloader.bw_estimator_started.elapsed().as_secs_f64();
+                            if (elapsed > 1.5) || (downloader.bw_estimator_bytes > 100_000) {
+                                let bw = downloader.bw_estimator_bytes as f64 / (1e6 * elapsed);
                                 let msg = if bw > 0.5 {
                                     format!("Fetching {fragment_type} segments ({bw:.1} MB/s)")
                                 } else {
@@ -3417,8 +3416,8 @@ async fn fetch_fragment(
                                 for observer in &downloader.progress_observers {
                                     observer.update(progress_percent, &msg);
                                 }
-                                bw_estimator_started = Instant::now();
-                                bw_estimator_bytes = 0;
+                                downloader.bw_estimator_started = Instant::now();
+                                downloader.bw_estimator_bytes = 0;
                             }
                         }
                         if downloader.verbosity > 2 {
@@ -3449,7 +3448,7 @@ async fn fetch_fragment(
 // Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_audio(
-    downloader: &DashDownloader,
+    downloader: &mut DashDownloader,
     tmppath: PathBuf,
     audio_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
@@ -3661,7 +3660,7 @@ async fn fetch_period_audio(
 // Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_video(
-    downloader: &DashDownloader,
+    downloader: &mut DashDownloader,
     tmppath: PathBuf,
     video_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>

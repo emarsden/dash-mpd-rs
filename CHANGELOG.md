@@ -6,6 +6,10 @@
 - Downloading: a Base URL can be specified when instantiating a `DashDownloader`. This may be useful
   when downloading content from a manifest specified as a `file://` URL.
 
+- Track current download bandwidth in DashDownloader. This replaces the per-segment tracking
+  implemented in fetch_fragment. It should improve bandwidth estimation (and progress bar updates)
+  when downloading streams composed of many very small segments.
+
 
 ## [0.18.1] - 2025-03-16
 
