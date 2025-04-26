@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.18.3] - Unreleased
+## [0.18.3] - 2025-04-26
 
 - Add missing `@minFrameRate` attribute to `AdaptationSet` elements (bug reported by @sbuzzard).
 
