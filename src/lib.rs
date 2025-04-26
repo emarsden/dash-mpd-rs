@@ -1647,6 +1647,8 @@ pub struct AdaptationSet {
     pub maxHeight: Option<u64>,
     #[serde(rename = "@frameRate")]
     pub frameRate: Option<String>, // it can be something like "15/2"
+    #[serde(rename = "@minFrameRate")]
+    pub minFrameRate: Option<String>, // it can be something like "15/2"
     #[serde(rename = "@maxFrameRate")]
     pub maxFrameRate: Option<String>, // it can be something like "15/2"
     /// Indicates the possibility for accelerated playout allowed by this codec profile and level.

@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [0.18.3] - Unreleased
+
+- Add missing `@minFrameRate` attribute to `AdaptationSet` elements (bug reported by @sbuzzard).
+
+
 ## [0.18.2] - 2025-03-30
 
 - Downloading: a Base URL can be specified when instantiating a `DashDownloader`. This may be useful
