@@ -68,11 +68,11 @@
 /// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `mkvmerge`, `ffmpeg` or `vlc` as
 /// a subprocess. The muxing support is only compiled when the fetch feature is enabled.
 #[cfg(feature = "fetch")]
-mod media;
+pub mod media;
 #[cfg(all(feature = "fetch", feature = "libav"))]
 mod libav;
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
-mod ffmpeg;
+pub mod ffmpeg;
 #[cfg(feature = "fetch")]
 pub mod sidx;
 #[cfg(feature = "fetch")]

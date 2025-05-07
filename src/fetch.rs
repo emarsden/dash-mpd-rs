@@ -33,7 +33,7 @@ use crate::{subtitle_type, content_protection_type, SubtitleType};
 use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
-use crate::media::temporary_outpath;
+use crate::media::{temporary_outpath, AudioTrack};
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -421,7 +421,7 @@ impl DashDownloader {
     ///
     /// # Arguments
     ///
-    /// * `id` - a track ID in decimal or, a 128-bit KID in hexadecimal format (32 hex characters).
+    /// * `id` - a track ID in decimal or a 128-bit KID in hexadecimal format (32 hex characters).
     ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
     ///
     /// * `key` - a 128-bit key in hexadecimal format.
@@ -454,7 +454,7 @@ impl DashDownloader {
     }
 
     /// Parameter `value` determines whether audio content is downloaded. If disabled, the output
-    /// media file will either contain only a video track (if fetch_video is true and the manifest
+    /// media file will either contain only a video track (if `fetch_video` is true and the manifest
     /// includes a video stream), or will be empty.
     pub fn fetch_audio(mut self, value: bool) -> DashDownloader {
         self.fetch_audio = value;
@@ -462,7 +462,7 @@ impl DashDownloader {
     }
 
     /// Parameter `value` determines whether video content is downloaded. If disabled, the output
-    /// media file will either contain only an audio track (if fetch_audio is true and the manifest
+    /// media file will either contain only an audio track (if `fetch_audio` is true and the manifest
     /// includes an audio stream which is separate from the video stream), or will be empty.
     pub fn fetch_video(mut self, value: bool) -> DashDownloader {
         self.fetch_video = value;
@@ -1821,7 +1821,7 @@ pub async fn parse_resolving_xlinks(
         .map_err(|e| parse_error("extracting root node name", e))?;
     let root_local_name = root_name.local_name();
     if !root_local_name.eq("MPD") {
-        return Err(DashMpdError::Parsing(format!("root element is {}, expecting <MPD>", root_local_name)));
+        return Err(DashMpdError::Parsing(format!("root element is {root_local_name}, expecting <MPD>")));
     }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
@@ -3330,7 +3330,7 @@ async fn fetch_fragment(
         // media.axprod.net) are misconfigured and reject requests for valid audio content (eg .m4s)
         let mut req = downloader.http_client.as_ref().unwrap()
             .get(frag.url.clone())
-            .header("Accept", format!("{}/*;q=0.9,*/*;q=0.5", fragment_type))
+            .header("Accept", format!("{fragment_type}/*;q=0.9,*/*;q=0.5"))
             .header("Sec-Fetch-Mode", "navigate");
         if let Some(sb) = &frag.start_byte {
             if let Some(eb) = &frag.end_byte {
@@ -3470,7 +3470,7 @@ async fn fetch_period_audio(
                     .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
             }
         }
-        // FIXME: in DASH, the init segment contains headers that are necessary to generate a valid MP4
+        // TODO: in DASH, the init segment contains headers that are necessary to generate a valid MP4
         // file, so we should always abort if the first segment cannot be fetched. However, we could
         // tolerate loss of subsequent segments.
         for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
@@ -4387,7 +4387,12 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             if downloader.verbosity > 1 {
                 info!("  {}", "Muxing audio and video streams".italic());
             }
-            mux_audio_video(downloader, &period_output_path, &tmppath_audio, &tmppath_video)?;
+            let audio_tracks = vec![
+                AudioTrack {
+                    language: String::from("unk"),
+                    path: tmppath_audio.clone()
+                }];
+            mux_audio_video(downloader, &period_output_path, &audio_tracks, &tmppath_video)?;
             if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
                 let container = match &period_output_path.extension() {
                     Some(ext) => ext.to_str().unwrap_or("mp4"),

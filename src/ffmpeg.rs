@@ -17,7 +17,7 @@ use std::process::Command;
 use fs_err as fs;
 use fs::File;
 use ffprobe::ffprobe;
-use tracing::{trace, info, warn};
+use tracing::{trace, info, warn, error};
 use crate::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{
@@ -48,11 +48,14 @@ fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
 
 // Mux one video track with multiple audio tracks
 #[tracing::instrument(level="trace", skip(downloader))]
-fn mux_multiaudio_video_ffmpeg(
+pub fn mux_multiaudio_video_ffmpeg(
     downloader: &DashDownloader,
     output_path: &Path,
     audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
+    if audio_tracks.is_empty() {
+        return Err(DashMpdError::Muxing(String::from("no audio tracks")));
+    }
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -95,12 +98,20 @@ fn mux_multiaudio_video_ffmpeg(
         String::from("-loglevel"), String::from("error"),  // or "warning", "info"
         String::from("-y"),  // overwrite output file if it exists
         String::from("-nostdin")];
+    let mut mappings = Vec::new();
+    mappings.push(String::from("-map"));
+    mappings.push(String::from("0:v"));
     args.push(String::from("-i"));
     args.push(String::from(video_str));
-    args.push(String::from("-map"));
-    args.push(String::from("0:v"));
     // https://superuser.com/questions/1078298/ffmpeg-combine-multiple-audio-files-and-one-video-in-to-the-multi-language-vid
     for (i, at) in audio_tracks.iter().enumerate() {
+        // note that the -map commandline argument counts from 1, whereas the -metadata argument counts from 0
+        mappings.push(String::from("-map"));
+        mappings.push(format!("{}:a", i+1));
+        mappings.push(format!("-metadata:s:a:{i}"));
+        let mut lang_sanitized = at.language.clone();
+        lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
+        mappings.push(format!("language={lang_sanitized}"));
         args.push(String::from("-i"));
         let audio_str = at.path
             .to_str()
@@ -108,10 +119,9 @@ fn mux_multiaudio_video_ffmpeg(
                 io::Error::other("obtaining audiopath name"),
                 String::from("")))?;
         args.push(String::from(audio_str));
-        args.push(String::from("-map"));
-        args.push(format!("{}:a", i+1));
-        args.push(format!("-metadata:s:a:{}", i+1));
-        args.push(format!("language={}", at.language));
+    }
+    for m in mappings {
+        args.push(m);
     }
     args.push(String::from("-c:v"));
     args.push(String::from("copy"));
@@ -121,7 +131,7 @@ fn mux_multiaudio_video_ffmpeg(
     args.push(String::from("faststart"));
     args.push(String::from("-preset"));
     args.push(String::from("veryfast"));
-    // select the muxer explicitly (debatable whether this is better than ffmpeg's
+    // select the muxer explicitly (debateable whether this is better than ffmpeg's
     // heuristics based on output filename)
     args.push(String::from("-f"));
     args.push(String::from(muxer));
@@ -169,7 +179,7 @@ fn mux_multiaudio_video_ffmpeg(
 fn mux_audio_video_ffmpeg(
     downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
@@ -194,28 +204,22 @@ fn mux_audio_video_ffmpeg(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
-    let audio_str = audio_path
-        .to_str()
-        .ok_or_else(|| DashMpdError::Io(
-            io::Error::other("obtaining audiopath name"),
-            String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining videopath name"),
             String::from("")))?;
     if downloader.verbosity > 0 {
-        info!("  Muxing audio and video content with ffmpeg");
-        if let Ok(attr) = fs::metadata(audio_path) {
-            info!("  Audio file {} of size {} octets", audio_path.display(), attr.len());
-        }
+        info!("  Muxing audio ({} track{}) and video content with ffmpeg",
+              audio_tracks.len(),
+              if audio_tracks.len() == 1 { "" } else { "s" });
         if let Ok(attr) = fs::metadata(video_path) {
             info!("  Video file {} of size {} octets", video_path.display(), attr.len());
         }
     }
     let mut audio_delay = 0.0;
     let mut video_delay = 0.0;
-    if let Ok(audio_start_time) = ffprobe_start_time(audio_path) {
+    if let Ok(audio_start_time) = ffprobe_start_time(&audio_tracks[0].path) {
         if let Ok(video_start_time) = ffprobe_start_time(video_path) {
             if audio_start_time > video_start_time {
                 video_delay = audio_start_time - video_start_time;
@@ -225,45 +229,67 @@ fn mux_audio_video_ffmpeg(
         }
     }
     let mut args = vec![
-        "-hide_banner",
-        "-nostats",
-        "-loglevel", "error",  // or "warning", "info"
-        "-y",  // overwrite output file if it exists
-        "-nostdin"];
-    let ad = format!("{}", audio_delay);
-    if audio_delay > 0.001 {
-        // "-itsoffset", &format!("{}", audio_delay),
-        args.push("-ss");
-        args.push(&ad);
-    }
-    args.push("-i");
-    args.push(audio_str);
-    let vd = format!("{}", video_delay);
+        String::from("-hide_banner"),
+        String::from("-nostats"),
+        String::from("-loglevel"), String::from("error"),  // or "warning", "info"
+        String::from("-y"),  // overwrite output file if it exists
+        String::from("-nostdin")];
+    let mut mappings = Vec::new();
+    mappings.push(String::from("-map"));
+    mappings.push(String::from("0:v"));
+    let vd = format!("{video_delay}");
     if video_delay > 0.001 {
         // "-itsoffset", &format!("{}", video_delay),
-        args.push("-ss");
-        args.push(&vd);
+        args.push(String::from("-ss"));
+        args.push(vd);
     }
-    args.push("-i");
-    args.push(video_str);
-    args.push("-c:v");
-    args.push("copy");
-    args.push("-c:a");
-    args.push("copy");
-    args.push("-movflags");
-    args.push("faststart");
-    args.push("-preset");
-    args.push("veryfast");
-    // select the muxer explicitly (debatable whether this is better than ffmpeg's
+    args.push(String::from("-i"));
+    args.push(String::from(video_str));
+    let ad = format!("{audio_delay}");
+    if audio_delay > 0.001 {
+        // "-itsoffset", &format!("{audio_delay}"),
+        args.push(String::from("-ss"));
+        args.push(ad);
+    }
+    // https://superuser.com/questions/1078298/ffmpeg-combine-multiple-audio-files-and-one-video-in-to-the-multi-language-vid
+    for (i, at) in audio_tracks.iter().enumerate() {
+        // Note that the -map commandline argument counts from 1, whereas the -metadata argument
+        // counts from 0.
+        mappings.push(String::from("-map"));
+        mappings.push(format!("{}:a", i+1));
+        mappings.push(format!("-metadata:s:a:{i}"));
+        let mut lang_sanitized = at.language.clone();
+        lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
+        mappings.push(format!("language={lang_sanitized}"));
+        args.push(String::from("-i"));
+        let audio_str = at.path
+            .to_str()
+            .ok_or_else(|| DashMpdError::Io(
+                io::Error::other("obtaining audiopath name"),
+                String::from("")))?;
+        args.push(String::from(audio_str));
+    }
+    for m in mappings {
+        args.push(m);
+    }
+    args.push(String::from("-c:v"));
+    args.push(String::from("copy"));
+    args.push(String::from("-c:a"));
+    args.push(String::from("copy"));
+    args.push(String::from("-movflags"));
+    args.push(String::from("faststart"));
+    args.push(String::from("-preset"));
+    args.push(String::from("veryfast"));
+    // select the muxer explicitly (debateable whether this is better than ffmpeg's
     // heuristics based on output filename)
-    args.push("-f");
-    args.push(muxer);
-    args.push(tmppath);
+    args.push(String::from("-f"));
+    args.push(String::from(muxer));
+    args.push(String::from(tmppath));
     if downloader.verbosity > 0 {
         info!("  Running ffmpeg {}", args.join(" "));
     }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(args)
+        .args(args.clone())
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
@@ -299,35 +325,7 @@ fn mux_audio_video_ffmpeg(
     // VP9 or AV1 codecs and Vorbis or Opus audio codecs. (Unfortunately, ffmpeg doesn't seem to
     // return a distinct recognizable error message in this specific case.) So we try invoking
     // ffmpeg again, this time allowing reencoding.
-    let mut args = vec![
-        "-hide_banner",
-        "-nostats",
-        "-loglevel", "error",  // or "warning", "info"
-        "-y",  // overwrite output file if it exists
-        "-nostdin"];
-    let ad = format!("{}", audio_delay);
-    if audio_delay > 0.001 {
-        args.push("-itsoffset");
-        args.push(&ad);
-    }
-    args.push("-i");
-    args.push(audio_str);
-    let vd = format!("{}", video_delay);
-    if video_delay > 0.001 {
-        args.push("-itsoffset");
-        args.push(&vd);
-    }
-    args.push("-i");
-    args.push(video_str);
-    args.push("-movflags");
-    args.push("faststart");
-    args.push("-preset");
-    args.push("veryfast");
-    // select the muxer explicitly (debatable whether this is better than ffmpeg's heuristics based
-    // on output filename)
-    args.push("-f");
-    args.push(muxer);
-    args.push(tmppath);
+    args.retain(|a| !(a.eq("-c:v") || a.eq("copy") || a.eq("-c:a")));
     if downloader.verbosity > 0 {
         info!("  Running ffmpeg {}", args.join(" "));
     }
@@ -474,8 +472,13 @@ fn mux_stream_ffmpeg(
 fn mux_audio_video_vlc(
     downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
+    if audio_tracks.len() > 1 {
+        error!("Cannot mux more than a single audio track with VLC");
+        return Err(DashMpdError::Muxing(String::from("cannot mux more than one audio track with VLC")));
+    }
+    let audio_path = &audio_tracks[0].path;
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -568,8 +571,13 @@ fn mux_audio_video_vlc(
 fn mux_audio_video_mp4box(
     downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
+    if audio_tracks.len() > 1 {
+        error!("Cannot mux more than a single audio track with MP4Box");
+        return Err(DashMpdError::Muxing(String::from("cannot mux more than one audio track with MP4Box")));
+    }
+    let audio_path = &audio_tracks[0].path;
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -705,8 +713,13 @@ fn mux_stream_mp4box(
 fn mux_audio_video_mkvmerge(
     downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
+    if audio_tracks.len() > 1 {
+        error!("Cannot mux more than a single audio track with mkvmerge");
+        return Err(DashMpdError::Muxing(String::from("cannot mux more than one audio track with mkvmerge")));
+    }
+    let audio_path = &audio_tracks[0].path;
     let tmppath = temporary_outpath(".mkv")?;
     let audio_str = audio_path
         .to_str()
@@ -861,9 +874,9 @@ fn mux_audio_mkvmerge(
 pub fn mux_audio_video(
     downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
-    trace!("Muxing audio {}, video {}", audio_path.display(), video_path.display());
+    trace!("Muxing {} audio tracks with video {}", audio_tracks.len(), video_path.display());
     let container = match output_path.extension() {
         Some(ext) => ext.to_str().unwrap_or("mp4"),
         None => "mp4",
@@ -897,28 +910,28 @@ pub fn mux_audio_video(
     for muxer in muxer_preference {
         info!("  Trying muxer {muxer}");
         if muxer.eq("mkvmerge") {
-            if let Err(e) =  mux_audio_video_mkvmerge(downloader, output_path, audio_path, video_path) {
+            if let Err(e) =  mux_audio_video_mkvmerge(downloader, output_path, audio_tracks, video_path) {
                 warn!("  Muxing with mkvmerge subprocess failed: {e}");
             } else {
                 info!("  Muxing with mkvmerge subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
-            if let Err(e) = mux_audio_video_ffmpeg(downloader, output_path, audio_path, video_path) {
+            if let Err(e) = mux_audio_video_ffmpeg(downloader, output_path, audio_tracks, video_path) {
                 warn!("  Muxing with ffmpeg subprocess failed: {e}");
             } else {
                 info!("  Muxing with ffmpeg subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("vlc") {
-            if let Err(e) = mux_audio_video_vlc(downloader, output_path, audio_path, video_path) {
+            if let Err(e) = mux_audio_video_vlc(downloader, output_path, audio_tracks, video_path) {
                 warn!("  Muxing with vlc subprocess failed: {e}");
             } else {
                 info!("  Muxing with vlc subprocess succeeded");
                 return Ok(());
             }
         } else if muxer.eq("mp4box") {
-            if let Err(e) = mux_audio_video_mp4box(downloader, output_path, audio_path, video_path) {
+            if let Err(e) = mux_audio_video_mp4box(downloader, output_path, audio_tracks, video_path) {
                 warn!("  Muxing with MP4Box subprocess failed: {e}");
             } else {
                 info!("  Muxing with MP4Box subprocess succeeded");
@@ -929,7 +942,7 @@ pub fn mux_audio_video(
         }
     }
     warn!("All muxers failed");
-    warn!("  unmuxed audio stream: {}", audio_path.display());
+    warn!("  unmuxed audio streams: {}", audio_tracks.len());
     warn!("  unmuxed video stream: {}", video_path.display());
     Err(DashMpdError::Muxing(String::from("all muxers failed")))
 }
