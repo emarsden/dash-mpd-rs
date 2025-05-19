@@ -39,7 +39,7 @@ xot = { version = "0.31.2", optional = true }
 tempfile = { version = "3.19.1", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
 colored = { version = "3.0.0", optional = true }
-ac-ffmpeg = { version = "0.18.2", optional = true }
+ac-ffmpeg = { version = "0.19.0", optional = true }
 ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.26.0", features = ["reader"], optional = true }
 bstr = { version = "1.12.0", optional = true }
