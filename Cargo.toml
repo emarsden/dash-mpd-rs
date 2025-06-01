@@ -22,21 +22,21 @@ serde_ignored = { version = "0.1.11", optional = true }
 serde_with = { version = "3.12.0", features = ["base64"] }
 quick-xml = { version = "0.37.5", features = ["serialize", "overlapped-lists"] }
 url = "2.5.4"
-chrono = { version = "0.4.40", features = ["serde"] }
+chrono = { version = "0.4.41", features = ["serde"] }
 num-traits = "0.2.19"
-iso8601 = "0.6.2"
+iso8601 = "0.6.3"
 regex = "1.11.1"
 thiserror = "2.0.12"
 fs-err = "3.1.0"
 tracing = { version = "0.1.41", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
 bytes = "1.10.1"
-reqwest = { version = "0.12.15", default-features = false, features = ["cookies"], optional = true }
-tokio = { version = "1.45.0", features = ["rt-multi-thread", "time", "macros"], optional = true }
+reqwest = { version = "0.12.18", default-features = false, features = ["cookies"], optional = true }
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.10.0", optional = true }
 xot = { version = "0.31.2", optional = true }
-tempfile = { version = "3.19.1", optional = true }
+tempfile = { version = "3.20.0", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
 colored = { version = "3.0.0", optional = true }
 ac-ffmpeg = { version = "0.19.0", optional = true }
@@ -55,7 +55,7 @@ colored = "3.0.0"
 indicatif = "0.17.11"
 # We pin to this version because the latest versions require a bleeding edge Rust toolchain.
 clap = "=4.4.18"
-tokio = { version = "1.45.0", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 proptest = "1.6.0"
 http = "1.3.1"
