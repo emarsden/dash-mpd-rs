@@ -24,7 +24,7 @@ use fs_err as fs;
 use fs::File;
 use std::path::Path;
 use std::io::{BufReader, BufWriter};
-use tracing::{info, trace};
+use tracing::{error, info, trace};
 use ac_ffmpeg::codec::CodecParameters;
 use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::Timestamp;
@@ -35,7 +35,7 @@ use ac_ffmpeg::format::muxer::Muxer;
 use ac_ffmpeg::format::muxer::OutputFormat;
 use crate::DashMpdError;
 use crate::fetch::DashDownloader;
-use crate::media::{audio_container_type, video_container_type};
+use crate::media::{audio_container_type, video_container_type, AudioTrack};
 
 
 
