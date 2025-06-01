@@ -80,10 +80,14 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 pub fn mux_audio_video(
     _downloader: &DashDownloader,
     output_path: &Path,
-    audio_path: &Path,
+    audio_tracks: &Vec<AudioTrack>,
     video_path: &Path) -> Result<(), DashMpdError> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {msg}"));
-    let audio_str = audio_path
+    if audio_tracks.len() > 1 {
+        error!("Cannot mux more than a single audio track with libav");
+        return Err(DashMpdError::Muxing(String::from("cannot mux more than one audio track with libav")));
+    }
+    let audio_str = &audio_tracks[0].path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
             io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
