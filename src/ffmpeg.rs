@@ -70,7 +70,7 @@ pub fn mux_multiaudio_video_ffmpeg(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
-        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -195,7 +195,7 @@ fn mux_audio_video_ffmpeg(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
-        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -396,7 +396,7 @@ fn mux_stream_ffmpeg(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
-        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -494,7 +494,7 @@ fn mux_audio_video_vlc(
         .prefix("dashmpdrs")
         .suffix(".mp4")
         .rand_bytes(5)
-        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
@@ -586,7 +586,7 @@ fn mux_audio_video_mp4box(
         .prefix("dashmpdrs")
         .suffix(&format!(".{container}"))
         .rand_bytes(5)
-        .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+        .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
     let tmppath = tmpout
