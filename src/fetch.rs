@@ -70,7 +70,7 @@ fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdErro
             .prefix(prefix)
             .suffix(suffix)
             .rand_bytes(7)
-            .keep(env::var("DASHMPD_PERSIST_FILES").is_ok())
+            .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
             .tempfile()
             .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
         Ok(file.path().to_path_buf())
