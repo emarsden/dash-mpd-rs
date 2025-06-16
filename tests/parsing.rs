@@ -620,9 +620,6 @@ async fn test_parsing_subrepresentations() {
 #[tokio::test]
 async fn test_parsing_eventstream() {
     setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
         .gzip(true)
@@ -651,9 +648,6 @@ async fn test_parsing_eventstream() {
 #[tokio::test]
 async fn test_parsing_supplementalproperty() {
     setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
         .gzip(true)
@@ -706,6 +700,37 @@ async fn test_parsing_essentialproperty() {
                     |ep| ep.value.as_ref().is_some_and(|v| v.eq("Negative Test EssentialProperty 1")))))));
 }
 
+
+// From a list of streams at
+//   https://garfnet.org.uk/cms/tables/radio-frequencies/internet-radio-player/bbc-national-and-local-radio-dash-streams/
+//
+// For dynamic MPDs, you shall "never" start to play with startNumber, but the latest available
+// segment is LSN = floor( (now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1).
+#[tokio::test]
+async fn test_parsing_servicelocation() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/aks/bbc_world_service.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = dash_mpd::parse(&xml);
+    let mpd = mpd.unwrap();
+    assert!(mpd.publishTime.is_some());
+    assert!(mpd.UTCTiming.len() > 0);
+    assert_eq!(mpd.base_url.len(), 1);
+    let base_url = mpd.base_url.first().unwrap();
+    assert!(base_url.priority.is_some());
+    assert!(base_url.weight.is_some());
+    assert!(base_url.serviceLocation.is_some());
+}
 
 // This manifest has some unusual use of XML namespacing
 //   <g1:MPD xmlns="urn:MPEG:ns:DASH" xmlns:g1="urn:mpeg:DASH:schema:MPD:2011"

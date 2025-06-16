@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.18.4] - Unreleased
+
+- Downloading: the calculation of segment numbers for `$Number$`-based dynamic streams now accounts
+  for the difference between `@availabilityStartTime` and the current time.
+
+
 ## [0.18.3] - 2025-04-26
 
 - Add missing `@minFrameRate` attribute to `AdaptationSet` elements (bug reported by @sbuzzard).

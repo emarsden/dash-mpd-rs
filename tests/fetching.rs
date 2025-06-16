@@ -1000,6 +1000,8 @@ async fn test_dl_dynamic_vos360() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+// TODO test with https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/aks/bbc_world_service.mpd
+
 // A third dynamic (live) stream to test. Disabled because the received content length is unreliable.
 #[ignore]
 #[tokio::test]

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 use tokio::time::Instant;
+use chrono::Utc;
 use std::sync::Arc;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -831,6 +832,13 @@ impl DashDownloader {
     }
 }
 
+
+fn mpd_is_dynamic(mpd: &MPD) -> bool {
+    if let Some(mpdtype) = mpd.mpdtype.as_ref() {
+        return mpdtype.eq("dynamic");
+    }
+    false
+}
 
 // Parse a range specifier, such as Initialization@range or SegmentBase@indexRange attributes, of
 // the form "45-67"
@@ -2364,6 +2372,17 @@ async fn do_period_audio(
                     }
                     total_number += (period_duration_secs / segment_duration).round() as i64;
                     let mut number = start_number;
+                    // For dynamic MPDs the latest available segment is numbered
+                    //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
+                    if mpd_is_dynamic(mpd) {
+                        if let Some(start_time) = mpd.availabilityStartTime {
+                            let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
+                            number = (elapsed + (number - 1) as f64).floor() as u64;
+                        } else {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "dynamic manifest is missing @availabilityStartTime".to_string()));
+                        }
+                    }
                     for _ in 1..=total_number {
                         let dict = HashMap::from([("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
@@ -3639,6 +3658,8 @@ async fn fetch_period_audio(
                 warn!("  Undecrypted audio stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
+        // TODO: we could also decrypt using GPAC/MP4Box as per https://wiki.gpac.io/xmlformats/Common-Encryption/
+        //    MP4Box -decrypt drm_file.xml encrypted.mp4 -out decrypted.mp4
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
@@ -4193,17 +4214,15 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         mpd = parse_resolving_xlinks(downloader, &xml).await
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }
-    if let Some(mpdtype) = mpd.mpdtype.as_ref() {
-        if mpdtype.eq("dynamic") {
-            // TODO: look at algorithm used in function segment_numbers at
-            // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
-            if downloader.allow_live_streams {
-                if downloader.verbosity > 0 {
-                    warn!("Attempting to download from live stream (this may not work).");
-                }
-            } else {
-                return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+    if mpd_is_dynamic(&mpd) {
+        // TODO: look at algorithm used in function segment_numbers at
+        // https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
+        if downloader.allow_live_streams {
+            if downloader.verbosity > 0 {
+                warn!("Attempting to download from live stream (this may not work).");
             }
+        } else {
+            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
         }
     }
     let mut toplevel_base_url = downloader.redirected_url.clone();
