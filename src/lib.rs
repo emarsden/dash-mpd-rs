@@ -2108,11 +2108,18 @@ fn is_audio_codec(name: &str) -> bool {
         name.starts_with("aac") ||
         name.starts_with("vorbis") ||
         name.starts_with("opus") ||
+        name.starts_with("ogg") ||
+        name.starts_with("webm") ||
         name.starts_with("flac") ||
         name.starts_with("mp3") ||
+        name.starts_with("mpeg") ||
+        name.starts_with("3gpp") ||
+        name.starts_with("wav") ||
         name.starts_with("ec-3") ||
         name.starts_with("ac-4") ||
         name.starts_with("dtsc") ||
+        name.starts_with("aptx") ||
+        name.starts_with("aiff") ||
         name.starts_with("mha1")       // MPEG-H 3D Audio
 }
 
