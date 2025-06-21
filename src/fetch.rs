@@ -2377,7 +2377,7 @@ async fn do_period_audio(
                     if mpd_is_dynamic(mpd) {
                         if let Some(start_time) = mpd.availabilityStartTime {
                             let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
-                            number = (elapsed + (number - 1) as f64).floor() as u64;
+                            number = (elapsed + number as f64 - 1f64).floor() as u64;
                         } else {
                             return Err(DashMpdError::UnhandledMediaStream(
                                 "dynamic manifest is missing @availabilityStartTime".to_string()));
@@ -2719,9 +2719,6 @@ async fn do_period_video(
                         let mut segment_time = 0;
                         let mut segment_duration;
                         let mut number = start_number;
-                        // FIXME for a live manifest, need to look at the time elapsed since now and
-                        // the mpd.availabilityStartTime to determine the correct value for
-                        // startNumber, based on duration and timescale.
                         for s in &stl.segments {
                             if let Some(t) = s.t {
                                 segment_time = t;
@@ -2803,6 +2800,24 @@ async fn do_period_video(
                         }
                         total_number += (period_duration_secs / segment_duration).round() as i64;
                         let mut number = start_number;
+                        // For a live manifest (dynamic MPD), we look at the time elapsed since now
+                        // and the mpd.availabilityStartTime to determine the correct value for
+                        // startNumber, based on duration and timescale. The latest available
+                        // segment is numbered
+                        //
+                        //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
+
+                        // https://dashif.org/Guidelines-TimingModel/Timing-Model.pdf
+                        // To be more precise, any LeapSecondInformation should be added to the availabilityStartTime.
+                        if mpd_is_dynamic(mpd) {
+                            if let Some(start_time) = mpd.availabilityStartTime {
+                                let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
+                                number = (elapsed + number as f64 - 1f64).floor() as u64;
+                            } else {
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "dynamic manifest is missing @availabilityStartTime".to_string()));
+                            }
+                        }
                         for _ in 1..=total_number {
                             let dict = HashMap::from([("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
