@@ -71,10 +71,10 @@ async fn test_content_protection_parsing() {
 }
 
 
-// Note that mp4decrypt is not able to decrypt content in a WebM container, so we use Shaka packager
-// here.
+// Note that mp4decrypt and MP4Box are not able to decrypt content in a WebM container, so we only
+// test Shaka packager here.
 #[tokio::test]
-async fn test_decryption_webm() {
+async fn test_decryption_webm_shaka() {
     setup_logging();
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out = env::temp_dir().join("angel.webm");
@@ -168,7 +168,7 @@ async fn test_decryption_wvcenc_mp4decrypt () {
         return;
     }
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
-    let outpath = env::temp_dir().join("spring.mp4");
+    let outpath = env::temp_dir().join("spring-mp4decrypt.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
     }
@@ -186,119 +186,6 @@ async fn test_decryption_wvcenc_mp4decrypt () {
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We see occasional errors here from ffmpeg that we don't understand.
     assert!(ffmpeg_approval(&outpath));
-    let _ = fs::remove_file(outpath);
-}
-
-
-// Widevine ContentProtection with CBCS encryption
-#[tokio::test]
-async fn test_decryption_wvcbcs_mp4decrypt () {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
-    let outpath = env::temp_dir().join("tears-steel.mp4");
-    if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
-    }
-    DashDownloader::new(mpd)
-        .worst_quality()
-        .verbosity(2)
-        .add_decryption_key(String::from("43215678123412341234123412341237"),
-                            String::from("12341234123412341234123412341237"))
-        .add_decryption_key(String::from("43215678123412341234123412341236"),
-                            String::from("12341234123412341234123412341236"))
-        .download_to(outpath.clone()).await
-        .unwrap();
-    check_file_size_approx(&outpath, 79_731_116);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
-    // various anomalies in the AAC audio stream, though it seems to play the content OK.
-    // assert!(ffmpeg_approval(&outpath));
-    let _ = fs::remove_file(outpath);
-}
-
-
-// PlayReady / CENC
-#[tokio::test]
-async fn test_decryption_prcenc_mp4decrypt () {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
-    let outpath = env::temp_dir().join("llama.mp4");
-    if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
-    }
-    DashDownloader::new(mpd)
-        .worst_quality()
-        .verbosity(3)
-        .add_decryption_key(String::from("43215678123412341234123412341236"),
-                            String::from("12341234123412341234123412341236"))
-        .download_to(outpath.clone()).await
-        .unwrap();
-    check_file_size_approx(&outpath, 26_420_624);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    assert!(ffmpeg_approval(&outpath));
-    let _ = fs::remove_file(outpath);
-}
-
-
-// Marlin / CENC
-#[tokio::test]
-async fn test_decryption_marlincenc_mp4decrypt () {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
-    let outpath = env::temp_dir().join("llama-marlin-cenc.mp4");
-    if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
-    }
-    DashDownloader::new(mpd)
-        .worst_quality()
-        .verbosity(2)
-        .add_decryption_key(String::from("43215678123412341234123412341234"),
-                            String::from("12341234123412341234123412341234"))
-        .download_to(outpath.clone()).await
-        .unwrap();
-    check_file_size_approx(&outpath, 14_357_917);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    assert!(ffmpeg_approval(&outpath.clone()));
-    let _ = fs::remove_file(outpath);
-}
-
-// Marlin / CBCS
-#[tokio::test]
-async fn test_decryption_marlincbcs_mp4decrypt () {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
-    let outpath = env::temp_dir().join("llama-marlin-cbcs.mp4");
-    if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
-    }
-    DashDownloader::new(mpd)
-        .worst_quality()
-        .verbosity(2)
-        .add_decryption_key(String::from("43215678123412341234123412341234"),
-                            String::from("12341234123412341234123412341234"))
-        .download_to(outpath.clone()).await
-        .unwrap();
-    check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
-    // (complaints concerning the AAC audio stream).
-    // assert!(ffmpeg_approval(&outpath.clone()));
     let _ = fs::remove_file(outpath);
 }
 
@@ -334,7 +221,67 @@ async fn test_decryption_wvcenc_shaka () {
 }
 
 
+#[tokio::test]
+async fn test_decryption_wvcenc_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
+    let outpath = env::temp_dir().join("spring-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341237"),
+                            String::from("12341234123412341234123412341237"))
+        .add_decryption_key(String::from("43215678123412341234123412341236"),
+                            String::from("12341234123412341234123412341236"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 33_746_341);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // We see occasional errors here from ffmpeg that we don't understand.
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 // Widevine ContentProtection with CBCS encryption
+#[tokio::test]
+async fn test_decryption_wvcbcs_mp4decrypt () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
+    let outpath = env::temp_dir().join("tears-steel-wvcbcs-mp4decrypt.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341237"),
+                            String::from("12341234123412341234123412341237"))
+        .add_decryption_key(String::from("43215678123412341234123412341236"),
+                            String::from("12341234123412341234123412341236"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 79_731_116);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
+    // various anomalies in the AAC audio stream, though it seems to play the content OK.
+    // assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 #[tokio::test]
 async fn test_decryption_wvcbcs_shaka () {
     setup_logging();
@@ -342,7 +289,7 @@ async fn test_decryption_wvcbcs_shaka () {
         return;
     }
     let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
-    let outpath = env::temp_dir().join("tears-steel.mp4");
+    let outpath = env::temp_dir().join("tears-steel-wvcbcs-shaka.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
     }
@@ -365,7 +312,65 @@ async fn test_decryption_wvcbcs_shaka () {
     let _ = fs::remove_file(outpath);
 }
 
+
+#[tokio::test]
+async fn test_decryption_wvcbcs_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
+    let outpath = env::temp_dir().join("tears-steel-wvcbcs-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341237"),
+                            String::from("12341234123412341234123412341237"))
+        .add_decryption_key(String::from("43215678123412341234123412341236"),
+                            String::from("12341234123412341234123412341236"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 79_731_116);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
+    // various anomalies in the AAC audio stream, though it seems to play the content OK.
+    // assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 // PlayReady / CENC
+#[tokio::test]
+async fn test_decryption_prcenc_mp4decrypt () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
+    let outpath = env::temp_dir().join("llama-prcenc-mp4decrypt.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(3)
+        .add_decryption_key(String::from("43215678123412341234123412341236"),
+                            String::from("12341234123412341234123412341236"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 26_420_624);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 #[tokio::test]
 async fn test_decryption_prcenc_shaka () {
     setup_logging();
@@ -391,6 +396,201 @@ async fn test_decryption_prcenc_shaka () {
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
+
+
+#[tokio::test]
+async fn test_decryption_prcenc_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
+    let outpath = env::temp_dir().join("llama-prcenc-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(3)
+        .add_decryption_key(String::from("43215678123412341234123412341236"),
+                            String::from("12341234123412341234123412341236"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 26_420_624);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
+// Marlin / CENC
+#[tokio::test]
+async fn test_decryption_marlincenc_mp4decrypt () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cenc-mp4decrypt.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_917);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
+// Testing -- this wasn't previously tested 20260622
+async fn test_decryption_marlincenc_shaka () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cenc-shaka.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .with_decryptor_preference("shaka")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_917);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
+
+#[tokio::test]
+async fn test_decryption_marlincenc_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cenc-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_917);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
+
+// Marlin / CBCS
+#[tokio::test]
+async fn test_decryption_marlincbcs_mp4decrypt () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cbcs.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_925);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
+    // (complaints concerning the AAC audio stream).
+    // assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
+
+// new test 20250622
+async fn test_decryption_marlincbcs_shaka () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cbcs-shaka.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .with_decryptor_preference("shaka")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_925);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
+    // (complaints concerning the AAC audio stream).
+    // assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
+
+#[tokio::test]
+async fn test_decryption_marlincbcs_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-marlin-cbcs-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_925);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
+    // (complaints concerning the AAC audio stream).
+    // assert!(ffmpeg_approval(&outpath.clone()));
+    let _ = fs::remove_file(outpath);
+}
+
 
 
 // Marlin / CENC
@@ -450,7 +650,40 @@ async fn test_decryption_mlcbcs_shaka () {
 }
 
 
+#[tokio::test]
+async fn test_decryption_mlcbcs_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
+    let outpath = env::temp_dir().join("llama-mlcbcs-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("43215678123412341234123412341234"),
+                            String::from("12341234123412341234123412341234"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 14_357_925);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
+    // (complaints concerning the AAC audio stream).
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(outpath);
+}
+
+
 // Test vectors from https://github.com/Axinom/public-test-vectors
+//
+// MP4Box is not able to decode this audio stream: if fails with
+//
+//  [iso file] Duplicate 'ftyp' detected!
 #[tokio::test]
 async fn test_decryption_axinom_cmaf_h265_multikey () {
     setup_logging();
@@ -481,13 +714,13 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
 
 
 #[tokio::test]
-async fn test_decryption_axinom_cbcs () {
+async fn test_decryption_axinom_cbcs_shaka () {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
     let mpd = "https://media.axprod.net/TestVectors/v9-MultiFormat/Encrypted_Cbcs/Manifest_1080p.mpd";
-    let outpath = env::temp_dir().join("axinom-cbcs.mp4");
+    let outpath = env::temp_dir().join("axinom-cbcs-shaka.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
     }
@@ -508,15 +741,41 @@ async fn test_decryption_axinom_cbcs () {
 }
 
 
+#[tokio::test]
+async fn test_decryption_axinom_cbcs_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://media.axprod.net/TestVectors/v9-MultiFormat/Encrypted_Cbcs/Manifest_1080p.mpd";
+    let outpath = env::temp_dir().join("axinom-cbcs-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
+                            String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
+        .with_decryptor_preference("mp4box")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 41_614_809);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+}
+
+
 // URL and key from https://github.com/Axinom/public-test-vectors/tree/conservative
 #[tokio::test]
-async fn test_decryption_axinom_widevine () {
+async fn test_decryption_axinom_widevine_shaka () {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
     let mpd = "http://media.axprod.net/TestVectors/v6.1-MultiDRM/Manifest_1080p.mpd";
-    let outpath = env::temp_dir().join("axinom-widevine.mp4");
+    let outpath = env::temp_dir().join("axinom-widevine-shaka.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(outpath.clone());
     }
@@ -527,6 +786,33 @@ async fn test_decryption_axinom_widevine () {
                             // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
                             String::from("197f26f572c864d2338b3ae5d114ea9c"))
         .with_decryptor_preference("shaka")
+        .download_to(outpath.clone()).await
+        .unwrap();
+    check_file_size_approx(&outpath, 47_396_046);
+    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    assert!(ffmpeg_approval(&outpath));
+}
+
+
+#[tokio::test]
+async fn test_decryption_axinom_widevine_mp4box () {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "http://media.axprod.net/TestVectors/v6.1-MultiDRM/Manifest_1080p.mpd";
+    let outpath = env::temp_dir().join("axinom-widevine-mp4box.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(outpath.clone());
+    }
+    DashDownloader::new(mpd)
+        .worst_quality()
+        .verbosity(2)
+        .add_decryption_key(String::from("6e5a1d26275747d78046eaa5d1d34b5a"),
+                            // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
+                            String::from("197f26f572c864d2338b3ae5d114ea9c"))
+        .with_decryptor_preference("mp4box")
         .download_to(outpath.clone()).await
         .unwrap();
     check_file_size_approx(&outpath, 47_396_046);
@@ -561,6 +847,8 @@ async fn test_decryption_oldsmall () {
     assert!(ffmpeg_approval(&outpath));
 }
 
+// This test fails with MP4Box, which doesn't seem to be able to decrypt content in a WebM
+// container.
 #[tokio::test]
 async fn test_decryption_small () {
     setup_logging();
@@ -621,6 +909,8 @@ async fn test_decryption_unencrypted_mp4decrypt () {
 // This test currently disabled because the most recent version of shaka-packager (v3.0) fails while
 // decoding the media stream.
 // https://github.com/shaka-project/shaka-packager/issues/1368
+//
+// Also not tested for MP4Box, which fails if asked to decode a file which is already decoded.
 #[ignore]
 #[tokio::test]
 async fn test_decryption_unencrypted_shaka () {
