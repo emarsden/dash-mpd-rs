@@ -46,7 +46,7 @@ async fn test_sidx_mp4() {
         warn!("sidx box length does not correspond to requested octet range");
     }
     // let sidx = SidxBox::parse(&idx).unwrap();
-    let refs = from_isobmff_sidx(&idx, s as u64);
+    let _refs = from_isobmff_sidx(&idx, s as u64);
     /*
     println!("sidx box includes {} references", sidx.reference_count);
     let mut total_size = 0;
