@@ -178,7 +178,6 @@ async fn test_dl_lowlatency_forced_duration() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    // FIXME we are seeing 1.001 here
     check_media_duration(&out, 11.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -200,7 +199,8 @@ async fn test_dl_bbcws_dynamic() {
         .worst_quality()
         .allow_live_streams(true)
         .audio_only()
-        .force_duration(15.0)
+        .force_duration(25.0)
+        .sleep_between_requests(4)
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
@@ -210,7 +210,7 @@ async fn test_dl_bbcws_dynamic() {
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    check_media_duration(&out, 15.0);
+    check_media_duration(&out, 25.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
