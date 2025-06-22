@@ -75,7 +75,7 @@ default configuration (using an external application as a subprocess).
   be saved to a file with the same base name as the requested output file, but with an extension
   corresponding to the subtitle type (e.g. `.srt`, `.vtt`). Subtitles distributed in WebVTT/wvtt
   format (either as a single media stream or a fragmented MP4 stream) will be converted to the more
-  standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.wp.imt.fr/)
+  standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.io/)
   project), if it is installed. STPP subtitles (which according to the DASH specifications should be
   formatted as EBU-TT) will be muxed into the output media container as a `subt:stpp` stream using
   MP4Box (VLC should be able to read these subtitles), and also converted to a separate `.ttml` file
@@ -87,8 +87,9 @@ default configuration (using an external application as a subprocess).
   suite](https://github.com/axiomatic-systems/Bento4/) to be installed ([binaries are
   available](https://www.bento4.com/downloads/) for common platforms), or the [Shaka
   packager](https://github.com/shaka-project/shaka-packager) application (binaries for common
-  platforms are available as GitHub releases). See the `add_decryption_key` function on
-  `DashDownloader`, the `with_decryptor_preference` function on `DashDownloader`, and the
+  platforms are available as GitHub releases), or the MP4Box commandline application to be
+  installed. See the `add_decryption_key` function on `DashDownloader`, the
+  `with_decryptor_preference` function on `DashDownloader`, and the
   [decrypt.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/decrypt.rs) example.
 
 - XLink elements (only with actuate=onLoad semantics), including resolve-to-zero.
@@ -255,14 +256,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.18.3"
+dash-mpd = "0.18.4"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.18.3", default-features = false }
+dash-mpd = { version = "0.18.4", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major

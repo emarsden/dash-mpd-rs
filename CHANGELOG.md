@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.18.4] - Unreleased
+## [0.18.4] - 2025-06-22
 
 - Downloading: the calculation of segment numbers for `$Number$`-based dynamic streams now accounts
   for the difference between `@availabilityStartTime` and the current time.
