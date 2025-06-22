@@ -417,8 +417,8 @@ impl DashDownloader {
 
     /// Add a key to be used to decrypt MPEG media streams that use Common Encryption (cenc). This
     /// function may be called several times to specify multiple kid/key pairs. Decryption uses the
-    /// external commandline application specified by `with_decryptor_preference` (either mp4decrypt
-    /// from Bento4 or shaka-packager, defaulting to mp4decrypt), run as a subprocess.
+    /// external commandline application specified by `with_decryptor_preference`, run as a
+    /// subprocess.
     ///
     /// # Arguments
     ///
@@ -694,7 +694,7 @@ impl DashDownloader {
     ///
     /// # Arguments
     ///
-    /// * `decryption_tool`: either "mp4decrypt" or "shaka"
+    /// * `decryption_tool`: either "mp4decrypt" or "shaka" or "mp4box"
     pub fn with_decryptor_preference(mut self, decryption_tool: &str) -> DashDownloader {
         self.decryptor_preference = decryption_tool.to_string();
         self
@@ -3664,7 +3664,7 @@ async fn fetch_period_audio(
                     warn!("  shaka-packager stdout: {msg}");
                 }
                 let msg = partial_process_output(&out.stderr);
-                if msg.is_empty() {
+                if !msg.is_empty() {
                     warn!("  shaka-packager stderr: {msg}");
                 }
             }
@@ -3673,8 +3673,57 @@ async fn fetch_period_audio(
                 warn!("  Undecrypted audio stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("audio stream")));
             }
-        // TODO: we could also decrypt using GPAC/MP4Box as per https://wiki.gpac.io/xmlformats/Common-Encryption/
+        // Decrypt with MP4Box as per https://wiki.gpac.io/xmlformats/Common-Encryption/
         //    MP4Box -decrypt drm_file.xml encrypted.mp4 -out decrypted.mp4
+        } else if downloader.decryptor_preference.eq("mp4box") {
+            let mut args = Vec::new();
+            let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
+            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
+            for (k, v) in downloader.decryption_keys.iter() {
+                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+            }
+            drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
+            fs::write(&drmfile, drmfile_contents)
+                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
+            args.push("-decrypt".to_string());
+            args.push(drmfile.display().to_string());
+            args.push(String::from(tmppath.to_string_lossy()));
+            args.push("-out".to_string());
+            args.push(String::from(decrypted.to_string_lossy()));
+            if downloader.verbosity > 1 {
+                info!("  Running decryption application MP4Box {}", args.join(" "));
+            }
+            let out = Command::new(downloader.mp4box_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+            let mut no_output = false;
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                if downloader.verbosity > 0 {
+                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
+            } else {
+                no_output = true;
+            }
+            if !out.status.success() || no_output {
+                warn!("  MP4Box decryption subprocess failed");
+                let msg = partial_process_output(&out.stdout);
+                if !msg.is_empty() {
+                    warn!("  MP4Box stdout: {msg}");
+                }
+                let msg = partial_process_output(&out.stderr);
+                if !msg.is_empty() {
+                    warn!("  MP4Box stderr: {msg}");
+                }
+            }
+            if no_output {
+                error!("  {}", "Failed to decrypt audio stream with MP4Box".red());
+                warn!("  Undecrypted audio stream left in {}", tmppath.display());
+                return Err(DashMpdError::Decrypting(String::from("audio stream")));
+            }
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
@@ -3875,6 +3924,55 @@ async fn fetch_period_video(
             if no_output {
                 error!("  {}", "Failed to decrypt video stream with shaka-packager".red());
                 warn!("  Undecrypted video left in {}", tmppath.display());
+                return Err(DashMpdError::Decrypting(String::from("video stream")));
+            }
+        } else if downloader.decryptor_preference.eq("mp4box") {
+            let mut args = Vec::new();
+            let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
+            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
+            for (k, v) in downloader.decryption_keys.iter() {
+                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+            }
+            drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
+            fs::write(&drmfile, drmfile_contents)
+                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
+            args.push("-decrypt".to_string());
+            args.push(drmfile.display().to_string());
+            args.push(String::from(tmppath.to_string_lossy()));
+            args.push("-out".to_string());
+            args.push(String::from(decrypted.to_string_lossy()));
+            if downloader.verbosity > 1 {
+                info!("  Running decryption application MP4Box {}", args.join(" "));
+            }
+            let out = Command::new(downloader.mp4box_location.clone())
+                .args(args)
+                .output()
+                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+            let mut no_output = false;
+            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+                if downloader.verbosity > 0 {
+                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                }
+                if metadata.len() == 0 {
+                    no_output = true;
+                }
+            } else {
+                no_output = true;
+            }
+            if !out.status.success() || no_output {
+                warn!("  MP4Box decryption subprocess failed");
+                let msg = partial_process_output(&out.stdout);
+                if !msg.is_empty() {
+                    warn!("  MP4Box stdout: {msg}");
+                }
+                let msg = partial_process_output(&out.stderr);
+                if !msg.is_empty() {
+                    warn!("  MP4Box stderr: {msg}");
+                }
+            }
+            if no_output {
+                error!("  {}", "Failed to decrypt video stream with MP4Box".red());
+                warn!("  Undecrypted video stream left in {}", tmppath.display());
                 return Err(DashMpdError::Decrypting(String::from("video stream")));
             }
         } else {

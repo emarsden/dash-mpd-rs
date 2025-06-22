@@ -6,6 +6,11 @@
 - Downloading: the calculation of segment numbers for `$Number$`-based dynamic streams now accounts
   for the difference between `@availabilityStartTime` and the current time.
 
+- Add support for decrypting streams with ContentProtection using the MP4Box commandline application
+  from GPAC. This provides an alternative to using mp4decrypt and Shaka packager. The MP4Box
+  application does not support decryption of content in WebM containers, and sometimes rejects
+  content which is accepted by mp4decrypt and Shaka packager.
+
 
 ## [0.18.3] - 2025-04-26
 
