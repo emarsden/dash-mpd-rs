@@ -47,7 +47,7 @@ hex-literal = { version = "1.0.0", optional = true }
 pssh-box = { version = "0.1.11", optional = true }
 hxdmp = "0.2.1"
 webm-iterable = "0.6.4"
-
+ahash = {version = "0.8.12", optional = true }
 [dev-dependencies]
 sha2 = "0.10.9"
 hex-literal = "1.0.0"
@@ -89,6 +89,7 @@ rustls-tls = ["reqwest/rustls-tls"]
 trust-dns = ["reqwest/trust-dns"]
 hickory-dns = ["reqwest/hickory-dns"]
 http2 = ["reqwest/http2"]
+fast-hash = ["ahash"]
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1.5.0"

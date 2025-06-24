@@ -1,51 +1,58 @@
 //! Support for downloading content from DASH MPD media streams.
 
-use std::io;
-use std::env;
-use fs_err as fs;
-use fs::File;
-use std::io::{Read, Write, Seek, BufReader, BufWriter};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::Duration;
-use tokio::time::Instant;
-use chrono::Utc;
-use std::sync::Arc;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::cmp::min;
-use std::ffi::OsStr;
-use std::num::NonZeroU32;
-use tracing::{trace, info, warn, error};
-use colored::*;
-use regex::Regex;
-use url::Url;
-use bytes::Bytes;
-use data_url::DataUrl;
-use reqwest::header::{RANGE, CONTENT_TYPE};
-use backoff::{future::retry_notify, ExponentialBackoff};
-use governor::{Quota, RateLimiter};
-use lazy_static::lazy_static;
-use xot::{xmlname, Xot};
-use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
-use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
-use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
-use crate::{subtitle_type, content_protection_type, SubtitleType};
 use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
-use crate::media::{temporary_outpath, AudioTrack};
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
-
+use crate::media::{temporary_outpath, AudioTrack};
+use crate::{content_protection_type, subtitle_type, SubtitleType};
+use crate::{
+    copy_audio_to_container, copy_video_to_container, mux_audio_video, parse,
+};
+use crate::{is_audio_adaptation, is_subtitle_adaptation, is_video_adaptation};
+use crate::{
+    AdaptationSet, DashMpdError, Period, Representation, SegmentBase, MPD,
+};
+#[cfg(feature = "fast-hash")]
+use ahash::AHashMap as HashMap;
+use backoff::{future::retry_notify, ExponentialBackoff};
+use bytes::Bytes;
+use chrono::Utc;
+use colored::*;
+use data_url::DataUrl;
+use fs::File;
+use fs_err as fs;
+use governor::{Quota, RateLimiter};
+use lazy_static::lazy_static;
+use regex::Regex;
+use reqwest::header::{CONTENT_TYPE, RANGE};
+use std::borrow::Cow;
+use std::cmp::min;
+#[cfg(not(feature = "fast-hash"))]
+use std::collections::HashMap;
+use std::env;
+use std::ffi::OsStr;
+use std::io;
+use std::io::{BufReader, BufWriter, Read, Seek, Write};
+use std::num::NonZeroU32;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::Instant;
+use tracing::{error, info, trace, warn};
+use url::Url;
+use xot::{xmlname, Xot};
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::Client;
-type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
-                                     governor::state::InMemoryState,
-                                     governor::clock::DefaultClock,
-                                     governor::middleware::NoOpMiddleware>;
-
+type DirectRateLimiter = RateLimiter<
+    governor::state::direct::NotKeyed,
+    governor::state::InMemoryState,
+    governor::clock::DefaultClock,
+    governor::middleware::NoOpMiddleware,
+>;
 
 // When reading stdout or stderr from an external commandline application to display for the user,
 // this is the maximum number of octets read.
@@ -55,10 +62,12 @@ pub fn partial_process_output(output: &[u8]) -> Cow<'_, str> {
     String::from_utf8_lossy(&output[0..len])
 }
 
-
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdError> {
+fn tmp_file_path(
+    prefix: &str,
+    extension: &OsStr,
+) -> Result<PathBuf, DashMpdError> {
     if let Some(ext) = extension.to_str() {
         // suffix should include the "." separator
         let fmt = format!(".{}", extension.to_string_lossy());
@@ -73,14 +82,16 @@ fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdErro
             .rand_bytes(7)
             .disable_cleanup(env::var("DASHMPD_PERSIST_FILES").is_ok())
             .tempfile()
-            .map_err(|e| DashMpdError::Io(e, String::from("creating temporary file")))?;
+            .map_err(|e| {
+                DashMpdError::Io(e, String::from("creating temporary file"))
+            })?;
         Ok(file.path().to_path_buf())
     } else {
-        Err(DashMpdError::Other(String::from("converting filename extension")))
+        Err(DashMpdError::Other(String::from(
+            "converting filename extension",
+        )))
     }
 }
-
-
 
 /// Receives updates concerning the progression of the download, and can display this information to
 /// the user, for example using a progress bar.
@@ -88,12 +99,15 @@ pub trait ProgressObserver: Send + Sync {
     fn update(&self, percent: u32, message: &str);
 }
 
-
 /// Preference for retrieving media representation with highest quality (and highest file size) or
 /// lowest quality (and lowest file size).
 #[derive(PartialEq, Eq, Clone, Copy, Default)]
-pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
-
+pub enum QualityPreference {
+    #[default]
+    Lowest,
+    Intermediate,
+    Highest,
+}
 
 /// The DashDownloader allows the download of streaming media content from a DASH MPD manifest.
 ///
@@ -165,7 +179,6 @@ pub struct DashDownloader {
     pub shaka_packager_location: String,
 }
 
-
 // We don't want to test this code example on the CI infrastructure as it's too expensive
 // and requires network access.
 #[cfg(not(doctest))]
@@ -234,15 +247,15 @@ impl DashDownloader {
             concat_preference: HashMap::new(),
             decryptor_preference: String::from("mp4decrypt"),
             ffmpeg_location: String::from("ffmpeg"),
-	    vlc_location: if cfg!(target_os = "windows") {
+            vlc_location: if cfg!(target_os = "windows") {
                 // The official VideoLan Windows installer doesn't seem to place its installation
                 // directory in the PATH, so we try with the default full path.
                 String::from("c:/Program Files/VideoLAN/VLC/vlc.exe")
             } else {
                 String::from("vlc")
             },
-	    mkvmerge_location: String::from("mkvmerge"),
-	    mp4box_location: if cfg!(target_os = "windows") {
+            mkvmerge_location: String::from("mkvmerge"),
+            mp4box_location: if cfg!(target_os = "windows") {
                 String::from("MP4Box.exe")
             } else if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
                 String::from("MP4Box")
@@ -260,7 +273,6 @@ impl DashDownloader {
         self.base_url = Some(base_url);
         self
     }
-
 
     /// Specify the reqwest Client to be used for HTTP requests that download the DASH streaming
     /// media content. Allows you to specify a proxy, the user agent, custom request headers,
@@ -298,7 +310,11 @@ impl DashDownloader {
 
     /// Specify the username and password to use to authenticate network requests for the manifest
     /// and media segments.
-    pub fn with_authentication(mut self, username: String, password: String) -> DashDownloader {
+    pub fn with_authentication(
+        mut self,
+        username: String,
+        password: String,
+    ) -> DashDownloader {
         self.auth_username = Some(username.clone());
         self.auth_password = Some(password.clone());
         self
@@ -313,7 +329,10 @@ impl DashDownloader {
 
     /// Add a observer implementing the ProgressObserver trait, that will receive updates concerning
     /// the progression of the download (allows implementation of a progress bar, for example).
-    pub fn add_progress_observer(mut self, observer: Arc<dyn ProgressObserver>) -> DashDownloader {
+    pub fn add_progress_observer(
+        mut self,
+        observer: Arc<dyn ProgressObserver>,
+    ) -> DashDownloader {
         self.progress_observers.push(observer);
         self
     }
@@ -357,7 +376,10 @@ impl DashDownloader {
     /// with role=alternate will be ignored when a role=main AdaptationSet is present, even if we
     /// also specify a quality preference for highest and the role=alternate stream has a higher
     /// quality.
-    pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
+    pub fn prefer_roles(
+        mut self,
+        role_preference: Vec<String>,
+    ) -> DashDownloader {
         if role_preference.len() < u8::MAX as usize {
             self.role_preference = role_preference;
         } else {
@@ -396,21 +418,30 @@ impl DashDownloader {
 
     /// Keep the file containing video at the specified path. If the path already exists, file
     /// contents will be overwritten.
-    pub fn keep_video_as<P: Into<PathBuf>>(mut self, video_path: P) -> DashDownloader {
+    pub fn keep_video_as<P: Into<PathBuf>>(
+        mut self,
+        video_path: P,
+    ) -> DashDownloader {
         self.keep_video = Some(video_path.into());
         self
     }
 
     /// Keep the file containing audio at the specified path. If the path already exists, file
     /// contents will be overwritten.
-    pub fn keep_audio_as<P: Into<PathBuf>>(mut self, audio_path: P) -> DashDownloader {
+    pub fn keep_audio_as<P: Into<PathBuf>>(
+        mut self,
+        audio_path: P,
+    ) -> DashDownloader {
         self.keep_audio = Some(audio_path.into());
         self
     }
 
     /// Save media fragments to the directory `fragment_path`. The directory will be created if it
     /// does not exist.
-    pub fn save_fragments_to<P: Into<PathBuf>>(mut self, fragment_path: P) -> DashDownloader {
+    pub fn save_fragments_to<P: Into<PathBuf>>(
+        mut self,
+        fragment_path: P,
+    ) -> DashDownloader {
         self.fragment_path = Some(fragment_path.into());
         self
     }
@@ -426,7 +457,11 @@ impl DashDownloader {
     ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
     ///
     /// * `key` - a 128-bit key in hexadecimal format.
-    pub fn add_decryption_key(mut self, id: String, key: String) -> DashDownloader {
+    pub fn add_decryption_key(
+        mut self,
+        id: String,
+        key: String,
+    ) -> DashDownloader {
         self.decryption_keys.insert(id, key);
         self
     }
@@ -442,14 +477,20 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `stylesheet`: the path to an XSLT stylesheet.
-    pub fn with_xslt_stylesheet<P: Into<PathBuf>>(mut self, stylesheet: P) -> DashDownloader {
+    pub fn with_xslt_stylesheet<P: Into<PathBuf>>(
+        mut self,
+        stylesheet: P,
+    ) -> DashDownloader {
         self.xslt_stylesheets.push(stylesheet.into());
         self
     }
 
     /// Don't download (skip) Periods in the manifest whose duration is less than the specified
     /// value.
-    pub fn minimum_period_duration(mut self, value: Duration) -> DashDownloader {
+    pub fn minimum_period_duration(
+        mut self,
+        value: Duration,
+    ) -> DashDownloader {
         self.minimum_period_duration = Some(value);
         self
     }
@@ -591,7 +632,7 @@ impl DashDownloader {
             warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
         }
         if self.verbosity > 1 {
-            info!("Limiting bandwidth to {} kB/s", bps/1024);
+            info!("Limiting bandwidth to {} kB/s", bps / 1024);
         }
         self.rate_limit = bps;
         // Our rate_limit is in bytes/second, but the governor::RateLimiter can only handle an u32 rate.
@@ -606,8 +647,7 @@ impl DashDownloader {
         }
         if let Some(bw_limit) = NonZeroU32::new(kps as u32) {
             if let Some(burst) = NonZeroU32::new(10 * 1024) {
-                let bw_quota = Quota::per_second(bw_limit)
-                    .allow_burst(burst);
+                let bw_quota = Quota::per_second(bw_limit).allow_burst(burst);
                 self.bw_limiter = Some(RateLimiter::direct(bw_quota));
             }
         }
@@ -657,8 +697,13 @@ impl DashDownloader {
     ///      .download_to("wonderful.mkv")
     ///      .await?;
     /// ```
-    pub fn with_muxer_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
-        self.muxer_preference.insert(container.to_string(), ordering.to_string());
+    pub fn with_muxer_preference(
+        mut self,
+        container: &str,
+        ordering: &str,
+    ) -> DashDownloader {
+        self.muxer_preference
+            .insert(container.to_string(), ordering.to_string());
         self
     }
 
@@ -684,8 +729,13 @@ impl DashDownloader {
     ///      .download_to("wonderful.mkv")
     ///      .await?;
     /// ```
-    pub fn with_concat_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
-        self.concat_preference.insert(container.to_string(), ordering.to_string());
+    pub fn with_concat_preference(
+        mut self,
+        container: &str,
+        ordering: &str,
+    ) -> DashDownloader {
+        self.concat_preference
+            .insert(container.to_string(), ordering.to_string());
         self
     }
 
@@ -695,7 +745,10 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `decryption_tool`: either "mp4decrypt" or "shaka" or "mp4box"
-    pub fn with_decryptor_preference(mut self, decryption_tool: &str) -> DashDownloader {
+    pub fn with_decryptor_preference(
+        mut self,
+        decryption_tool: &str,
+    ) -> DashDownloader {
         self.decryptor_preference = decryption_tool.to_string();
         self
     }
@@ -795,14 +848,19 @@ impl DashDownloader {
     /// WebM container (specific type of Matroska) will be used, and otherwise the heuristics
     /// implemented by the selected muxer (by default ffmpeg) will apply (e.g. an `.avi` extension
     /// will generate an AVI container).
-    pub async fn download_to<P: Into<PathBuf>>(mut self, out: P) -> Result<PathBuf, DashMpdError> {
+    pub async fn download_to<P: Into<PathBuf>>(
+        mut self,
+        out: P,
+    ) -> Result<PathBuf, DashMpdError> {
         self.output_path = Some(out.into());
         if self.http_client.is_none() {
             let client = reqwest::Client::builder()
                 .timeout(Duration::new(30, 0))
                 .cookie_store(true)
                 .build()
-                .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
+                .map_err(|_| {
+                    DashMpdError::Network(String::from("building HTTP client"))
+                })?;
             self.http_client = Some(client);
         }
         fetch_mpd(&mut self).await
@@ -815,8 +873,9 @@ impl DashDownloader {
     /// overwritten if it already exists. The downloaded media will be placed in an MPEG-4
     /// container. To select another media container, see the `download_to` function.
     pub async fn download(mut self) -> Result<PathBuf, DashMpdError> {
-        let cwd = env::current_dir()
-            .map_err(|e| DashMpdError::Io(e, String::from("obtaining current directory")))?;
+        let cwd = env::current_dir().map_err(|e| {
+            DashMpdError::Io(e, String::from("obtaining current directory"))
+        })?;
         let filename = generate_filename_from_url(&self.mpd_url);
         let outpath = cwd.join(filename);
         self.output_path = Some(outpath);
@@ -825,13 +884,14 @@ impl DashDownloader {
                 .timeout(Duration::new(30, 0))
                 .cookie_store(true)
                 .build()
-                .map_err(|_| DashMpdError::Network(String::from("building HTTP client")))?;
+                .map_err(|_| {
+                    DashMpdError::Network(String::from("building HTTP client"))
+                })?;
             self.http_client = Some(client);
         }
         fetch_mpd(&mut self).await
     }
 }
-
 
 fn mpd_is_dynamic(mpd: &MPD) -> bool {
     if let Some(mpdtype) = mpd.mpdtype.as_ref() {
@@ -845,14 +905,18 @@ fn mpd_is_dynamic(mpd: &MPD) -> bool {
 fn parse_range(range: &str) -> Result<(u64, u64), DashMpdError> {
     let v: Vec<&str> = range.split_terminator('-').collect();
     if v.len() != 2 {
-        return Err(DashMpdError::Parsing(format!("invalid range specifier: {range}")));
+        return Err(DashMpdError::Parsing(format!(
+            "invalid range specifier: {range}"
+        )));
     }
     #[allow(clippy::indexing_slicing)]
-    let start: u64 = v[0].parse()
-        .map_err(|_| DashMpdError::Parsing(String::from("invalid start for range specifier")))?;
+    let start: u64 = v[0].parse().map_err(|_| {
+        DashMpdError::Parsing(String::from("invalid start for range specifier"))
+    })?;
     #[allow(clippy::indexing_slicing)]
-    let end: u64 = v[1].parse()
-        .map_err(|_| DashMpdError::Parsing(String::from("invalid end for range specifier")))?;
+    let end: u64 = v[1].parse().map_err(|_| {
+        DashMpdError::Parsing(String::from("invalid end for range specifier"))
+    })?;
     Ok((start, end))
 }
 
@@ -879,11 +943,20 @@ struct MediaFragmentBuilder {
 impl MediaFragmentBuilder {
     pub fn new(period: u8, url: Url) -> MediaFragmentBuilder {
         MediaFragmentBuilder {
-            period, url, start_byte: None, end_byte: None, is_init: false, timeout: None
+            period,
+            url,
+            start_byte: None,
+            end_byte: None,
+            is_init: false,
+            timeout: None,
         }
     }
 
-    pub fn with_range(mut self, start_byte: Option<u64>, end_byte: Option<u64>) -> MediaFragmentBuilder {
+    pub fn with_range(
+        mut self,
+        start_byte: Option<u64>,
+        end_byte: Option<u64>,
+    ) -> MediaFragmentBuilder {
         self.start_byte = start_byte;
         self.end_byte = end_byte;
         self
@@ -906,7 +979,7 @@ impl MediaFragmentBuilder {
             start_byte: self.start_byte,
             end_byte: self.end_byte,
             is_init: self.is_init,
-            timeout: self.timeout
+            timeout: self.timeout,
         }
     }
 }
@@ -932,28 +1005,29 @@ struct PeriodDownloads {
 }
 
 fn period_fragment_count(pd: &PeriodDownloads) -> usize {
-    pd.audio_fragments.len() +
-        pd.video_fragments.len() +
-        pd.subtitle_fragments.len()
+    pd.audio_fragments.len()
+        + pd.video_fragments.len()
+        + pd.subtitle_fragments.len()
 }
 
-
-
-async fn throttle_download_rate(downloader: &DashDownloader, size: u32) -> Result<(), DashMpdError> {
+async fn throttle_download_rate(
+    downloader: &DashDownloader,
+    size: u32,
+) -> Result<(), DashMpdError> {
     if downloader.rate_limit > 0 {
         if let Some(cells) = NonZeroU32::new(size) {
             if let Some(limiter) = downloader.bw_limiter.as_ref() {
                 #[allow(clippy::redundant_pattern_matching)]
                 if let Err(_) = limiter.until_n_ready(cells).await {
                     return Err(DashMpdError::Other(
-                        "Bandwidth limit is too low".to_string()));
+                        "Bandwidth limit is too low".to_string(),
+                    ));
                 }
             }
         }
     }
     Ok(())
 }
-
 
 fn generate_filename_from_url(url: &str) -> PathBuf {
     use sanitise_file_name::{sanitise_with_options, Options};
@@ -1007,7 +1081,11 @@ fn output_path_for_period(base: &Path, period: u8) -> PathBuf {
     } else {
         if let Some(stem) = base.file_stem() {
             if let Some(ext) = base.extension() {
-                let fname = format!("{}-p{period}.{}", stem.to_string_lossy(), ext.to_string_lossy());
+                let fname = format!(
+                    "{}-p{period}.{}",
+                    stem.to_string_lossy(),
+                    ext.to_string_lossy()
+                );
                 return base.with_file_name(fname);
             }
         }
@@ -1018,16 +1096,15 @@ fn output_path_for_period(base: &Path, period: u8) -> PathBuf {
 }
 
 fn is_absolute_url(s: &str) -> bool {
-    s.starts_with("http://") ||
-        s.starts_with("https://") ||
-        s.starts_with("file://") ||
-        s.starts_with("ftp://")
+    s.starts_with("http://")
+        || s.starts_with("https://")
+        || s.starts_with("file://")
+        || s.starts_with("ftp://")
 }
 
 fn merge_baseurls(current: &Url, new: &str) -> Result<Url, DashMpdError> {
     if is_absolute_url(new) {
-        Url::parse(new)
-            .map_err(|e| parse_error("parsing BaseURL", e))
+        Url::parse(new).map_err(|e| parse_error("parsing BaseURL", e))
     } else {
         // We are careful to merge the query portion of the current URL (which is either the
         // original manifest URL, or the URL that it redirected to, or the value of a BaseURL
@@ -1041,7 +1118,8 @@ fn merge_baseurls(current: &Url, new: &str) -> Result<Url, DashMpdError> {
         //
         // merge_baseurls(https://example.com/manifest.mpd?auth=old, /video42.mp4?auth=new) =>
         //   https://example.com/video42.mp4?auth=new
-        let mut merged = current.join(new)
+        let mut merged = current
+            .join(new)
             .map_err(|e| parse_error("joining base with BaseURL", e))?;
         if merged.query().is_none() {
             merged.set_query(current.query());
@@ -1058,10 +1136,10 @@ fn content_type_audio_p(response: &reqwest::Response) -> bool {
     match response.headers().get("content-type") {
         Some(ct) => {
             let ctb = ct.as_bytes();
-            ctb.starts_with(b"audio/") ||
-                ctb.starts_with(b"video/") ||
-                ctb.starts_with(b"application/octet-stream")
-        },
+            ctb.starts_with(b"audio/")
+                || ctb.starts_with(b"video/")
+                || ctb.starts_with(b"application/octet-stream")
+        }
         None => false,
     }
 }
@@ -1071,18 +1149,20 @@ fn content_type_video_p(response: &reqwest::Response) -> bool {
     match response.headers().get("content-type") {
         Some(ct) => {
             let ctb = ct.as_bytes();
-            ctb.starts_with(b"video/") ||
-                ctb.starts_with(b"application/octet-stream")
-        },
+            ctb.starts_with(b"video/")
+                || ctb.starts_with(b"application/octet-stream")
+        }
         None => false,
     }
 }
 
-
 // Return a measure of the distance between this AdaptationSet's lang attribute and the language
 // code specified by language_preference. If the AdaptationSet node has no lang attribute, return an
 // arbitrary large distance.
-fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 {
+fn adaptation_lang_distance(
+    a: &AdaptationSet,
+    language_preference: &str,
+) -> u8 {
     if let Some(lang) = &a.lang {
         if lang.eq(language_preference) {
             return 0;
@@ -1115,15 +1195,18 @@ fn adaptation_roles(a: &AdaptationSet) -> Vec<String> {
     roles
 }
 
-// Best possible "score" is zero. 
-fn adaptation_role_distance(a: &AdaptationSet, role_preference: &[String]) -> u8 {
-    adaptation_roles(a).iter()
+// Best possible "score" is zero.
+fn adaptation_role_distance(
+    a: &AdaptationSet,
+    role_preference: &[String],
+) -> u8 {
+    adaptation_roles(a)
+        .iter()
         .map(|r| role_preference.binary_search(r).unwrap_or(u8::MAX.into()))
         .map(|u| u8::try_from(u).unwrap_or(u8::MAX))
         .min()
         .unwrap_or(u8::MAX)
 }
-
 
 // We select the AdaptationSets that correspond to our language preference, and if there are several
 // with our language preference, that with the role according to role_preference, and if no
@@ -1134,12 +1217,13 @@ fn adaptation_role_distance(a: &AdaptationSet, role_preference: &[String]) -> u8
 // then apply role_preference
 fn select_preferred_adaptations<'a>(
     adaptations: Vec<&'a AdaptationSet>,
-    downloader: &DashDownloader) -> Vec<&'a AdaptationSet>
-{
+    downloader: &DashDownloader,
+) -> Vec<&'a AdaptationSet> {
     let mut preferred: Vec<&'a AdaptationSet>;
     if let Some(ref lang) = downloader.language_preference {
         preferred = Vec::new();
-        let distance: Vec<u8> = adaptations.iter()
+        let distance: Vec<u8> = adaptations
+            .iter()
             .map(|a| adaptation_lang_distance(a, lang))
             .collect();
         let min_distance = distance.iter().min().unwrap_or(&0);
@@ -1158,7 +1242,8 @@ fn select_preferred_adaptations<'a>(
     // return only that AdaptationSet. If there are no role annotations on the AdaptationSets, or
     // the specified roles don't match anything in our role_preference ordering, then all
     // AdaptationSets will receive the maximum distance and they will all be returned.
-    let role_distance: Vec<u8> = preferred.iter()
+    let role_distance: Vec<u8> = preferred
+        .iter()
         .map(|a| adaptation_role_distance(a, &downloader.role_preference))
         .collect();
     let role_distance_min = role_distance.iter().min().unwrap_or(&0);
@@ -1173,7 +1258,6 @@ fn select_preferred_adaptations<'a>(
     best
 }
 
-
 // A manifest often contains multiple video Representations with different bandwidths and video
 // resolutions. We select the Representation to download by ranking following the user's specified
 // quality preference. We first rank following the @qualityRanking attribute if it is present, and
@@ -1181,47 +1265,55 @@ fn select_preferred_adaptations<'a>(
 // ranking when different codecs are used.
 fn select_preferred_representation<'a>(
     representations: Vec<&'a Representation>,
-    downloader: &DashDownloader) -> Option<&'a Representation>
-{
+    downloader: &DashDownloader,
+) -> Option<&'a Representation> {
     if representations.iter().all(|x| x.qualityRanking.is_some()) {
         // rank according to the @qualityRanking attribute (lower values represent
         // higher quality content)
         match downloader.quality_preference {
-            QualityPreference::Lowest =>
-                representations.iter()
+            QualityPreference::Lowest => representations
+                .iter()
                 .max_by_key(|r| r.qualityRanking.unwrap_or(u8::MAX))
                 .copied(),
-            QualityPreference::Highest =>
-                representations.iter().min_by_key(|r| r.qualityRanking.unwrap_or(0))
-                    .copied(),
+            QualityPreference::Highest => representations
+                .iter()
+                .min_by_key(|r| r.qualityRanking.unwrap_or(0))
+                .copied(),
             QualityPreference::Intermediate => {
                 let count = representations.len();
                 match count {
                     0 => None,
                     1 => Some(representations[0]),
                     _ => {
-                        let mut ranking: Vec<u8> = representations.iter()
+                        let mut ranking: Vec<u8> = representations
+                            .iter()
                             .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
                             .collect();
                         ranking.sort_unstable();
                         if let Some(want_ranking) = ranking.get(count / 2) {
-                            representations.iter()
-                                .find(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                            representations
+                                .iter()
+                                .find(|r| {
+                                    r.qualityRanking.unwrap_or(u8::MAX)
+                                        == *want_ranking
+                                })
                                 .copied()
                         } else {
                             representations.first().copied()
                         }
-                    },
+                    }
                 }
-            },
+            }
         }
     } else {
         // rank according to the bandwidth attribute (lower values imply lower quality)
         match downloader.quality_preference {
-            QualityPreference::Lowest => representations.iter()
+            QualityPreference::Lowest => representations
+                .iter()
                 .min_by_key(|r| r.bandwidth.unwrap_or(1_000_000_000))
                 .copied(),
-            QualityPreference::Highest => representations.iter()
+            QualityPreference::Highest => representations
+                .iter()
                 .max_by_key(|r| r.bandwidth.unwrap_or(0))
                 .copied(),
             QualityPreference::Intermediate => {
@@ -1230,61 +1322,94 @@ fn select_preferred_representation<'a>(
                     0 => None,
                     1 => Some(representations[0]),
                     _ => {
-                        let mut ranking: Vec<u64> = representations.iter()
+                        let mut ranking: Vec<u64> = representations
+                            .iter()
                             .map(|r| r.bandwidth.unwrap_or(100_000_000))
                             .collect();
                         ranking.sort_unstable();
                         if let Some(want_ranking) = ranking.get(count / 2) {
-                            representations.iter()
-                                .find(|r| r.bandwidth.unwrap_or(100_000_000) == *want_ranking)
+                            representations
+                                .iter()
+                                .find(|r| {
+                                    r.bandwidth.unwrap_or(100_000_000)
+                                        == *want_ranking
+                                })
                                 .copied()
                         } else {
                             representations.first().copied()
                         }
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 }
 
-
 // The AdaptationSet a is the parent of the Representation r.
-fn print_available_subtitles_representation(r: &Representation, a: &AdaptationSet) {
+fn print_available_subtitles_representation(
+    r: &Representation,
+    a: &AdaptationSet,
+) {
     let unspecified = "<unspecified>".to_string();
     let empty = "".to_string();
-    let lang = r.lang.as_ref().unwrap_or(a.lang.as_ref().unwrap_or(&unspecified));
-    let codecs = r.codecs.as_ref().unwrap_or(a.codecs.as_ref().unwrap_or(&empty));
+    let lang = r
+        .lang
+        .as_ref()
+        .unwrap_or(a.lang.as_ref().unwrap_or(&unspecified));
+    let codecs = r
+        .codecs
+        .as_ref()
+        .unwrap_or(a.codecs.as_ref().unwrap_or(&empty));
     let typ = subtitle_type(&a);
     let stype = if !codecs.is_empty() {
         format!("{typ:?}/{codecs}")
     } else {
         format!("{typ:?}")
     };
-    let role = a.Role.first()
-        .map_or_else(|| String::from(""),
-                     |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
-    let label = a.Label.first()
-        .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
+    let role = a.Role.first().map_or_else(
+        || String::from(""),
+        |r| {
+            r.value
+                .as_ref()
+                .map_or_else(|| String::from(""), |v| format!(" role={v}"))
+        },
+    );
+    let label = a.Label.first().map_or_else(
+        || String::from(""),
+        |l| format!(" label={}", l.clone().content),
+    );
     info!("  subs {stype:>18} | {lang:>10} |{role}{label}");
 }
 
 fn print_available_subtitles_adaptation(a: &AdaptationSet) {
-    a.representations.iter()
+    a.representations
+        .iter()
         .for_each(|r| print_available_subtitles_representation(r, a));
 }
 
 // The AdaptationSet a is the parent of the Representation r.
-fn print_available_streams_representation(r: &Representation, a: &AdaptationSet, typ: &str) {
+fn print_available_streams_representation(
+    r: &Representation,
+    a: &AdaptationSet,
+    typ: &str,
+) {
     // for now, we ignore the Vec representation.SubRepresentation which could contain width, height, bw etc.
     let unspecified = "<unspecified>".to_string();
     let w = r.width.unwrap_or(a.width.unwrap_or(0));
     let h = r.height.unwrap_or(a.height.unwrap_or(0));
-    let codec = r.codecs.as_ref().unwrap_or(a.codecs.as_ref().unwrap_or(&unspecified));
+    let codec = r
+        .codecs
+        .as_ref()
+        .unwrap_or(a.codecs.as_ref().unwrap_or(&unspecified));
     let bw = r.bandwidth.unwrap_or(a.maxBandwidth.unwrap_or(0));
     let fmt = if typ.eq("audio") {
         let unknown = String::from("?");
-        format!("lang={}", r.lang.as_ref().unwrap_or(a.lang.as_ref().unwrap_or(&unknown)))
+        format!(
+            "lang={}",
+            r.lang
+                .as_ref()
+                .unwrap_or(a.lang.as_ref().unwrap_or(&unknown))
+        )
     } else if w == 0 || h == 0 {
         // Some MPDs do not specify width and height, such as
         // https://dash.akamaized.net/fokus/adinsertion-samples/scte/dash.mpd
@@ -1292,32 +1417,46 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
     } else {
         format!("{w}x{h}")
     };
-    let role = a.Role.first()
-        .map_or_else(|| String::from(""),
-                     |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
-    let label = a.Label.first()
-        .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
-    info!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}", bw / 1024);
+    let role = a.Role.first().map_or_else(
+        || String::from(""),
+        |r| {
+            r.value
+                .as_ref()
+                .map_or_else(|| String::from(""), |v| format!(" role={v}"))
+        },
+    );
+    let label = a.Label.first().map_or_else(
+        || String::from(""),
+        |l| format!(" label={}", l.clone().content),
+    );
+    info!(
+        "  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}",
+        bw / 1024
+    );
 }
 
 fn print_available_streams_adaptation(a: &AdaptationSet, typ: &str) {
-    a.representations.iter()
+    a.representations
+        .iter()
         .for_each(|r| print_available_streams_representation(r, a, typ));
 }
 
 fn print_available_streams_period(p: &Period) {
-    p.adaptations.iter()
+    p.adaptations
+        .iter()
         .filter(is_audio_adaptation)
         .for_each(|a| print_available_streams_adaptation(a, "audio"));
-    p.adaptations.iter()
+    p.adaptations
+        .iter()
         .filter(is_video_adaptation)
         .for_each(|a| print_available_streams_adaptation(a, "video"));
-    p.adaptations.iter()
+    p.adaptations
+        .iter()
         .filter(is_subtitle_adaptation)
         .for_each(print_available_subtitles_adaptation);
 }
 
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 fn print_available_streams(mpd: &MPD) {
     let mut counter = 0;
     for p in &mpd.periods {
@@ -1338,7 +1477,10 @@ fn print_available_streams(mpd: &MPD) {
     }
 }
 
-async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option<Vec<u8>> {
+async fn extract_init_pssh(
+    downloader: &DashDownloader,
+    init_url: Url,
+) -> Option<Vec<u8>> {
     use bstr::ByteSlice;
     use hex_literal::hex;
 
@@ -1361,7 +1503,7 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
             let mut chunk_counter = 0;
             let mut segment_first_bytes = Vec::<u8>::new();
             while let Ok(Some(chunk)) = resp.chunk().await {
-                let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                let size = min((chunk.len() / 1024 + 1) as u32, u32::MAX);
                 #[allow(clippy::redundant_pattern_matching)]
                 if let Err(_) = throttle_download_rate(downloader, size).await {
                     return None;
@@ -1375,7 +1517,7 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
             let needle = b"pssh";
             for offset in segment_first_bytes.find_iter(needle) {
                 #[allow(clippy::needless_range_loop)]
-                for i in offset-4..offset+2 {
+                for i in offset - 4..offset + 2 {
                     if let Some(b) = segment_first_bytes.get(i) {
                         if *b != 0 {
                             continue;
@@ -1383,24 +1525,27 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
                     }
                 }
                 #[allow(clippy::needless_range_loop)]
-                for i in offset+4..offset+8 {
+                for i in offset + 4..offset + 8 {
                     if let Some(b) = segment_first_bytes.get(i) {
                         if *b != 0 {
                             continue;
                         }
                     }
                 }
-                if offset+24 > segment_first_bytes.len() {
+                if offset + 24 > segment_first_bytes.len() {
                     continue;
                 }
                 // const PLAYREADY_SYSID: [u8; 16] = hex!("9a04f07998404286ab92e65be0885f95");
-                const WIDEVINE_SYSID: [u8; 16] = hex!("edef8ba979d64acea3c827dcd51d21ed");
-                if let Some(sysid) = segment_first_bytes.get((offset+8)..(offset+24)) {
+                const WIDEVINE_SYSID: [u8; 16] =
+                    hex!("edef8ba979d64acea3c827dcd51d21ed");
+                if let Some(sysid) =
+                    segment_first_bytes.get((offset + 8)..(offset + 24))
+                {
                     if !sysid.eq(&WIDEVINE_SYSID) {
                         continue;
                     }
                 }
-                if let Some(length) = segment_first_bytes.get(offset-1) {
+                if let Some(length) = segment_first_bytes.get(offset - 1) {
                     let start = offset - 4;
                     let end = start + *length as usize;
                     if let Some(pssh) = &segment_first_bytes.get(start..end) {
@@ -1415,7 +1560,6 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
     }
 }
 
-
 // From https://dashif.org/docs/DASH-IF-IOP-v4.3.pdf:
 // "For the avoidance of doubt, only %0[width]d is permitted and no other identifiers. The reason
 // is that such a string replacement can be easily implemented without requiring a specific library."
@@ -1426,13 +1570,23 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
 // Example template: "$RepresentationID$/$Number%06d$.m4s"
 lazy_static! {
     static ref URL_TEMPLATE_IDS: Vec<(&'static str, String, Regex)> = {
-        vec!["RepresentationID", "Number", "Time", "Bandwidth"].into_iter()
-            .map(|k| (k, format!("${k}$"), Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap()))
+        vec!["RepresentationID", "Number", "Time", "Bandwidth"]
+            .into_iter()
+            .map(|k| {
+                (
+                    k,
+                    format!("${k}$"),
+                    Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap(),
+                )
+            })
             .collect()
     };
 }
 
-fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
+fn resolve_url_template(
+    template: &str,
+    params: &HashMap<&str, String>,
+) -> String {
     let mut result = template.to_string();
     for (k, ident, rx) in URL_TEMPLATE_IDS.iter() {
         // first check for simple cases such as $Number$
@@ -1447,7 +1601,9 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
                 if let Ok(width) = cap[1].parse::<usize>() {
                     if let Some(m) = rx.find(&result) {
                         let count = format!("{value:0>width$}");
-                        result = result[..m.start()].to_owned() + &count + &result[m.end()..];
+                        result = result[..m.start()].to_owned()
+                            + &count
+                            + &result[m.end()..];
                     }
                 }
             }
@@ -1456,23 +1612,25 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
     result
 }
 
-
 fn reqwest_error_transient_p(e: &reqwest::Error) -> bool {
     if e.is_timeout() {
         return true;
     }
     if let Some(s) = e.status() {
-        if s == reqwest::StatusCode::REQUEST_TIMEOUT ||
-            s == reqwest::StatusCode::TOO_MANY_REQUESTS ||
-            s == reqwest::StatusCode::SERVICE_UNAVAILABLE ||
-            s == reqwest::StatusCode::GATEWAY_TIMEOUT {
-                return true;
-            }
+        if s == reqwest::StatusCode::REQUEST_TIMEOUT
+            || s == reqwest::StatusCode::TOO_MANY_REQUESTS
+            || s == reqwest::StatusCode::SERVICE_UNAVAILABLE
+            || s == reqwest::StatusCode::GATEWAY_TIMEOUT
+        {
+            return true;
+        }
     }
     false
 }
 
-fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error> {
+fn categorize_reqwest_error(
+    e: reqwest::Error,
+) -> backoff::Error<reqwest::Error> {
     if reqwest_error_transient_p(&e) {
         backoff::Error::retry_after(e, Duration::new(5, 0))
     } else {
@@ -1498,40 +1656,35 @@ fn parse_error(why: &str, e: impl std::error::Error) -> DashMpdError {
     DashMpdError::Parsing(format!("{why}: {e:#?}"))
 }
 
-
 // This would be easier with middleware such as https://lib.rs/crates/tower-reqwest or
 // https://lib.rs/crates/reqwest-retry or https://docs.rs/again/latest/again/
 // or https://github.com/naomijub/tokio-retry
 async fn reqwest_bytes_with_retries(
     client: &reqwest::Client,
     req: reqwest::Request,
-    retry_count: u32) -> Result<Bytes, reqwest::Error>
-{
+    retry_count: u32,
+) -> Result<Bytes, reqwest::Error> {
     let mut last_error = None;
     for _ in 0..retry_count {
         if let Some(rqw) = req.try_clone() {
             match client.execute(rqw).await {
-                Ok(response) => {
-                    match response.error_for_status() {
-                        Ok(resp) => {
-                            match resp.bytes().await {
-                                Ok(bytes) => return Ok(bytes),
-                                Err(e) => {
-                                    info!("Retrying after HTTP error {e:?}");
-                                    last_error = Some(e);
-                                },
-                            }
-                        },
+                Ok(response) => match response.error_for_status() {
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => return Ok(bytes),
                         Err(e) => {
                             info!("Retrying after HTTP error {e:?}");
                             last_error = Some(e);
-                        },
+                        }
+                    },
+                    Err(e) => {
+                        info!("Retrying after HTTP error {e:?}");
+                        last_error = Some(e);
                     }
                 },
                 Err(e) => {
                     info!("Retrying after HTTP error {e:?}");
                     last_error = Some(e);
-                },
+                }
             }
         }
     }
@@ -1551,36 +1704,68 @@ async fn reqwest_bytes_with_retries(
 // container metadata, though this would have to be implemented separately by each muxing helper and
 // each concat helper application in the ffmpeg module.
 #[allow(unused_variables)]
-fn maybe_record_metainformation(path: &Path, downloader: &DashDownloader, mpd: &MPD) {
+fn maybe_record_metainformation(
+    path: &Path,
+    downloader: &DashDownloader,
+    mpd: &MPD,
+) {
     #[cfg(target_family = "unix")]
-    if downloader.record_metainformation && (downloader.fetch_audio || downloader.fetch_video) {
+    if downloader.record_metainformation
+        && (downloader.fetch_audio || downloader.fetch_video)
+    {
         if let Ok(origin_url) = Url::parse(&downloader.mpd_url) {
             // Don't record the origin URL if it contains sensitive information such as passwords
             #[allow(clippy::collapsible_if)]
-            if origin_url.username().is_empty() && origin_url.password().is_none() {
+            if origin_url.username().is_empty()
+                && origin_url.password().is_none()
+            {
                 #[cfg(target_family = "unix")]
-                if xattr::set(path, "user.xdg.origin.url", downloader.mpd_url.as_bytes()).is_err() {
+                if xattr::set(
+                    path,
+                    "user.xdg.origin.url",
+                    downloader.mpd_url.as_bytes(),
+                )
+                .is_err()
+                {
                     info!("Failed to set user.xdg.origin.url xattr on output file");
                 }
             }
             for pi in &mpd.ProgramInformation {
                 if let Some(t) = &pi.Title {
                     if let Some(tc) = &t.content {
-                        if xattr::set(path, "user.dublincore.title", tc.as_bytes()).is_err() {
+                        if xattr::set(
+                            path,
+                            "user.dublincore.title",
+                            tc.as_bytes(),
+                        )
+                        .is_err()
+                        {
                             info!("Failed to set user.dublincore.title xattr on output file");
                         }
                     }
                 }
                 if let Some(source) = &pi.Source {
                     if let Some(sc) = &source.content {
-                        if xattr::set(path, "user.dublincore.source", sc.as_bytes()).is_err() {
+                        if xattr::set(
+                            path,
+                            "user.dublincore.source",
+                            sc.as_bytes(),
+                        )
+                        .is_err()
+                        {
                             info!("Failed to set user.dublincore.source xattr on output file");
                         }
                     }
                 }
                 if let Some(copyright) = &pi.Copyright {
                     if let Some(cc) = &copyright.content {
-                        if xattr::set(path, "user.dublincore.rights", cc.as_bytes()).is_err() {
+                        if xattr::set(
+                            path,
+                            "user.dublincore.rights",
+                            cc.as_bytes(),
+                        )
+                        .is_err()
+                        {
                             info!("Failed to set user.dublincore.rights xattr on output file");
                         }
                     }
@@ -1598,8 +1783,13 @@ fn fetchable_xlink_href(href: &str) -> bool {
 }
 
 fn element_resolves_to_zero(xot: &mut Xot, element: xot::Node) -> bool {
-    let xlink_ns = xmlname::CreateNamespace::new(xot, "xlink", "http://www.w3.org/1999/xlink");
-    let xlink_href_name = xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
+    let xlink_ns = xmlname::CreateNamespace::new(
+        xot,
+        "xlink",
+        "http://www.w3.org/1999/xlink",
+    );
+    let xlink_href_name =
+        xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
     if let Some(href) = xot.get_attribute(element, xlink_href_name.into()) {
         return href.eq("urn:mpeg:dash:resolve-to-zero:2013");
     }
@@ -1623,7 +1813,8 @@ fn skip_xml_preamble(input: &str) -> &str {
 fn apply_xslt_stylesheets_xsltproc(
     downloader: &DashDownloader,
     xot: &mut Xot,
-    doc: xot::Node) -> Result<String, DashMpdError> {
+    doc: xot::Node,
+) -> Result<String, DashMpdError> {
     let mut buf = Vec::new();
     xot.write(doc, &mut buf)
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
@@ -1637,7 +1828,9 @@ fn apply_xslt_stylesheets_xsltproc(
         let xsltproc = Command::new("xsltproc")
             .args([ss, &tmpmpd])
             .output()
-            .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
+            .map_err(|e| {
+                DashMpdError::Io(e, String::from("spawning xsltproc"))
+            })?;
         if !xsltproc.status.success() {
             let msg = format!("xsltproc returned {}", xsltproc.status);
             let out = partial_process_output(&xsltproc.stderr).to_string();
@@ -1645,13 +1838,14 @@ fn apply_xslt_stylesheets_xsltproc(
         }
         if env::var("DASHMPD_PERSIST_FILES").is_err() {
             if let Err(e) = fs::remove_file(&tmpmpd) {
-                warn!("Error removing temporary MPD after XSLT processing: {e:?}");
+                warn!(
+                    "Error removing temporary MPD after XSLT processing: {e:?}"
+                );
             }
         }
         buf.clone_from(&xsltproc.stdout);
     }
-    String::from_utf8(buf)
-        .map_err(|e| parse_error("parsing UTF-8", e))
+    String::from_utf8(buf).map_err(|e| parse_error("parsing UTF-8", e))
 }
 
 // Try to use the xee crate functionality for XSLT processing. We need an alternative utility
@@ -1691,54 +1885,73 @@ fn apply_xslt_stylesheets_xee(
 async fn resolve_xlink_references(
     downloader: &DashDownloader,
     xot: &mut Xot,
-    node: xot::Node) -> Result<(), DashMpdError>
-{
-    let xlink_ns = xmlname::CreateNamespace::new(xot, "xlink", "http://www.w3.org/1999/xlink");
-    let xlink_href_name = xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
-    let xlinked = xot.descendants(node)
+    node: xot::Node,
+) -> Result<(), DashMpdError> {
+    let xlink_ns = xmlname::CreateNamespace::new(
+        xot,
+        "xlink",
+        "http://www.w3.org/1999/xlink",
+    );
+    let xlink_href_name =
+        xmlname::CreateName::namespaced(xot, "href", &xlink_ns);
+    let xlinked = xot
+        .descendants(node)
         .filter(|d| xot.get_attribute(*d, xlink_href_name.into()).is_some())
         .collect::<Vec<_>>();
     for xl in xlinked {
         if element_resolves_to_zero(xot, xl) {
             trace!("Removing node with resolve-to-zero xlink:href {xl:?}");
             if let Err(e) = xot.remove(xl) {
-                return Err(parse_error("Failed to remove resolve-to-zero XML node", e));
+                return Err(parse_error(
+                    "Failed to remove resolve-to-zero XML node",
+                    e,
+                ));
             }
-        } else if let Some(href) = xot.get_attribute(xl, xlink_href_name.into()) {
+        } else if let Some(href) = xot.get_attribute(xl, xlink_href_name.into())
+        {
             if fetchable_xlink_href(href) {
                 let xlink_url = if is_absolute_url(href) {
-                    Url::parse(href)
-                        .map_err(|e|
-                            if let Ok(ns) = xot.to_string(node) {
-                                parse_error(&format!("parsing XLink on {ns}"), e)
-                            } else {
-                                parse_error("parsing XLink", e)
-                            }
-                        )?
+                    Url::parse(href).map_err(|e| {
+                        if let Ok(ns) = xot.to_string(node) {
+                            parse_error(&format!("parsing XLink on {ns}"), e)
+                        } else {
+                            parse_error("parsing XLink", e)
+                        }
+                    })?
                 } else {
                     // Note that we are joining against the original/redirected URL for the MPD, and
                     // not against the currently scoped BaseURL
-                    let mut merged = downloader.redirected_url.join(href)
-                        .map_err(|e|
+                    let mut merged =
+                        downloader.redirected_url.join(href).map_err(|e| {
                             if let Ok(ns) = xot.to_string(node) {
-                                parse_error(&format!("parsing XLink on {ns}"), e)
+                                parse_error(
+                                    &format!("parsing XLink on {ns}"),
+                                    e,
+                                )
                             } else {
                                 parse_error("parsing XLink", e)
                             }
-                        )?;
+                        })?;
                     merged.set_query(downloader.redirected_url.query());
                     merged
                 };
                 let client = downloader.http_client.as_ref().unwrap();
                 trace!("Fetching XLinked element {}", xlink_url.clone());
-                let mut req = client.get(xlink_url.clone())
-                    .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+                let mut req = client
+                    .get(xlink_url.clone())
+                    .header(
+                        "Accept",
+                        "application/dash+xml,video/vnd.mpeg.dash.mpd",
+                    )
                     .header("Accept-Language", "en-US,en")
                     .header("Sec-Fetch-Mode", "navigate");
                 if let Some(referer) = &downloader.referer {
                     req = req.header("Referer", referer);
                 } else {
-                    req = req.header("Referer", downloader.redirected_url.to_string());
+                    req = req.header(
+                        "Referer",
+                        downloader.redirected_url.to_string(),
+                    );
                 }
                 if let Some(username) = &downloader.auth_username {
                     if let Some(password) = &downloader.auth_password {
@@ -1748,35 +1961,50 @@ async fn resolve_xlink_references(
                 if let Some(token) = &downloader.auth_bearer_token {
                     req = req.bearer_auth(token);
                 }
-                let xml = req.send().await
-                    .map_err(|e|
-                             if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("fetching XLink for {ns}"), e)
-                             } else {
-                                 network_error("fetching XLink", e)
-                             }
-                        )?
+                let xml = req
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        if let Ok(ns) = xot.to_string(node) {
+                            network_error(
+                                &format!("fetching XLink for {ns}"),
+                                e,
+                            )
+                        } else {
+                            network_error("fetching XLink", e)
+                        }
+                    })?
                     .error_for_status()
-                    .map_err(|e|
-                             if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("fetching XLink for {ns}"), e)
-                             } else {
-                                 network_error("fetching XLink", e)
-                             }
-                        )?
-                    .text().await
-                    .map_err(|e|
-                             if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("resolving XLink for {ns}"), e)
-                             } else {
-                                 network_error("resolving XLink", e)
-                             }
-                        )?;
+                    .map_err(|e| {
+                        if let Ok(ns) = xot.to_string(node) {
+                            network_error(
+                                &format!("fetching XLink for {ns}"),
+                                e,
+                            )
+                        } else {
+                            network_error("fetching XLink", e)
+                        }
+                    })?
+                    .text()
+                    .await
+                    .map_err(|e| {
+                        if let Ok(ns) = xot.to_string(node) {
+                            network_error(
+                                &format!("resolving XLink for {ns}"),
+                                e,
+                            )
+                        } else {
+                            network_error("resolving XLink", e)
+                        }
+                    })?;
                 if downloader.verbosity > 2 {
                     if let Ok(ns) = xot.to_string(node) {
                         info!("  Resolved onLoad XLink {xlink_url} on {ns} -> {} octets", xml.len());
                     } else {
-                        info!("  Resolved onLoad XLink {xlink_url} -> {} octets", xml.len());
+                        info!(
+                            "  Resolved onLoad XLink {xlink_url} -> {} octets",
+                            xml.len()
+                        );
                     }
                 }
                 // The difficulty here is that the XML fragment received may contain multiple elements,
@@ -1784,22 +2012,29 @@ async fn resolve_xlink_references(
                 // resolved element we can simply replace the original element by its resolved
                 // counterpart. When the xlink resolves to multiple elements, we can't insert them back
                 // into the parent node directly, but need to return them to the caller for later insertion.
-                let wrapped_xml = r#"<?xml version="1.0" encoding="utf-8"?>"#.to_owned() +
-                    r#"<wrapper xmlns="urn:mpeg:dash:schema:mpd:2011" "# +
-                    r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" "# +
-                    r#"xmlns:cenc="urn:mpeg:cenc:2013" "# +
-                    r#"xmlns:mspr="urn:microsoft:playready" "# +
-                    r#"xmlns:xlink="http://www.w3.org/1999/xlink">"# +
-                    skip_xml_preamble(&xml) +
-                    r#"</wrapper>"#;
-                let wrapper_doc = xot.parse(&wrapped_xml)
+                let wrapped_xml = r#"<?xml version="1.0" encoding="utf-8"?>"#
+                    .to_owned()
+                    + r#"<wrapper xmlns="urn:mpeg:dash:schema:mpd:2011" "#
+                    + r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" "#
+                    + r#"xmlns:cenc="urn:mpeg:cenc:2013" "#
+                    + r#"xmlns:mspr="urn:microsoft:playready" "#
+                    + r#"xmlns:xlink="http://www.w3.org/1999/xlink">"#
+                    + skip_xml_preamble(&xml)
+                    + r#"</wrapper>"#;
+                let wrapper_doc = xot
+                    .parse(&wrapped_xml)
                     .map_err(|e| parse_error("parsing xlinked content", e))?;
-                let wrapper_doc_el = xot.document_element(wrapper_doc)
-                    .map_err(|e| parse_error("extracting XML document element", e))?;
-                for needs_insertion in xot.children(wrapper_doc_el).collect::<Vec<_>>() {
+                let wrapper_doc_el =
+                    xot.document_element(wrapper_doc).map_err(|e| {
+                        parse_error("extracting XML document element", e)
+                    })?;
+                for needs_insertion in
+                    xot.children(wrapper_doc_el).collect::<Vec<_>>()
+                {
                     // FIXME we are inserting nodes that serialize to nothing (namespace nodes?)
-                    xot.insert_after(xl, needs_insertion)
-                        .map_err(|e| parse_error("inserting XLinked content", e))?;
+                    xot.insert_after(xl, needs_insertion).map_err(|e| {
+                        parse_error("inserting XLinked content", e)
+                    })?;
                 }
                 xot.remove(xl)
                     .map_err(|e| parse_error("removing XLink node", e))?;
@@ -1809,27 +2044,36 @@ async fn resolve_xlink_references(
     Ok(())
 }
 
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 pub async fn parse_resolving_xlinks(
     downloader: &DashDownloader,
-    xml: &[u8]) -> Result<MPD, DashMpdError>
-{
+    xml: &[u8],
+) -> Result<MPD, DashMpdError> {
     use xot::xmlname::NameStrInfo;
 
     let mut xot = Xot::new();
-    let doc = xot.parse_bytes(xml)
+    let doc = xot
+        .parse_bytes(xml)
         .map_err(|e| parse_error("XML parsing", e))?;
-    let doc_el = xot.document_element(doc)
+    let doc_el = xot
+        .document_element(doc)
         .map_err(|e| parse_error("extracting XML document element", e))?;
     let doc_name = match xot.node_name(doc_el) {
         Some(n) => n,
-        None => return Err(DashMpdError::Parsing(String::from("missing root node name"))),
+        None => {
+            return Err(DashMpdError::Parsing(String::from(
+                "missing root node name",
+            )))
+        }
     };
-    let root_name = xot.name_ref(doc_name, doc_el)
+    let root_name = xot
+        .name_ref(doc_name, doc_el)
         .map_err(|e| parse_error("extracting root node name", e))?;
     let root_local_name = root_name.local_name();
     if !root_local_name.eq("MPD") {
-        return Err(DashMpdError::Parsing(format!("root element is {root_local_name}, expecting <MPD>")));
+        return Err(DashMpdError::Parsing(format!(
+            "root element is {root_local_name}, expecting <MPD>"
+        )));
     }
     // The remote XLink fragments may contain further XLink references. However, we only repeat the
     // resolution 5 times to avoid potential infloop DoS attacks.
@@ -1852,9 +2096,8 @@ async fn do_segmentbase_indexrange(
     period_counter: u8,
     base_url: Url,
     sb: &SegmentBase,
-    dict: &HashMap<&str, String>
-) -> Result<Vec<MediaFragment>, DashMpdError>
-{
+    dict: &HashMap<&str, String>,
+) -> Result<Vec<MediaFragment>, DashMpdError> {
     // Something like the following
     //
     // <SegmentBase indexRange="839-3534" timescale="12288">
@@ -1896,7 +2139,9 @@ async fn do_segmentbase_indexrange(
             // Fetch the octet slice corresponding to the (sidx) index.
             let (s, e) = parse_range(ir)?;
             trace!("Fetching sidx for {}", base_url.clone());
-            let mut req = downloader.http_client.as_ref()
+            let mut req = downloader
+                .http_client
+                .as_ref()
                 .unwrap()
                 .get(base_url.clone())
                 .header(RANGE, format!("bytes={s}-{e}"))
@@ -1910,45 +2155,61 @@ async fn do_segmentbase_indexrange(
             if let Some(token) = &downloader.auth_bearer_token {
                 req = req.bearer_auth(token);
             }
-            let mut resp = req.send().await
+            let mut resp = req
+                .send()
+                .await
                 .map_err(|e| network_error("fetching index data", e))?
                 .error_for_status()
                 .map_err(|e| network_error("fetching index data", e))?;
             let headers = std::mem::take(resp.headers_mut());
             if let Some(content_type) = headers.get(CONTENT_TYPE) {
-                let idx = resp.bytes().await
+                let idx = resp
+                    .bytes()
+                    .await
                     .map_err(|e| network_error("fetching index data", e))?;
                 if idx.len() as u64 != e - s + 1 {
                     warn!("  HTTP server does not support Range requests; can't use indexRange addressing");
                 } else {
                     #[allow(clippy::collapsible_else_if)]
-                    if content_type.eq("video/mp4") ||
-                        content_type.eq("audio/mp4") {
-                            // Handle as ISOBMFF. First prepare to save the index data itself
-                            // and any leading bytes (from byte positions 0 to s) to the output
-                            // container, because it may contain other types of MP4 boxes than
-                            // only sidx boxes (eg. trex, trun tfhd boxes), which are necessary
-                            // to play the media content. Then prepare to save each referenced
-                            // segment chunk to the output container.
-                            let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                                .with_range(Some(0), Some(e))
+                    if content_type.eq("video/mp4")
+                        || content_type.eq("audio/mp4")
+                    {
+                        // Handle as ISOBMFF. First prepare to save the index data itself
+                        // and any leading bytes (from byte positions 0 to s) to the output
+                        // container, because it may contain other types of MP4 boxes than
+                        // only sidx boxes (eg. trex, trun tfhd boxes), which are necessary
+                        // to play the media content. Then prepare to save each referenced
+                        // segment chunk to the output container.
+                        let mf = MediaFragmentBuilder::new(
+                            period_counter,
+                            base_url.clone(),
+                        )
+                        .with_range(Some(0), Some(e))
+                        .build();
+                        fragments.push(mf);
+                        let mut max_chunk_pos = 0;
+                        if let Ok(segment_chunks) =
+                            crate::sidx::from_isobmff_sidx(&idx, e + 1)
+                        {
+                            trace!(
+                                "Have {} segment chunks in sidx data",
+                                segment_chunks.len()
+                            );
+                            for chunk in segment_chunks {
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    base_url.clone(),
+                                )
+                                .with_range(Some(chunk.start), Some(chunk.end))
                                 .build();
-                            fragments.push(mf);
-                            let mut max_chunk_pos = 0;
-                            if let Ok(segment_chunks) = crate::sidx::from_isobmff_sidx(&idx, e+1) {
-                                trace!("Have {} segment chunks in sidx data", segment_chunks.len());
-                                for chunk in segment_chunks {
-                                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                                        .with_range(Some(chunk.start), Some(chunk.end))
-                                        .build();
-                                    fragments.push(mf);
-                                    if chunk.end > max_chunk_pos {
-                                        max_chunk_pos = chunk.end;
-                                    }
+                                fragments.push(mf);
+                                if chunk.end > max_chunk_pos {
+                                    max_chunk_pos = chunk.end;
                                 }
-                                indexable_segments = true;
                             }
+                            indexable_segments = true;
                         }
+                    }
                     // In theory we should also be able to handle Cue data in a WebM media
                     // stream similarly to chunks specified by an sidx box in an ISOBMFF/MP4
                     // container. However, simply appending the content pointed to by the
@@ -1976,10 +2237,11 @@ async fn do_segmentbase_indexrange(
                 fragments.push(mf);
             } else {
                 // Use the current BaseURL
-                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                    .with_range(start_byte, end_byte)
-                    .set_init()
-                    .build();
+                let mf =
+                    MediaFragmentBuilder::new(period_counter, base_url.clone())
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                 fragments.push(mf);
             }
         }
@@ -1988,7 +2250,10 @@ async fn do_segmentbase_indexrange(
         // HTTP Range requests, just download the whole segment as a single chunk. This is
         // likely to be a large HTTP request (for instance, the full video content as a
         // single MP4 file), so we increase our network request timeout.
-        trace!("Falling back to retrieving full SegmentBase for {}", base_url.clone());
+        trace!(
+            "Falling back to retrieving full SegmentBase for {}",
+            base_url.clone()
+        );
         let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
             .with_timeout(Duration::new(10_000, 0))
             .build();
@@ -1997,16 +2262,14 @@ async fn do_segmentbase_indexrange(
     Ok(fragments)
 }
 
-
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn do_period_audio(
     downloader: &DashDownloader,
     mpd: &MPD,
     period: &Period,
     period_counter: u8,
-    base_url: Url
-    ) -> Result<PeriodOutputs, DashMpdError>
-{
+    base_url: Url,
+) -> Result<PeriodOutputs, DashMpdError> {
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
     let mut opt_init: Option<String> = None;
@@ -2048,18 +2311,25 @@ async fn do_period_audio(
     }
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
-    let audio_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
+    let audio_adaptations: Vec<&AdaptationSet> = period
+        .adaptations
+        .iter()
         .filter(is_audio_adaptation)
         .collect();
-    let representations: Vec<&Representation> = select_preferred_adaptations(audio_adaptations, downloader)
-        .iter()
-        .flat_map(|a| a.representations.iter())
-        .collect();
-    if let Some(audio_repr) = select_preferred_representation(representations, downloader) {
+    let representations: Vec<&Representation> =
+        select_preferred_adaptations(audio_adaptations, downloader)
+            .iter()
+            .flat_map(|a| a.representations.iter())
+            .collect();
+    if let Some(audio_repr) =
+        select_preferred_representation(representations, downloader)
+    {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
-        let audio_adaptation = period.adaptations.iter()
+        let audio_adaptation = period
+            .adaptations
+            .iter()
             .find(|a| a.representations.iter().any(|r| r.eq(audio_repr)))
             .unwrap();
         // The AdaptationSet may have a BaseURL (e.g. the test BBC streams). We use a local variable
@@ -2078,24 +2348,35 @@ async fn do_period_audio(
                 String::from("")
             };
             let unknown = String::from("?");
-            let lang = audio_repr.lang.as_ref()
-                .unwrap_or(audio_adaptation.lang.as_ref()
-                           .unwrap_or(&unknown));
-            let codec = audio_repr.codecs.as_ref()
-                .unwrap_or(audio_adaptation.codecs.as_ref()
-                           .unwrap_or(&unknown));
-            diagnostics.push(format!("  Audio stream selected: {bw}lang={lang} codec={codec}"));
+            let lang = audio_repr
+                .lang
+                .as_ref()
+                .unwrap_or(audio_adaptation.lang.as_ref().unwrap_or(&unknown));
+            let codec = audio_repr.codecs.as_ref().unwrap_or(
+                audio_adaptation.codecs.as_ref().unwrap_or(&unknown),
+            );
+            diagnostics.push(format!(
+                "  Audio stream selected: {bw}lang={lang} codec={codec}"
+            ));
             // Check for ContentProtection on the selected Representation/Adaptation
-            for cp in audio_repr.ContentProtection.iter()
+            for cp in audio_repr
+                .ContentProtection
+                .iter()
                 .chain(audio_adaptation.ContentProtection.iter())
             {
-                diagnostics.push(format!("  ContentProtection: {}", content_protection_type(cp)));
+                diagnostics.push(format!(
+                    "  ContentProtection: {}",
+                    content_protection_type(cp)
+                ));
                 if let Some(kid) = &cp.default_KID {
-                    diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
+                    diagnostics
+                        .push(format!("    KID: {}", kid.replace('-', "")));
                 }
                 for pssh_element in cp.cenc_pssh.iter() {
                     if let Some(pssh_b64) = &pssh_element.content {
-                        diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
+                        diagnostics.push(format!(
+                            "    PSSH (from manifest): {pssh_b64}"
+                        ));
                         if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
                             diagnostics.push(format!("    {pssh}"));
                         }
@@ -2134,7 +2415,7 @@ async fn do_period_audio(
         // Now the 6 possible addressing modes: (1) SegmentList,
         // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
         // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
-        
+
         // Though SegmentBase and SegmentList addressing modes are supposed to be
         // mutually exclusive, some manifests in the wild use both. So we try to work
         // around the brokenness.
@@ -2156,16 +2437,20 @@ async fn do_period_audio(
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
                     let init_url = merge_baseurls(&base_url, &path)?;
-                    let mf = MediaFragmentBuilder::new(period_counter, init_url)
-                        .with_range(start_byte, end_byte)
-                        .set_init()
-                        .build();
+                    let mf =
+                        MediaFragmentBuilder::new(period_counter, init_url)
+                            .with_range(start_byte, end_byte)
+                            .set_init()
+                            .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                        .with_range(start_byte, end_byte)
-                        .set_init()
-                        .build();
+                    let mf = MediaFragmentBuilder::new(
+                        period_counter,
+                        base_url.clone(),
+                    )
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
                     fragments.push(mf);
                 }
             }
@@ -2209,16 +2494,20 @@ async fn do_period_audio(
                 if let Some(su) = &init.sourceURL {
                     let path = resolve_url_template(su, &dict);
                     let init_url = merge_baseurls(&base_url, &path)?;
-                    let mf = MediaFragmentBuilder::new(period_counter, init_url)
-                        .with_range(start_byte, end_byte)
-                        .set_init()
-                        .build();
+                    let mf =
+                        MediaFragmentBuilder::new(period_counter, init_url)
+                            .with_range(start_byte, end_byte)
+                            .set_init()
+                            .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                        .with_range(start_byte, end_byte)
-                        .set_init()
-                        .build();
+                    let mf = MediaFragmentBuilder::new(
+                        period_counter,
+                        base_url.clone(),
+                    )
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
                     fragments.push(mf);
                 }
             }
@@ -2245,8 +2534,8 @@ async fn do_period_audio(
                     fragments.push(mf);
                 }
             }
-        } else if audio_repr.SegmentTemplate.is_some() ||
-            audio_adaptation.SegmentTemplate.is_some()
+        } else if audio_repr.SegmentTemplate.is_some()
+            || audio_adaptation.SegmentTemplate.is_some()
         {
             // Here we are either looking at a Representation.SegmentTemplate, or a
             // higher-level AdaptationSet.SegmentTemplate
@@ -2270,8 +2559,14 @@ async fn do_period_audio(
             if let Some(sn) = st.startNumber {
                 start_number = sn;
             }
-            if let Some(stl) = &audio_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
-                .or(audio_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+            if let Some(stl) = &audio_repr
+                .SegmentTemplate
+                .as_ref()
+                .and_then(|st| st.SegmentTimeline.clone())
+                .or(audio_adaptation
+                    .SegmentTemplate
+                    .as_ref()
+                    .and_then(|st| st.SegmentTimeline.clone()))
             {
                 // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                 // "explicit addressing" in certain DASH-IF documents)
@@ -2297,16 +2592,22 @@ async fn do_period_audio(
                         }
                         segment_duration = s.d;
                         // the URLTemplate may be based on $Time$, or on $Number$
-                        let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                  ("Number", number.to_string())]);
+                        let dict = HashMap::from([
+                            ("Time", segment_time.to_string()),
+                            ("Number", number.to_string()),
+                        ]);
                         let path = resolve_url_template(&audio_path, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
-                        fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                        fragments.push(
+                            MediaFragmentBuilder::new(period_counter, u)
+                                .build(),
+                        );
                         number += 1;
                         if let Some(r) = s.r {
                             let mut count = 0i64;
                             // FIXME perhaps we also need to account for startTime?
-                            let end_time = period_duration_secs * timescale as f64;
+                            let end_time =
+                                period_duration_secs * timescale as f64;
                             loop {
                                 count += 1;
                                 // Exit from the loop after @r iterations (if @r is
@@ -2318,18 +2619,29 @@ async fn do_period_audio(
                                     if count > r {
                                         break;
                                     }
-                                    if downloader.force_duration.is_some() && segment_time as f64 > end_time {
+                                    if downloader.force_duration.is_some()
+                                        && segment_time as f64 > end_time
+                                    {
                                         break;
                                     }
                                 } else if segment_time as f64 > end_time {
                                     break;
                                 }
                                 segment_time += segment_duration;
-                                let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                          ("Number", number.to_string())]);
-                                let path = resolve_url_template(&audio_path, &dict);
+                                let dict = HashMap::from([
+                                    ("Time", segment_time.to_string()),
+                                    ("Number", number.to_string()),
+                                ]);
+                                let path =
+                                    resolve_url_template(&audio_path, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                                fragments.push(
+                                    MediaFragmentBuilder::new(
+                                        period_counter,
+                                        u,
+                                    )
+                                    .build(),
+                                );
                                 number += 1;
                             }
                         }
@@ -2337,9 +2649,11 @@ async fn do_period_audio(
                     }
                 } else {
                     return Err(DashMpdError::UnhandledMediaStream(
-                        "SegmentTimeline without a media attribute".to_string()));
+                        "SegmentTimeline without a media attribute".to_string(),
+                    ));
                 }
-            } else { // no SegmentTimeline element
+            } else {
+                // no SegmentTimeline element
                 // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index
                 // addressing mode (also called "simple addressing" in certain DASH-IF
                 // documents)
@@ -2370,24 +2684,33 @@ async fn do_period_audio(
                         return Err(DashMpdError::UnhandledMediaStream(
                             "Audio representation is missing SegmentTemplate@duration attribute".to_string()));
                     }
-                    total_number += (period_duration_secs / segment_duration).round() as i64;
+                    total_number += (period_duration_secs / segment_duration)
+                        .round() as i64;
                     let mut number = start_number;
                     // For dynamic MPDs the latest available segment is numbered
                     //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
                     if mpd_is_dynamic(mpd) {
                         if let Some(start_time) = mpd.availabilityStartTime {
-                            let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
-                            number = (elapsed + number as f64 - 1f64).floor() as u64;
+                            let elapsed = Utc::now()
+                                .signed_duration_since(start_time)
+                                .as_seconds_f64()
+                                / segment_duration;
+                            number =
+                                (elapsed + number as f64 - 1f64).floor() as u64;
                         } else {
                             return Err(DashMpdError::UnhandledMediaStream(
                                 "dynamic manifest is missing @availabilityStartTime".to_string()));
                         }
                     }
                     for _ in 1..=total_number {
-                        let dict = HashMap::from([("Number", number.to_string())]);
+                        let dict =
+                            HashMap::from([("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
-                        fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                        fragments.push(
+                            MediaFragmentBuilder::new(period_counter, u)
+                                .build(),
+                        );
                         number += 1;
                     }
                 }
@@ -2397,36 +2720,48 @@ async fn do_period_audio(
             if downloader.verbosity > 1 {
                 info!("  {}", "Using SegmentBase@indexRange addressing mode for audio representation".italic());
             }
-            let mf = do_segmentbase_indexrange(downloader, period_counter, base_url, sb, &dict).await?;
+            let mf = do_segmentbase_indexrange(
+                downloader,
+                period_counter,
+                base_url,
+                sb,
+                &dict,
+            )
+            .await?;
             fragments.extend(mf);
-         } else if fragments.is_empty() {
+        } else if fragments.is_empty() {
             if let Some(bu) = audio_repr.BaseURL.first() {
                 // (6) plain BaseURL addressing mode
                 if downloader.verbosity > 1 {
                     info!("  {}", "Using BaseURL addressing mode for audio representation".italic());
                 }
                 let u = merge_baseurls(&base_url, &bu.base)?;
-                fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                fragments
+                    .push(MediaFragmentBuilder::new(period_counter, u).build());
             }
         }
         if fragments.is_empty() {
             return Err(DashMpdError::UnhandledMediaStream(
-                "no usable addressing mode identified for audio representation".to_string()));
+                "no usable addressing mode identified for audio representation"
+                    .to_string(),
+            ));
         }
     }
-    Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
+    Ok(PeriodOutputs {
+        fragments,
+        diagnostics,
+        subtitle_formats: Vec::new(),
+    })
 }
 
-
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn do_period_video(
     downloader: &DashDownloader,
     mpd: &MPD,
     period: &Period,
     period_counter: u8,
-    base_url: Url
-    ) -> Result<PeriodOutputs, DashMpdError>
-{
+    base_url: Url,
+) -> Result<PeriodOutputs, DashMpdError> {
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
     let mut period_duration_secs: f64 = 0.0;
@@ -2470,20 +2805,38 @@ async fn do_period_video(
     // to download by ranking the available streams according to the preferred width specified by
     // the user, or by the preferred height specified by the user, or by the user's specified
     // quality preference.
-    let video_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
+    let video_adaptations: Vec<&AdaptationSet> = period
+        .adaptations
+        .iter()
         .filter(is_video_adaptation)
         .collect();
-    let representations: Vec<&Representation> = select_preferred_adaptations(video_adaptations, downloader)
-        .iter()
-        .flat_map(|a| a.representations.iter())
-        .collect();
-    let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
-        representations.iter()
-            .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
+    let representations: Vec<&Representation> =
+        select_preferred_adaptations(video_adaptations, downloader)
+            .iter()
+            .flat_map(|a| a.representations.iter())
+            .collect();
+    let maybe_video_repr = if let Some(want) = downloader.video_width_preference
+    {
+        representations
+            .iter()
+            .min_by_key(|x| {
+                if let Some(w) = x.width {
+                    want.abs_diff(w)
+                } else {
+                    u64::MAX
+                }
+            })
             .copied()
-    }  else if let Some(want) = downloader.video_height_preference {
-        representations.iter()
-            .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
+    } else if let Some(want) = downloader.video_height_preference {
+        representations
+            .iter()
+            .min_by_key(|x| {
+                if let Some(h) = x.height {
+                    want.abs_diff(h)
+                } else {
+                    u64::MAX
+                }
+            })
             .copied()
     } else {
         select_preferred_representation(representations, downloader)
@@ -2492,7 +2845,9 @@ async fn do_period_video(
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
-        let video_adaptation = period.adaptations.iter()
+        let video_adaptation = period
+            .adaptations
+            .iter()
             .find(|a| a.representations.iter().any(|r| r.eq(video_repr)))
             .unwrap();
         // The AdaptationSet may have a BaseURL. We use a local variable to make sure we
@@ -2505,33 +2860,50 @@ async fn do_period_video(
             base_url = merge_baseurls(&base_url, &bu.base)?;
         }
         if downloader.verbosity > 0 {
-            let bw = if let Some(bw) = video_repr.bandwidth.or(video_adaptation.maxBandwidth) {
+            let bw = if let Some(bw) =
+                video_repr.bandwidth.or(video_adaptation.maxBandwidth)
+            {
                 format!("bw={} Kbps ", bw / 1024)
             } else {
                 String::from("")
             };
             let unknown = String::from("?");
-            let w = video_repr.width.unwrap_or(video_adaptation.width.unwrap_or(0));
-            let h = video_repr.height.unwrap_or(video_adaptation.height.unwrap_or(0));
+            let w = video_repr
+                .width
+                .unwrap_or(video_adaptation.width.unwrap_or(0));
+            let h = video_repr
+                .height
+                .unwrap_or(video_adaptation.height.unwrap_or(0));
             let fmt = if w == 0 || h == 0 {
                 String::from("")
             } else {
                 format!("resolution={w}x{h} ")
             };
-            let codec = video_repr.codecs.as_ref()
-                .unwrap_or(video_adaptation.codecs.as_ref().unwrap_or(&unknown));
-            diagnostics.push(format!("  Video stream selected: {bw}{fmt}codec={codec}"));
+            let codec = video_repr.codecs.as_ref().unwrap_or(
+                video_adaptation.codecs.as_ref().unwrap_or(&unknown),
+            );
+            diagnostics.push(format!(
+                "  Video stream selected: {bw}{fmt}codec={codec}"
+            ));
             // Check for ContentProtection on the selected Representation/Adaptation
-            for cp in video_repr.ContentProtection.iter()
+            for cp in video_repr
+                .ContentProtection
+                .iter()
                 .chain(video_adaptation.ContentProtection.iter())
             {
-                diagnostics.push(format!("  ContentProtection: {}", content_protection_type(cp)));
+                diagnostics.push(format!(
+                    "  ContentProtection: {}",
+                    content_protection_type(cp)
+                ));
                 if let Some(kid) = &cp.default_KID {
-                    diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
+                    diagnostics
+                        .push(format!("    KID: {}", kid.replace('-', "")));
                 }
                 for pssh_element in cp.cenc_pssh.iter() {
                     if let Some(pssh_b64) = &pssh_element.content {
-                        diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
+                        diagnostics.push(format!(
+                            "    PSSH (from manifest): {pssh_b64}"
+                        ));
                         if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
                             diagnostics.push(format!("    {pssh}"));
                         }
@@ -2593,10 +2965,11 @@ async fn do_period_video(
                     fragments.push(mf);
                 }
             } else {
-                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                    .with_range(start_byte, end_byte)
-                    .set_init()
-                    .build();
+                let mf =
+                    MediaFragmentBuilder::new(period_counter, base_url.clone())
+                        .with_range(start_byte, end_byte)
+                        .set_init()
+                        .build();
                 fragments.push(mf);
             }
             for su in sl.segment_urls.iter() {
@@ -2645,10 +3018,13 @@ async fn do_period_video(
                         .build();
                     fragments.push(mf);
                 } else {
-                    let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                        .with_range(start_byte, end_byte)
-                        .set_init()
-                        .build();
+                    let mf = MediaFragmentBuilder::new(
+                        period_counter,
+                        base_url.clone(),
+                    )
+                    .with_range(start_byte, end_byte)
+                    .set_init()
+                    .build();
                     fragments.push(mf);
                 }
             }
@@ -2675,201 +3051,243 @@ async fn do_period_video(
                     fragments.push(mf);
                 }
             }
-        } else if video_repr.SegmentTemplate.is_some() ||
-            video_adaptation.SegmentTemplate.is_some() {
-                // Here we are either looking at a Representation.SegmentTemplate, or a
-                // higher-level AdaptationSet.SegmentTemplate
-                let st;
-                if let Some(it) = &video_repr.SegmentTemplate {
-                    st = it;
-                } else if let Some(it) = &video_adaptation.SegmentTemplate {
-                    st = it;
-                } else {
-                    panic!("impossible");
-                }
-                if let Some(i) = &st.initialization {
-                    opt_init = Some(i.to_string());
-                }
-                if let Some(m) = &st.media {
-                    opt_media = Some(m.to_string());
-                }
-                if let Some(ts) = st.timescale {
-                    timescale = ts;
-                }
-                if let Some(sn) = st.startNumber {
-                    start_number = sn;
-                }
-                if let Some(stl) = &video_repr.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
-                    .or(video_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
-                {
-                    // (2) SegmentTemplate with SegmentTimeline addressing mode
-                    if downloader.verbosity > 1 {
-                        info!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for video representation".italic());
-                    }
-                    if let Some(init) = opt_init {
-                        let path = resolve_url_template(&init, &dict);
-                        let u = merge_baseurls(&base_url, &path)?;
-                        let mf = MediaFragmentBuilder::new(period_counter, u)
-                            .set_init()
-                            .build();
-                        fragments.push(mf);
-                    }
-                    if let Some(media) = opt_media {
-                        let video_path = resolve_url_template(&media, &dict);
-                        let mut segment_time = 0;
-                        let mut segment_duration;
-                        let mut number = start_number;
-                        for s in &stl.segments {
-                            if let Some(t) = s.t {
-                                segment_time = t;
-                            }
-                            segment_duration = s.d;
-                            // the URLTemplate may be based on $Time$, or on $Number$
-                            let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                      ("Number", number.to_string())]);
-                            let path = resolve_url_template(&video_path, &dict);
-                            let u = merge_baseurls(&base_url, &path)?;
-                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
-                            fragments.push(mf);
-                            number += 1;
-                            if let Some(r) = s.r {
-                                let mut count = 0i64;
-                                // FIXME perhaps we also need to account for startTime?
-                                let end_time = period_duration_secs * timescale as f64;
-                                loop {
-                                    count += 1;
-                                    // Exit from the loop after @r iterations (if @r is
-                                    // positive). A negative value of the @r attribute indicates
-                                    // that the duration indicated in @d attribute repeats until
-                                    // the start of the next S element, the end of the Period or
-                                    // until the next MPD update.
-                                    if r >= 0 {
-                                        if count > r {
-                                            break;
-                                        }
-                                        if downloader.force_duration.is_some() && segment_time as f64 > end_time {
-                                            break;
-                                        }
-                                    } else if segment_time as f64 > end_time {
-                                        break;
-                                    }
-                                    segment_time += segment_duration;
-                                    let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                              ("Number", number.to_string())]);
-                                    let path = resolve_url_template(&video_path, &dict);
-                                    let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
-                                    fragments.push(mf);
-                                    number += 1;
-                                }
-                            }
-                            segment_time += segment_duration;
-                        }
-                    } else {
-                        return Err(DashMpdError::UnhandledMediaStream(
-                            "SegmentTimeline without a media attribute".to_string()));
-                    }
-                } else { // no SegmentTimeline element
-                    // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index addressing mode
-                    if downloader.verbosity > 1 {
-                        info!("  {}", "Using SegmentTemplate addressing mode for video representation".italic());
-                    }
-                    let mut total_number = 0i64;
-                    if let Some(init) = opt_init {
-                        let path = resolve_url_template(&init, &dict);
-                        let u = merge_baseurls(&base_url, &path)?;
-                        let mf = MediaFragmentBuilder::new(period_counter, u)
-                            .set_init()
-                            .build();
-                        fragments.push(mf);
-                    }
-                    if let Some(media) = opt_media {
-                        let video_path = resolve_url_template(&media, &dict);
-                        let timescale = st.timescale.unwrap_or(timescale);
-                        let mut segment_duration: f64 = -1.0;
-                        if let Some(d) = opt_duration {
-                            // it was set on the Period.SegmentTemplate node
-                            segment_duration = d;
-                        }
-                        if let Some(std) = st.duration {
-                            segment_duration = std / timescale as f64;
-                        }
-                        if segment_duration < 0.0 {
-                            return Err(DashMpdError::UnhandledMediaStream(
-                                "Video representation is missing SegmentTemplate@duration attribute".to_string()));
-                        }
-                        total_number += (period_duration_secs / segment_duration).round() as i64;
-                        let mut number = start_number;
-                        // For a live manifest (dynamic MPD), we look at the time elapsed since now
-                        // and the mpd.availabilityStartTime to determine the correct value for
-                        // startNumber, based on duration and timescale. The latest available
-                        // segment is numbered
-                        //
-                        //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
-
-                        // https://dashif.org/Guidelines-TimingModel/Timing-Model.pdf
-                        // To be more precise, any LeapSecondInformation should be added to the availabilityStartTime.
-                        if mpd_is_dynamic(mpd) {
-                            if let Some(start_time) = mpd.availabilityStartTime {
-                                let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
-                                number = (elapsed + number as f64 - 1f64).floor() as u64;
-                            } else {
-                                return Err(DashMpdError::UnhandledMediaStream(
-                                    "dynamic manifest is missing @availabilityStartTime".to_string()));
-                            }
-                        }
-                        for _ in 1..=total_number {
-                            let dict = HashMap::from([("Number", number.to_string())]);
-                            let path = resolve_url_template(&video_path, &dict);
-                            let u = merge_baseurls(&base_url, &path)?;
-                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
-                            fragments.push(mf);
-                            number += 1;
-                        }
-                    }
-                }
-            } else if let Some(sb) = &video_repr.SegmentBase {
-                // (5) SegmentBase@indexRange addressing mode
+        } else if video_repr.SegmentTemplate.is_some()
+            || video_adaptation.SegmentTemplate.is_some()
+        {
+            // Here we are either looking at a Representation.SegmentTemplate, or a
+            // higher-level AdaptationSet.SegmentTemplate
+            let st;
+            if let Some(it) = &video_repr.SegmentTemplate {
+                st = it;
+            } else if let Some(it) = &video_adaptation.SegmentTemplate {
+                st = it;
+            } else {
+                panic!("impossible");
+            }
+            if let Some(i) = &st.initialization {
+                opt_init = Some(i.to_string());
+            }
+            if let Some(m) = &st.media {
+                opt_media = Some(m.to_string());
+            }
+            if let Some(ts) = st.timescale {
+                timescale = ts;
+            }
+            if let Some(sn) = st.startNumber {
+                start_number = sn;
+            }
+            if let Some(stl) = &video_repr
+                .SegmentTemplate
+                .as_ref()
+                .and_then(|st| st.SegmentTimeline.clone())
+                .or(video_adaptation
+                    .SegmentTemplate
+                    .as_ref()
+                    .and_then(|st| st.SegmentTimeline.clone()))
+            {
+                // (2) SegmentTemplate with SegmentTimeline addressing mode
                 if downloader.verbosity > 1 {
-                    info!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
+                    info!("  {}", "Using SegmentTemplate+SegmentTimeline addressing mode for video representation".italic());
                 }
-                let mf = do_segmentbase_indexrange(downloader, period_counter, base_url, sb, &dict).await?;
-                fragments.extend(mf);
-            } else if fragments.is_empty()  {
-                if let Some(bu) = video_repr.BaseURL.first() {
-                    // (6) BaseURL addressing mode
-                    if downloader.verbosity > 1 {
-                        info!("  {}", "Using BaseURL addressing mode for video representation".italic());
-                    }
-                    let u = merge_baseurls(&base_url, &bu.base)?;
+                if let Some(init) = opt_init {
+                    let path = resolve_url_template(&init, &dict);
+                    let u = merge_baseurls(&base_url, &path)?;
                     let mf = MediaFragmentBuilder::new(period_counter, u)
-                        .with_timeout(Duration::new(10000, 0))
+                        .set_init()
                         .build();
                     fragments.push(mf);
                 }
+                if let Some(media) = opt_media {
+                    let video_path = resolve_url_template(&media, &dict);
+                    let mut segment_time = 0;
+                    let mut segment_duration;
+                    let mut number = start_number;
+                    for s in &stl.segments {
+                        if let Some(t) = s.t {
+                            segment_time = t;
+                        }
+                        segment_duration = s.d;
+                        // the URLTemplate may be based on $Time$, or on $Number$
+                        let dict = HashMap::from([
+                            ("Time", segment_time.to_string()),
+                            ("Number", number.to_string()),
+                        ]);
+                        let path = resolve_url_template(&video_path, &dict);
+                        let u = merge_baseurls(&base_url, &path)?;
+                        let mf = MediaFragmentBuilder::new(period_counter, u)
+                            .build();
+                        fragments.push(mf);
+                        number += 1;
+                        if let Some(r) = s.r {
+                            let mut count = 0i64;
+                            // FIXME perhaps we also need to account for startTime?
+                            let end_time =
+                                period_duration_secs * timescale as f64;
+                            loop {
+                                count += 1;
+                                // Exit from the loop after @r iterations (if @r is
+                                // positive). A negative value of the @r attribute indicates
+                                // that the duration indicated in @d attribute repeats until
+                                // the start of the next S element, the end of the Period or
+                                // until the next MPD update.
+                                if r >= 0 {
+                                    if count > r {
+                                        break;
+                                    }
+                                    if downloader.force_duration.is_some()
+                                        && segment_time as f64 > end_time
+                                    {
+                                        break;
+                                    }
+                                } else if segment_time as f64 > end_time {
+                                    break;
+                                }
+                                segment_time += segment_duration;
+                                let dict = HashMap::from([
+                                    ("Time", segment_time.to_string()),
+                                    ("Number", number.to_string()),
+                                ]);
+                                let path =
+                                    resolve_url_template(&video_path, &dict);
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .build();
+                                fragments.push(mf);
+                                number += 1;
+                            }
+                        }
+                        segment_time += segment_duration;
+                    }
+                } else {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "SegmentTimeline without a media attribute".to_string(),
+                    ));
+                }
+            } else {
+                // no SegmentTimeline element
+                // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index addressing mode
+                if downloader.verbosity > 1 {
+                    info!("  {}", "Using SegmentTemplate addressing mode for video representation".italic());
+                }
+                let mut total_number = 0i64;
+                if let Some(init) = opt_init {
+                    let path = resolve_url_template(&init, &dict);
+                    let u = merge_baseurls(&base_url, &path)?;
+                    let mf = MediaFragmentBuilder::new(period_counter, u)
+                        .set_init()
+                        .build();
+                    fragments.push(mf);
+                }
+                if let Some(media) = opt_media {
+                    let video_path = resolve_url_template(&media, &dict);
+                    let timescale = st.timescale.unwrap_or(timescale);
+                    let mut segment_duration: f64 = -1.0;
+                    if let Some(d) = opt_duration {
+                        // it was set on the Period.SegmentTemplate node
+                        segment_duration = d;
+                    }
+                    if let Some(std) = st.duration {
+                        segment_duration = std / timescale as f64;
+                    }
+                    if segment_duration < 0.0 {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                                "Video representation is missing SegmentTemplate@duration attribute".to_string()));
+                    }
+                    total_number += (period_duration_secs / segment_duration)
+                        .round() as i64;
+                    let mut number = start_number;
+                    // For a live manifest (dynamic MPD), we look at the time elapsed since now
+                    // and the mpd.availabilityStartTime to determine the correct value for
+                    // startNumber, based on duration and timescale. The latest available
+                    // segment is numbered
+                    //
+                    //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
+
+                    // https://dashif.org/Guidelines-TimingModel/Timing-Model.pdf
+                    // To be more precise, any LeapSecondInformation should be added to the availabilityStartTime.
+                    if mpd_is_dynamic(mpd) {
+                        if let Some(start_time) = mpd.availabilityStartTime {
+                            let elapsed = Utc::now()
+                                .signed_duration_since(start_time)
+                                .as_seconds_f64()
+                                / segment_duration;
+                            number =
+                                (elapsed + number as f64 - 1f64).floor() as u64;
+                        } else {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                    "dynamic manifest is missing @availabilityStartTime".to_string()));
+                        }
+                    }
+                    for _ in 1..=total_number {
+                        let dict =
+                            HashMap::from([("Number", number.to_string())]);
+                        let path = resolve_url_template(&video_path, &dict);
+                        let u = merge_baseurls(&base_url, &path)?;
+                        let mf = MediaFragmentBuilder::new(period_counter, u)
+                            .build();
+                        fragments.push(mf);
+                        number += 1;
+                    }
+                }
             }
+        } else if let Some(sb) = &video_repr.SegmentBase {
+            // (5) SegmentBase@indexRange addressing mode
+            if downloader.verbosity > 1 {
+                info!("  {}", "Using SegmentBase@indexRange addressing mode for video representation".italic());
+            }
+            let mf = do_segmentbase_indexrange(
+                downloader,
+                period_counter,
+                base_url,
+                sb,
+                &dict,
+            )
+            .await?;
+            fragments.extend(mf);
+        } else if fragments.is_empty() {
+            if let Some(bu) = video_repr.BaseURL.first() {
+                // (6) BaseURL addressing mode
+                if downloader.verbosity > 1 {
+                    info!("  {}", "Using BaseURL addressing mode for video representation".italic());
+                }
+                let u = merge_baseurls(&base_url, &bu.base)?;
+                let mf = MediaFragmentBuilder::new(period_counter, u)
+                    .with_timeout(Duration::new(10000, 0))
+                    .build();
+                fragments.push(mf);
+            }
+        }
         if fragments.is_empty() {
             return Err(DashMpdError::UnhandledMediaStream(
-                "no usable addressing mode identified for video representation".to_string()));
+                "no usable addressing mode identified for video representation"
+                    .to_string(),
+            ));
         }
     }
     // FIXME we aren't correctly handling manifests without a Representation node
     // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
-    Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
+    Ok(PeriodOutputs {
+        fragments,
+        diagnostics,
+        subtitle_formats: Vec::new(),
+    })
 }
 
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn do_period_subtitles(
     downloader: &DashDownloader,
     mpd: &MPD,
     period: &Period,
     period_counter: u8,
-    base_url: Url
-    ) -> Result<PeriodOutputs, DashMpdError>
-{
+    base_url: Url,
+) -> Result<PeriodOutputs, DashMpdError> {
     let client = downloader.http_client.as_ref().unwrap();
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
-    let period_output_path = output_path_for_period(output_path, period_counter);
+    let period_output_path =
+        output_path_for_period(output_path, period_counter);
     let mut fragments = Vec::new();
     let mut subtitle_formats = Vec::new();
     let mut period_duration_secs: f64 = 0.0;
@@ -2879,13 +3297,17 @@ async fn do_period_subtitles(
     if let Some(d) = period.duration {
         period_duration_secs = d.as_secs_f64();
     }
-    let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
-        period.adaptations.iter().filter(is_subtitle_adaptation)
-            .min_by_key(|a| adaptation_lang_distance(a, lang))
-    } else {
-        // returns the first subtitle adaptation found
-        period.adaptations.iter().find(is_subtitle_adaptation)
-    };
+    let maybe_subtitle_adaptation =
+        if let Some(ref lang) = downloader.language_preference {
+            period
+                .adaptations
+                .iter()
+                .filter(is_subtitle_adaptation)
+                .min_by_key(|a| adaptation_lang_distance(a, lang))
+        } else {
+            // returns the first subtitle adaptation found
+            period.adaptations.iter().find(is_subtitle_adaptation)
+        };
     if downloader.fetch_subtitles {
         if let Some(subtitle_adaptation) = maybe_subtitle_adaptation {
             let subtitle_format = subtitle_type(&subtitle_adaptation);
@@ -2911,26 +3333,47 @@ async fn do_period_subtitles(
                         } else {
                             req = req.header("Referer", base_url.to_string());
                         }
-                        let rqw = req.build()
-                            .map_err(|e| network_error("building request", e))?;
-                        let subs = reqwest_bytes_with_retries(client, rqw, 5).await
-                            .map_err(|e| network_error("fetching subtitles", e))?;
+                        let rqw = req.build().map_err(|e| {
+                            network_error("building request", e)
+                        })?;
+                        let subs = reqwest_bytes_with_retries(client, rqw, 5)
+                            .await
+                            .map_err(|e| {
+                                network_error("fetching subtitles", e)
+                            })?;
                         let mut subs_path = period_output_path.clone();
-                        let subtitle_format = subtitle_type(&subtitle_adaptation);
+                        let subtitle_format =
+                            subtitle_type(&subtitle_adaptation);
                         match subtitle_format {
                             SubtitleType::Vtt => subs_path.set_extension("vtt"),
                             SubtitleType::Srt => subs_path.set_extension("srt"),
-                            SubtitleType::Ttml => subs_path.set_extension("ttml"),
-                            SubtitleType::Sami => subs_path.set_extension("sami"),
-                            SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
-                            SubtitleType::Stpp => subs_path.set_extension("stpp"),
+                            SubtitleType::Ttml => {
+                                subs_path.set_extension("ttml")
+                            }
+                            SubtitleType::Sami => {
+                                subs_path.set_extension("sami")
+                            }
+                            SubtitleType::Wvtt => {
+                                subs_path.set_extension("wvtt")
+                            }
+                            SubtitleType::Stpp => {
+                                subs_path.set_extension("stpp")
+                            }
                             _ => subs_path.set_extension("sub"),
                         };
                         subtitle_formats.push(subtitle_format);
                         let mut subs_file = File::create(subs_path.clone())
-                            .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
+                            .map_err(|e| {
+                                DashMpdError::Io(
+                                    e,
+                                    String::from("creating subtitle file"),
+                                )
+                            })?;
                         if downloader.verbosity > 2 {
-                            info!("  Subtitle {st_url} -> {} octets", subs.len());
+                            info!(
+                                "  Subtitle {st_url} -> {} octets",
+                                subs.len()
+                            );
                         }
                         match subs_file.write_all(&subs) {
                             Ok(()) => {
@@ -2938,14 +3381,17 @@ async fn do_period_subtitles(
                                     info!("  Downloaded subtitles ({subtitle_format:?}) to {}",
                                              subs_path.display());
                                 }
-                            },
+                            }
                             Err(e) => {
                                 error!("Unable to write subtitle file: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
-                            },
+                                return Err(DashMpdError::Io(
+                                    e,
+                                    String::from("writing subtitle data"),
+                                ));
+                            }
                         }
-                        if subtitle_formats.contains(&SubtitleType::Wvtt) ||
-                            subtitle_formats.contains(&SubtitleType::Ttxt)
+                        if subtitle_formats.contains(&SubtitleType::Wvtt)
+                            || subtitle_formats.contains(&SubtitleType::Ttxt)
                         {
                             if downloader.verbosity > 0 {
                                 info!("   Converting subtitles to SRT format with MP4Box ");
@@ -2959,22 +3405,23 @@ async fn do_period_subtitles(
                             //   MP4Box -raw "0:output=output.vtt" input.mp4
                             let out_str = out.to_string_lossy();
                             let subs_str = subs_path.to_string_lossy();
-                            let args = vec![
-                                "-srt", "1",
-                                "-out", &out_str,
-                                &subs_str];
+                            let args =
+                                vec!["-srt", "1", "-out", &out_str, &subs_str];
                             if downloader.verbosity > 0 {
                                 info!("  Running MPBox {}", args.join(" "));
                             }
-                            if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                                .args(args)
-                                .output()
+                            if let Ok(mp4box) =
+                                Command::new(downloader.mp4box_location.clone())
+                                    .args(args)
+                                    .output()
                             {
-                                let msg = partial_process_output(&mp4box.stdout);
+                                let msg =
+                                    partial_process_output(&mp4box.stdout);
                                 if !msg.is_empty() {
                                     info!("MP4Box stdout: {msg}");
                                 }
-                                let msg = partial_process_output(&mp4box.stderr);
+                                let msg =
+                                    partial_process_output(&mp4box.stderr);
                                 if !msg.is_empty() {
                                     info!("MP4Box stderr: {msg}");
                                 }
@@ -2986,7 +3433,9 @@ async fn do_period_subtitles(
                             }
                         }
                     }
-                } else if rep.SegmentTemplate.is_some() || subtitle_adaptation.SegmentTemplate.is_some() {
+                } else if rep.SegmentTemplate.is_some()
+                    || subtitle_adaptation.SegmentTemplate.is_some()
+                {
                     let mut opt_init: Option<String> = None;
                     let mut opt_media: Option<String> = None;
                     let mut opt_duration: Option<f64> = None;
@@ -3015,11 +3464,15 @@ async fn do_period_subtitles(
                     }
                     let rid = match &rep.id {
                         Some(id) => id,
-                        None => return Err(
-                            DashMpdError::UnhandledMediaStream(
-                                "Missing @id on Representation node".to_string())),
+                        None => {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "Missing @id on Representation node"
+                                    .to_string(),
+                            ))
+                        }
                     };
-                    let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                    let mut dict =
+                        HashMap::from([("RepresentationID", rid.to_string())]);
                     if let Some(b) = &rep.bandwidth {
                         dict.insert("Bandwidth", b.to_string());
                     }
@@ -3043,16 +3496,22 @@ async fn do_period_subtitles(
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             } else {
-                                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                                    .with_range(start_byte, end_byte)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    base_url.clone(),
+                                )
+                                .with_range(start_byte, end_byte)
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             }
                         }
@@ -3067,15 +3526,23 @@ async fn do_period_subtitles(
                             }
                             if let Some(m) = &su.media {
                                 let u = merge_baseurls(&base_url, m)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .build();
                                 fragments.push(mf);
-                            } else if let Some(bu) = subtitle_adaptation.BaseURL.first() {
+                            } else if let Some(bu) =
+                                subtitle_adaptation.BaseURL.first()
+                            {
                                 let u = merge_baseurls(&base_url, &bu.base)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .build();
                                 fragments.push(mf);
                             }
                         }
@@ -3096,16 +3563,22 @@ async fn do_period_subtitles(
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             } else {
-                                let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                                    .with_range(start_byte, end_byte)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    base_url.clone(),
+                                )
+                                .with_range(start_byte, end_byte)
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             }
                         }
@@ -3120,27 +3593,35 @@ async fn do_period_subtitles(
                             }
                             if let Some(m) = &su.media {
                                 let u = merge_baseurls(&base_url, m)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .build();
                                 fragments.push(mf);
                             } else if let Some(bu) = &rep.BaseURL.first() {
                                 let u = merge_baseurls(&base_url, &bu.base)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .build();
                                 fragments.push(mf);
                             };
                         }
-                    } else if rep.SegmentTemplate.is_some() ||
-                        subtitle_adaptation.SegmentTemplate.is_some()
+                    } else if rep.SegmentTemplate.is_some()
+                        || subtitle_adaptation.SegmentTemplate.is_some()
                     {
                         // Here we are either looking at a Representation.SegmentTemplate, or a
                         // higher-level AdaptationSet.SegmentTemplate
                         let st;
                         if let Some(it) = &rep.SegmentTemplate {
                             st = it;
-                        } else if let Some(it) = &subtitle_adaptation.SegmentTemplate {
+                        } else if let Some(it) =
+                            &subtitle_adaptation.SegmentTemplate
+                        {
                             st = it;
                         } else {
                             panic!("unreachable");
@@ -3157,8 +3638,14 @@ async fn do_period_subtitles(
                         if let Some(sn) = st.startNumber {
                             start_number = sn;
                         }
-                        if let Some(stl) = &rep.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
-                            .or(subtitle_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
+                        if let Some(stl) = &rep
+                            .SegmentTemplate
+                            .as_ref()
+                            .and_then(|st| st.SegmentTimeline.clone())
+                            .or(subtitle_adaptation
+                                .SegmentTemplate
+                                .as_ref()
+                                .and_then(|st| st.SegmentTimeline.clone()))
                         {
                             // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
                             // "explicit addressing" in certain DASH-IF documents)
@@ -3168,13 +3655,17 @@ async fn do_period_subtitles(
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             }
                             if let Some(media) = opt_media {
-                                let sub_path = resolve_url_template(&media, &dict);
+                                let sub_path =
+                                    resolve_url_template(&media, &dict);
                                 let mut segment_time = 0;
                                 let mut segment_duration;
                                 let mut number = start_number;
@@ -3184,17 +3675,25 @@ async fn do_period_subtitles(
                                     }
                                     segment_duration = s.d;
                                     // the URLTemplate may be based on $Time$, or on $Number$
-                                    let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                              ("Number", number.to_string())]);
-                                    let path = resolve_url_template(&sub_path, &dict);
+                                    let dict = HashMap::from([
+                                        ("Time", segment_time.to_string()),
+                                        ("Number", number.to_string()),
+                                    ]);
+                                    let path =
+                                        resolve_url_template(&sub_path, &dict);
                                     let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
+                                    let mf = MediaFragmentBuilder::new(
+                                        period_counter,
+                                        u,
+                                    )
+                                    .build();
                                     fragments.push(mf);
                                     number += 1;
                                     if let Some(r) = s.r {
                                         let mut count = 0i64;
                                         // FIXME perhaps we also need to account for startTime?
-                                        let end_time = period_duration_secs * timescale as f64;
+                                        let end_time = period_duration_secs
+                                            * timescale as f64;
                                         loop {
                                             count += 1;
                                             // Exit from the loop after @r iterations (if @r is
@@ -3206,20 +3705,38 @@ async fn do_period_subtitles(
                                                 if count > r {
                                                     break;
                                                 }
-                                                if downloader.force_duration.is_some() &&
-                                                    segment_time as f64 > end_time
+                                                if downloader
+                                                    .force_duration
+                                                    .is_some()
+                                                    && segment_time as f64
+                                                        > end_time
                                                 {
                                                     break;
                                                 }
-                                            } else if segment_time as f64 > end_time {
+                                            } else if segment_time as f64
+                                                > end_time
+                                            {
                                                 break;
                                             }
                                             segment_time += segment_duration;
-                                            let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                                      ("Number", number.to_string())]);
-                                            let path = resolve_url_template(&sub_path, &dict);
-                                            let u = merge_baseurls(&base_url, &path)?;
-                                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
+                                            let dict = HashMap::from([
+                                                (
+                                                    "Time",
+                                                    segment_time.to_string(),
+                                                ),
+                                                ("Number", number.to_string()),
+                                            ]);
+                                            let path = resolve_url_template(
+                                                &sub_path, &dict,
+                                            );
+                                            let u = merge_baseurls(
+                                                &base_url, &path,
+                                            )?;
+                                            let mf = MediaFragmentBuilder::new(
+                                                period_counter,
+                                                u,
+                                            )
+                                            .build();
                                             fragments.push(mf);
                                             number += 1;
                                         }
@@ -3230,7 +3747,8 @@ async fn do_period_subtitles(
                                 return Err(DashMpdError::UnhandledMediaStream(
                                     "SegmentTimeline without a media attribute".to_string()));
                             }
-                        } else { // no SegmentTimeline element
+                        } else {
+                            // no SegmentTimeline element
                             // (3) SegmentTemplate@duration addressing mode or (4) SegmentTemplate@index
                             // addressing mode (also called "simple addressing" in certain DASH-IF
                             // documents)
@@ -3256,9 +3774,15 @@ async fn do_period_subtitles(
                                 Some(id) => id,
                                 None => return Err(
                                     DashMpdError::UnhandledMediaStream(
-                                        "Missing @id on Representation node".to_string())),
+                                        "Missing @id on Representation node"
+                                            .to_string(),
+                                    ),
+                                ),
                             };
-                            let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                            let mut dict = HashMap::from([(
+                                "RepresentationID",
+                                rid.to_string(),
+                            )]);
                             if let Some(b) = &rep.bandwidth {
                                 dict.insert("Bandwidth", b.to_string());
                             }
@@ -3266,13 +3790,17 @@ async fn do_period_subtitles(
                             if let Some(init) = opt_init {
                                 let path = resolve_url_template(&init, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             }
                             if let Some(media) = opt_media {
-                                let sub_path = resolve_url_template(&media, &dict);
+                                let sub_path =
+                                    resolve_url_template(&media, &dict);
                                 let mut segment_duration: f64 = -1.0;
                                 if let Some(d) = opt_duration {
                                     // it was set on the Period.SegmentTemplate node
@@ -3285,13 +3813,24 @@ async fn do_period_subtitles(
                                     return Err(DashMpdError::UnhandledMediaStream(
                                         "Subtitle representation is missing SegmentTemplate@duration".to_string()));
                                 }
-                                total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                                total_number += (period_duration_secs
+                                    / segment_duration)
+                                    .ceil()
+                                    as i64;
                                 let mut number = start_number;
                                 for _ in 1..=total_number {
-                                    let dict = HashMap::from([("Number", number.to_string())]);
-                                    let path = resolve_url_template(&sub_path, &dict);
+                                    let dict = HashMap::from([(
+                                        "Number",
+                                        number.to_string(),
+                                    )]);
+                                    let path =
+                                        resolve_url_template(&sub_path, &dict);
                                     let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
+                                    let mf = MediaFragmentBuilder::new(
+                                        period_counter,
+                                        u,
+                                    )
+                                    .build();
                                     fragments.push(mf);
                                     number += 1;
                                 }
@@ -3314,16 +3853,22 @@ async fn do_period_subtitles(
                             if let Some(su) = &init.sourceURL {
                                 let path = resolve_url_template(su, &dict);
                                 let u = merge_baseurls(&base_url, &path)?;
-                                let mf = MediaFragmentBuilder::new(period_counter, u)
-                                    .with_range(start_byte, end_byte)
-                                    .set_init()
-                                    .build();
+                                let mf = MediaFragmentBuilder::new(
+                                    period_counter,
+                                    u,
+                                )
+                                .with_range(start_byte, end_byte)
+                                .set_init()
+                                .build();
                                 fragments.push(mf);
                             }
                         }
-                        let mf = MediaFragmentBuilder::new(period_counter, base_url.clone())
-                            .set_init()
-                            .build();
+                        let mf = MediaFragmentBuilder::new(
+                            period_counter,
+                            base_url.clone(),
+                        )
+                        .set_init()
+                        .build();
                         fragments.push(mf);
                         // TODO also implement SegmentBase addressing mode for subtitles
                         // (sample MPD: https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd)
@@ -3332,9 +3877,12 @@ async fn do_period_subtitles(
             }
         }
     }
-    Ok(PeriodOutputs { fragments, diagnostics: Vec::new(), subtitle_formats })
+    Ok(PeriodOutputs {
+        fragments,
+        diagnostics: Vec::new(),
+        subtitle_formats,
+    })
 }
-
 
 // This is a complement to the DashDownloader struct, intended to contain the mutable state
 // associated with a download. We have chosen an API where the DashDownloader is not mutable.
@@ -3342,7 +3890,7 @@ struct DownloadState {
     period_counter: u8,
     segment_count: usize,
     segment_counter: usize,
-    download_errors: u32
+    download_errors: u32,
 }
 
 // Fetch a media fragment at URL frag.url, using the reqwest client in downloader.http_client.
@@ -3351,18 +3899,21 @@ struct DownloadState {
 //
 // Note: We return a File instead of a Bytes buffer, because some streams using SegmentBase indexing
 // have huge segments that can fill up RAM.
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn fetch_fragment(
     downloader: &mut DashDownloader,
     frag: &MediaFragment,
     fragment_type: &str,
-    progress_percent: u32) -> Result<std::fs::File, DashMpdError>
-{
+    progress_percent: u32,
+) -> Result<std::fs::File, DashMpdError> {
     let send_request = || async {
         trace!("send_request {}", frag.url.clone());
         // Don't use only "audio/*" or "video/*" in Accept header because some web servers (eg.
         // media.axprod.net) are misconfigured and reject requests for valid audio content (eg .m4s)
-        let mut req = downloader.http_client.as_ref().unwrap()
+        let mut req = downloader
+            .http_client
+            .as_ref()
+            .unwrap()
             .get(frag.url.clone())
             .header("Accept", format!("{fragment_type}/*;q=0.9,*/*;q=0.5"))
             .header("Sec-Fetch-Mode", "navigate");
@@ -3387,32 +3938,52 @@ async fn fetch_fragment(
         if let Some(token) = &downloader.auth_bearer_token {
             req = req.bearer_auth(token);
         }
-        req.send().await
+        req.send()
+            .await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
             .map_err(categorize_reqwest_error)
     };
-    match retry_notify(ExponentialBackoff::default(), send_request, notify_transient).await {
+    match retry_notify(
+        ExponentialBackoff::default(),
+        send_request,
+        notify_transient,
+    )
+    .await
+    {
         Ok(response) => {
             match response.error_for_status() {
                 Ok(mut resp) => {
-                    let mut tmp_out = tempfile::tempfile()
-                        .map_err(|e| DashMpdError::Io(e, String::from("creating tmpfile for fragment")))?;
-                      let content_type_checker = if fragment_type.eq("audio") {
+                    let mut tmp_out = tempfile::tempfile().map_err(|e| {
+                        DashMpdError::Io(
+                            e,
+                            String::from("creating tmpfile for fragment"),
+                        )
+                    })?;
+                    let content_type_checker = if fragment_type.eq("audio") {
                         content_type_audio_p
                     } else if fragment_type.eq("video") {
                         content_type_video_p
                     } else {
                         panic!("fragment_type not audio or video");
                     };
-                    if !downloader.content_type_checks || content_type_checker(&resp) {
+                    if !downloader.content_type_checks
+                        || content_type_checker(&resp)
+                    {
                         let mut fragment_out: Option<File> = None;
-                        if let Some(ref fragment_path) = downloader.fragment_path {
-                            if let Some(path) = frag.url.path_segments()
+                        if let Some(ref fragment_path) =
+                            downloader.fragment_path
+                        {
+                            if let Some(path) = frag
+                                .url
+                                .path_segments()
                                 .unwrap_or_else(|| "".split(' '))
                                 .next_back()
                             {
-                                let vf_file = fragment_path.clone().join(fragment_type).join(path);
+                                let vf_file = fragment_path
+                                    .clone()
+                                    .join(fragment_type)
+                                    .join(path);
                                 if let Ok(f) = File::create(vf_file) {
                                     fragment_out = Some(f)
                                 }
@@ -3424,23 +3995,48 @@ async fn fetch_fragment(
                         // important for DASH manifests that use indexRange addressing, which we
                         // don't download using byte range requests as a normal DASH client would
                         // do, but rather download using a single network request.
-                        while let Some(chunk) = resp.chunk().await
-                            .map_err(|e| network_error(&format!("fetching DASH {fragment_type} segment"), e))?
+                        while let Some(chunk) =
+                            resp.chunk().await.map_err(|e| {
+                                network_error(
+                                    &format!(
+                                        "fetching DASH {fragment_type} segment"
+                                    ),
+                                    e,
+                                )
+                            })?
                         {
                             segment_size += chunk.len();
                             downloader.bw_estimator_bytes += chunk.len();
-                            let size = min((chunk.len()/1024+1) as u32, u32::MAX);
+                            let size =
+                                min((chunk.len() / 1024 + 1) as u32, u32::MAX);
                             throttle_download_rate(downloader, size).await?;
                             if let Err(e) = tmp_out.write_all(&chunk) {
-                                return Err(DashMpdError::Io(e, format!("writing DASH {fragment_type} data")));
+                                return Err(DashMpdError::Io(
+                                    e,
+                                    format!(
+                                        "writing DASH {fragment_type} data"
+                                    ),
+                                ));
                             }
                             if let Some(ref mut fout) = fragment_out {
-                                fout.write_all(&chunk)
-                                    .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))?;
+                                fout.write_all(&chunk).map_err(|e| {
+                                    DashMpdError::Io(
+                                        e,
+                                        format!(
+                                            "writing {fragment_type} fragment"
+                                        ),
+                                    )
+                                })?;
                             }
-                            let elapsed = downloader.bw_estimator_started.elapsed().as_secs_f64();
-                            if (elapsed > 1.5) || (downloader.bw_estimator_bytes > 100_000) {
-                                let bw = downloader.bw_estimator_bytes as f64 / (1e6 * elapsed);
+                            let elapsed = downloader
+                                .bw_estimator_started
+                                .elapsed()
+                                .as_secs_f64();
+                            if (elapsed > 1.5)
+                                || (downloader.bw_estimator_bytes > 100_000)
+                            {
+                                let bw = downloader.bw_estimator_bytes as f64
+                                    / (1e6 * elapsed);
                                 let msg = if bw > 0.5 {
                                     format!("Fetching {fragment_type} segments ({bw:.1} MB/s)")
                                 } else {
@@ -3450,7 +4046,8 @@ async fn fetch_fragment(
                                 for observer in &downloader.progress_observers {
                                     observer.update(progress_percent, &msg);
                                 }
-                                downloader.bw_estimator_started = Instant::now();
+                                downloader.bw_estimator_started =
+                                    Instant::now();
                                 downloader.bw_estimator_bytes = 0;
                             }
                         }
@@ -3465,93 +4062,138 @@ async fn fetch_fragment(
                             }
                         }
                     } else {
-                        warn!("{} {} with non-{fragment_type} content-type", "Ignoring segment".red(), frag.url);
+                        warn!(
+                            "{} {} with non-{fragment_type} content-type",
+                            "Ignoring segment".red(),
+                            frag.url
+                        );
                     };
-                    tmp_out.sync_all()
-                        .map_err(|e| DashMpdError::Io(e, format!("syncing {fragment_type} fragment")))?;
+                    tmp_out.sync_all().map_err(|e| {
+                        DashMpdError::Io(
+                            e,
+                            format!("syncing {fragment_type} fragment"),
+                        )
+                    })?;
                     Ok(tmp_out)
-                },
+                }
                 Err(e) => Err(network_error("HTTP error", e)),
             }
-        },
+        }
         Err(e) => Err(network_error(&format!("{e:?}"), e)),
     }
 }
 
-
 // Retrieve the audio segments for period `period_counter` and concatenate them to a file at tmppath.
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn fetch_period_audio(
     downloader: &mut DashDownloader,
     tmppath: PathBuf,
     audio_fragments: &[MediaFragment],
-    ds: &mut DownloadState) -> Result<bool, DashMpdError>
-{
+    ds: &mut DownloadState,
+) -> Result<bool, DashMpdError> {
     let start_download = Instant::now();
     let mut have_audio = false;
     {
         // We need a local scope for our temporary File, so that the file is closed when we later
         // optionally call the decryption application (which requires exclusive access to its input
         // file on Windows).
-        let tmpfile_audio = File::create(tmppath.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
+        let tmpfile_audio = File::create(tmppath.clone()).map_err(|e| {
+            DashMpdError::Io(e, String::from("creating audio tmpfile"))
+        })?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
         // Optionally create the directory to which we will save the audio fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
             let audio_fragment_dir = fragment_path.join("audio");
             if !audio_fragment_dir.exists() {
-                fs::create_dir_all(audio_fragment_dir)
-                    .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
+                fs::create_dir_all(audio_fragment_dir).map_err(|e| {
+                    DashMpdError::Io(
+                        e,
+                        String::from("creating audio fragment dir"),
+                    )
+                })?;
             }
         }
         // TODO: in DASH, the init segment contains headers that are necessary to generate a valid MP4
         // file, so we should always abort if the first segment cannot be fetched. However, we could
         // tolerate loss of subsequent segments.
-        for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
+        for frag in audio_fragments
+            .iter()
+            .filter(|f| f.period == ds.period_counter)
+        {
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32;
+            let progress_percent = (100.0 * ds.segment_counter as f32
+                / (2.0 + ds.segment_count as f32))
+                .ceil() as u32;
             let url = &frag.url;
             // A manifest may use a data URL (RFC 2397) to embed media content such as the
             // initialization segment directly in the manifest (recommended by YouTube for live
             // streaming, but uncommon in practice).
             if url.scheme() == "data" {
                 let us = &url.to_string();
-                let du = DataUrl::process(us)
-                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                let du = DataUrl::process(us).map_err(|_| {
+                    DashMpdError::Parsing(String::from("parsing data URL"))
+                })?;
                 if du.mime_type().type_ != "audio" {
                     return Err(DashMpdError::UnhandledMediaStream(
-                        String::from("expecting audio content in data URL")));
+                        String::from("expecting audio content in data URL"),
+                    ));
                 }
-                let (body, _fragment) = du.decode_to_vec()
-                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                let (body, _fragment) = du.decode_to_vec().map_err(|_| {
+                    DashMpdError::Parsing(String::from("decoding data URL"))
+                })?;
                 if downloader.verbosity > 2 {
                     info!("  Audio segment data URL -> {} octets", body.len());
                 }
                 if let Err(e) = tmpfile_audio.write_all(&body) {
                     error!("Unable to write DASH audio data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                    return Err(DashMpdError::Io(
+                        e,
+                        String::from("writing DASH audio data"),
+                    ));
                 }
                 have_audio = true;
             } else {
                 // We could download these segments in parallel, but that might upset some servers.
                 'done: for _ in 0..downloader.fragment_retry_count {
-                    match fetch_fragment(downloader, frag, "audio", progress_percent).await {
+                    match fetch_fragment(
+                        downloader,
+                        frag,
+                        "audio",
+                        progress_percent,
+                    )
+                    .await
+                    {
                         Ok(mut frag_file) => {
-                            frag_file.rewind()
-                                .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
+                            frag_file.rewind().map_err(|e| {
+                                DashMpdError::Io(
+                                    e,
+                                    String::from("rewinding fragment tempfile"),
+                                )
+                            })?;
                             let mut buf = Vec::new();
-                            frag_file.read_to_end(&mut buf)
-                                .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
+                            frag_file.read_to_end(&mut buf).map_err(|e| {
+                                DashMpdError::Io(
+                                    e,
+                                    String::from("reading fragment tempfile"),
+                                )
+                            })?;
                             if let Err(e) = tmpfile_audio.write_all(&buf) {
-                                error!("Unable to write DASH audio data: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
+                                error!(
+                                    "Unable to write DASH audio data: {e:?}"
+                                );
+                                return Err(DashMpdError::Io(
+                                    e,
+                                    String::from("writing DASH audio data"),
+                                ));
                             }
                             have_audio = true;
                             break 'done;
-                        },
+                        }
                         Err(e) => {
                             if downloader.verbosity > 0 {
-                                error!("Error fetching audio segment {url}: {e:?}");
+                                error!(
+                                    "Error fetching audio segment {url}: {e:?}"
+                                );
                             }
                             ds.download_errors += 1;
                             if ds.download_errors > downloader.max_error_count {
@@ -3559,11 +4201,15 @@ async fn fetch_period_audio(
                                 return Err(DashMpdError::Network(
                                     String::from("more than max_error_count network errors")));
                             }
-                        },
+                        }
                     }
                     info!("  Retrying audio segment {url}");
                     if downloader.sleep_between_requests > 0 {
-                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+                        tokio::time::sleep(Duration::new(
+                            downloader.sleep_between_requests.into(),
+                            0,
+                        ))
+                        .await;
                     }
                 }
             }
@@ -3575,13 +4221,22 @@ async fn fetch_period_audio(
     } // end local scope for the FileHandle
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone())
-                .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted audio metadata")))?;
-            info!("  Attempting to decrypt audio stream ({} kB) with {}",
-                  metadata.len() / 1024,
-                  downloader.decryptor_preference);
+            let metadata = fs::metadata(tmppath.clone()).map_err(|e| {
+                DashMpdError::Io(
+                    e,
+                    String::from("reading encrypted audio metadata"),
+                )
+            })?;
+            info!(
+                "  Attempting to decrypt audio stream ({} kB) with {}",
+                metadata.len() / 1024,
+                downloader.decryptor_preference
+            );
         }
-        let out_ext = downloader.output_path.as_ref().unwrap()
+        let out_ext = downloader
+            .output_path
+            .as_ref()
+            .unwrap()
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-audio", out_ext)?;
@@ -3599,11 +4254,16 @@ async fn fetch_period_audio(
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning mp4decrypt"))
+                })?;
             let mut no_output = true;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted audio stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 no_output = false;
             }
@@ -3619,9 +4279,14 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                error!("{}", "Failed to decrypt audio stream with mp4decrypt".red());
+                error!(
+                    "{}",
+                    "Failed to decrypt audio stream with mp4decrypt".red()
+                );
                 warn!("  Undecrypted audio left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
+                return Err(DashMpdError::Decrypting(String::from(
+                    "audio stream",
+                )));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
             let mut args = Vec::new();
@@ -3629,7 +4294,11 @@ async fn fetch_period_audio(
             if downloader.verbosity < 1 {
                 args.push("--quiet".to_string());
             }
-            args.push(format!("in={},stream=audio,output={}", tmppath.display(), decrypted.display()));
+            args.push(format!(
+                "in={},stream=audio,output={}",
+                tmppath.display(),
+                decrypted.display()
+            ));
             let mut drm_label = 0;
             #[allow(clippy::explicit_counter_loop)]
             for (k, v) in downloader.decryption_keys.iter() {
@@ -3645,11 +4314,16 @@ async fn fetch_period_audio(
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning shaka-packager"))
+                })?;
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted audio stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3669,38 +4343,60 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                error!("  {}", "Failed to decrypt audio stream with shaka-packager".red());
-                warn!("  Undecrypted audio stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
+                error!(
+                    "  {}",
+                    "Failed to decrypt audio stream with shaka-packager".red()
+                );
+                warn!(
+                    "  Undecrypted audio stream left in {}",
+                    tmppath.display()
+                );
+                return Err(DashMpdError::Decrypting(String::from(
+                    "audio stream",
+                )));
             }
         // Decrypt with MP4Box as per https://wiki.gpac.io/xmlformats/Common-Encryption/
         //    MP4Box -decrypt drm_file.xml encrypted.mp4 -out decrypted.mp4
         } else if downloader.decryptor_preference.eq("mp4box") {
             let mut args = Vec::new();
             let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
-            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
+            let mut drmfile_contents =
+                String::from("<GPACDRM>\n  <CrypTrack>\n");
             for (k, v) in downloader.decryption_keys.iter() {
-                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+                drmfile_contents +=
+                    &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
             }
             drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents)
-                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
+            fs::write(&drmfile, drmfile_contents).map_err(|e| {
+                DashMpdError::Io(
+                    e,
+                    String::from("writing to MP4Box decrypt file"),
+                )
+            })?;
             args.push("-decrypt".to_string());
             args.push(drmfile.display().to_string());
             args.push(String::from(tmppath.to_string_lossy()));
             args.push("-out".to_string());
             args.push(String::from(decrypted.to_string_lossy()));
             if downloader.verbosity > 1 {
-                info!("  Running decryption application MP4Box {}", args.join(" "));
+                info!(
+                    "  Running decryption application MP4Box {}",
+                    args.join(" ")
+                );
             }
             let out = Command::new(downloader.mp4box_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning MP4Box"))
+                })?;
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted audio stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3720,103 +4416,158 @@ async fn fetch_period_audio(
                 }
             }
             if no_output {
-                error!("  {}", "Failed to decrypt audio stream with MP4Box".red());
-                warn!("  Undecrypted audio stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
+                error!(
+                    "  {}",
+                    "Failed to decrypt audio stream with MP4Box".red()
+                );
+                warn!(
+                    "  Undecrypted audio stream left in {}",
+                    tmppath.display()
+                );
+                return Err(DashMpdError::Decrypting(String::from(
+                    "audio stream",
+                )));
             }
         } else {
-            return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
+            return Err(DashMpdError::Decrypting(String::from(
+                "unknown decryption application",
+            )));
         }
-        fs::rename(decrypted, tmppath.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
+        fs::rename(decrypted, tmppath.clone()).map_err(|e| {
+            DashMpdError::Io(e, String::from("renaming decrypted audio"))
+        })?;
     }
     if let Ok(metadata) = fs::metadata(tmppath.clone()) {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            info!("  Wrote {mbytes:.1}MB to DASH audio file ({:.1} MB/s)",
-                     mbytes / elapsed.as_secs_f64());
+            info!(
+                "  Wrote {mbytes:.1}MB to DASH audio file ({:.1} MB/s)",
+                mbytes / elapsed.as_secs_f64()
+            );
         }
     }
     Ok(have_audio)
 }
 
-
 // Retrieve the video segments for period `period_counter` and concatenate them to a file at tmppath.
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn fetch_period_video(
     downloader: &mut DashDownloader,
     tmppath: PathBuf,
     video_fragments: &[MediaFragment],
-    ds: &mut DownloadState) -> Result<bool, DashMpdError>
-{
+    ds: &mut DownloadState,
+) -> Result<bool, DashMpdError> {
     let start_download = Instant::now();
     let mut have_video = false;
     {
         // We need a local scope for our tmpfile_video File, so that the file is closed when
         // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
-        let tmpfile_video = File::create(tmppath.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
+        let tmpfile_video = File::create(tmppath.clone()).map_err(|e| {
+            DashMpdError::Io(e, String::from("creating video tmpfile"))
+        })?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
         // Optionally create the directory to which we will save the video fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
             let video_fragment_dir = fragment_path.join("video");
             if !video_fragment_dir.exists() {
-                fs::create_dir_all(video_fragment_dir)
-                    .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
+                fs::create_dir_all(video_fragment_dir).map_err(|e| {
+                    DashMpdError::Io(
+                        e,
+                        String::from("creating video fragment dir"),
+                    )
+                })?;
             }
         }
-        for frag in video_fragments.iter().filter(|f| f.period == ds.period_counter) {
+        for frag in video_fragments
+            .iter()
+            .filter(|f| f.period == ds.period_counter)
+        {
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
+            let progress_percent = (100.0 * ds.segment_counter as f32
+                / ds.segment_count as f32)
+                .ceil() as u32;
             if frag.url.scheme() == "data" {
                 let us = &frag.url.to_string();
-                let du = DataUrl::process(us)
-                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                let du = DataUrl::process(us).map_err(|_| {
+                    DashMpdError::Parsing(String::from("parsing data URL"))
+                })?;
                 if du.mime_type().type_ != "video" {
                     return Err(DashMpdError::UnhandledMediaStream(
-                        String::from("expecting video content in data URL")));
+                        String::from("expecting video content in data URL"),
+                    ));
                 }
-                let (body, _fragment) = du.decode_to_vec()
-                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                let (body, _fragment) = du.decode_to_vec().map_err(|_| {
+                    DashMpdError::Parsing(String::from("decoding data URL"))
+                })?;
                 if downloader.verbosity > 2 {
                     info!("  Video segment data URL -> {} octets", body.len());
                 }
                 if let Err(e) = tmpfile_video.write_all(&body) {
                     error!("Unable to write DASH video data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                    return Err(DashMpdError::Io(
+                        e,
+                        String::from("writing DASH video data"),
+                    ));
                 }
                 have_video = true;
             } else {
                 'done: for _ in 0..downloader.fragment_retry_count {
-                    match fetch_fragment(downloader, frag, "video", progress_percent).await {
+                    match fetch_fragment(
+                        downloader,
+                        frag,
+                        "video",
+                        progress_percent,
+                    )
+                    .await
+                    {
                         Ok(mut frag_file) => {
-                            frag_file.rewind()
-                                .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
+                            frag_file.rewind().map_err(|e| {
+                                DashMpdError::Io(
+                                    e,
+                                    String::from("rewinding fragment tempfile"),
+                                )
+                            })?;
                             let mut buf = Vec::new();
-                            frag_file.read_to_end(&mut buf)
-                                .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
+                            frag_file.read_to_end(&mut buf).map_err(|e| {
+                                DashMpdError::Io(
+                                    e,
+                                    String::from("reading fragment tempfile"),
+                                )
+                            })?;
                             if let Err(e) = tmpfile_video.write_all(&buf) {
-                                error!("Unable to write DASH video data: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
+                                error!(
+                                    "Unable to write DASH video data: {e:?}"
+                                );
+                                return Err(DashMpdError::Io(
+                                    e,
+                                    String::from("writing DASH video data"),
+                                ));
                             }
                             have_video = true;
                             break 'done;
-                        },
+                        }
                         Err(e) => {
                             if downloader.verbosity > 0 {
-                                error!("  Error fetching video segment {}: {e:?}", frag.url);
+                                error!(
+                                    "  Error fetching video segment {}: {e:?}",
+                                    frag.url
+                                );
                             }
                             ds.download_errors += 1;
                             if ds.download_errors > downloader.max_error_count {
                                 return Err(DashMpdError::Network(
                                     String::from("more than max_error_count network errors")));
                             }
-                        },
+                        }
                     }
                     info!("  Retrying video segment {}", frag.url);
                     if downloader.sleep_between_requests > 0 {
-                        tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+                        tokio::time::sleep(Duration::new(
+                            downloader.sleep_between_requests.into(),
+                            0,
+                        ))
+                        .await;
                     }
                 }
             }
@@ -3828,13 +4579,22 @@ async fn fetch_period_video(
     } // end local scope for tmpfile_video File
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone())
-                .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
-            info!("  Attempting to decrypt video stream ({} kB) with {}",
-                   metadata.len() / 1024,
-                   downloader.decryptor_preference);
+            let metadata = fs::metadata(tmppath.clone()).map_err(|e| {
+                DashMpdError::Io(
+                    e,
+                    String::from("reading encrypted video metadata"),
+                )
+            })?;
+            info!(
+                "  Attempting to decrypt video stream ({} kB) with {}",
+                metadata.len() / 1024,
+                downloader.decryptor_preference
+            );
         }
-        let out_ext = downloader.output_path.as_ref().unwrap()
+        let out_ext = downloader
+            .output_path
+            .as_ref()
+            .unwrap()
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-video", out_ext)?;
@@ -3852,11 +4612,16 @@ async fn fetch_period_video(
             let out = Command::new(downloader.mp4decrypt_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning mp4decrypt"))
+                })?;
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted video stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3876,9 +4641,17 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                error!("  {}", "Failed to decrypt video stream with mp4decrypt".red());
-                warn!("  Undecrypted video stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
+                error!(
+                    "  {}",
+                    "Failed to decrypt video stream with mp4decrypt".red()
+                );
+                warn!(
+                    "  Undecrypted video stream left in {}",
+                    tmppath.display()
+                );
+                return Err(DashMpdError::Decrypting(String::from(
+                    "video stream",
+                )));
             }
         } else if downloader.decryptor_preference.eq("shaka") {
             let mut args = Vec::new();
@@ -3886,7 +4659,11 @@ async fn fetch_period_video(
             if downloader.verbosity < 1 {
                 args.push("--quiet".to_string());
             }
-            args.push(format!("in={},stream=video,output={}", tmppath.display(), decrypted.display()));
+            args.push(format!(
+                "in={},stream=video,output={}",
+                tmppath.display(),
+                decrypted.display()
+            ));
             let mut drm_label = 0;
             #[allow(clippy::explicit_counter_loop)]
             for (k, v) in downloader.decryption_keys.iter() {
@@ -3902,11 +4679,16 @@ async fn fetch_period_video(
             let out = Command::new(downloader.shaka_packager_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning shaka-packager"))
+                })?;
             let mut no_output = true;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted video stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 no_output = false;
             }
@@ -3922,36 +4704,55 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                error!("  {}", "Failed to decrypt video stream with shaka-packager".red());
+                error!(
+                    "  {}",
+                    "Failed to decrypt video stream with shaka-packager".red()
+                );
                 warn!("  Undecrypted video left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
+                return Err(DashMpdError::Decrypting(String::from(
+                    "video stream",
+                )));
             }
         } else if downloader.decryptor_preference.eq("mp4box") {
             let mut args = Vec::new();
             let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
-            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
+            let mut drmfile_contents =
+                String::from("<GPACDRM>\n  <CrypTrack>\n");
             for (k, v) in downloader.decryption_keys.iter() {
-                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+                drmfile_contents +=
+                    &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
             }
             drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents)
-                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
+            fs::write(&drmfile, drmfile_contents).map_err(|e| {
+                DashMpdError::Io(
+                    e,
+                    String::from("writing to MP4Box decrypt file"),
+                )
+            })?;
             args.push("-decrypt".to_string());
             args.push(drmfile.display().to_string());
             args.push(String::from(tmppath.to_string_lossy()));
             args.push("-out".to_string());
             args.push(String::from(decrypted.to_string_lossy()));
             if downloader.verbosity > 1 {
-                info!("  Running decryption application MP4Box {}", args.join(" "));
+                info!(
+                    "  Running decryption application MP4Box {}",
+                    args.join(" ")
+                );
             }
             let out = Command::new(downloader.mp4box_location.clone())
                 .args(args)
                 .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
+                .map_err(|e| {
+                    DashMpdError::Io(e, String::from("spawning MP4Box"))
+                })?;
             let mut no_output = false;
             if let Ok(metadata) = fs::metadata(decrypted.clone()) {
                 if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
+                    info!(
+                        "  Decrypted video stream of size {} kB.",
+                        metadata.len() / 1024
+                    );
                 }
                 if metadata.len() == 0 {
                     no_output = true;
@@ -3971,72 +4772,97 @@ async fn fetch_period_video(
                 }
             }
             if no_output {
-                error!("  {}", "Failed to decrypt video stream with MP4Box".red());
-                warn!("  Undecrypted video stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
+                error!(
+                    "  {}",
+                    "Failed to decrypt video stream with MP4Box".red()
+                );
+                warn!(
+                    "  Undecrypted video stream left in {}",
+                    tmppath.display()
+                );
+                return Err(DashMpdError::Decrypting(String::from(
+                    "video stream",
+                )));
             }
         } else {
-            return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
+            return Err(DashMpdError::Decrypting(String::from(
+                "unknown decryption application",
+            )));
         }
-        fs::rename(decrypted, tmppath.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
+        fs::rename(decrypted, tmppath.clone()).map_err(|e| {
+            DashMpdError::Io(e, String::from("renaming decrypted video"))
+        })?;
     }
     if let Ok(metadata) = fs::metadata(tmppath.clone()) {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
-            info!("  Wrote {mbytes:.1}MB to DASH video file ({:.1} MB/s)",
-                     mbytes / elapsed.as_secs_f64());
+            info!(
+                "  Wrote {mbytes:.1}MB to DASH video file ({:.1} MB/s)",
+                mbytes / elapsed.as_secs_f64()
+            );
         }
     }
     Ok(have_video)
 }
 
-
 // Retrieve the video segments for period `ds.period_counter` and concatenate them to a file at `tmppath`.
-#[tracing::instrument(level="trace", skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
     tmppath: PathBuf,
     subtitle_fragments: &[MediaFragment],
     subtitle_formats: &[SubtitleType],
-    ds: &mut DownloadState) -> Result<bool, DashMpdError>
-{
+    ds: &mut DownloadState,
+) -> Result<bool, DashMpdError> {
     let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
     let mut have_subtitles = false;
     {
-        let tmpfile_subs = File::create(tmppath.clone())
-            .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
+        let tmpfile_subs = File::create(tmppath.clone()).map_err(|e| {
+            DashMpdError::Io(e, String::from("creating subs tmpfile"))
+        })?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
             // Update any ProgressObservers
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
+            let progress_percent = (100.0 * ds.segment_counter as f32
+                / ds.segment_count as f32)
+                .ceil() as u32;
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, "Fetching subtitle segments");
             }
             if frag.url.scheme() == "data" {
                 let us = &frag.url.to_string();
-                let du = DataUrl::process(us)
-                    .map_err(|_| DashMpdError::Parsing(String::from("parsing data URL")))?;
+                let du = DataUrl::process(us).map_err(|_| {
+                    DashMpdError::Parsing(String::from("parsing data URL"))
+                })?;
                 if du.mime_type().type_ != "video" {
                     return Err(DashMpdError::UnhandledMediaStream(
-                        String::from("expecting video content in data URL")));
+                        String::from("expecting video content in data URL"),
+                    ));
                 }
-                let (body, _fragment) = du.decode_to_vec()
-                    .map_err(|_| DashMpdError::Parsing(String::from("decoding data URL")))?;
+                let (body, _fragment) = du.decode_to_vec().map_err(|_| {
+                    DashMpdError::Parsing(String::from("decoding data URL"))
+                })?;
                 if downloader.verbosity > 2 {
-                    info!("  Subtitle segment data URL -> {} octets", body.len());
+                    info!(
+                        "  Subtitle segment data URL -> {} octets",
+                        body.len()
+                    );
                 }
                 if let Err(e) = tmpfile_subs.write_all(&body) {
                     error!("Unable to write DASH subtitle data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                    return Err(DashMpdError::Io(
+                        e,
+                        String::from("writing DASH subtitle data"),
+                    ));
                 }
                 have_subtitles = true;
             } else {
                 let fetch = || async {
-                    let mut req = client.get(frag.url.clone())
+                    let mut req = client
+                        .get(frag.url.clone())
                         .header("Sec-Fetch-Mode", "navigate");
                     if let Some(sb) = &frag.start_byte {
                         if let Some(eb) = &frag.end_byte {
@@ -4046,7 +4872,10 @@ async fn fetch_period_subtitles(
                     if let Some(referer) = &downloader.referer {
                         req = req.header("Referer", referer);
                     } else {
-                        req = req.header("Referer", downloader.redirected_url.to_string());
+                        req = req.header(
+                            "Referer",
+                            downloader.redirected_url.to_string(),
+                        );
                     }
                     if let Some(username) = &downloader.auth_username {
                         if let Some(password) = &downloader.auth_password {
@@ -4056,17 +4885,29 @@ async fn fetch_period_subtitles(
                     if let Some(token) = &downloader.auth_bearer_token {
                         req = req.bearer_auth(token);
                     }
-                    req.send().await
+                    req.send()
+                        .await
                         .map_err(categorize_reqwest_error)?
                         .error_for_status()
                         .map_err(categorize_reqwest_error)
                 };
                 let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                match retry_notify(
+                    ExponentialBackoff::default(),
+                    fetch,
+                    notify_transient,
+                )
+                .await
+                {
                     Ok(response) => {
                         if response.status().is_success() {
-                            let dash_bytes = response.bytes().await
-                                .map_err(|e| network_error("fetching DASH subtitle segment", e))?;
+                            let dash_bytes =
+                                response.bytes().await.map_err(|e| {
+                                    network_error(
+                                        "fetching DASH subtitle segment",
+                                        e,
+                                    )
+                                })?;
                             if downloader.verbosity > 2 {
                                 if let Some(sb) = &frag.start_byte {
                                     if let Some(eb) = &frag.end_byte {
@@ -4074,34 +4915,57 @@ async fn fetch_period_subtitles(
                                                  &frag.url, dash_bytes.len());
                                     }
                                 } else {
-                                    info!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    info!(
+                                        "  Subtitle segment {} -> {} octets",
+                                        &frag.url,
+                                        dash_bytes.len()
+                                    );
                                 }
                             }
-                            let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
+                            let size = min(
+                                (dash_bytes.len() / 1024 + 1) as u32,
+                                u32::MAX,
+                            );
                             throttle_download_rate(downloader, size).await?;
-                            if let Err(e) = tmpfile_subs.write_all(&dash_bytes) {
-                                return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
+                            if let Err(e) = tmpfile_subs.write_all(&dash_bytes)
+                            {
+                                return Err(DashMpdError::Io(
+                                    e,
+                                    String::from("writing DASH subtitle data"),
+                                ));
                             }
                             have_subtitles = true;
                         } else {
-                            failure = Some(format!("HTTP error {}", response.status().as_str()));
+                            failure = Some(format!(
+                                "HTTP error {}",
+                                response.status().as_str()
+                            ));
                         }
-                    },
+                    }
                     Err(e) => failure = Some(format!("{e}")),
                 }
                 if let Some(f) = failure {
                     if downloader.verbosity > 0 {
-                        error!("{} fetching subtitle segment {}", f.red(), &frag.url);
+                        error!(
+                            "{} fetching subtitle segment {}",
+                            f.red(),
+                            &frag.url
+                        );
                     }
                     ds.download_errors += 1;
                     if ds.download_errors > downloader.max_error_count {
-                        return Err(DashMpdError::Network(
-                            String::from("more than max_error_count network errors")));
+                        return Err(DashMpdError::Network(String::from(
+                            "more than max_error_count network errors",
+                        )));
                     }
                 }
             }
             if downloader.sleep_between_requests > 0 {
-                tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
+                tokio::time::sleep(Duration::new(
+                    downloader.sleep_between_requests.into(),
+                    0,
+                ))
+                .await;
             }
         }
         tmpfile_subs.flush().map_err(|e| {
@@ -4114,14 +4978,16 @@ async fn fetch_period_subtitles(
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
                 let elapsed = start_download.elapsed();
-                info!("  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1} MB/s)",
-                      mbytes / elapsed.as_secs_f64());
+                info!(
+                    "  Wrote {mbytes:.1}MB to DASH subtitle file ({:.1} MB/s)",
+                    mbytes / elapsed.as_secs_f64()
+                );
             }
         }
         // TODO: for subtitle_formats sub and srt we could also try to embed them in the output
         // file, for example using MP4Box or mkvmerge
-        if subtitle_formats.contains(&SubtitleType::Wvtt) ||
-           subtitle_formats.contains(&SubtitleType::Ttxt)
+        if subtitle_formats.contains(&SubtitleType::Wvtt)
+            || subtitle_formats.contains(&SubtitleType::Ttxt)
         {
             // We can extract these from the MP4 container in .srt format, using MP4Box.
             if downloader.verbosity > 0 {
@@ -4130,14 +4996,14 @@ async fn fetch_period_subtitles(
                 }
                 info!("  {}", "Running MP4Box to extract subtitles".italic());
             }
-            let out = downloader.output_path.as_ref().unwrap()
+            let out = downloader
+                .output_path
+                .as_ref()
+                .unwrap()
                 .with_extension("srt");
             let out_str = out.to_string_lossy();
             let tmp_str = tmppath.to_string_lossy();
-            let args = vec![
-                "-srt", "1",
-                "-out", &out_str,
-                &tmp_str];
+            let args = vec!["-srt", "1", "-out", &out_str, &tmp_str];
             if downloader.verbosity > 0 {
                 info!("  Running MP4Box {}", args.join(" "));
             }
@@ -4166,21 +5032,30 @@ async fn fetch_period_subtitles(
             if downloader.verbosity > 0 {
                 info!("  Converting STPP subtitles to TTML format with ffmpeg");
             }
-            let out = downloader.output_path.as_ref().unwrap()
+            let out = downloader
+                .output_path
+                .as_ref()
+                .unwrap()
                 .with_extension("ttml");
             let tmppath_arg = &tmppath.to_string_lossy();
             let out_arg = &out.to_string_lossy();
             let ffmpeg_args = vec![
                 "-hide_banner",
                 "-nostats",
-                "-loglevel", "error",
-                "-y",  // overwrite output file if it exists
+                "-loglevel",
+                "error",
+                "-y", // overwrite output file if it exists
                 "-nostdin",
-                "-i", tmppath_arg,
-                "-f", "data",
-                "-map", "0",
-                "-c", "copy",
-                out_arg];
+                "-i",
+                tmppath_arg,
+                "-f",
+                "data",
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                out_arg,
+            ];
             if downloader.verbosity > 0 {
                 info!("  Running ffmpeg {}", ffmpeg_args.join(" "));
             }
@@ -4206,17 +5081,18 @@ async fn fetch_period_subtitles(
             // to be better supported. However, ffmpeg does not seem able to convert from SPTT to
             // these formats. We could perhaps use the Python ttconv package, or below with MP4Box.
         }
-
     }
     Ok(have_subtitles)
 }
 
-
 // Fetch XML content of manifest from an HTTP/HTTPS URL
-async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
+async fn fetch_mpd_http(
+    downloader: &mut DashDownloader,
+) -> Result<Bytes, DashMpdError> {
     let client = &downloader.http_client.clone().unwrap();
     let send_request = || async {
-        let mut req = client.get(&downloader.mpd_url)
+        let mut req = client
+            .get(&downloader.mpd_url)
             .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
             .header("Accept-Language", "en-US,en")
             .header("Upgrade-Insecure-Requests", "1")
@@ -4232,7 +5108,8 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
         if let Some(token) = &downloader.auth_bearer_token {
             req = req.bearer_auth(token);
         }
-        req.send().await
+        req.send()
+            .await
             .map_err(categorize_reqwest_error)?
             .error_for_status()
             .map_err(categorize_reqwest_error)
@@ -4241,47 +5118,67 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
         observer.update(1, "Fetching DASH manifest");
     }
     if downloader.verbosity > 0 {
-        if !downloader.fetch_audio && !downloader.fetch_video && !downloader.fetch_subtitles {
+        if !downloader.fetch_audio
+            && !downloader.fetch_video
+            && !downloader.fetch_subtitles
+        {
             info!("Only simulating media downloads");
         }
         info!("Fetching the DASH manifest");
     }
-    let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
-        .await
-        .map_err(|e| network_error("requesting DASH manifest", e))?;
+    let response = retry_notify(
+        ExponentialBackoff::default(),
+        send_request,
+        notify_transient,
+    )
+    .await
+    .map_err(|e| network_error("requesting DASH manifest", e))?;
     if !response.status().is_success() {
-        let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
+        let msg = format!(
+            "fetching DASH manifest (HTTP {})",
+            response.status().as_str()
+        );
         return Err(DashMpdError::Network(msg));
     }
     downloader.redirected_url = response.url().clone();
-    response.bytes().await
+    response
+        .bytes()
+        .await
         .map_err(|e| network_error("fetching DASH manifest", e))
 }
 
 // Fetch XML content of manifest from a file:// URL. The reqwest library is not able to download
 // from this URL type.
-async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
-    if ! &downloader.mpd_url.starts_with("file://") {
-        return Err(DashMpdError::Other(String::from("expecting file:// URL scheme")));
+async fn fetch_mpd_file(
+    downloader: &mut DashDownloader,
+) -> Result<Bytes, DashMpdError> {
+    if !&downloader.mpd_url.starts_with("file://") {
+        return Err(DashMpdError::Other(String::from(
+            "expecting file:// URL scheme",
+        )));
     }
     let url = Url::parse(&downloader.mpd_url)
         .map_err(|_| DashMpdError::Other(String::from("parsing MPD URL")))?;
-    let path = url.to_file_path()
-        .map_err(|_| DashMpdError::Other(String::from("extracting path from file:// URL")))?;
-    let octets = fs::read(path)
-               .map_err(|_| DashMpdError::Other(String::from("reading from file:// URL")))?;
+    let path = url.to_file_path().map_err(|_| {
+        DashMpdError::Other(String::from("extracting path from file:// URL"))
+    })?;
+    let octets = fs::read(path).map_err(|_| {
+        DashMpdError::Other(String::from("reading from file:// URL"))
+    })?;
     Ok(Bytes::from(octets))
 }
 
-
-#[tracing::instrument(level="trace", skip_all)]
-async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
+#[tracing::instrument(level = "trace", skip_all)]
+async fn fetch_mpd(
+    downloader: &mut DashDownloader,
+) -> Result<PathBuf, DashMpdError> {
     let xml = if downloader.mpd_url.starts_with("file://") {
         fetch_mpd_file(downloader).await?
     } else {
         fetch_mpd_http(downloader).await?
     };
-    let mut mpd: MPD = parse_resolving_xlinks(downloader, &xml).await
+    let mut mpd: MPD = parse_resolving_xlinks(downloader, &xml)
+        .await
         .map_err(|e| parse_error("parsing DASH XML", e))?;
     // From the DASH specification: "If at least one MPD.Location element is present, the value of
     // any MPD.Location element is used as the MPD request". We make a new request to the URI and reparse.
@@ -4292,14 +5189,19 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             info!("Redirecting to new manifest <Location> {new_url}");
         }
         let send_request = || async {
-            let mut req = client.get(new_url)
-                .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+            let mut req = client
+                .get(new_url)
+                .header(
+                    "Accept",
+                    "application/dash+xml,video/vnd.mpeg.dash.mpd",
+                )
                 .header("Accept-Language", "en-US,en")
                 .header("Sec-Fetch-Mode", "navigate");
             if let Some(referer) = &downloader.referer {
                 req = req.header("Referer", referer);
             } else {
-                req = req.header("Referer", downloader.redirected_url.to_string());
+                req = req
+                    .header("Referer", downloader.redirected_url.to_string());
             }
             if let Some(username) = &downloader.auth_username {
                 if let Some(password) = &downloader.auth_password {
@@ -4309,22 +5211,32 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             if let Some(token) = &downloader.auth_bearer_token {
                 req = req.bearer_auth(token);
             }
-            req.send().await
+            req.send()
+                .await
                 .map_err(categorize_reqwest_error)?
                 .error_for_status()
                 .map_err(categorize_reqwest_error)
         };
-        let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
-            .await
-            .map_err(|e| network_error("requesting relocated DASH manifest", e))?;
+        let response = retry_notify(
+            ExponentialBackoff::default(),
+            send_request,
+            notify_transient,
+        )
+        .await
+        .map_err(|e| network_error("requesting relocated DASH manifest", e))?;
         if !response.status().is_success() {
-            let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
+            let msg = format!(
+                "fetching DASH manifest (HTTP {})",
+                response.status().as_str()
+            );
             return Err(DashMpdError::Network(msg));
         }
         downloader.redirected_url = response.url().clone();
-        let xml = response.bytes().await
-            .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
-        mpd = parse_resolving_xlinks(downloader, &xml).await
+        let xml = response.bytes().await.map_err(|e| {
+            network_error("fetching relocated DASH manifest", e)
+        })?;
+        mpd = parse_resolving_xlinks(downloader, &xml)
+            .await
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }
     if mpd_is_dynamic(&mpd) {
@@ -4335,13 +5247,16 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 warn!("Attempting to download from live stream (this may not work).");
             }
         } else {
-            return Err(DashMpdError::UnhandledMediaStream("Don't know how to download dynamic MPD".to_string()));
+            return Err(DashMpdError::UnhandledMediaStream(
+                "Don't know how to download dynamic MPD".to_string(),
+            ));
         }
     }
     let mut toplevel_base_url = downloader.redirected_url.clone();
     // There may be several BaseURL tags in the MPD, but we don't currently implement failover
     if let Some(bu) = &mpd.base_url.first() {
-        toplevel_base_url = merge_baseurls(&downloader.redirected_url, &bu.base)?;
+        toplevel_base_url =
+            merge_baseurls(&downloader.redirected_url, &bu.base)?;
     }
     // A BaseURL specified explicitly when instantiating the DashDownloader overrides the BaseURL
     // specified in the manifest.
@@ -4350,7 +5265,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     }
     if downloader.verbosity > 0 {
         let pcount = mpd.periods.len();
-        info!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
+        info!(
+            "DASH manifest has {pcount} period{}",
+            if pcount > 1 { "s" } else { "" }
+        );
         print_available_streams(&mpd);
     }
     // Analyse the content of each Period in the manifest. We need to ensure that we associate media
@@ -4377,7 +5295,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 }
             }
         }
-        let mut pd = PeriodDownloads { period_counter, ..Default::default() };
+        let mut pd = PeriodDownloads {
+            period_counter,
+            ..Default::default()
+        };
         if let Some(id) = period.id.as_ref() {
             pd.id = Some(id.clone());
         }
@@ -4395,19 +5316,41 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         let mut audio_outputs = PeriodOutputs::default();
         if downloader.fetch_audio {
-            audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            audio_outputs = do_period_audio(
+                downloader,
+                &mpd,
+                &period,
+                period_counter,
+                base_url.clone(),
+            )
+            .await?;
             for f in audio_outputs.fragments {
                 pd.audio_fragments.push(f);
             }
         }
         let mut video_outputs = PeriodOutputs::default();
         if downloader.fetch_video {
-            video_outputs = do_period_video(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            video_outputs = do_period_video(
+                downloader,
+                &mpd,
+                &period,
+                period_counter,
+                base_url.clone(),
+            )
+            .await?;
             for f in video_outputs.fragments {
                 pd.video_fragments.push(f);
             }
         }
-        match do_period_subtitles(downloader, &mpd, &period, period_counter, base_url.clone()).await {
+        match do_period_subtitles(
+            downloader,
+            &mpd,
+            &period,
+            period_counter,
+            base_url.clone(),
+        )
+        .await
+        {
             Ok(subtitle_outputs) => {
                 for f in subtitle_outputs.fragments {
                     pd.subtitle_fragments.push(f);
@@ -4415,26 +5358,44 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 for f in subtitle_outputs.subtitle_formats {
                     pd.subtitle_formats.push(f);
                 }
-            },
-            Err(e) => warn!("  Ignoring error triggered while processing subtitles: {e}"),
+            }
+            Err(e) => warn!(
+                "  Ignoring error triggered while processing subtitles: {e}"
+            ),
         }
         // Print some diagnostics information on the selected streams
         if downloader.verbosity > 0 {
             use base64::prelude::{Engine as _, BASE64_STANDARD};
 
-            audio_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
+            audio_outputs
+                .diagnostics
+                .iter()
+                .for_each(|msg| info!("{}", msg));
             for f in pd.audio_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh_bytes) = extract_init_pssh(downloader, f.url.clone()).await {
-                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh_bytes));
+                if let Some(pssh_bytes) =
+                    extract_init_pssh(downloader, f.url.clone()).await
+                {
+                    info!(
+                        "    PSSH (from init segment): {}",
+                        BASE64_STANDARD.encode(&pssh_bytes)
+                    );
                     if let Ok(pssh) = pssh_box::from_bytes(&pssh_bytes) {
                         info!("    {}", pssh.to_string());
                     }
                 }
             }
-            video_outputs.diagnostics.iter().for_each(|msg| info!("{}", msg));
+            video_outputs
+                .diagnostics
+                .iter()
+                .for_each(|msg| info!("{}", msg));
             for f in pd.video_fragments.iter().filter(|f| f.is_init) {
-                if let Some(pssh_bytes) = extract_init_pssh(downloader, f.url.clone()).await {
-                    info!("    PSSH (from init segment): {}", BASE64_STANDARD.encode(&pssh_bytes));
+                if let Some(pssh_bytes) =
+                    extract_init_pssh(downloader, f.url.clone()).await
+                {
+                    info!(
+                        "    PSSH (from init segment): {}",
+                        BASE64_STANDARD.encode(&pssh_bytes)
+                    );
                     if let Ok(pssh) = pssh_box::from_bytes(&pssh_bytes) {
                         info!("    {}", pssh.to_string());
                     }
@@ -4453,17 +5414,21 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         // The additional +2 is for our initial .mpd fetch action and final muxing action
         segment_count: pds.iter().map(period_fragment_count).sum(),
         segment_counter: 0,
-        download_errors: 0
+        download_errors: 0,
     };
     for pd in pds {
         let mut have_audio = false;
         let mut have_video = false;
         let mut have_subtitles = false;
         ds.period_counter = pd.period_counter;
-        let period_output_path = output_path_for_period(output_path, pd.period_counter);
+        let period_output_path =
+            output_path_for_period(output_path, pd.period_counter);
         #[allow(clippy::collapsible_if)]
         if downloader.verbosity > 0 {
-            if downloader.fetch_audio || downloader.fetch_video || downloader.fetch_subtitles {
+            if downloader.fetch_audio
+                || downloader.fetch_video
+                || downloader.fetch_subtitles
+            {
                 let idnum = if let Some(id) = pd.id {
                     format!("id={} (#{})", id, pd.period_counter)
                 } else {
@@ -4475,7 +5440,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                       pd.subtitle_fragments.len());
             }
         }
-        let output_ext = downloader.output_path.as_ref().unwrap()
+        let output_ext = downloader
+            .output_path
+            .as_ref()
+            .unwrap()
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
@@ -4490,24 +5458,35 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs", OsStr::new("sub"))?;
         if downloader.fetch_audio && !pd.audio_fragments.is_empty() {
-            have_audio = fetch_period_audio(downloader,
-                                            tmppath_audio.clone(), &pd.audio_fragments,
-                                            &mut ds).await?;
+            have_audio = fetch_period_audio(
+                downloader,
+                tmppath_audio.clone(),
+                &pd.audio_fragments,
+                &mut ds,
+            )
+            .await?;
         }
         if downloader.fetch_video && !pd.video_fragments.is_empty() {
-            have_video = fetch_period_video(downloader,
-                                            tmppath_video.clone(), &pd.video_fragments,
-                                            &mut ds).await?;
+            have_video = fetch_period_video(
+                downloader,
+                tmppath_video.clone(),
+                &pd.video_fragments,
+                &mut ds,
+            )
+            .await?;
         }
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
         // single .srt or .vtt file file. This is the case for WVTT (WebVTT) and STPP (which should be
         // formatted as EBU-TT for DASH media) formats.
         if downloader.fetch_subtitles && !pd.subtitle_fragments.is_empty() {
-            have_subtitles = fetch_period_subtitles(downloader,
-                                                    tmppath_subs.clone(),
-                                                    &pd.subtitle_fragments,
-                                                    &pd.subtitle_formats,
-                                                    &mut ds).await?;
+            have_subtitles = fetch_period_subtitles(
+                downloader,
+                tmppath_subs.clone(),
+                &pd.subtitle_fragments,
+                &pd.subtitle_formats,
+                &mut ds,
+            )
+            .await?;
         }
 
         // The output file for this Period is either a mux of the audio and video streams, if both
@@ -4519,12 +5498,16 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             if downloader.verbosity > 1 {
                 info!("  {}", "Muxing audio and video streams".italic());
             }
-            let audio_tracks = vec![
-                AudioTrack {
-                    language: String::from("unk"),
-                    path: tmppath_audio.clone()
-                }];
-            mux_audio_video(downloader, &period_output_path, &audio_tracks, &tmppath_video)?;
+            let audio_tracks = vec![AudioTrack {
+                language: String::from("unk"),
+                path: tmppath_audio.clone(),
+            }];
+            mux_audio_video(
+                downloader,
+                &period_output_path,
+                &audio_tracks,
+                &tmppath_video,
+            )?;
             if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
                 let container = match &period_output_path.extension() {
                     Some(ext) => ext.to_str().unwrap_or("mp4"),
@@ -4540,14 +5523,16 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     // We can try to add the subtitles to the MP4 container, using MP4Box. Only
                     // works with MP4 containers.
                     let tmp_str = tmppath_subs.to_string_lossy();
-                    let period_output_str = period_output_path.to_string_lossy();
+                    let period_output_str =
+                        period_output_path.to_string_lossy();
                     let args = vec!["-add", &tmp_str, &period_output_str];
                     if downloader.verbosity > 0 {
                         info!("  Running MP4Box {}", args.join(" "));
                     }
-                    if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                        .args(args)
-                        .output()
+                    if let Ok(mp4box) =
+                        Command::new(downloader.mp4box_location.clone())
+                            .args(args)
+                            .output()
                     {
                         let msg = partial_process_output(&mp4box.stdout);
                         if !msg.is_empty() {
@@ -4585,13 +5570,18 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                         let tmppath = temporary_outpath(".mkv")?;
                         let pop_arg = &period_output_path.to_string_lossy();
                         let srt_arg = &srt.to_string_lossy();
-                        let mkvmerge_args = vec!["-o", &tmppath, pop_arg, srt_arg];
+                        let mkvmerge_args =
+                            vec!["-o", &tmppath, pop_arg, srt_arg];
                         if downloader.verbosity > 0 {
-                            info!("  Running mkvmerge {}", mkvmerge_args.join(" "));
+                            info!(
+                                "  Running mkvmerge {}",
+                                mkvmerge_args.join(" ")
+                            );
                         }
-                        if let Ok(mkvmerge) = Command::new(downloader.mkvmerge_location.clone())
-                            .args(mkvmerge_args)
-                            .output()
+                        if let Ok(mkvmerge) =
+                            Command::new(downloader.mkvmerge_location.clone())
+                                .args(mkvmerge_args)
+                                .output()
                         {
                             let msg = partial_process_output(&mkvmerge.stdout);
                             if !msg.is_empty() {
@@ -4607,20 +5597,34 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                                 // local scope so that tmppath is not busy on Windows and can be deleted
                                 {
                                     let tmpfile = File::open(tmppath.clone())
-                                        .map_err(|e| DashMpdError::Io(
-                                            e, String::from("opening mkvmerge output")))?;
+                                        .map_err(|e| {
+                                        DashMpdError::Io(
+                                            e,
+                                            String::from(
+                                                "opening mkvmerge output",
+                                            ),
+                                        )
+                                    })?;
                                     let mut merged = BufReader::new(tmpfile);
                                     // This will truncate the period_output_path
-                                    let outfile = File::create(period_output_path.clone())
-                                        .map_err(|e| DashMpdError::Io(
-                                            e, String::from("creating output file")))?;
+                                    let outfile = File::create(
+                                        period_output_path.clone(),
+                                    )
+                                    .map_err(|e| {
+                                        DashMpdError::Io(
+                                            e,
+                                            String::from(
+                                                "creating output file",
+                                            ),
+                                        )
+                                    })?;
                                     let mut sink = BufWriter::new(outfile);
                                     io::copy(&mut merged, &mut sink)
                                         .map_err(|e| DashMpdError::Io(
                                             e, String::from("copying mkvmerge output to output file")))?;
                                 }
                                 if env::var("DASHMPD_PERSIST_FILES").is_err() {
-	                            if let Err(e) = fs::remove_file(tmppath) {
+                                    if let Err(e) = fs::remove_file(tmppath) {
                                         warn!("  Error deleting temporary mkvmerge output: {e}");
                                     }
                                 }
@@ -4632,20 +5636,36 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 }
             }
         } else if have_audio {
-            copy_audio_to_container(downloader, &period_output_path, &tmppath_audio)?;
+            copy_audio_to_container(
+                downloader,
+                &period_output_path,
+                &tmppath_audio,
+            )?;
         } else if have_video {
-            copy_video_to_container(downloader, &period_output_path, &tmppath_video)?;
+            copy_video_to_container(
+                downloader,
+                &period_output_path,
+                &tmppath_video,
+            )?;
         } else if downloader.fetch_video && downloader.fetch_audio {
-            return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
+            return Err(DashMpdError::UnhandledMediaStream(
+                "no audio or video streams found".to_string(),
+            ));
         } else if downloader.fetch_video {
-            return Err(DashMpdError::UnhandledMediaStream("no video streams found".to_string()));
+            return Err(DashMpdError::UnhandledMediaStream(
+                "no video streams found".to_string(),
+            ));
         } else if downloader.fetch_audio {
-            return Err(DashMpdError::UnhandledMediaStream("no audio streams found".to_string()));
+            return Err(DashMpdError::UnhandledMediaStream(
+                "no audio streams found".to_string(),
+            ));
         }
         #[allow(clippy::collapsible_if)]
         if downloader.keep_audio.is_none() && downloader.fetch_audio {
             if env::var("DASHMPD_PERSIST_FILES").is_err() {
-                if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
+                if tmppath_audio.exists()
+                    && fs::remove_file(tmppath_audio).is_err()
+                {
                     info!("  Failed to delete temporary file for audio stream");
                 }
             }
@@ -4653,20 +5673,32 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(clippy::collapsible_if)]
         if downloader.keep_video.is_none() && downloader.fetch_video {
             if env::var("DASHMPD_PERSIST_FILES").is_err() {
-                if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
+                if tmppath_video.exists()
+                    && fs::remove_file(tmppath_video).is_err()
+                {
                     info!("  Failed to delete temporary file for video stream");
                 }
             }
         }
         #[allow(clippy::collapsible_if)]
         if env::var("DASHMPD_PERSIST_FILES").is_err() {
-            if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
+            if downloader.fetch_subtitles
+                && tmppath_subs.exists()
+                && fs::remove_file(tmppath_subs).is_err()
+            {
                 info!("  Failed to delete temporary file for subtitles");
             }
         }
-        if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
+        if downloader.verbosity > 1
+            && (downloader.fetch_audio
+                || downloader.fetch_video
+                || have_subtitles)
+        {
             if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
-                info!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
+                info!(
+                    "  Wrote {:.1}MB to media file",
+                    metadata.len() as f64 / (1024.0 * 1024.0)
+                );
             }
         }
         if have_audio || have_video {
@@ -4685,7 +5717,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(unused_mut)]
         let mut concatenated = false;
         #[cfg(not(feature = "libav"))]
-        if downloader.concatenate_periods && video_containers_concatable(downloader, &period_output_paths) {
+        if downloader.concatenate_periods
+            && video_containers_concatable(downloader, &period_output_paths)
+        {
             info!("Preparing to concatenate multiple Periods into one output file");
             concat_output_files(downloader, &period_output_paths)?;
             for p in &period_output_paths[1..] {
@@ -4709,11 +5743,14 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             }
         }
     }
-    let have_content_protection = mpd.periods.iter().any(
-        |p| p.adaptations.iter().any(
-            |a| (!a.ContentProtection.is_empty()) ||
-                a.representations.iter().any(
-                    |r| !r.ContentProtection.is_empty())));
+    let have_content_protection = mpd.periods.iter().any(|p| {
+        p.adaptations.iter().any(|a| {
+            (!a.ContentProtection.is_empty())
+                || a.representations
+                    .iter()
+                    .any(|r| !r.ContentProtection.is_empty())
+        })
+    });
     if have_content_protection && downloader.decryption_keys.is_empty() {
         warn!("Manifest seems to use ContentProtection (DRM), but you didn't provide decryption keys.");
     }
@@ -4723,22 +5760,41 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     Ok(PathBuf::from(output_path))
 }
 
-
 #[cfg(test)]
 mod tests {
     #[test]
     fn test_resolve_url_template() {
-        use std::collections::HashMap;
         use super::resolve_url_template;
+        #[cfg(feature = "fast-hash")]
+        use ahash::AHashMap as HashMap;
+        #[cfg(not(feature = "fast-hash"))]
+        use std::collections::HashMap;
 
-        assert_eq!(resolve_url_template("AA$Time$BB", &HashMap::from([("Time", "ZZZ".to_string())])),
-                   "AAZZZBB");
-        assert_eq!(resolve_url_template("AA$Number%06d$BB", &HashMap::from([("Number", "42".to_string())])),
-                   "AA000042BB");
-        let dict = HashMap::from([("RepresentationID", "640x480".to_string()),
-                                  ("Number", "42".to_string()),
-                                  ("Time", "ZZZ".to_string())]);
-        assert_eq!(resolve_url_template("AA/$RepresentationID$/segment-$Number%05d$.mp4", &dict),
-                   "AA/640x480/segment-00042.mp4");
+        assert_eq!(
+            resolve_url_template(
+                "AA$Time$BB",
+                &HashMap::from([("Time", "ZZZ".to_string())])
+            ),
+            "AAZZZBB"
+        );
+        assert_eq!(
+            resolve_url_template(
+                "AA$Number%06d$BB",
+                &HashMap::from([("Number", "42".to_string())])
+            ),
+            "AA000042BB"
+        );
+        let dict = HashMap::from([
+            ("RepresentationID", "640x480".to_string()),
+            ("Number", "42".to_string()),
+            ("Time", "ZZZ".to_string()),
+        ]);
+        assert_eq!(
+            resolve_url_template(
+                "AA/$RepresentationID$/segment-$Number%05d$.mp4",
+                &dict
+            ),
+            "AA/640x480/segment-00042.mp4"
+        );
     }
 }
