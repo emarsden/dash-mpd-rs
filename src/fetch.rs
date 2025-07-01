@@ -4490,6 +4490,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         };
         let tmppath_subs = tmp_file_path("dashmpd-subs", OsStr::new("sub"))?;
         if downloader.fetch_audio && !pd.audio_fragments.is_empty() {
+            // TODO: to allow the download of multiple audio tracks (with multiple languages), we
+            // need to call fetch_period_audio multiple times with a different file path each time,
+            // and with the audio_fragments only relevant for that language.
             have_audio = fetch_period_audio(downloader,
                                             tmppath_audio.clone(), &pd.audio_fragments,
                                             &mut ds).await?;
