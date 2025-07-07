@@ -186,6 +186,9 @@ async fn test_dl_lowlatency_forced_duration() {
 }
 
 
+// More BBC test streams at https://avcatalogue.cloud.bbc.co.uk/
+//
+// Possible alternative: http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/dash/nonuk/dash_low/ak/bbc_world_service.mpd
 #[tokio::test]
 async fn test_dl_bbcws_dynamic() {
     setup_logging();
