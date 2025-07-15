@@ -2364,6 +2364,10 @@ async fn do_period_audio(
                         segment_duration = d;
                     }
                     if let Some(std) = st.duration {
+                        if timescale == 0 {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "SegmentTemplate@duration attribute cannot be zero".to_string()));
+                        }
                         segment_duration = std / timescale as f64;
                     }
                     if segment_duration < 0.0 {
@@ -2792,6 +2796,10 @@ async fn do_period_video(
                             segment_duration = d;
                         }
                         if let Some(std) = st.duration {
+                            if timescale == 0 {
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "SegmentTemplate@duration attribute cannot be zero".to_string()));
+                            }
                             segment_duration = std / timescale as f64;
                         }
                         if segment_duration < 0.0 {
@@ -3279,6 +3287,10 @@ async fn do_period_subtitles(
                                     segment_duration = d;
                                 }
                                 if let Some(std) = st.duration {
+                                    if timescale == 0 {
+                                        return Err(DashMpdError::UnhandledMediaStream(
+                                            "SegmentTemplate@duration attribute cannot be zero".to_string()));
+                                    }
                                     segment_duration = std / timescale as f64;
                                 }
                                 if segment_duration < 0.0 {
