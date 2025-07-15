@@ -452,6 +452,7 @@ async fn test_decryption_marlincenc_mp4decrypt () {
 }
 
 // Testing -- this wasn't previously tested 20260622
+#[tokio::test]
 async fn test_decryption_marlincenc_shaka () {
     setup_logging();
     if env::var("CI").is_ok() {
@@ -535,6 +536,7 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
 
 
 // new test 20250622
+#[tokio::test]
 async fn test_decryption_marlincbcs_shaka () {
     setup_logging();
     if env::var("CI").is_ok() {
