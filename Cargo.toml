@@ -20,7 +20,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_path_to_error = "0.1.17"
 serde_ignored = { version = "0.1.12", optional = true }
 serde_with = { version = "3.14.0", features = ["base64"] }
-quick-xml = { version = "0.38.0", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.38.1", features = ["serialize", "overlapped-lists"] }
 url = "2.5.4"
 chrono = { version = "0.4.41", features = ["serde"] }
 num-traits = "0.2.19"
@@ -32,7 +32,7 @@ tracing = { version = "0.1.41", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
 bytes = "1.10.1"
 reqwest = { version = "0.12.22", default-features = false, features = ["cookies"], optional = true }
-tokio = { version = "1.47.0", features = ["rt-multi-thread", "time", "macros"], optional = true }
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 governor = { version = "0.10.0", optional = true }
 xot = { version = "0.31.2", optional = true }
@@ -41,7 +41,7 @@ sanitise-file-name = { version = "1.0.0", optional = true }
 colored = { version = "3.0.0", optional = true }
 ac-ffmpeg = { version = "0.19.0", optional = true }
 ffprobe = { version = "0.4.0", optional = true }
-file-format = { version = "0.27.0", features = ["reader"], optional = true }
+file-format = { version = "0.28.0", features = ["reader"], optional = true }
 bstr = { version = "1.12.0", optional = true }
 hex-literal = { version = "1.0.0", optional = true }
 pssh-box = { version = "0.1.11", optional = true }
@@ -55,7 +55,7 @@ colored = "3.0.0"
 indicatif = "0.18.0"
 # We pin to this version because the latest versions require a bleeding edge Rust toolchain.
 clap = "=4.4.18"
-tokio = { version = "1.47.0", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "time", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 proptest = "1.7.0"
 http = "1.3.1"
@@ -64,7 +64,7 @@ axum-auth = "0.8.1"
 hyper-serve = { version = "0.6.2" }
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.22", default-features = false, features = ["cookies", "json", "blocking"] }
-serde_json = "1.0.141"
+serde_json = "1.0.142"
 anyhow = "1.0.98"
 roxmltree = "0.20.0"
 xmlem = "0.3.3"
