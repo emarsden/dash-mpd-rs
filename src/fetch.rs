@@ -343,6 +343,8 @@ impl DashDownloader {
     /// available. Must be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not
     /// specified and multiple audio streams are present, the first one listed in the DASH manifest
     /// will be downloaded.
+    //
+    // TODO: this could be modified to allow a comma-separated list, or the special value "all"
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
         self
@@ -1137,6 +1139,7 @@ fn select_preferred_adaptations<'a>(
     downloader: &DashDownloader) -> Vec<&'a AdaptationSet>
 {
     let mut preferred: Vec<&'a AdaptationSet>;
+    // TODO: modify this algorithm to allow for multiple preferred languages
     if let Some(ref lang) = downloader.language_preference {
         preferred = Vec::new();
         let distance: Vec<u8> = adaptations.iter()
