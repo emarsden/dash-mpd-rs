@@ -26,7 +26,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 num-traits = "0.2.19"
 iso8601 = "0.6.3"
 regex = "1.11.1"
-thiserror = "2.0.12"
+thiserror = "2.0.14"
 fs-err = "3.1.1"
 tracing = { version = "0.1.41", features = ["attributes"] }
 data-url = { version = "0.3.1", optional = true }
@@ -65,7 +65,7 @@ hyper-serve = { version = "0.6.2" }
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.22", default-features = false, features = ["cookies", "json", "blocking"] }
 serde_json = "1.0.142"
-anyhow = "1.0.98"
+anyhow = "1.0.99"
 roxmltree = "0.20.0"
 xmlem = "0.3.3"
 json = "0.12.4"
