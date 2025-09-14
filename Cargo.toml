@@ -16,27 +16,27 @@ base64 = "0.22.1"
 base64-serde = "0.8.0"
 byteorder = "1.5.0"
 lazy_static = "1.5.0"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.221", features = ["derive"] }
 serde_path_to_error = "0.1.17"
 serde_ignored = { version = "0.1.12", optional = true }
 serde_with = { version = "3.14.0", features = ["base64"] }
 quick-xml = { version = "0.38.3", features = ["serialize", "overlapped-lists"] }
 url = "2.5.7"
-chrono = { version = "0.4.41", features = ["serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
 num-traits = "0.2.19"
 iso8601 = "0.6.3"
 regex = "1.11.2"
-thiserror = "2.0.15"
+thiserror = "2.0.16"
 fs-err = "3.1.1"
 tracing = { version = "0.1.41", features = ["attributes"] }
-data-url = { version = "0.3.1", optional = true }
+data-url = { version = "0.3.2", optional = true }
 bytes = "1.10.1"
 reqwest = { version = "0.12.23", default-features = false, features = ["cookies"], optional = true }
 tokio = { version = "1.47.1", features = ["rt-multi-thread", "time", "macros"], optional = true }
 backoff = { version = "0.4.0", features = ["tokio"], optional = true }
-governor = { version = "0.10.0", optional = true }
+governor = { version = "0.10.1", optional = true }
 xot = { version = "0.31.2", optional = true }
-tempfile = { version = "3.20.0", optional = true }
+tempfile = { version = "3.22.0", optional = true }
 sanitise-file-name = { version = "1.0.0", optional = true }
 colored = { version = "3.0.0", optional = true }
 ac-ffmpeg = { version = "0.19.0", optional = true }
@@ -64,13 +64,13 @@ axum-auth = "0.8.1"
 hyper-serve = { version = "0.6.2" }
 noxious-client = "1.0.4"
 reqwest = { version = "0.12.23", default-features = false, features = ["cookies", "json", "blocking"] }
-serde_json = "1.0.143"
+serde_json = "1.0.144"
 anyhow = "1.0.99"
 roxmltree = "0.20.0"
 xmlem = "0.3.3"
 json = "0.12.4"
 mp4 = "0.14.0"
-image = "0.25.6"
+image = "0.25.8"
 pretty_assertions = "1.4.1"
 approx = "0.5.1"
 assert_cmd = "2.0.17"
