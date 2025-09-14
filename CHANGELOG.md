@@ -1,6 +1,24 @@
 # Changelog
 
 
+## [0.18.5] - Unreleased
+
+- Performance: do not recompute regex for each `parse_xs_duration` call (from @sbuzzard).
+
+- The `Latency` and `PlaybackRate` elements in a `ServiceDescription` element has been changed from
+  an `Option` to a `Vec`, as per the DASH XSD.
+
+- In `PlaybackRate` elements, the attributes min and max have been changed from type `f64` to
+  `Option<f64>`, following the DASH XSD.
+
+- Definitions are provided for DASH elements `OperatingQuality`, `OperatingBandwidth`,
+  `ContentSteering`, `CMCDParameters`, `ClientDataRecording`.
+  
+- The definition of the `ServiceDescription` element now includes elements `OperatingQuality`,
+  `OperationBandwidth`, `ContentSteering`, `ClientDataReporting`, and `Playback`. The order of these
+  elements matches the DASH XSD (issue reported by @jyiu-harmonicinc).
+
+
 ## [0.18.4] - 2025-06-22
 
 - Downloading: the calculation of segment numbers for `$Number$`-based dynamic streams now accounts

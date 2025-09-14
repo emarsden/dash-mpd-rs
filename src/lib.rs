@@ -538,12 +538,32 @@ fn default_optstring_encoder() -> Option<String> {
     Some(String::from("encoder"))
 }
 
+fn default_optstring_any() -> Option<String> {
+    Some(String::from("any"))
+}
+
+fn default_optstring_query() -> Option<String> {
+    Some(String::from("query"))
+}
+
+fn default_optstring_segment() -> Option<String> {
+    Some(String::from("segment"))
+}
+
+fn default_optbool_true() -> Option<bool> {
+    Some(true)
+}
+
 fn default_optbool_false() -> Option<bool> {
     Some(false)
 }
 
 fn default_optu64_zero() -> Option<u64> {
     Some(0)
+}
+
+fn default_optu64_one() -> Option<u64> {
+    Some(1)
 }
 
 
@@ -1847,6 +1867,7 @@ pub struct Metrics {
     pub Range: Vec<Range>,
 }
 
+/// Service Description Latency.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
@@ -1861,26 +1882,119 @@ pub struct Latency {
     pub referenceId: Option<String>,
 }
 
+/// Service Description Playback Rate.
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PlaybackRate {
-    #[serde(rename = "@min", serialize_with="serialize_xsd_double")]
-    pub min: f64,
-    #[serde(rename = "@max", serialize_with="serialize_xsd_double")]
-    pub max: f64,
+    #[serde(rename = "@min", serialize_with="serialize_opt_xsd_double")]
+    pub min: Option<f64>,
+    #[serde(rename = "@max", serialize_with="serialize_opt_xsd_double")]
+    pub max: Option<f64>,
+}
+
+/// Service Description Operating Quality.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct OperatingQuality {
+    #[serde(default = "default_optstring_any")]
+    pub mediaType: Option<String>,
+    #[serde(rename = "@min")]
+    pub min: Option<u64>,
+    #[serde(rename = "@max")]
+    pub max: Option<u64>,
+    #[serde(rename = "@target")]
+    pub target: Option<u64>,
+    #[serde(rename = "@type")]
+    pub _type: Option<String>,
+    #[serde(rename = "@maxDifference")]
+    pub maxDifference: Option<u64>,
+}
+
+///Service Description Operating Bandwidth.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct OperatingBandwidth {
+    #[serde(rename = "@mediaType", default = "default_optstring_any")]
+    pub mediaType: Option<String>,
+    #[serde(rename = "@min")]
+    pub min: Option<u64>,
+    #[serde(rename = "@max")]
+    pub max: Option<u64>,
+    #[serde(rename = "@target")]
+    pub target: Option<u64>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct ContentSteering {
+    #[serde(rename = "@defaultServiceLocation")]
+    pub defaultServiceLocation: Option<String>,
+    #[serde(rename = "@queryBeforeStart", default = "default_optbool_false")]
+    pub queryBeforeStart: Option<bool>,
+    #[serde(rename = "@clientRequirement", default = "default_optbool_true")]
+    pub clientRequirement: Option<bool>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct CMCDParameters {
+    #[serde(rename = "@version", default = "default_optu64_one")]
+    pub version: Option<u64>,
+    #[serde(rename = "@mode", default = "default_optstring_query")]
+    pub mode: Option<String>,
+    #[serde(rename = "@includeInRequests", default = "default_optstring_segment")]
+    pub includeInRequests: Option<String>,
+    #[serde(rename = "@keys")]
+    pub keys: String,
+    #[serde(rename = "@contentID")]
+    pub contentID: Option<String>,
+    #[serde(rename = "@sessionID")]
+    pub sessionID: Option<String>,
+}
+
+/// Generic Recording System descriptor.
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct ClientDataReporting {
+    pub CMCDParameters: Vec<CMCDParameters>,
+    #[serde(rename = "@serviceLocations")]
+    pub serviceLocations: Option<String>,
+    #[serde(rename = "@adaptationSets")]
+    pub adaptationSets: Option<String>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct PlaybackRestrictions {
+    #[serde(rename = "@skipAfter",
+            serialize_with = "serialize_xs_duration",
+            deserialize_with = "deserialize_xs_duration",
+            default)]
+    pub skipAfter: Option<Duration>,
 }
 
 #[skip_serializing_none]
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct ServiceDescription {
-    #[serde(rename = "@id")]
-    pub id: Option<String>,
-    pub Latency: Option<Latency>,
-    pub PlaybackRate: Option<PlaybackRate>,
     #[serde(rename = "Scope")]
     pub scopes: Vec<Scope>,
+    pub Latency: Vec<Latency>,
+    pub PlaybackRate: Vec<PlaybackRate>,
+    pub OperatingQuality: Vec<OperatingQuality>,
+    pub OperatingBandwidth: Vec<OperatingBandwidth>,
+    pub ContentSteering: Vec<ContentSteering>,
+    pub ClientDataReporting: Vec<ClientDataReporting>,
+    pub PlaybackRestrictions: Vec<PlaybackRestrictions>,
+    #[serde(rename = "@id")]
+    pub id: Option<String>,
 }
 
 /// Used to synchronize the clocks of the DASH client and server, to allow low-latency streaming.

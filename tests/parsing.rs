@@ -338,12 +338,12 @@ fn test_parse_low_latency() {
     let mpd = res.unwrap();
     assert_eq!(mpd.mpdtype, Some(String::from("dynamic")));
     assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
-        |sd| sd.Latency.as_ref().is_some_and(
+        |sd| sd.Latency.iter().all(
             |l| l.max.is_some_and(
                 |m| 6999.9 < m && m < 7000.1))));
     assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
-        |sd| sd.PlaybackRate.as_ref().is_some_and(
-            |pbr| 0.95 < pbr.min && pbr.min < 0.97)));
+        |sd| sd.PlaybackRate.iter().all(
+            |pbr| 0.95 < pbr.min.unwrap() && pbr.min.unwrap() < 0.97)));
     assert!(mpd.UTCTiming.iter().all(
         |utc| utc.value.as_ref().is_some_and(
             |v| v.contains("time.akamai.com"))));
@@ -711,6 +711,7 @@ async fn test_parsing_servicelocation() {
     setup_logging();
     let client = reqwest::Client::builder()
         .timeout(Duration::new(30, 0))
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1")
         .gzip(true)
         .build()
         .expect("creating HTTP client");
@@ -731,6 +732,27 @@ async fn test_parsing_servicelocation() {
     assert!(base_url.weight.is_some());
     assert!(base_url.serviceLocation.is_some());
 }
+
+
+// The aim of this test is to check that the ordering of elements in the XML serialization of
+// ServiceDescription elements respects the order specified by the DASH XSD.
+#[tokio::test]
+async fn test_parsing_servicedescription() {
+    setup_logging();
+    let fragment = r#"
+<ServiceDescription id="0">
+  <Scope schemeIdUri="urn:dvb:dash:lowlatency:scope:2019"/>
+  <Latency min="3000" max="5000" target="4000"/>
+  <PlaybackRate min="0.95" max="1.05"/>
+</ServiceDescription>"#;
+    let sd: dash_mpd::ServiceDescription = quick_xml::de::from_str(&fragment).unwrap();
+    let serialized = quick_xml::se::to_string(&sd).unwrap();
+    let pos1 = serialized.find("Scope").unwrap();
+    let pos2 = serialized.find("Latency").unwrap();
+    let pos3 = serialized.find("PlaybackRate").unwrap();
+    assert!(pos1 < pos2 && pos2 < pos3);
+}
+
 
 // This manifest has some unusual use of XML namespacing
 //   <g1:MPD xmlns="urn:MPEG:ns:DASH" xmlns:g1="urn:mpeg:DASH:schema:MPD:2011"
