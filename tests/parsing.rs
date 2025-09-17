@@ -584,6 +584,18 @@ async fn test_parsing_online() {
 
     check_mpd(client.clone(),
               "https://content.media24.link/drm/manifest.mpd").await;
+
+    check_mpd(client.clone(),
+              "http://vod-dash-ww-rd-stage.akamaized.net/dash/ondemand/testcard/1/client_manifest-nosurround-ctv-events_on_both.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://vod-dash-ww-rd-stage.akamaized.net/testcard/2/manifests/avc-full-events_both-en-rel.mpd").await;
+
+    check_mpd(client.clone(),
+              "http://vod-dash-ww-rd-stage.akamaized.net/dash/ondemand/testcard/1/client_manifest-pto_both-events.mpd").await;
+
+    check_mpd(client.clone(),
+              "http://vs-dash-ww-rd-live.akamaized.net/wct/A00/client_manifest.mpd").await;
 }
 
 
