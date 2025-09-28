@@ -921,6 +921,7 @@ struct PeriodOutputs {
     fragments: Vec<MediaFragment>,
     diagnostics: Vec<String>,
     subtitle_formats: Vec<SubtitleType>,
+    selected_audio_language: String,
 }
 
 #[derive(Debug, Default)]
@@ -931,6 +932,7 @@ struct PeriodDownloads {
     subtitle_formats: Vec<SubtitleType>,
     period_counter: u8,
     id: Option<String>,
+    selected_audio_language: String,
 }
 
 fn period_fragment_count(pd: &PeriodDownloads) -> usize {
@@ -2049,6 +2051,7 @@ async fn do_period_audio(
             start_number = s;
         }
     }
+    let mut selected_audio_language = "unk";
     // Handle the AdaptationSet with audio content. Note that some streams don't separate out
     // audio and video streams, so this might be None.
     let audio_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
@@ -2065,6 +2068,9 @@ async fn do_period_audio(
         let audio_adaptation = period.adaptations.iter()
             .find(|a| a.representations.iter().any(|r| r.eq(audio_repr)))
             .unwrap();
+        if let Some(lang) = audio_repr.lang.as_ref().or(audio_adaptation.lang.as_ref()) {
+            selected_audio_language = lang;
+        }
         // The AdaptationSet may have a BaseURL (e.g. the test BBC streams). We use a local variable
         // to make sure we don't "corrupt" the base_url for the video segments.
         let mut base_url = base_url.clone();
@@ -2421,7 +2427,10 @@ async fn do_period_audio(
                 "no usable addressing mode identified for audio representation".to_string()));
         }
     }
-    Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
+    Ok(PeriodOutputs {
+        fragments, diagnostics, subtitle_formats: Vec::new(),
+        selected_audio_language: String::from(selected_audio_language)
+    })
 }
 
 
@@ -2866,7 +2875,12 @@ async fn do_period_video(
     }
     // FIXME we aren't correctly handling manifests without a Representation node
     // eg https://raw.githubusercontent.com/zencoder/go-dash/master/mpd/fixtures/newperiod.mpd
-    Ok(PeriodOutputs { fragments, diagnostics, subtitle_formats: Vec::new() })
+    Ok(PeriodOutputs {
+        fragments,
+        diagnostics,
+        subtitle_formats: Vec::new(),
+        selected_audio_language: String::from("unk")
+    })
 }
 
 #[tracing::instrument(level="trace", skip_all)]
@@ -3347,7 +3361,12 @@ async fn do_period_subtitles(
             }
         }
     }
-    Ok(PeriodOutputs { fragments, diagnostics: Vec::new(), subtitle_formats })
+    Ok(PeriodOutputs {
+        fragments,
+        diagnostics: Vec::new(),
+        subtitle_formats,
+        selected_audio_language: String::from("unk")
+    })
 }
 
 
@@ -4414,6 +4433,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             for f in audio_outputs.fragments {
                 pd.audio_fragments.push(f);
             }
+            pd.selected_audio_language = audio_outputs.selected_audio_language;
         }
         let mut video_outputs = PeriodOutputs::default();
         if downloader.fetch_video {
@@ -4539,7 +4559,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             }
             let audio_tracks = vec![
                 AudioTrack {
-                    language: String::from("unk"),
+                    language: pd.selected_audio_language,
                     path: tmppath_audio.clone()
                 }];
             mux_audio_video(downloader, &period_output_path, &audio_tracks, &tmppath_video)?;
