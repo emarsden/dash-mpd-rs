@@ -13,7 +13,7 @@
 
 - Definitions are provided for DASH elements `OperatingQuality`, `OperatingBandwidth`,
   `ContentSteering`, `CMCDParameters`, `ClientDataRecording`.
-  
+
 - The definition of the `ServiceDescription` element now includes elements `OperatingQuality`,
   `OperationBandwidth`, `ContentSteering`, `ClientDataReporting`, and `Playback`. The order of these
   elements matches the DASH XSD (issue reported by @jyiu-harmonicinc).

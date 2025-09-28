@@ -186,24 +186,31 @@ async fn test_dl_lowlatency_forced_duration() {
 }
 
 
-// More BBC test streams at https://avcatalogue.cloud.bbc.co.uk/
+// More BBC test streams at http://avcatalogue.cloud.bbc.co.uk/
 //
-// Possible alternative: http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/dash/nonuk/dash_low/ak/bbc_world_service.mpd
+// Possible alternatives:
+//  served by Akamai: http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/dash/nonuk/dash_low/ak/bbc_world_service.mpd
+//  served by Cloudfront: http://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/cf/bbc_radio_one.mpd
 #[tokio::test]
 async fn test_dl_bbcws_dynamic() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/aks/bbc_world_service.mpd";
+    let mpd_url = "http://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/ak/bbc_world_service.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("dynamic-bbcws.mp4");
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1")
+        .build()
+        .expect("creating HTTP client");
     DashDownloader::new(mpd_url)
+        .with_http_client(client)
         .worst_quality()
         .allow_live_streams(true)
         .audio_only()
         .force_duration(25.0)
-        .sleep_between_requests(4)
+        .sleep_between_requests(7)
         .download_to(out.clone()).await
         .unwrap();
     let format = FileFormat::from_file(out.clone()).unwrap();
