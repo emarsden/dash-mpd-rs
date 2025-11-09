@@ -555,6 +555,7 @@ async fn test_dl_segment_list() {
         .worst_quality()
         .download_to(out.clone()).await
         .unwrap();
+    // 2025-09-29: seeing test failure, File sizes: expected 273629, got 546348
     check_file_size_approx(&out, 273_629);
     let format = FileFormat::from_file(out.clone()).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
