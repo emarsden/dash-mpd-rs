@@ -526,10 +526,12 @@ async fn test_content_protection() {
     let mpd = parse(&xml);
     assert!(mpd.is_ok());
     let mpd = mpd.unwrap();
-    let cp = mpd.ContentProtection;
-    assert_eq!(cp.len(), 1);
-    let prcp = cp[0].clone();
-    assert!(prcp.schemeIdUri.eq("urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95"));
+    assert_eq!(mpd.ContentProtection.len(), 0);
+    assert_eq!(mpd.periods.len(), 1);
+    let p1 = &mpd.periods[0];
+    p1.adaptations.iter().for_each(|a| {
+        assert_eq!(a.ContentProtection.len(), 2);
+    });
 }
 
 
