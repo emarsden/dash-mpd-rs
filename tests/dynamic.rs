@@ -84,7 +84,7 @@ async fn test_dl_dynamic_vos360() {
 }
 
 // A third dynamic (live) stream to test. Disabled because the received content length is unreliable.
-// #[ignore]
+#[ignore]
 #[tokio::test]
 async fn test_dl_dynamic_5cents() {
     setup_logging();
