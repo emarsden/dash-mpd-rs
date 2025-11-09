@@ -18,6 +18,10 @@
   `OperationBandwidth`, `ContentSteering`, `ClientDataReporting`, and `Playback`. The order of these
   elements matches the DASH XSD (issue reported by @jyiu-harmonicinc).
 
+- Remove the use of italics and colored text in logging, and the dependency on the colored crate.
+  The tracing crate has disabled the use of ANSI terminal codes in logged messages, for security
+  reasons.
+
 
 ## [0.18.4] - 2025-06-22
 
