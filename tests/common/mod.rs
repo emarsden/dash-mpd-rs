@@ -18,11 +18,14 @@ lazy_static! {
 }
 
 pub fn setup_logging() {
-    use tracing_subscriber::{EnvFilter, fmt, prelude::*};
-    
+    use tracing_subscriber::{EnvFilter, fmt, fmt::time::LocalTime, prelude::*};
+    use time::macros::format_description;
+
     TRACING_INIT.call_once(|| {
+        let timer = LocalTime::new(format_description!("[hour]:[minute]:[second]"));
         let fmt_layer = fmt::layer()
             .compact()
+            .with_timer(timer)
             .with_target(false);
         let filter_layer = EnvFilter::try_from_default_env()
         // The sqlx crate is used by the decrypt-cookies crate
