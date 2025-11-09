@@ -1,12 +1,13 @@
 # Changelog
 
 
-## [0.18.5] - Unreleased
+## [0.19.0] - 2025-11-09
 
 - Performance: do not recompute regex for each `parse_xs_duration` call (from @sbuzzard).
 
 - The `Latency` and `PlaybackRate` elements in a `ServiceDescription` element has been changed from
-  an `Option` to a `Vec`, as per the DASH XSD.
+  an `Option` to a `Vec`, as per the DASH XSD. This is a breaking change, leading to a minor version
+  update.
 
 - In `PlaybackRate` elements, the attributes min and max have been changed from type `f64` to
   `Option<f64>`, following the DASH XSD.
