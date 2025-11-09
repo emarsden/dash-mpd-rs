@@ -508,6 +508,31 @@ fn test_parsing_xsd_uintvector() {
 }
 
 
+#[tokio::test]
+async fn test_content_protection() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://test.playready.microsoft.com/media/profficialsite/tearsofsteel_4k.ism/manifest.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    let cp = mpd.ContentProtection;
+    assert_eq!(cp.len(), 1);
+    let prcp = cp[0].clone();
+    assert!(prcp.schemeIdUri.eq("urn:uuid:9A04F079-9840-4286-AB92-E65BE0885F95"));
+}
+
+
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
 #[tokio::test]
@@ -582,8 +607,9 @@ async fn test_parsing_online() {
     check_mpd(client.clone(),
               "https://github.com/claudiuolteanu/mpd-parser/raw/refs/heads/master/examples/oops-20120802-manifest.mpd").await;
 
-    check_mpd(client.clone(),
-              "https://content.media24.link/drm/manifest.mpd").await;
+    // 2025-11 this site is down
+    // check_mpd(client.clone(),
+    //           "https://content.media24.link/drm/manifest.mpd").await;
 
     check_mpd(client.clone(),
               "http://vod-dash-ww-rd-stage.akamaized.net/dash/ondemand/testcard/1/client_manifest-nosurround-ctv-events_on_both.mpd").await;
@@ -596,6 +622,9 @@ async fn test_parsing_online() {
 
     check_mpd(client.clone(),
               "http://vs-dash-ww-rd-live.akamaized.net/wct/A00/client_manifest.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://test.playready.microsoft.com/media/dash/APPLEENC_CBCS_BBB_1080p/1080p.mpd").await;
 }
 
 
