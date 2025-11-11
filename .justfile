@@ -6,7 +6,6 @@ default:
   @just --list
 
 
-
 grcov:
   @echo 'Running tests for coverage with grcov'
   rm -rf ${CARGO_TARGET_DIR}/coverage
@@ -51,6 +50,9 @@ trivy-repository:
 
 clippy:
     cargo clippy -- -Wclippy::unwrap_used -Wclippy::expect_used -Wclippy::indexing_slicing -Wclippy::panic
+
+pedantic:
+    cargo clippy -- -W clippy::pedantic
 
 
 publish:
