@@ -3831,6 +3831,9 @@ async fn fetch_period_audio(
                     warn!("  MP4Box stderr: {msg}");
                 }
             }
+            if let Err(e) = fs::remove_file(drmfile) {
+                warn!("  Failed to delete temporary MP4Box crypt file: {e:?}");
+            }
             if no_output {
                 error!("  Failed to decrypt audio stream with MP4Box");
                 warn!("  Undecrypted audio stream left in {}", tmppath.display());
