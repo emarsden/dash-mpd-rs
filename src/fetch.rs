@@ -1708,7 +1708,7 @@ fn apply_xslt_stylesheets_xsltproc(
         .map_err(|e| parse_error("serializing rewritten manifest", e))?;
     for ss in &downloader.xslt_stylesheets {
         if downloader.verbosity > 0 {
-            info!("  Applying XSLT stylesheet {} with xsltproc", ss.display());
+            info!("Applying XSLT stylesheet {} with xsltproc", ss.display());
         }
         let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
         fs::write(&tmpmpd, &buf)
@@ -1728,6 +1728,9 @@ fn apply_xslt_stylesheets_xsltproc(
             }
         }
         buf.clone_from(&xsltproc.stdout);
+        if downloader.verbosity > 2 {
+            println!("Rewritten XSLT: {}", String::from_utf8_lossy(&buf));
+        }
     }
     String::from_utf8(buf)
         .map_err(|e| parse_error("parsing UTF-8", e))
