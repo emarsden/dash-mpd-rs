@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [0.19.1] - Unreleased
+
+- Re-enable the `unicode-perl` option on the regex crate, to allow parsing of timestamps.
+
+
 ## [0.19.0] - 2025-11-09
 
 - Performance: do not recompute regex for each `parse_xs_duration` call (from @sbuzzard).
