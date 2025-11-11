@@ -119,7 +119,7 @@ pub trait ProgressObserver: Send + Sync {
 pub enum QualityPreference { #[default] Lowest, Intermediate, Highest }
 
 
-/// The DashDownloader allows the download of streaming media content from a DASH MPD manifest.
+/// The `DashDownloader` allows the download of streaming media content from a DASH MPD manifest.
 ///
 /// This involves:
 ///    - fetching the manifest file
@@ -213,6 +213,10 @@ pub struct DashDownloader {
 /// ```
 impl DashDownloader {
     /// Create a `DashDownloader` for the specified DASH manifest URL `mpd_url`.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `mpd_url` cannot be parsed as an URL.
     pub fn new(mpd_url: &str) -> DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
@@ -280,6 +284,7 @@ impl DashDownloader {
 
     /// Specify the base URL to use when downloading content from the manifest. This may be useful
     /// when downloading from a file:// URL.
+    #[must_use]
     pub fn with_base_url(mut self, base_url: String) -> DashDownloader {
         self.base_url = Some(base_url);
         self
@@ -305,8 +310,9 @@ impl DashDownloader {
     ///  DashDownloader::new(url)
     ///      .with_http_client(client)
     ///      .download_to(out)
-    //       .await
+    ///       .await
     /// ```
+    #[must_use]
     pub fn with_http_client(mut self, client: HttpClient) -> DashDownloader {
         self.http_client = Some(client);
         self
@@ -315,6 +321,7 @@ impl DashDownloader {
     /// Specify the value for the Referer HTTP header used in network requests. This value is used
     /// when retrieving the MPD manifest, when retrieving video and audio media segments, and when
     /// retrieving subtitle data.
+    #[must_use]
     pub fn with_referer(mut self, referer: String) -> DashDownloader {
         self.referer = Some(referer);
         self
@@ -322,21 +329,24 @@ impl DashDownloader {
 
     /// Specify the username and password to use to authenticate network requests for the manifest
     /// and media segments.
-    pub fn with_authentication(mut self, username: String, password: String) -> DashDownloader {
-        self.auth_username = Some(username.clone());
-        self.auth_password = Some(password.clone());
+    #[must_use]
+    pub fn with_authentication(mut self, username: &str, password: &str) -> DashDownloader {
+        self.auth_username = Some(username.to_string());
+        self.auth_password = Some(password.to_string());
         self
     }
 
     /// Specify the Bearer token to use to authenticate network requests for the manifest and media
     /// segments.
-    pub fn with_auth_bearer(mut self, token: String) -> DashDownloader {
-        self.auth_bearer_token = Some(token.clone());
+    #[must_use]
+    pub fn with_auth_bearer(mut self, token: &str) -> DashDownloader {
+        self.auth_bearer_token = Some(token.to_string());
         self
     }
 
-    /// Add a observer implementing the ProgressObserver trait, that will receive updates concerning
+    /// Add an observer implementing the `ProgressObserver` trait, that will receive updates concerning
     /// the progression of the download (allows implementation of a progress bar, for example).
+    #[must_use]
     pub fn add_progress_observer(mut self, observer: Arc<dyn ProgressObserver>) -> DashDownloader {
         self.progress_observers.push(observer);
         self
@@ -344,6 +354,7 @@ impl DashDownloader {
 
     /// If the DASH manifest specifies several Adaptations with different bitrates (levels of
     /// quality), prefer the Adaptation with the highest bitrate (largest output file).
+    #[must_use]
     pub fn best_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Highest;
         self
@@ -351,6 +362,7 @@ impl DashDownloader {
 
     /// If the DASH manifest specifies several Adaptations with different bitrates (levels of
     /// quality), prefer the Adaptation with an intermediate bitrate (closest to the median value).
+    #[must_use]
     pub fn intermediate_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Intermediate;
         self
@@ -358,6 +370,7 @@ impl DashDownloader {
 
     /// If the DASH manifest specifies several Adaptations with different bitrates (levels of
     /// quality), prefer the Adaptation with the lowest bitrate (smallest output file).
+    #[must_use]
     pub fn worst_quality(mut self) -> DashDownloader {
         self.quality_preference = QualityPreference::Lowest;
         self
@@ -369,6 +382,7 @@ impl DashDownloader {
     /// will be downloaded.
     //
     // TODO: this could be modified to allow a comma-separated list, or the special value "all"
+    #[must_use]
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
         self.language_preference = Some(lang);
         self
@@ -383,6 +397,7 @@ impl DashDownloader {
     /// with role=alternate will be ignored when a role=main AdaptationSet is present, even if we
     /// also specify a quality preference for highest and the role=alternate stream has a higher
     /// quality.
+    #[must_use]
     pub fn prefer_roles(mut self, role_preference: Vec<String>) -> DashDownloader {
         if role_preference.len() < u8::MAX as usize {
             self.role_preference = role_preference;
@@ -394,6 +409,7 @@ impl DashDownloader {
 
     /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
     /// the Adaptation whose width is closest to the specified `width`.
+    #[must_use]
     pub fn prefer_video_width(mut self, width: u64) -> DashDownloader {
         self.video_width_preference = Some(width);
         self
@@ -401,12 +417,14 @@ impl DashDownloader {
 
     /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
     /// the Adaptation whose height is closest to the specified `height`.
+    #[must_use]
     pub fn prefer_video_height(mut self, height: u64) -> DashDownloader {
         self.video_height_preference = Some(height);
         self
     }
 
     /// If the media stream has separate audio and video streams, only download the video stream.
+    #[must_use]
     pub fn video_only(mut self) -> DashDownloader {
         self.fetch_audio = false;
         self.fetch_video = true;
@@ -414,6 +432,7 @@ impl DashDownloader {
     }
 
     /// If the media stream has separate audio and video streams, only download the audio stream.
+    #[must_use]
     pub fn audio_only(mut self) -> DashDownloader {
         self.fetch_audio = true;
         self.fetch_video = false;
@@ -422,6 +441,7 @@ impl DashDownloader {
 
     /// Keep the file containing video at the specified path. If the path already exists, file
     /// contents will be overwritten.
+    #[must_use]
     pub fn keep_video_as<P: Into<PathBuf>>(mut self, video_path: P) -> DashDownloader {
         self.keep_video = Some(video_path.into());
         self
@@ -429,6 +449,7 @@ impl DashDownloader {
 
     /// Keep the file containing audio at the specified path. If the path already exists, file
     /// contents will be overwritten.
+    #[must_use]
     pub fn keep_audio_as<P: Into<PathBuf>>(mut self, audio_path: P) -> DashDownloader {
         self.keep_audio = Some(audio_path.into());
         self
@@ -436,6 +457,7 @@ impl DashDownloader {
 
     /// Save media fragments to the directory `fragment_path`. The directory will be created if it
     /// does not exist.
+    #[must_use]
     pub fn save_fragments_to<P: Into<PathBuf>>(mut self, fragment_path: P) -> DashDownloader {
         self.fragment_path = Some(fragment_path.into());
         self
@@ -452,6 +474,7 @@ impl DashDownloader {
     ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
     ///
     /// * `key` - a 128-bit key in hexadecimal format.
+    #[must_use]
     pub fn add_decryption_key(mut self, id: String, key: String) -> DashDownloader {
         self.decryption_keys.insert(id, key);
         self
@@ -468,6 +491,7 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `stylesheet`: the path to an XSLT stylesheet.
+    #[must_use]
     pub fn with_xslt_stylesheet<P: Into<PathBuf>>(mut self, stylesheet: P) -> DashDownloader {
         self.xslt_stylesheets.push(stylesheet.into());
         self
@@ -475,6 +499,7 @@ impl DashDownloader {
 
     /// Don't download (skip) Periods in the manifest whose duration is less than the specified
     /// value.
+    #[must_use]
     pub fn minimum_period_duration(mut self, value: Duration) -> DashDownloader {
         self.minimum_period_duration = Some(value);
         self
@@ -483,6 +508,7 @@ impl DashDownloader {
     /// Parameter `value` determines whether audio content is downloaded. If disabled, the output
     /// media file will either contain only a video track (if `fetch_video` is true and the manifest
     /// includes a video stream), or will be empty.
+    #[must_use]
     pub fn fetch_audio(mut self, value: bool) -> DashDownloader {
         self.fetch_audio = value;
         self
@@ -491,6 +517,7 @@ impl DashDownloader {
     /// Parameter `value` determines whether video content is downloaded. If disabled, the output
     /// media file will either contain only an audio track (if `fetch_audio` is true and the manifest
     /// includes an audio stream which is separate from the video stream), or will be empty.
+    #[must_use]
     pub fn fetch_video(mut self, value: bool) -> DashDownloader {
         self.fetch_video = value;
         self
@@ -503,6 +530,7 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `value`: enable or disable the retrieval of subtitles.
+    #[must_use]
     pub fn fetch_subtitles(mut self, value: bool) -> DashDownloader {
         self.fetch_subtitles = value;
         self
@@ -511,6 +539,7 @@ impl DashDownloader {
     /// For multi-Period manifests, parameter `value` determines whether the content of multiple
     /// Periods is concatenated into a single output file where their resolutions, frame rate and
     /// aspect ratios are compatible, or kept in individual files.
+    #[must_use]
     pub fn concatenate_periods(mut self, value: bool) -> DashDownloader {
         self.concatenate_periods = value;
         self
@@ -518,6 +547,7 @@ impl DashDownloader {
 
     /// Don't check that the content-type of downloaded segments corresponds to audio or video
     /// content (may be necessary with poorly configured HTTP servers).
+    #[must_use]
     pub fn without_content_type_checks(mut self) -> DashDownloader {
         self.content_type_checks = false;
         self
@@ -525,6 +555,7 @@ impl DashDownloader {
 
     /// Specify whether to check that the content-type of downloaded segments corresponds to audio
     /// or video content (this may need to be set to false with poorly configured HTTP servers).
+    #[must_use]
     pub fn content_type_checks(mut self, value: bool) -> DashDownloader {
         self.content_type_checks = value;
         self
@@ -532,6 +563,7 @@ impl DashDownloader {
 
     /// Specify whether to run various conformity checks on the content of the DASH manifest before
     /// downloading media segments.
+    #[must_use]
     pub fn conformity_checks(mut self, value: bool) -> DashDownloader {
         self.conformity_checks = value;
         self
@@ -551,6 +583,7 @@ impl DashDownloader {
     /// If set to false, the BaseURL content will be downloaded as a single large chunk. This may be
     /// more robust on certain content streams that have been encoded in a manner which is not
     /// suitable for byte range retrieval.
+    #[must_use]
     pub fn use_index_range(mut self, value: bool) -> DashDownloader {
         self.use_index_range = value;
         self
@@ -559,6 +592,7 @@ impl DashDownloader {
     /// The upper limit on the number of times to attempt to fetch a media segment, even in the
     /// presence of network errors. Transient network errors (such as timeouts) do not count towards
     /// this limit.
+    #[must_use]
     pub fn fragment_retry_count(mut self, count: u32) -> DashDownloader {
         self.fragment_retry_count = count;
         self
@@ -570,12 +604,14 @@ impl DashDownloader {
     /// Transient network errors such as an HTTP 408 “request timeout” are retried automatically
     /// with an exponential backoff mechanism, and do not count towards this upper limit. The
     /// default is to fail after 30 non-transient network errors over the whole download.
+    #[must_use]
     pub fn max_error_count(mut self, count: u32) -> DashDownloader {
         self.max_error_count = count;
         self
     }
 
     /// Specify a number of seconds to sleep between network requests (default 0).
+    #[must_use]
     pub fn sleep_between_requests(mut self, seconds: u8) -> DashDownloader {
         self.sleep_between_requests = seconds;
         self
@@ -592,6 +628,7 @@ impl DashDownloader {
     ///
     /// You may also need to force a duration for the live stream using method
     /// `force_duration()`, because live streams often don’t specify a duration.
+    #[must_use]
     pub fn allow_live_streams(mut self, value: bool) -> DashDownloader {
         self.allow_live_streams = value;
         self
@@ -602,6 +639,7 @@ impl DashDownloader {
     ///
     /// This is mostly useful for live streams, for which the duration is often not specified. It
     /// can also be used to capture only the first part of a normal (static/on-demand) media stream.
+    #[must_use]
     pub fn force_duration(mut self, seconds: f64) -> DashDownloader {
         self.force_duration = Some(seconds);
         self
@@ -612,6 +650,7 @@ impl DashDownloader {
     ///
     /// Limiting bandwidth below 50kB/s is not recommended, as the downloader may fail to respect
     /// this limit.
+    #[must_use]
     pub fn with_rate_limit(mut self, bps: u64) -> DashDownloader {
         if bps < 10 * 1024 {
             warn!("Limiting bandwidth below 10kB/s is unlikely to be stable");
@@ -626,7 +665,7 @@ impl DashDownloader {
         // corresponds to the size (in kB) of the largest media segments we are going to be retrieving,
         // because that's the number of bucket cells that will be consumed for each downloaded segment.
         let mut kps = 1 + bps / 1024;
-        if kps > u32::MAX as u64 {
+        if kps > u64::from(u32::MAX) {
             warn!("Throttling bandwidth limit");
             kps = u32::MAX.into();
         }
@@ -649,6 +688,7 @@ impl DashDownloader {
     /// - 1: basic information on the number of Periods and bandwidth of selected representations
     /// - 2: information above + segment addressing mode
     /// - 3 or larger: information above + size of each downloaded segment
+    #[must_use]
     pub fn verbosity(mut self, level: u8) -> DashDownloader {
         self.verbosity = level;
         self
@@ -657,6 +697,7 @@ impl DashDownloader {
     /// Specify whether to record metainformation concerning the media content (origin URL, title,
     /// source and copyright metainformation) as extended attributes in the output file, assuming
     /// this information is present in the DASH manifest.
+    #[must_use]
     pub fn record_metainformation(mut self, record: bool) -> DashDownloader {
         self.record_metainformation = record;
         self
@@ -683,6 +724,7 @@ impl DashDownloader {
     ///      .download_to("wonderful.mkv")
     ///      .await?;
     /// ```
+    #[must_use]
     pub fn with_muxer_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
         self.muxer_preference.insert(container.to_string(), ordering.to_string());
         self
@@ -710,6 +752,7 @@ impl DashDownloader {
     ///      .download_to("wonderful.mkv")
     ///      .await?;
     /// ```
+    #[must_use]
     pub fn with_concat_preference(mut self, container: &str, ordering: &str) -> DashDownloader {
         self.concat_preference.insert(container.to_string(), ordering.to_string());
         self
@@ -721,6 +764,7 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `decryption_tool`: either "mp4decrypt" or "shaka" or "mp4box"
+    #[must_use]
     pub fn with_decryptor_preference(mut self, decryption_tool: &str) -> DashDownloader {
         self.decryptor_preference = decryption_tool.to_string();
         self
@@ -740,6 +784,7 @@ impl DashDownloader {
     /// #[cfg(target_os = "unix")]
     /// let ddl = ddl.with_ffmpeg("/opt/ffmpeg-next/bin/ffmpeg");
     /// ```
+    #[must_use]
     pub fn with_ffmpeg(mut self, ffmpeg_path: &str) -> DashDownloader {
         self.ffmpeg_location = ffmpeg_path.to_string();
         self
@@ -759,6 +804,7 @@ impl DashDownloader {
     /// #[cfg(target_os = "windows")]
     /// let ddl = ddl.with_vlc("C:/Program Files/VideoLAN/VLC/vlc.exe");
     /// ```
+    #[must_use]
     pub fn with_vlc(mut self, vlc_path: &str) -> DashDownloader {
         self.vlc_location = vlc_path.to_string();
         self
@@ -771,6 +817,7 @@ impl DashDownloader {
     /// * `path`: the path to the mkvmerge application. If it does not specify an absolute
     ///   path, the `PATH` environment variable will be searched in a platform-specific way
     ///   (implemented in `std::process::Command`).
+    #[must_use]
     pub fn with_mkvmerge(mut self, path: &str) -> DashDownloader {
         self.mkvmerge_location = path.to_string();
         self
@@ -783,6 +830,7 @@ impl DashDownloader {
     /// * `path`: the path to the MP4Box application. If it does not specify an absolute
     ///   path, the `PATH` environment variable will be searched in a platform-specific way
     ///   (implemented in `std::process::Command`).
+    #[must_use]
     pub fn with_mp4box(mut self, path: &str) -> DashDownloader {
         self.mp4box_location = path.to_string();
         self
@@ -795,6 +843,7 @@ impl DashDownloader {
     /// * `path`: the path to the mp4decrypt application. If it does not specify an absolute
     ///   path, the `PATH` environment variable will be searched in a platform-specific way
     ///   (implemented in `std::process::Command`).
+    #[must_use]
     pub fn with_mp4decrypt(mut self, path: &str) -> DashDownloader {
         self.mp4decrypt_location = path.to_string();
         self
@@ -807,6 +856,7 @@ impl DashDownloader {
     /// * `path`: the path to the shaka-packager application. If it does not specify an absolute
     ///   path, the `PATH` environment variable will be searched in a platform-specific way
     ///   (implemented in `std::process::Command`).
+    #[must_use]
     pub fn with_shaka_packager(mut self, path: &str) -> DashDownloader {
         self.shaka_packager_location = path.to_string();
         self
@@ -1209,7 +1259,7 @@ fn select_preferred_adaptations<'a>(
 // otherwise by the bandwidth specified. Note that quality ranking may be different from bandwidth
 // ranking when different codecs are used.
 fn select_preferred_representation<'a>(
-    representations: Vec<&'a Representation>,
+    representations: &[&'a Representation],
     downloader: &DashDownloader) -> Option<&'a Representation>
 {
     if representations.iter().all(|x| x.qualityRanking.is_some()) {
@@ -1513,7 +1563,7 @@ fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
     warn!("Transient error after {dur:?}: {err:?}");
 }
 
-fn network_error(why: &str, e: reqwest::Error) -> DashMpdError {
+fn network_error(why: &str, e: &reqwest::Error) -> DashMpdError {
     if e.is_timeout() {
         DashMpdError::NetworkTimeout(format!("{why}: {e:?}"))
     } else if e.is_connect() {
@@ -1780,25 +1830,25 @@ async fn resolve_xlink_references(
                 let xml = req.send().await
                     .map_err(|e|
                              if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("fetching XLink for {ns}"), e)
+                                 network_error(&format!("fetching XLink for {ns}"), &e)
                              } else {
-                                 network_error("fetching XLink", e)
+                                 network_error("fetching XLink", &e)
                              }
                         )?
                     .error_for_status()
                     .map_err(|e|
                              if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("fetching XLink for {ns}"), e)
+                                 network_error(&format!("fetching XLink for {ns}"), &e)
                              } else {
-                                 network_error("fetching XLink", e)
+                                 network_error("fetching XLink", &e)
                              }
                         )?
                     .text().await
                     .map_err(|e|
                              if let Ok(ns) = xot.to_string(node) {
-                                 network_error(&format!("resolving XLink for {ns}"), e)
+                                 network_error(&format!("resolving XLink for {ns}"), &e)
                              } else {
-                                 network_error("resolving XLink", e)
+                                 network_error("resolving XLink", &e)
                              }
                         )?;
                 if downloader.verbosity > 2 {
@@ -1820,7 +1870,7 @@ async fn resolve_xlink_references(
                     r#"xmlns:mspr="urn:microsoft:playready" "# +
                     r#"xmlns:xlink="http://www.w3.org/1999/xlink">"# +
                     skip_xml_preamble(&xml) +
-                    r#"</wrapper>"#;
+                    r"</wrapper>";
                 let wrapper_doc = xot.parse(&wrapped_xml)
                     .map_err(|e| parse_error("parsing xlinked content", e))?;
                 let wrapper_doc_el = xot.document_element(wrapper_doc)
@@ -1940,13 +1990,13 @@ async fn do_segmentbase_indexrange(
                 req = req.bearer_auth(token);
             }
             let mut resp = req.send().await
-                .map_err(|e| network_error("fetching index data", e))?
+                .map_err(|e| network_error("fetching index data", &e))?
                 .error_for_status()
-                .map_err(|e| network_error("fetching index data", e))?;
+                .map_err(|e| network_error("fetching index data", &e))?;
             let headers = std::mem::take(resp.headers_mut());
             if let Some(content_type) = headers.get(CONTENT_TYPE) {
                 let idx = resp.bytes().await
-                    .map_err(|e| network_error("fetching index data", e))?;
+                    .map_err(|e| network_error("fetching index data", &e))?;
                 if idx.len() as u64 != e - s + 1 {
                     warn!("  HTTP server does not support Range requests; can't use indexRange addressing");
                 } else {
@@ -2060,10 +2110,10 @@ async fn do_period_audio(
     // enclosed AdaptationSet or Representation node.
     if let Some(st) = &period.SegmentTemplate {
         if let Some(i) = &st.initialization {
-            opt_init = Some(i.to_string());
+            opt_init = Some(i.clone());
         }
         if let Some(m) = &st.media {
-            opt_media = Some(m.to_string());
+            opt_media = Some(m.clone());
         }
         if let Some(d) = st.duration {
             opt_duration = Some(d);
@@ -2085,7 +2135,7 @@ async fn do_period_audio(
         .iter()
         .flat_map(|a| a.representations.iter())
         .collect();
-    if let Some(audio_repr) = select_preferred_representation(representations, downloader) {
+    if let Some(audio_repr) = select_preferred_representation(&representations, downloader) {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
@@ -2126,7 +2176,7 @@ async fn do_period_audio(
                 if let Some(kid) = &cp.default_KID {
                     diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
-                for pssh_element in cp.cenc_pssh.iter() {
+                for pssh_element in &cp.cenc_pssh {
                     if let Some(pssh_b64) = &pssh_element.content {
                         diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
                         if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
@@ -2142,10 +2192,10 @@ async fn do_period_audio(
         // download for SegmentTemplate nodes that are children of a Representation node.
         if let Some(st) = &audio_adaptation.SegmentTemplate {
             if let Some(i) = &st.initialization {
-                opt_init = Some(i.to_string());
+                opt_init = Some(i.clone());
             }
             if let Some(m) = &st.media {
-                opt_media = Some(m.to_string());
+                opt_media = Some(m.clone());
             }
             if let Some(d) = st.duration {
                 opt_duration = Some(d);
@@ -2159,7 +2209,7 @@ async fn do_period_audio(
         }
         let mut dict = HashMap::new();
         if let Some(rid) = &audio_repr.id {
-            dict.insert("RepresentationID", rid.to_string());
+            dict.insert("RepresentationID", rid.clone());
         }
         if let Some(b) = &audio_repr.bandwidth {
             dict.insert("Bandwidth", b.to_string());
@@ -2202,7 +2252,7 @@ async fn do_period_audio(
                     fragments.push(mf);
                 }
             }
-            for su in sl.segment_urls.iter() {
+            for su in &sl.segment_urls {
                 start_byte = None;
                 end_byte = None;
                 // we are ignoring SegmentURL@indexRange
@@ -2255,7 +2305,7 @@ async fn do_period_audio(
                     fragments.push(mf);
                 }
             }
-            for su in sl.segment_urls.iter() {
+            for su in &sl.segment_urls {
                 start_byte = None;
                 end_byte = None;
                 // we are ignoring SegmentURL@indexRange
@@ -2292,10 +2342,10 @@ async fn do_period_audio(
                 panic!("unreachable");
             }
             if let Some(i) = &st.initialization {
-                opt_init = Some(i.to_string());
+                opt_init = Some(i.clone());
             }
             if let Some(m) = &st.media {
-                opt_media = Some(m.to_string());
+                opt_media = Some(m.clone());
             }
             if let Some(ts) = st.timescale {
                 timescale = ts;
@@ -2489,10 +2539,10 @@ async fn do_period_video(
     // enclosed AdaptationSet or Representation node.
     if let Some(st) = &period.SegmentTemplate {
         if let Some(i) = &st.initialization {
-            opt_init = Some(i.to_string());
+            opt_init = Some(i.clone());
         }
         if let Some(m) = &st.media {
-            opt_media = Some(m.to_string());
+            opt_media = Some(m.clone());
         }
         if let Some(d) = st.duration {
             opt_duration = Some(d);
@@ -2526,7 +2576,7 @@ async fn do_period_video(
             .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
             .copied()
     } else {
-        select_preferred_representation(representations, downloader)
+        select_preferred_representation(&representations, downloader)
     };
     if let Some(video_repr) = maybe_video_repr {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
@@ -2569,7 +2619,7 @@ async fn do_period_video(
                 if let Some(kid) = &cp.default_KID {
                     diagnostics.push(format!("    KID: {}", kid.replace('-', "")));
                 }
-                for pssh_element in cp.cenc_pssh.iter() {
+                for pssh_element in &cp.cenc_pssh {
                     if let Some(pssh_b64) = &pssh_element.content {
                         diagnostics.push(format!("    PSSH (from manifest): {pssh_b64}"));
                         if let Ok(pssh) = pssh_box::from_base64(pssh_b64) {
@@ -2581,7 +2631,7 @@ async fn do_period_video(
         }
         let mut dict = HashMap::new();
         if let Some(rid) = &video_repr.id {
-            dict.insert("RepresentationID", rid.to_string());
+            dict.insert("RepresentationID", rid.clone());
         }
         if let Some(b) = &video_repr.bandwidth {
             dict.insert("Bandwidth", b.to_string());
@@ -2592,10 +2642,10 @@ async fn do_period_video(
         // download for SegmentTemplate nodes that are children of a Representation node.
         if let Some(st) = &video_adaptation.SegmentTemplate {
             if let Some(i) = &st.initialization {
-                opt_init = Some(i.to_string());
+                opt_init = Some(i.clone());
             }
             if let Some(m) = &st.media {
-                opt_media = Some(m.to_string());
+                opt_media = Some(m.clone());
             }
             if let Some(d) = st.duration {
                 opt_duration = Some(d);
@@ -2639,7 +2689,7 @@ async fn do_period_video(
                     .build();
                 fragments.push(mf);
             }
-            for su in sl.segment_urls.iter() {
+            for su in &sl.segment_urls {
                 start_byte = None;
                 end_byte = None;
                 // we are ignoring @indexRange
@@ -2728,10 +2778,10 @@ async fn do_period_video(
                     panic!("impossible");
                 }
                 if let Some(i) = &st.initialization {
-                    opt_init = Some(i.to_string());
+                    opt_init = Some(i.clone());
                 }
                 if let Some(m) = &st.media {
-                    opt_media = Some(m.to_string());
+                    opt_media = Some(m.clone());
                 }
                 if let Some(ts) = st.timescale {
                     timescale = ts;
@@ -2952,7 +3002,7 @@ async fn do_period_subtitles(
             // single one for our selected Adaptation.
             if let Some(rep) = subtitle_adaptation.representations.first() {
                 if !rep.BaseURL.is_empty() {
-                    for st_bu in rep.BaseURL.iter() {
+                    for st_bu in &rep.BaseURL {
                         let st_url = merge_baseurls(&base_url, &st_bu.base)?;
                         let mut req = client.get(st_url.clone());
                         if let Some(referer) = &downloader.referer {
@@ -2961,9 +3011,9 @@ async fn do_period_subtitles(
                             req = req.header("Referer", base_url.to_string());
                         }
                         let rqw = req.build()
-                            .map_err(|e| network_error("building request", e))?;
+                            .map_err(|e| network_error("building request", &e))?;
                         let subs = reqwest_bytes_with_retries(client, rqw, 5).await
-                            .map_err(|e| network_error("fetching subtitles", e))?;
+                            .map_err(|e| network_error("fetching subtitles", &e))?;
                         let mut subs_path = period_output_path.clone();
                         let subtitle_format = subtitle_type(&subtitle_adaptation);
                         match subtitle_format {
@@ -3047,10 +3097,10 @@ async fn do_period_subtitles(
                     // download for SegmentTemplate nodes that are children of a Representation node.
                     if let Some(st) = &rep.SegmentTemplate {
                         if let Some(i) = &st.initialization {
-                            opt_init = Some(i.to_string());
+                            opt_init = Some(i.clone());
                         }
                         if let Some(m) = &st.media {
-                            opt_media = Some(m.to_string());
+                            opt_media = Some(m.clone());
                         }
                         if let Some(d) = st.duration {
                             opt_duration = Some(d);
@@ -3068,7 +3118,7 @@ async fn do_period_subtitles(
                             DashMpdError::UnhandledMediaStream(
                                 "Missing @id on Representation node".to_string())),
                     };
-                    let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                    let mut dict = HashMap::from([("RepresentationID", rid.clone())]);
                     if let Some(b) = &rep.bandwidth {
                         dict.insert("Bandwidth", b.to_string());
                     }
@@ -3105,7 +3155,7 @@ async fn do_period_subtitles(
                                 fragments.push(mf);
                             }
                         }
-                        for su in sl.segment_urls.iter() {
+                        for su in &sl.segment_urls {
                             start_byte = None;
                             end_byte = None;
                             // we are ignoring SegmentURL@indexRange
@@ -3195,10 +3245,10 @@ async fn do_period_subtitles(
                             panic!("unreachable");
                         }
                         if let Some(i) = &st.initialization {
-                            opt_init = Some(i.to_string());
+                            opt_init = Some(i.clone());
                         }
                         if let Some(m) = &st.media {
-                            opt_media = Some(m.to_string());
+                            opt_media = Some(m.clone());
                         }
                         if let Some(ts) = st.timescale {
                             timescale = ts;
@@ -3307,7 +3357,7 @@ async fn do_period_subtitles(
                                     DashMpdError::UnhandledMediaStream(
                                         "Missing @id on Representation node".to_string())),
                             };
-                            let mut dict = HashMap::from([("RepresentationID", rid.to_string())]);
+                            let mut dict = HashMap::from([("RepresentationID", rid.clone())]);
                             if let Some(b) = &rep.bandwidth {
                                 dict.insert("Bandwidth", b.to_string());
                             }
@@ -3483,7 +3533,7 @@ async fn fetch_fragment(
                         // don't download using byte range requests as a normal DASH client would
                         // do, but rather download using a single network request.
                         while let Some(chunk) = resp.chunk().await
-                            .map_err(|e| network_error(&format!("fetching DASH {fragment_type} segment"), e))?
+                            .map_err(|e| network_error(&format!("fetching DASH {fragment_type} segment"), &e))?
                         {
                             segment_size += chunk.len();
                             downloader.bw_estimator_bytes += chunk.len();
@@ -3529,10 +3579,10 @@ async fn fetch_fragment(
                         .map_err(|e| DashMpdError::Io(e, format!("syncing {fragment_type} fragment")))?;
                     Ok(tmp_out)
                 },
-                Err(e) => Err(network_error("HTTP error", e)),
+                Err(e) => Err(network_error("HTTP error", &e)),
             }
         },
-        Err(e) => Err(network_error(&format!("{e:?}"), e)),
+        Err(e) => Err(network_error(&format!("{e:?}"), &e)),
     }
 }
 
@@ -4127,7 +4177,7 @@ async fn fetch_period_subtitles(
                     Ok(response) => {
                         if response.status().is_success() {
                             let dash_bytes = response.bytes().await
-                                .map_err(|e| network_error("fetching DASH subtitle segment", e))?;
+                                .map_err(|e| network_error("fetching DASH subtitle segment", &e))?;
                             if downloader.verbosity > 2 {
                                 if let Some(sb) = &frag.start_byte {
                                     if let Some(eb) = &frag.end_byte {
@@ -4309,14 +4359,14 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
     }
     let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
         .await
-        .map_err(|e| network_error("requesting DASH manifest", e))?;
+        .map_err(|e| network_error("requesting DASH manifest", &e))?;
     if !response.status().is_success() {
         let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
         return Err(DashMpdError::Network(msg));
     }
     downloader.redirected_url = response.url().clone();
     response.bytes().await
-        .map_err(|e| network_error("fetching DASH manifest", e))
+        .map_err(|e| network_error("fetching DASH manifest", &e))
 }
 
 // Fetch XML content of manifest from a file:// URL. The reqwest library is not able to download
@@ -4377,14 +4427,14 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         };
         let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
             .await
-            .map_err(|e| network_error("requesting relocated DASH manifest", e))?;
+            .map_err(|e| network_error("requesting relocated DASH manifest", &e))?;
         if !response.status().is_success() {
             let msg = format!("fetching DASH manifest (HTTP {})", response.status().as_str());
             return Err(DashMpdError::Network(msg));
         }
         downloader.redirected_url = response.url().clone();
         let xml = response.bytes().await
-            .map_err(|e| network_error("fetching relocated DASH manifest", e))?;
+            .map_err(|e| network_error("fetching relocated DASH manifest", &e))?;
         mpd = parse_resolving_xlinks(downloader, &xml).await
             .map_err(|e| parse_error("parsing relocated DASH XML", e))?;
     }

@@ -67,11 +67,11 @@ impl SidxBox {
             // chunk is 1 bit for reference_type, and 31 bits for referenced_size.
             let chunk = rdr.read_u32::<BigEndian>()?;
             // Reference_type = 1 means a reference to another sidx (hierarchical sidx)
-            let reference_type = ((chunk & 0x80000000) >> 31) as u8;
+            let reference_type = ((chunk & 0x8000_0000) >> 31) as u8;
             if reference_type != 0 {
                 warn!("Don't know how to handle hierarchical sidx");
             }
-            let referenced_size = chunk & 0x7FFFFFFF;
+            let referenced_size = chunk & 0x7FFF_FFFF;
             let subsegment_duration = rdr.read_u32::<BigEndian>()?;
             let fields = rdr.read_u32::<BigEndian>()?;
             let starts_with_sap = if (fields >> 31) == 1 { 1 } else { 0 };
@@ -113,9 +113,9 @@ pub fn from_isobmff_sidx(data: &[u8], index_start: u64) -> Result<Vec<SegmentChu
     let mut current_pos = index_start;
     for sref in sidx.references {
         let start = current_pos;
-        let end = current_pos - 1 + sref.referenced_size as u64;
+        let end = current_pos - 1 + u64::from(sref.referenced_size);
         chunks.push(SegmentChunk{ start, end });
-        current_pos += sref.referenced_size as u64;
+        current_pos += u64::from(sref.referenced_size);
     }
     Ok(chunks)
 }

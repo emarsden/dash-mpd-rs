@@ -48,7 +48,7 @@ async fn test_dl_mp4() {
         .worst_quality()
         .max_error_count(5)
         .record_metainformation(false)
-        .with_authentication("user".to_string(), "dummy".to_string())
+        .with_authentication("user", "dummy")
         .download_to(out.clone()).await
         .unwrap();
     // Curious: this download size changed abruptly from 60_939 to this size early Nov. 2023.

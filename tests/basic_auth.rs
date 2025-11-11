@@ -151,7 +151,7 @@ async fn test_basic_auth() -> Result<()> {
     // init segment will be retrieved twice, one of those times to print the PSSH if it is present.
     let outpath = env::temp_dir().join("basic_auth.mp4");
     DashDownloader::new("http://localhost:6666/mpd")
-        .with_authentication(String::from("myuser"), String::from("mypassword"))
+        .with_authentication("myuser", "mypassword")
         .verbosity(2)
         .download_to(outpath.clone()).await
         .unwrap();

@@ -2260,7 +2260,7 @@ pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    for r in a.representations.iter() {
+    for r in &a.representations {
         if let Some(ct) = &r.contentType {
             if ct == "audio" {
                 return true;
@@ -2297,7 +2297,7 @@ pub fn is_video_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
-    for r in a.representations.iter() {
+    for r in &a.representations {
         if let Some(ct) = &r.contentType {
             if ct == "video" {
                 return true;
@@ -2411,6 +2411,7 @@ fn subtitle_type_for_mimetype(mt: &str) -> Option<SubtitleType> {
     }
 }
 
+#[must_use]
 pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
     if let Some(mimetype) = &a.mimeType {
         if let Some(st) = subtitle_type_for_mimetype(mimetype) {
@@ -2593,6 +2594,7 @@ fn valid_url_p(u: &str) -> bool {
 }
 
 /// Returns a list of DASH conformity errors in the DASH manifest mpd.
+#[must_use]
 pub fn check_conformity(mpd: &MPD) -> Vec<String> {
     let mut errors = Vec::new();
 
@@ -2931,7 +2933,8 @@ mod tests {
             "orange.xml",
             "patch-location.mpd",
             "st-sl.mpd",
-            "telenet-mid-ad-rolls.mpd"] {
+            "telenet-mid-ad-rolls.mpd",
+            "manifest_wvcenc_1080p.mpd"] {
             let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             path.push("tests");
             path.push("fixtures");

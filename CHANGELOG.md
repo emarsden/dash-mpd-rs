@@ -7,6 +7,9 @@
 
 - The deprecated `trust-dns` crate build option (replaced by `hickory-dns`) has been deleted.
 
+- The DashDownloader functions `with_authentication`, `with_auth_bearer` take `&str` arguments
+  instead of `String` arguments.
+
 
 ## [0.19.0] - 2025-11-09
 
