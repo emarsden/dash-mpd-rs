@@ -96,11 +96,11 @@ fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
 
 #[cfg(not(unix))]
 fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
-    let mut perms = fs::metadata(tmppath.clone())
+    let mut perms = fs::metadata(path)
         .map_err(|e| DashMpdError::Io(e, String::from("reading file permissions")))?
         .permissions();
     perms.set_readonly(false);
-    std::fs::set_permissions(tmppath.clone(), perms)
+    std::fs::set_permissions(path, perms)
         .map_err(|e| DashMpdError::Io(e, String::from("setting file permissions")))?;
     Ok(())
 }
