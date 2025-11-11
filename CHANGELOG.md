@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.19.1] - Unreleased
+## [0.19.1] - 2025-11-11
 
 - Re-enable the `unicode-perl` option on the regex crate, to allow parsing of timestamps.
 
@@ -9,6 +9,9 @@
 
 - The DashDownloader functions `with_authentication`, `with_auth_bearer` take `&str` arguments
   instead of `String` arguments.
+
+- Decryption using MP4Box: delete the temporary file used to pass decryption information to MP4Box
+  once the file has been decrypted.
 
 
 ## [0.19.0] - 2025-11-09

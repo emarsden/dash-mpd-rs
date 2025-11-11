@@ -256,14 +256,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.19.0"
+dash-mpd = "0.19.1"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.19.0", default-features = false }
+dash-mpd = { version = "0.19.1", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
