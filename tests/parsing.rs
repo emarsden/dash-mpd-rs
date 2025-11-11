@@ -608,6 +608,12 @@ async fn test_parsing_online() {
               "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/livesim/multi-drm.mpd").await;
     check_mpd(client.clone(),
               "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/schema-mpds/example_H2.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_K6.4.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_G21_patch_base.mpd").await;
+    check_mpd(client.clone(),
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_G30-5.mpd").await;
 
     // Additional test files from https://github.com/claudiuolteanu/mpd-parser
     check_mpd(client.clone(),
