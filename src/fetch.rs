@@ -3528,6 +3528,13 @@ async fn fetch_period_audio(
         // file on Windows).
         let tmpfile_audio = File::create(tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
+        // Ensure that the file is readable by our muxing helper later
+         let mut perms = fs::metadata(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("reading audio tmpfile permissions")))?
+            .permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(tmppath.clone(), perms)
+            .map_err(|e| DashMpdError::Io(e, String::from("setting audio tmpfile permissions")))?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
         // Optionally create the directory to which we will save the audio fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
@@ -3790,6 +3797,13 @@ async fn fetch_period_video(
         // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
         let tmpfile_video = File::create(tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
+        // Ensure that the file is readable by our muxing helper later
+         let mut perms = fs::metadata(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("reading video tmpfile permissions")))?
+            .permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(tmppath.clone(), perms)
+            .map_err(|e| DashMpdError::Io(e, String::from("setting video tmpfile permissions")))?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
         // Optionally create the directory to which we will save the video fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
@@ -4041,6 +4055,13 @@ async fn fetch_period_subtitles(
     {
         let tmpfile_subs = File::create(tmppath.clone())
             .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
+        // Ensure that the file is readable by our muxing helper later
+         let mut perms = fs::metadata(tmppath.clone())
+            .map_err(|e| DashMpdError::Io(e, String::from("reading subs tmpfile permissions")))?
+            .permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(tmppath.clone(), perms)
+            .map_err(|e| DashMpdError::Io(e, String::from("setting subs tmpfile permissions")))?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
             // Update any ProgressObservers
