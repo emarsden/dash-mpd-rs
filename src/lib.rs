@@ -2776,6 +2776,9 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::Duration;
 
     proptest! {
         #[test]
@@ -2787,7 +2790,6 @@ mod tests {
 
     #[test]
     fn test_parse_xs_duration() {
-        use std::time::Duration;
         use super::parse_xs_duration;
 
         assert!(parse_xs_duration("").is_err());
@@ -2846,7 +2848,6 @@ mod tests {
 
     #[test]
     fn test_serialize_xs_duration() {
-        use std::time::Duration;
         use super::MPD;
 
         fn serialized_xs_duration(d: Duration) -> String {
@@ -2892,5 +2893,111 @@ mod tests {
             .unwrap();
         assert_eq!(parse_xs_datetime("2023-04-19T01:03:02.958Z").ok(),
                    Some(DateTime::<Utc>::from_naive_utc_and_offset(date, Utc)));
+    }
+
+    #[test]
+    fn test_parse_failure() {
+        use super::parse;
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push("incomplete.mpd");
+        let xml = fs::read_to_string(path).unwrap();
+        assert!(matches!(parse(&xml), Err(crate::DashMpdError::Parsing(_))));
+    }
+
+    #[test]
+    fn test_conformity_checking() {
+        use super::{parse, check_conformity};
+
+        // These test fixtures have no currently detected non-conformities.
+        for fixture in [
+            "a2d-tv.mpd",
+            "ad-insertion-testcase1.mpd",
+            "ad-insertion-testcase6-av1.mpd",
+            "ad-insertion-testcase6-av2.mpd",
+            "ad-insertion-testcase6-av5.mpd",
+            "aws.xml",
+            "dashif-live-atoinf.mpd",
+            "dashif-low-latency.mpd",
+            "dash-testcases-5b-1-thomson.mpd",
+            "dolby-ac4.xml",
+            "example_G22.mpd",
+            "f64-inf.mpd",
+            "jurassic-compact-5975.mpd",
+            "mediapackage.xml",
+            "multiple_supplementals.mpd",
+            "orange.xml",
+            "patch-location.mpd",
+            "st-sl.mpd",
+            "telenet-mid-ad-rolls.mpd"] {
+            let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            path.push("tests");
+            path.push("fixtures");
+            path.push(fixture);
+            let xml = fs::read_to_string(path)
+                .expect(&format!("failed to read fixture {fixture}"));
+            let mpd = parse(&xml)
+                .expect(&format!("failed to parse fixture {fixture}"));
+            let anomalies = check_conformity(&mpd);
+            assert!(anomalies.is_empty());
+        }
+        // Now some manifests that have known non-conformities
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push("admanager.xml");
+        let xml = fs::read_to_string(path).unwrap();
+        let mpd = parse(&xml).unwrap();
+        let anomalies = check_conformity(&mpd);
+        assert!(!anomalies.is_empty());
+        for anomaly in anomalies {
+            assert!(anomaly.starts_with("SegmentTimeline has segment@d"));
+        }
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push( "avod-mediatailor.mpd");
+        let xml = fs::read_to_string(path).unwrap();
+        let mpd = parse(&xml).unwrap();
+        let anomalies = check_conformity(&mpd);
+        assert!(!anomalies.is_empty());
+        for anomaly in anomalies {
+            assert!(anomaly.starts_with("SegmentTimeline has segment@d"));
+        }
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push("telestream-binary.xml");
+        let xml = fs::read_to_string(path).unwrap();
+        let mpd = parse(&xml).unwrap();
+        let anomalies = check_conformity(&mpd);
+        assert!(!anomalies.is_empty());
+        for anomaly in anomalies {
+            assert!(anomaly.starts_with("Period with @id <unspecified> contains no AdaptationSet elements"));
+        }
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push("telestream-elements.xml");
+        let xml = fs::read_to_string(path).unwrap();
+        let mpd = parse(&xml).unwrap();
+        let anomalies = check_conformity(&mpd);
+        assert!(!anomalies.is_empty());
+        for anomaly in anomalies {
+            assert!(anomaly.starts_with("Period with @id <unspecified> contains no AdaptationSet elements"));
+        }
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push("vod-aip-unif-streaming.mpd");
+        let xml = fs::read_to_string(path).unwrap();
+        let mpd = parse(&xml).unwrap();
+        let anomalies = check_conformity(&mpd);
+        assert!(!anomalies.is_empty());
+        for anomaly in anomalies {
+            assert!(anomaly.starts_with("SegmentTimeline has segment@d > @maxSegmentDuration"));
+        }
     }
 }
