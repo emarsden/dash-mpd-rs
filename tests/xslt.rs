@@ -144,6 +144,7 @@ async fn test_xslt_drop_audio() {
     xslt.set_extension("xslt");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .verbosity(2)
         .with_xslt_stylesheet(xslt)
         .download_to(out.clone()).await
         .unwrap();
@@ -176,6 +177,7 @@ async fn test_xslt_rick() {
     xslt.set_extension("xslt");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .verbosity(2)
         // This manifest is using SegmentBase@indexRange addressing. We rewrite all the BaseURL
         // elements to point to a different media container from the original, which means that the
         // byte ranges are no longer valid. Disable use of the sidx index range information to make
