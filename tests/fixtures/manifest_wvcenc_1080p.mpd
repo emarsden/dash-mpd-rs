@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:cenc="urn:mpeg:cenc:2013" xmlns:ck="http://dashif.org/guidelines/clearKey" xmlns:dashif="https://dashif.org/" xmlns:mas="urn:marlin:mas:1-0:services:schemas:mpd" xmlns:mspr="urn:microsoft:playready" xmlns:xlink="http://www.w3.org/1999/xlink" maxSegmentDuration="PT3.84S" mediaPresentationDuration="PT6M24S" minBufferTime="PT1.5S" profiles="urn:dvb:dash:profile:dvb-dash:2014,urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014" type="static">
+ <Period duration="PT6M24S" id="p0">
+
+  <AdaptationSet contentType="video" id="1" lang="en" maxFrameRate="25" maxHeight="1080" maxWidth="1920" par="16:9" segmentAlignment="true" startWithSAP="1">
+   <ContentProtection cenc:default_KID="43215678-1234-1234-1234-123412341236" schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>
+   <ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" value="widevine">
+     <cenc:pssh>AAAATHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAACwIARIQQyFWeBI0EjQSNBI0EjQSNhoMc29maWFkaWdpdGFsIghUZXN0MTIzNg==</cenc:pssh>
+   </ContentProtection>
+   <ContentProtection schemeIdUri="urn:uuid:5E629AF5-38DA-4063-8977-97FFBD9902D4" value="marlin">
+    <mas:MarlinContentIds> <mas:MarlinContentId>urn:marlin:kid:43215678123412341234123412341236</mas:MarlinContentId> </mas:MarlinContentIds>
+   </ContentProtection>
+   <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+   <SegmentTemplate duration="49152" initialization="$RepresentationID$/i_wvcenc.mp4" media="$RepresentationID$/$Number$.m4s" startNumber="1" timescale="12800"/>
+   <Representation bandwidth="427400" codecs="avc1.4D401E" frameRate="25" height="360" id="v1" mimeType="video/mp4" sar="1:1" scanType="progressive" width="640">
+   </Representation>
+   <Representation bandwidth="1299392" codecs="avc1.640028" frameRate="25" height="720" id="v2" mimeType="video/mp4" sar="1:1" scanType="progressive" width="1280">
+   </Representation>
+   <Representation bandwidth="1781624" codecs="avc1.640028" frameRate="25" height="1080" id="v3" mimeType="video/mp4" sar="1:1" scanType="progressive" width="1920">
+   </Representation>
+  </AdaptationSet>
+
+  <AdaptationSet contentType="audio" id="21" lang="en" segmentAlignment="true" startWithSAP="1">
+   <ContentProtection cenc:default_KID="43215678-1234-1234-1234-123412341236" schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>
+   <ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" value="widevine">
+     <cenc:pssh>AAAATHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAACwIARIQQyFWeBI0EjQSNBI0EjQSNhoMc29maWFkaWdpdGFsIghUZXN0MTIzNg==</cenc:pssh>
+   </ContentProtection>
+   <ContentProtection schemeIdUri="urn:uuid:5E629AF5-38DA-4063-8977-97FFBD9902D4" value="marlin">
+    <mas:MarlinContentIds> <mas:MarlinContentId>urn:marlin:kid:43215678123412341234123412341236</mas:MarlinContentId> </mas:MarlinContentIds>
+   </ContentProtection>
+   <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+   <SegmentTemplate duration="184320" initialization="$RepresentationID$/i_wvcenc.mp4" media="$RepresentationID$/$Number$.m4s" startNumber="1" timescale="48000"/>
+   <Representation audioSamplingRate="48000" bandwidth="96304" codecs="mp4a.40.2" id="a1" mimeType="audio/mp4">
+    <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+   </Representation>
+   <Representation audioSamplingRate="48000" bandwidth="128696" codecs="mp4a.40.2" id="a2" mimeType="audio/mp4">
+    <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+   </Representation>
+  </AdaptationSet>
+ </Period>
+</MPD>
