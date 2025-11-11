@@ -5,6 +5,8 @@
 
 - Re-enable the `unicode-perl` option on the regex crate, to allow parsing of timestamps.
 
+- The deprecated `trust-dns` crate build option (replaced by `hickory-dns`) has been deleted.
+
 
 ## [0.19.0] - 2025-11-09
 

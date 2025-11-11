@@ -85,8 +85,6 @@ compression = ["reqwest/gzip"]
 socks = ["reqwest/socks"]
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
-# the trust-dns feature is deprecated
-trust-dns = ["reqwest/trust-dns"]
 hickory-dns = ["reqwest/hickory-dns"]
 http2 = ["reqwest/http2"]
 
