@@ -1,4 +1,4 @@
-// Rewrite MPD manifest to remove ads before downloading using XSLT stylesheet
+//! Rewrite MPD manifest to remove ads before downloading using XSLT stylesheet
 //
 // Run with `cargo run --example rewrite_xslt`
 //
@@ -44,6 +44,7 @@ use std::time::Duration;
 use std::path::{Path, PathBuf};
 use axum::{routing::get, Router};
 use axum::http::header;
+use axum_server::{Handle, bind};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use tracing_subscriber::EnvFilter;
@@ -84,10 +85,10 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], mpd) }));
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6669".parse().unwrap())
+        bind("127.0.0.1:6669".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()
