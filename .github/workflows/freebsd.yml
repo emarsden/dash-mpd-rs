@@ -10,7 +10,7 @@ name: freebsd
 
 # This is currently needed to build the http3 functionality in the reqwest crate
 env:
-  RUSTFLAGS='--cfg reqwest_unstable'
+  RUSTFLAGS: '--cfg reqwest_unstable'
 
 
 jobs:
