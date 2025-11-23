@@ -1,4 +1,4 @@
-// Testing that we select the right streams corresponding to user preference ranking.
+//! Testing that we select the right streams corresponding to user preference ranking.
 //
 //
 // To run tests while enabling printing to stdout/stderr
@@ -26,6 +26,7 @@ use axum::extract::{State, Path};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
+use axum_server::{Handle, bind};
 use pretty_assertions::assert_eq;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
@@ -138,10 +139,10 @@ async fn test_preference_ranking() -> Result<()> {
         .route("/media/{id}", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
+        bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service())
             .await

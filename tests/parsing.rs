@@ -521,8 +521,11 @@ fn test_parsing_xsd_uintvector() {
 async fn test_content_protection() {
     setup_logging();
     let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1")
         .timeout(Duration::new(30, 0))
         .gzip(true)
+        .brotli(true)
+        .zstd(true)
         .build()
         .expect("creating HTTP client");
     let url = "https://test.playready.microsoft.com/media/profficialsite/tearsofsteel_4k.ism/manifest.mpd";
@@ -541,6 +544,53 @@ async fn test_content_protection() {
     p1.adaptations.iter().for_each(|a| {
         assert_eq!(a.ContentProtection.len(), 2);
     });
+}
+
+#[tokio::test]
+async fn test_label() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://github.com/shaka-project/shaka-packager/raw/refs/heads/main/packager/app/test/testdata/dash-label/output.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    assert!(mpd.periods.iter().any(
+        |p| p.adaptations.iter().any(
+            |a| a.Label.first().unwrap().content.eq("English"))));
+}
+
+#[tokio::test]
+async fn test_supplemental_property() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://github.com/shaka-project/shaka-packager/raw/refs/heads/main/packager/app/test/testdata/dolby-vision-profile-5-with-encryption/output.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    let adap = mpd.periods.first().unwrap()
+        .adaptations.first().unwrap();
+    assert!(adap.essential_property.len() == 0);
+    assert!(adap.supplemental_property.len() == 3);
 }
 
 

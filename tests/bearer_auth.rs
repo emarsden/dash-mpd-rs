@@ -1,4 +1,4 @@
-// Testing support for Bearer HTTP authorization.
+//! Testing support for Bearer HTTP authorization.
 //
 //
 // To run tests while enabling printing to stdout/stderr
@@ -26,6 +26,7 @@ use axum::response::{Response, IntoResponse};
 use axum::http::header;
 use axum::body::Body;
 use axum_auth::AuthBearer;
+use axum_server::{Handle, bind};
 use http::StatusCode;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
 use dash_mpd::fetch::DashDownloader;
@@ -115,10 +116,10 @@ async fn test_bearer_auth() -> Result<()> {
         .route("/media/{seg}", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
+        bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

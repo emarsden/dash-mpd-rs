@@ -1,4 +1,4 @@
-// Tests for MPD download support
+//! Tests for MPD download support
 //
 // To run tests while enabling printing to stdout/stderr
 //

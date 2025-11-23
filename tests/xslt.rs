@@ -1,4 +1,4 @@
-// Dedicated tests for XSLT stylesheet processing
+//! Dedicated tests for XSLT stylesheet processing
 //
 // To run only these tests while enabling printing to stdout/stderr
 //
@@ -17,6 +17,7 @@ use axum::extract::{Path, State};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
+use axum_server::{Handle, bind};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use pretty_assertions::assert_eq;
@@ -78,10 +79,10 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .route("/media/{segment}", get(send_media))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6668".parse().unwrap())
+        bind("127.0.0.1:6668".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

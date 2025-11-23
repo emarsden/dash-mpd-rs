@@ -1,4 +1,4 @@
-// Testing that we correctly resolve XLink references
+//! Testing that we correctly resolve XLink references
 //
 // From the DASH IF specification: DASH "remote elements" are elements that are not fully contained
 // in the MPD document but are referenced in the MPD with an HTTP URL using a simplified profile of
@@ -43,6 +43,7 @@ use axum::extract::{Path, State};
 use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
+use axum_server::{Handle, bind};
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
 use dash_mpd::{SegmentTemplate, SegmentURL};
 use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
@@ -229,10 +230,10 @@ async fn test_xlink_retrieval() -> Result<()> {
         .route("/media/{segment}", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
+        bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()
@@ -330,10 +331,10 @@ async fn test_xlink_errors() -> Result<()> {
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
         .route("/remote/period.xml", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], remote_period_xml) }));
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6669".parse().unwrap())
+        bind("127.0.0.1:6669".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()

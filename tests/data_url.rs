@@ -1,4 +1,4 @@
-// Testing for correct handling of data: URLs (sometimes used for init segment in a DASH manifest).
+//! Testing for correct handling of data: URLs (sometimes used for init segment in a DASH manifest).
 //
 //
 // To run this test while enabling printing to stdout/stderr
@@ -22,6 +22,7 @@ use std::time::Duration;
 use tempfile::Builder;
 use axum::{routing::get, Router};
 use axum::http::header;
+use axum_server::{Handle, bind};
 use ffprobe::ffprobe;
 use dash_mpd::{MPD, Period, AdaptationSet, Representation, Initialization, SegmentList, SegmentURL};
 use dash_mpd::fetch::DashDownloader;
@@ -167,10 +168,10 @@ async fn test_data_url() -> Result<()> {
     let xml = mpd.to_string();
     let app = Router::new()
         .route("/mpd", get(|| async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }));
-    let server_handle = hyper_serve::Handle::new();
+    let server_handle = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
-        hyper_serve::bind("127.0.0.1:6666".parse().unwrap())
+        bind("127.0.0.1:6666".parse().unwrap())
             .handle(backend_handle)
             .serve(app.into_make_service()).await
             .unwrap()
