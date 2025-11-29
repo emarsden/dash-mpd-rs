@@ -463,7 +463,26 @@ fn test_parsing_patch_location() {
     assert_eq!(mpd.mpdtype.unwrap(), "dynamic");
     assert_eq!(mpd.PatchLocation.len(), 1);
     assert!(mpd.PatchLocation[0].content.contains("patch.mpp"));
+
+    // This manifest from https://192-46-234-23.ip.linodeusercontent.com/livesim2/segtimeline_1/patch_60/testpic_2s/Manifest.mpd
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("fixtures");
+    path.push("patch-location2");
+    path.set_extension("mpd");
+    let xml = fs::read_to_string(path).unwrap();
+    let mpd = parse(&xml).unwrap();
+    assert_eq!(mpd.mpdtype.unwrap(), "dynamic");
+    assert_eq!(mpd.ProgramInformation.len(), 1);
+    assert!(mpd.ProgramInformation[0].moreInformationURL
+            .as_ref()
+            .is_some_and(|u| u.starts_with("https://github.com/dash-Industry-Forum")));
+    assert_eq!(mpd.PatchLocation.len(), 1);
+    assert!(mpd.PatchLocation[0].content.contains("Manifest.mpp"));
+    assert_relative_eq!(mpd.PatchLocation[0].ttl.unwrap(), 60.0);
+
 }
+
 
 // Test fixture is from https://standards.iso.org/iso-iec/23009/-1/ed-5/en/
 #[test]
@@ -591,6 +610,32 @@ async fn test_supplemental_property() {
         .adaptations.first().unwrap();
     assert!(adap.essential_property.len() == 0);
     assert!(adap.supplemental_property.len() == 3);
+}
+
+
+#[tokio::test]
+async fn test_parsing_leapsecond_information() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://rdmedia.bbc.co.uk/testcard/lowlatency/manifests/ll-avc-full.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml).unwrap();
+    assert_eq!(mpd.LeapSecondInformation.unwrap().availabilityStartLeapOffset, Some(0));
+    assert_eq!(mpd.Metrics[0].Reporting.len(), 1);
+    let adap26 = mpd.periods[0].adaptations.iter()
+        .find(|&adap| adap.id.as_ref().is_some_and(|id| id.eq("26")))
+        .unwrap();
+    assert!(adap26.Role.iter().any(|r| r.value.as_ref().is_some_and(|v| v.eq("dub"))));
+    assert!(adap26.Role.iter().any(|r| r.value.as_ref().is_some_and(|v| v.eq("alternate"))));
 }
 
 
