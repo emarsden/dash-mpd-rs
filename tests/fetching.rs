@@ -806,7 +806,6 @@ async fn test_downloader() {
 //
 // As of 2024-09 this test is failing with an expired certificate error. This is useful information
 // in judging the technical competence of a streaming provider.
-#[ignore]
 #[tokio::test]
 async fn test_dl_usp_tos() {
     setup_logging();
@@ -852,6 +851,57 @@ async fn test_dl_h265() {
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
     let _ = fs::remove_dir_all(tmpd);
 }
+
+
+// Content packaged using Unified Streaming Platform
+//
+// Manifest listed at https://reference.dashif.org/dash.js/nightly/samples/dash-if-reference-player/index.html
+#[tokio::test]
+async fn test_dl_usp_packager() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://s3.eu-west-1.amazonaws.com/origin-prod-lon-v-nova.com/lcevcDualTrack/1080p30_4Mbps_no_dR/master.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("usp-bb.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .without_content_type_checks()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 206_901_334);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+#[tokio::test]
+async fn test_dl_arte() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://arteamd1.akamaized.net/GPU/034000/034700/034755-230-A/221125154117/034755-230-A_8_DA_v20221125.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("arte.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(out.clone()).await
+        .unwrap();
+    let format = FileFormat::from_file(out.clone()).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_file_size_approx(&out, 33_188_592);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
 
 // Content that is served with an invalid Content-type header.
 #[tokio::test]
@@ -1030,3 +1080,6 @@ async fn test_dl_follow_redirect() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+
+
+// We could test this live stream: https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd
