@@ -37,6 +37,9 @@ use crate::media::{temporary_outpath, AudioTrack};
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
+#[cfg(all(feature = "sandbox", target_os = "linux"))]
+use crate::sandbox::{restrict_thread};
+
 
 /// A `Client` from the `reqwest` crate, that we use to download content over HTTP.
 pub type HttpClient = reqwest::Client;
@@ -176,6 +179,7 @@ pub struct DashDownloader {
     bw_limiter: Option<DirectRateLimiter>,
     bw_estimator_started: Instant,
     bw_estimator_bytes: usize,
+    pub sandbox: bool,
     pub verbosity: u8,
     record_metainformation: bool,
     pub muxer_preference: HashMap<String, String>,
@@ -256,6 +260,7 @@ impl DashDownloader {
             bw_limiter: None,
             bw_estimator_started: Instant::now(),
             bw_estimator_bytes: 0,
+            sandbox: false,
             verbosity: 0,
             record_metainformation: true,
             muxer_preference: HashMap::new(),
@@ -471,7 +476,7 @@ impl DashDownloader {
     /// # Arguments
     ///
     /// * `id` - a track ID in decimal or a 128-bit KID in hexadecimal format (32 hex characters).
-    ///    Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
+    ///   Examples: "1" or "eb676abbcb345e96bbcf616630f1a3da".
     ///
     /// * `key` - a 128-bit key in hexadecimal format.
     #[must_use]
@@ -691,6 +696,25 @@ impl DashDownloader {
     #[must_use]
     pub fn verbosity(mut self, level: u8) -> DashDownloader {
         self.verbosity = level;
+        self
+    }
+
+    /// Enable or disable the security sandboxing support.
+    ///
+    /// Security sandboxing is experimental. It is only available on Linux, when the crate is
+    /// compiled with the `sandbox` feature enabled. It uses features of the Landlock LSM.
+    ///
+    /// # Arguments
+    ///
+    /// * enable - a boolean specifying whether to enable the sandboxing support. If enabling is
+    ///   requested but support is not available, a warning message will be printed.
+    #[must_use]
+    pub fn sandbox(mut self, enable: bool) -> DashDownloader {
+        #[cfg(not(all(feature = "sandbox", target_os = "linux")))]
+        if enable {
+            warn!("Sandboxing only available on Linux with crate feature sandbox enabled");
+        }
+        self.sandbox = enable;
         self
     }
 
@@ -4393,6 +4417,12 @@ async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
 
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
+    #[cfg(all(feature = "sandbox", target_os = "linux"))]
+    if downloader.sandbox {
+        if let Err(e) = restrict_thread(downloader) {
+            warn!("Sandboxing failed: {e:?}");
+        }
+    }
     let xml = if downloader.mpd_url.starts_with("file://") {
         fetch_mpd_file(downloader).await?
     } else {

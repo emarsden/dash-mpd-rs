@@ -1,6 +1,6 @@
 //! Security sandboxing support
 //
-// This module provides basic and experimental sandboxing support for the running application. We
+// This module provides basic and experimental sandboxing support for the running thread. We
 // tell the operating system that we do not intend to use some functionality such as listening on a
 // network socket or writing files other than in specific directories, and the operating system
 // blocks us from later doing so. The sandboxing is inherited by all child processes, and in
@@ -19,9 +19,9 @@
 // blocked by the landlock APIs. Running the application in a Docker/Podman container provides much
 // more protection.
 //
-// Implementation of this feature is gated at compile time by the "sandbox" crate feature. When
-// compiled in, it must be enabled at runtime at runtime by calling the `sandbox` method on
-// `DashDownloader` with a true argument.
+// Implementation of this feature is gated at compile time by the `sandbox` crate feature. When
+// compiled in, it must be enabled at runtime by calling the `sandbox` method on `DashDownloader`
+// with a true argument.
 //
 // Implementation notes:
 //
@@ -90,7 +90,8 @@ pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> 
     rw_dirs.push(String::from("/var/tmp"));
     let tmpdir = env::var("TMPDIR").unwrap_or_else(|_| String::from("/tmp"));
     rw_dirs.push(tmpdir);
-    // The XDG_RUNTIME_DIR may or may not overlap with $TMPDIR
+    // The XDG_RUNTIME_DIR is normally something like /run/user/<uid>, or possibly a subdirectory of
+    // $TMPDIR.
     if let Some(runtime_dir) = dir_spec::runtime() {
         let runtime_str = runtime_dir.into_os_string();
         let runtime_string = String::from(runtime_str.to_string_lossy());
@@ -159,7 +160,7 @@ pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> 
         .restrict_self()
         .map_err(|_| DashMpdError::Other(String::from("enforcing landlock sandboxing ruleset")))?;
     match status.ruleset {
-        RulesetStatus::FullyEnforced => info!("Fully sandboxed."),
+        RulesetStatus::FullyEnforced => info!(" ✓ Sandboxing enabled."),
         RulesetStatus::PartiallyEnforced => info!("Partially sandboxed."),
         RulesetStatus::NotEnforced => error!("Not sandboxed! Please update your Linux kernel."),
     }

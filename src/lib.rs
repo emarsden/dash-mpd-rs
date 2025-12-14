@@ -87,6 +87,10 @@ use crate::scte35::{Signal, SpliceInfoSection};
 use crate::libav::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
+
+#[cfg(all(feature = "sandbox", target_os = "linux"))]
+pub mod sandbox;
+
 use serde::{Serialize, Serializer, Deserialize};
 use serde::de;
 use serde_with::skip_serializing_none;
