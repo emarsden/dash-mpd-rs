@@ -27,6 +27,7 @@ async fn test_concat_noaudio_ffmpeg() {
     let out = tmpd.path().join("concat-noaudio-ffmpeg.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -63,6 +64,7 @@ async fn test_concat_noaudio_ffmpegdemuxer() {
     let out = tmpd.path().join("concat-noaudio-ffmpegdemuxer.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
@@ -102,6 +104,7 @@ async fn test_concat_noaudio_mkvmerge_mp4() {
     let out = tmpd.path().join("concat-noaudio-mkvmerge.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
@@ -121,6 +124,7 @@ async fn test_concat_noaudio_mkv_concat_fallback() {
     let out = tmpd.path().join("concat-noaudio-mkvmerge.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .with_concat_preference("mkv", "mkvmerge,ffmpeg")
         .download_to(out.clone()).await
@@ -158,6 +162,7 @@ async fn test_concat_singleases_ffmpeg() {
     let out = tmpd.path().join("concat-singleases-ffmpeg.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .minimum_period_duration(Duration::new(10, 0))
         .download_to(out.clone()).await
@@ -194,6 +199,7 @@ async fn test_concat_singleases_ffmpegdemuxer() {
     let out = tmpd.path().join("concat-singleases-ffmpeg.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .minimum_period_duration(Duration::new(10, 0))
         .download_to(out.clone()).await
@@ -237,6 +243,7 @@ async fn test_concat_singleases_mkvmerge() {
     let out = tmpd.path().join("concat-singleases-mkvmerge.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .minimum_period_duration(Duration::new(10, 0))
         .download_to(out.clone()).await
@@ -254,6 +261,7 @@ async fn test_concat_heliocentrism_ffmpeg_mp4() {
     let out = tmpd.path().join("concat-helio-ffmpeg.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -284,6 +292,7 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mp4() {
     let out = tmpd.path().join("concat-helio-ffmpeg-demuxer.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
@@ -317,6 +326,7 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
     let out = tmpd.path().join("concat-helio-ffmpeg.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(3)
         .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpeg")
@@ -362,6 +372,7 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
     let out = tmpd.path().join("concat-helio-ffmpeg.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(2)
         .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpegdemuxer")
@@ -412,6 +423,7 @@ async fn test_concat_heliocentrism_mkvmerge_mp4() {
     let out = tmpd.path().join("concat-helio-mkvmerge.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(2)
         .with_concat_preference("mp4", "mkvmerge")
         .download_to(out.clone()).await
@@ -447,6 +459,7 @@ async fn test_concat_heliocentrism_mkvmerge_mkv() {
     let out = tmpd.path().join("concat-helio-mkvmerge.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(3)
         .with_concat_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
@@ -483,6 +496,7 @@ async fn test_concat_heliocentrism_p1p2() {
     let out = tmpd.path().join("concat-helio_p1p2.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         // here we should be dropping period #3 (id=2) whose duration is 0.701s
         .minimum_period_duration(Duration::new(2, 0))
@@ -518,6 +532,7 @@ async fn test_concat_dashif_5bnomor2() {
     let out = tmpd.path().join("concat-5bnomor2.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
@@ -555,6 +570,7 @@ async fn test_concat_axinom_multiperiod() {
     let out = tmpd.path().join("concat-axinom-multiperiod.mp4");
     DashDownloader::new(mpd_url)
         .verbosity(2)
+        .sandbox(true)
         .worst_quality()
         .add_decryption_key(String::from("0872786ef9e7465fa3a24e5b0ef8fa45"),
                             String::from("c3261179bab61eeec979d2d4069511cf"))

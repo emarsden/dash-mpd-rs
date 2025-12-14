@@ -46,6 +46,7 @@ async fn test_dl_mp4() {
     let out = tmpd.path().join("cf.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .max_error_count(5)
         .record_metainformation(false)
         .with_authentication("user", "dummy")
@@ -69,6 +70,7 @@ async fn test_dl_segmentbase_baseurl() {
     let out = tmpd.path().join("reddit.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .max_error_count(5)
         .record_metainformation(false)
         .download_to(out.clone()).await
@@ -96,6 +98,7 @@ async fn test_dl_segmenttemplate_tiny() {
     let out = tmpd.path().join("red-green.mp4");
     DashDownloader::new(mpd_url)
         .intermediate_quality()
+        .sandbox(true)
         .record_metainformation(false)
         .download_to(out.clone()).await
         .unwrap();
@@ -126,6 +129,7 @@ async fn test_dl_audio_mp4a() {
     let out = tmpd.path().join("sintel-audio.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 7_456_334);
@@ -154,6 +158,7 @@ async fn test_dl_audio_flac() {
     let out = tmpd.path().join("bbcradio-flac.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .download_to(out.clone()).await
         .unwrap();
     check_file_size_approx(&out, 81_603_640);
@@ -210,6 +215,7 @@ async fn test_dl_dolby_ac4_mkv() {
     let out = tmpd.path().join("dolby-ac4.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(2)
         .download_to(out.clone()).await
         .unwrap();
@@ -272,6 +278,7 @@ async fn test_dl_dolby_ac4_mp4() {
     let out = tmpd.path().join("dolby-ac4.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .without_content_type_checks()
         .verbosity(2)
         .download_to(out.clone()).await
@@ -300,6 +307,7 @@ async fn test_dl_dolby_dtsc() {
     let out = tmpd.path().join("dolby-dtsc.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mkv", "mkvmerge")
         .content_type_checks(false)
         .conformity_checks(false)
@@ -365,6 +373,7 @@ async fn test_dl_hvc1() {
     let out = tmpd.path().join("hvc1.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(2)
         .download_to(out.clone()).await
         .unwrap();

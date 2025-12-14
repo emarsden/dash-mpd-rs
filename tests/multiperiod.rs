@@ -33,6 +33,7 @@ async fn test_multiperiod_helio() {
     let out = tmpd.path().join("heliocentrism-multiperiod.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .download_to(out.clone()).await
         .unwrap();
     // We see different file sizes for content from this manifest, for unknown reasons.
@@ -60,6 +61,7 @@ async fn test_multiperiod_nomor5a_ffmpeg() {
     let out = tmpd.path().join("nomor.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .concatenate_periods(true)
         // The mkvmerge concat helper fails on this manifest
         .with_concat_preference("mp4", "ffmpeg")
@@ -88,6 +90,7 @@ async fn test_multiperiod_nomor5b_ffmpeg() {
     let p3 = tmpd.path().join("multiperiod-5b-p3.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -115,6 +118,7 @@ async fn test_multiperiod_nomor5b_mkvmerge() {
     let p3 = tmpd.path().join("multiperiod-5b-p3.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
@@ -140,6 +144,7 @@ async fn test_multiperiod_withsubs_ffmpeg() {
     let out = tmpd.path().join("multiperiod-withsubs.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .verbosity(2)
         .download_to(out.clone()).await
@@ -164,6 +169,7 @@ async fn test_multiperiod_withsubs_ffmpegdemuxer() {
     let out = tmpd.path().join("multiperiod-withsubs.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .verbosity(2)
         .download_to(out.clone()).await
@@ -188,6 +194,7 @@ async fn test_multiperiod_audio_ffmpeg() {
     let out = tmpd.path().join("multiperiod-audio.mp3");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp3", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -212,6 +219,7 @@ async fn test_multiperiod_audio_ffmpegdemuxer() {
     let out = tmpd.path().join("multiperiod-audio.mp3");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp3", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
@@ -239,6 +247,7 @@ async fn test_multiperiod_diffbase() {
     let out = tmpd.path().join("multiperiod-diffbase.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -269,6 +278,7 @@ async fn test_multiperiod_witha_withouta_ffmpegfilter() {
     let out = tmpd.path().join("twoperiods.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -306,6 +316,7 @@ async fn test_multiperiod_witha_withouta_ffmpegdemuxer() {
     let out = tmpd.path().join("twoperiods.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .download_to(out.clone()).await
         .unwrap();
@@ -342,6 +353,7 @@ async fn test_multiperiod_witha_withouta_witha() {
     let out = tmpd.path().join("threeperiods.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();

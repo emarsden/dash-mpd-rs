@@ -28,6 +28,7 @@ async fn test_muxing_mkvmerge() {
     let out = tmpd.path().join("muxing-llama.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         // Some useless arguments to increase test coverage
         .with_ffmpeg("/usr/bin/ffmpeg")
         .with_vlc("/usr/bin/vlc")
@@ -67,6 +68,7 @@ async fn test_muxing_mkvmerge_audio() {
     let out = tmpd.path().join("audio-only.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mkv", "mkvmerge")
@@ -100,6 +102,7 @@ async fn test_muxing_ffmpeg_avi() {
     let out = tmpd.path().join("muxing-llama.avi");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("avi", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -124,6 +127,7 @@ async fn test_muxing_ffmpeg_mkv() {
     let out = tmpd.path().join("muxing-llama.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mkv", "ffmpeg")
         .download_to(out.clone()).await
         .unwrap();
@@ -161,6 +165,7 @@ async fn test_muxing_ffmpeg_webm() {
     let out = tmpd.path().join("muxing-llama.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .verbosity(2)
         .with_muxer_preference("webm", "ffmpeg")
         .download_to(out.clone()).await
@@ -201,6 +206,7 @@ async fn test_muxing_ffmpeg_audio() {
     let out = tmpd.path().join("audio-only.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mp4", "ffmpeg")
@@ -232,6 +238,7 @@ async fn test_muxing_vlc_mp4() {
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("muxing-llama.mp4");
     DashDownloader::new(mpd_url)
+        .sandbox(true)
         .worst_quality()
         .with_muxer_preference("mp4", "vlc")
         .download_to(out.clone()).await
@@ -268,6 +275,7 @@ async fn test_muxing_vlc_mkv() {
     let out = tmpd.path().join("muxing-llama.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mkv", "vlc")
         .download_to(out.clone()).await
         .unwrap();
@@ -303,6 +311,7 @@ async fn test_muxing_vlc_webm() {
     let out = tmpd.path().join("muxing-llama.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("webm", "vlc")
         .download_to(out.clone()).await
         .unwrap();
@@ -339,6 +348,7 @@ async fn test_muxing_mp4box() {
     let out = tmpd.path().join("muxing-llama.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mp4", "mp4box")
         .download_to(out.clone()).await
         .unwrap();
@@ -375,6 +385,7 @@ async fn test_muxing_vp9_mkvmerge() {
     let out = tmpd.path().join("vp9.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
@@ -409,6 +420,7 @@ async fn test_muxing_3gp_mkvmerge() {
     let out = tmpd.path().join("3gp.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mkv", "mkvmerge")
         .download_to(out.clone()).await
         .unwrap();
@@ -436,6 +448,7 @@ async fn test_muxing_3gp_vlc() {
     let out = tmpd.path().join("3gp.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .with_muxer_preference("mp4", "vlc")
         .download_to(out.clone()).await
         .unwrap();
@@ -471,6 +484,7 @@ async fn test_muxing_mp4box_audio() {
     let out = tmpd.path().join("audio-only.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mp4", "mp4box")

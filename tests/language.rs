@@ -29,6 +29,7 @@ async fn test_lang_prefer_spa() {
     }
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .max_error_count(5)
         .record_metainformation(true)
         .prefer_language(String::from("spa"))
@@ -65,6 +66,7 @@ async fn test_subtitle_lang_stpp_im1t() {
         .fetch_subtitles(true)
         .prefer_language(String::from("fra"))
         .verbosity(2)
+        .sandbox(true)
         .download_to(outpath.clone()).await
         .unwrap();
     let meta = ffprobe(&outpath).unwrap();
@@ -97,6 +99,7 @@ async fn test_lang_en_surround() {
     let out = tmpd.path().join("sintel-surround.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .sandbox(true)
         .without_content_type_checks()
         .audio_only()
         .download_to(out.clone()).await

@@ -84,6 +84,7 @@ async fn test_decryption_webm_shaka() {
     DashDownloader::new(url)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
                             String::from("429ec76475e7a952d224d8ef867f12b6"))
         .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
@@ -148,6 +149,7 @@ async fn test_decryption_cra () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("75bf33ac08440c81d623019c87fe1360"),
                             String::from("bacd0a82f91a44d9315e6269dd769e0f"))
         .download_to(outpath.clone()).await
@@ -177,6 +179,7 @@ async fn test_decryption_wvcenc_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -207,6 +210,7 @@ async fn test_decryption_wvcenc_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -237,6 +241,7 @@ async fn test_decryption_wvcenc_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -268,6 +273,7 @@ async fn test_decryption_wvcbcs_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -298,6 +304,7 @@ async fn test_decryption_wvcbcs_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -329,6 +336,7 @@ async fn test_decryption_wvcbcs_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -361,6 +369,7 @@ async fn test_decryption_prcenc_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(3)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .download_to(outpath.clone()).await
@@ -387,6 +396,7 @@ async fn test_decryption_prcenc_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(3)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka")
@@ -414,6 +424,7 @@ async fn test_decryption_prcenc_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(3)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box")
@@ -442,6 +453,7 @@ async fn test_decryption_marlincenc_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .download_to(outpath.clone()).await
@@ -468,6 +480,7 @@ async fn test_decryption_marlincenc_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -495,6 +508,7 @@ async fn test_decryption_marlincenc_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
@@ -523,6 +537,7 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .download_to(outpath.clone()).await
@@ -552,6 +567,7 @@ async fn test_decryption_marlincbcs_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -581,6 +597,7 @@ async fn test_decryption_marlincbcs_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
@@ -611,6 +628,7 @@ async fn test_decryption_mlcenc_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -639,6 +657,7 @@ async fn test_decryption_mlcbcs_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
@@ -668,6 +687,7 @@ async fn test_decryption_mlcbcs_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
@@ -702,6 +722,7 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("53dc3eaa5164410a8f4ee15113b43040"),
                             String::from("620045a34e839061ee2e9b7798fdf89b"))
         .add_decryption_key(String::from("9dbace9e41034c5296aa63227dc5f773"),
@@ -731,6 +752,7 @@ async fn test_decryption_axinom_cbcs_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
                             String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
         // For an unknown reason, mp4decrypt is not able to decrypt the audio stream for this
@@ -759,6 +781,7 @@ async fn test_decryption_axinom_cbcs_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
                             String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
         .with_decryptor_preference("mp4box")
@@ -786,6 +809,7 @@ async fn test_decryption_axinom_widevine_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("6e5a1d26275747d78046eaa5d1d34b5a"),
                             // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
                             String::from("197f26f572c864d2338b3ae5d114ea9c"))
@@ -813,6 +837,7 @@ async fn test_decryption_axinom_widevine_mp4box () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("6e5a1d26275747d78046eaa5d1d34b5a"),
                             // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
                             String::from("197f26f572c864d2338b3ae5d114ea9c"))
@@ -843,6 +868,7 @@ async fn test_decryption_oldsmall () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .download_to(outpath.clone()).await
@@ -863,6 +889,7 @@ async fn test_decryption_small () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .sandbox(true)
         .add_decryption_key(String::from("4d97930a3d7b55fa81d0028653f5e499"),
                             String::from("429ec76475e7a952d224d8ef867f12b6"))
         .add_decryption_key(String::from("d21373c0b8ab5ba9954742bcdfb5f48b"),
@@ -895,6 +922,7 @@ async fn test_decryption_unencrypted_mp4decrypt () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4decrypt")
@@ -927,6 +955,7 @@ async fn test_decryption_unencrypted_shaka () {
     DashDownloader::new(mpd)
         .worst_quality()
         .verbosity(2)
+        .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
