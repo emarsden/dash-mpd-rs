@@ -88,7 +88,7 @@ use crate::libav::{mux_audio_video, copy_video_to_container, copy_audio_to_conta
 #[cfg(all(feature = "fetch", not(feature = "libav")))]
 use crate::ffmpeg::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 
-#[cfg(all(feature = "sandbox", target_os = "linux"))]
+#[cfg(all(feature = "sandbox", feature = "fetch", target_os = "linux"))]
 pub mod sandbox;
 
 use serde::{Serialize, Serializer, Deserialize};
