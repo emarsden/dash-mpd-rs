@@ -72,13 +72,34 @@ use crate::fetch::DashDownloader;
 pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> {
     let mut ro_dirs = Vec::new();
     // The process may need to read /etc/resolv.conf, /etc/hosts, /etc/ssl/certs and so on. On
-    // Ubuntu, /etc/resolv.conf is a symlink to ../run/systemd/resolve/stub-resolv.conf
+    // Ubuntu, /etc/resolv.conf is a symlink to ../run/systemd/resolve/stub-resolv.conf. A useful
+    // reference is https://gitlab.com/apparmor/apparmor/-/blob/master/profiles/apparmor.d/abstractions/nameservice
     ro_dirs.push(String::from("/etc"));
-    ro_dirs.push(String::from("/run/systemd"));
-    ro_dirs.push(String::from("/dev/zero"));
+    ro_dirs.push(String::from("/run/systemd/resolv.conf"));
+    ro_dirs.push(String::from("/run/NetworkManager/resolv.conf"));
+    ro_dirs.push(String::from("/run/conman/resolv.conf"));
+    ro_dirs.push(String::from("/run/netconfig/resolv.conf"));
+    ro_dirs.push(String::from("/mnt/wsl/resolv.conf"));
+    ro_dirs.push(String::from("/var/lib/libvirt/dnsmasq/"));
+    // For mdnsd
+    ro_dirs.push(String::from("/etc/mdns.allow"));
+    ro_dirs.push(String::from("/etc/nss_mdns.conf"));
+    ro_dirs.push(String::from("/usr/share/ssl/openssl.cnf"));
+    ro_dirs.push(String::from("/usr/share/ca-certificates/"));
+    ro_dirs.push(String::from("/var/lib/ca-certificates/"));
+    ro_dirs.push(String::from("/usr/local/share/ca-certificates/"));
+    ro_dirs.push(String::from("/usr/share/ssl/certs/ca-bundle.crt"));
+    ro_dirs.push(String::from("/var/lib/acme/certs/"));
+    ro_dirs.push(String::from("/dev/random"));
+    ro_dirs.push(String::from("/dev/urandom"));
     // This is used by MP4Box
     ro_dirs.push(String::from("/proc/meminfo"));
+    ro_dirs.push(String::from("/proc/stat"));
+    ro_dirs.push(String::from("/proc/cpuinfo"));
     ro_dirs.push(String::from("/proc/cmdline"));
+    ro_dirs.push(String::from("/proc/sys/kernel/version"));
+    ro_dirs.push(String::from("/proc/sys/vm/overcommit_memory"));
+    ro_dirs.push(String::from("/sys/devices/system/cpu/"));
     // XDG_CONFIG_HOME, used for example for $HOME/.config/vlc/vlcrc
     if let Some(config_dir) = dir_spec::config_home() {
         let config_str = config_dir.into_os_string();
@@ -90,7 +111,17 @@ pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> 
         ro_dirs.push(String::from(data_str.to_string_lossy()));
     }
     let mut rw_dirs = Vec::new();
+    // For mdns4 resolution
+    rw_dirs.push(String::from("/run/avahi-daemon/socket"));
+    rw_dirs.push(String::from("/run/nscd/socket"));
+    rw_dirs.push(String::from("/run/.nscd_socket"));
+    rw_dirs.push(String::from("/run/mdnsd"));
+    rw_dirs.push(String::from("/var/cache"));
+    rw_dirs.push(String::from("/var/run"));
     rw_dirs.push(String::from("/var/tmp"));
+    rw_dirs.push(String::from("/dev/null"));
+    rw_dirs.push(String::from("/dev/zero"));
+    rw_dirs.push(String::from("/dev/full"));
     let tmpdir = env::var("TMPDIR").unwrap_or_else(|_| String::from("/tmp"));
     rw_dirs.push(tmpdir);
     // The XDG_RUNTIME_DIR is normally something like /run/user/<uid>, or possibly a subdirectory of
