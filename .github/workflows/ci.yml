@@ -21,7 +21,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake libxml2-utils
       - run: cargo check
-      - run: ls -l /etc/resolv.conf
       - run: cargo hack check --feature-powerset --no-dev-deps --skip socks,http3
 
   test:

@@ -71,11 +71,14 @@ use crate::fetch::DashDownloader;
 
 pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> {
     let mut ro_dirs = Vec::new();
-    // The process may need to read /etc/resolv.conf, /etc/hosts, /etc/ssl/certs and so on
+    // The process may need to read /etc/resolv.conf, /etc/hosts, /etc/ssl/certs and so on. On
+    // Ubuntu, /etc/resolv.conf is a symlink to ../run/systemd/resolve/stub-resolv.conf
     ro_dirs.push(String::from("/etc"));
+    ro_dirs.push(String::from("/run/systemd"));
     ro_dirs.push(String::from("/dev/zero"));
     // This is used by MP4Box
     ro_dirs.push(String::from("/proc/meminfo"));
+    ro_dirs.push(String::from("/proc/cmdline"));
     // XDG_CONFIG_HOME, used for example for $HOME/.config/vlc/vlcrc
     if let Some(config_dir) = dir_spec::config_home() {
         let config_str = config_dir.into_os_string();
