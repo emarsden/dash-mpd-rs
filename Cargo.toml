@@ -47,7 +47,6 @@ pssh-box = { version = "0.2.1", optional = true }
 hxdmp = "0.2.1"
 webm-iterable = "0.6.4"
 dir_spec = "0.5.0"
-landlock = { version = "0.4.4", optional = true }
 
 [dev-dependencies]
 sha2 = "0.10.9"
@@ -95,3 +94,6 @@ sandbox = ["dep:landlock"]
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1.6.1"
+
+[target.'cfg(target_os="linux")'.dependencies]
+landlock = { version = "0.4.4", optional = true }
