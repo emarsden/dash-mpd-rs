@@ -958,6 +958,7 @@ async fn test_dl_content_type() {
 // Client may use the first BaseURL element as “base URI". The DASH Client may use base URLs
 // provided in the BaseURL element as “base URI” and may implement any suitable algorithm to
 // determine which URLs it uses for requests.
+#[ignore] // this URL is unreachable in 202512
 #[tokio::test]
 async fn test_dl_content_steering() {
     setup_logging();

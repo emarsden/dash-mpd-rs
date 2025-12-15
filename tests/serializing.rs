@@ -283,7 +283,7 @@ fn test_urls_xsd_validity() {
         "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd",
         "https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd",
         "https://cdn.bitmovin.com/content/assets/playhouse-vr/mpds/105560.mpd",
-        "https://www.content-steering.com/bbb/playlist_steering_cloudfront_https.mpd",
+        // "https://www.content-steering.com/bbb/playlist_steering_cloudfront_https.mpd",
         "https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd",
         "https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd",
         "https://akamaibroadcasteruseast.akamaized.net/cmaf/live/657078/akasource/out.mpd",
