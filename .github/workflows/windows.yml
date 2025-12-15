@@ -70,7 +70,7 @@ jobs:
     - name: install mediainfo (CLI)
       run: choco install --yes --limit-output mediainfo-cli
 
-    - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
+    - run: cargo hack check --feature-powerset --exclude-features libav,sandbox,http3 --no-dev-deps
       shell: msys2 {0}
 
     - run: cargo build

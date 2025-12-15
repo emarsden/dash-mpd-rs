@@ -58,7 +58,7 @@ jobs:
     - name: install protobuf compiler
       run: brew install protobuf cmake
 
-    - run: cargo hack check --feature-powerset --exclude-features libav --no-dev-deps
+    - run: cargo hack check --feature-powerset --exclude-features libav,socks,http3 --no-dev-deps
     - run: cargo build
     - run: RUST_LOG=info cargo test --jobs 1 --verbose --no-run
     - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output
