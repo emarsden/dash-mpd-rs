@@ -40,6 +40,7 @@
 
 use fs_err as fs;
 use std::env;
+use std::net::SocketAddr;
 use std::time::Duration;
 use std::path::{Path, PathBuf};
 use axum::{routing::get, Router};
@@ -85,7 +86,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/mpd", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], mpd) }));
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6669".parse().unwrap())

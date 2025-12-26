@@ -8,6 +8,7 @@
 
 pub mod common;
 use std::env;
+use std::net::SocketAddr;
 use std::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -108,7 +109,7 @@ async fn test_mpd_location() -> Result<()> {
         .route("/media/{id}", get(send_segment))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6667".parse().unwrap())

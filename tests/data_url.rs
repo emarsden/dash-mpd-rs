@@ -16,6 +16,7 @@
 
 pub mod common;
 use fs_err as fs;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
@@ -168,7 +169,7 @@ async fn test_data_url() -> Result<()> {
     let xml = mpd.to_string();
     let app = Router::new()
         .route("/mpd", get(|| async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }));
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6666".parse().unwrap())

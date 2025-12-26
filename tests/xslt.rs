@@ -8,6 +8,7 @@
 pub mod common;
 use fs_err as fs;
 use std::env;
+use std::net::SocketAddr;
 use std::time::Duration;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -79,7 +80,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .route("/media/{segment}", get(send_media))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6668".parse().unwrap())

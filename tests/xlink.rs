@@ -34,6 +34,7 @@
 pub mod common;
 use fs_err as fs;
 use std::env;
+use std::net::SocketAddr;
 use std::time::Duration;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -230,7 +231,7 @@ async fn test_xlink_retrieval() -> Result<()> {
         .route("/media/{segment}", get(send_mp4))
         .route("/status", get(send_status))
         .with_state(shared_state);
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6666".parse().unwrap())
@@ -331,7 +332,7 @@ async fn test_xlink_errors() -> Result<()> {
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], xml) }))
         .route("/remote/period.xml", get(
             || async { ([(header::CONTENT_TYPE, "application/dash+xml")], remote_period_xml) }));
-    let server_handle = Handle::new();
+    let server_handle: Handle<SocketAddr> = Handle::new();
     let backend_handle = server_handle.clone();
     let backend = async move {
         bind("127.0.0.1:6669".parse().unwrap())
