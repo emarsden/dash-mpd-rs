@@ -1,16 +1,16 @@
 # Changelog
 
 
-## [0.19.2] - Unreleased
+## [0.19.2] - 2025-12-26
 
-- Preliminary support for security sandboxing our application code and our helper applications on
-  Linux, using the Landlock loadable security module. This functionality is gated by the `sandbox`
-  crate feature, and also needs to be enabled at runtime by calling the `sandbox` method on
-  `DashDownloader`. The feature restricts access to the filesystem, limiting write access to
-  directories that we will need to write to, limiting exec access to directories where our helper
-  applications and their runtime libraries are located, and limiting read access to directories that
-  the application or helper applications may need to read. It also somewhat restricts network
-  access, preventing binding to a TCP port.
+- Downloading support: preliminary support for security sandboxing our application code and our
+  helper applications on Linux, using the Landlock loadable security module. This functionality is
+  gated by the `sandbox` crate feature, and also needs to be enabled at runtime by calling the
+  `sandbox` method on `DashDownloader`. The feature restricts access to the filesystem, limiting
+  write access to directories that we will need to write to, limiting exec access to directories
+  where our helper applications and their runtime libraries are located, and limiting read access to
+  directories that the application or helper applications may need to read. It also somewhat
+  restricts network access, preventing binding to a TCP port.
 
 
 ## [0.19.1] - 2025-11-11

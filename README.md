@@ -256,14 +256,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.19.1"
+dash-mpd = "0.19.2"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.19.1", default-features = false }
+dash-mpd = { version = "0.19.2", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -314,6 +314,15 @@ be enabled:
   present in the DASH manifest is not deserialized into a Rust struct, while parsing the manifest.
   The default behaviour is to ignore elements for which we have not defined serde deserialization
   instructions. This feature is implemented with the `serde_ignored` crate.
+
+- `sandbox` (currently only available on Linux): enable the experimental support for security
+  sandboxing our application code and our helper applications on Linux, using the Landlock loadable
+  security module. This functionality also needs to be enabled at runtime by calling the `sandbox`
+  method on `DashDownloader`. The feature restricts access to the filesystem, limiting write access
+  to directories that we will need to write to, limiting exec access to directories where our helper
+  applications and their runtime libraries are located, and limiting read access to directories that
+  the application or helper applications may need to read. It also somewhat restricts network
+  access, preventing binding to a TCP port.
 
 
 ## Platforms
