@@ -1,10 +1,11 @@
 //! Support for downloading content from DASH MPD media streams.
 
-use std::io;
 use std::env;
-use fs_err as fs;
-use fs::File;
-use std::io::{Read, Write, Seek, BufReader, BufWriter};
+use tokio::io;
+use tokio::fs;
+use tokio::fs::File;
+use tokio::io::{BufReader, BufWriter, AsyncWriteExt};
+use std::io::{Read, Write, Seek};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -16,6 +17,7 @@ use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
+use futures_util::TryFutureExt;
 use tracing::{trace, info, warn, error};
 use regex::Regex;
 use url::Url;
@@ -99,7 +101,7 @@ fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
 
 #[cfg(not(unix))]
 fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
-    let mut perms = fs::metadata(path)
+    let mut perms = fs::metadata(path).await
         .map_err(|e| DashMpdError::Io(e, String::from("reading file permissions")))?
         .permissions();
     perms.set_readonly(false);
@@ -1723,7 +1725,7 @@ fn skip_xml_preamble(input: &str) -> &str {
 // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
 // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
 // (but improving; hopefully we will one day be able to use the xrust crate).
-fn apply_xslt_stylesheets_xsltproc(
+async fn apply_xslt_stylesheets_xsltproc(
     downloader: &DashDownloader,
     xot: &mut Xot,
     doc: xot::Node) -> Result<String, DashMpdError> {
@@ -1735,7 +1737,7 @@ fn apply_xslt_stylesheets_xsltproc(
             info!("Applying XSLT stylesheet {} with xsltproc", ss.display());
         }
         let tmpmpd = tmp_file_path("dashxslt", OsStr::new("xslt"))?;
-        fs::write(&tmpmpd, &buf)
+        fs::write(&tmpmpd, &buf).await
             .map_err(|e| DashMpdError::Io(e, String::from("writing MPD")))?;
         let xsltproc = Command::new("xsltproc")
             .args([ss, &tmpmpd])
@@ -1747,7 +1749,7 @@ fn apply_xslt_stylesheets_xsltproc(
             return Err(DashMpdError::Io(std::io::Error::other(msg), out));
         }
         if env::var("DASHMPD_PERSIST_FILES").is_err() {
-            if let Err(e) = fs::remove_file(&tmpmpd) {
+            if let Err(e) = fs::remove_file(&tmpmpd).await {
                 warn!("Error removing temporary MPD after XSLT processing: {e:?}");
             }
         }
@@ -1942,7 +1944,7 @@ pub async fn parse_resolving_xlinks(
     for _ in 1..5 {
         resolve_xlink_references(downloader, &mut xot, doc).await?;
     }
-    let rewritten = apply_xslt_stylesheets_xsltproc(downloader, &mut xot, doc)?;
+    let rewritten = apply_xslt_stylesheets_xsltproc(downloader, &mut xot, doc).await?;
     // Here using the quick-xml serde support to deserialize into Rust structs.
     let mpd = parse(&rewritten)?;
     if downloader.conformity_checks {
@@ -3053,12 +3055,12 @@ async fn do_period_subtitles(
                             _ => subs_path.set_extension("sub"),
                         };
                         subtitle_formats.push(subtitle_format);
-                        let mut subs_file = File::create(subs_path.clone())
+                        let mut subs_file = File::create(subs_path.clone()).await
                             .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
                         if downloader.verbosity > 2 {
                             info!("  Subtitle {st_url} -> {} octets", subs.len());
                         }
-                        match subs_file.write_all(&subs) {
+                        match subs_file.write_all(&subs).await {
                             Ok(()) => {
                                 if downloader.verbosity > 0 {
                                     info!("  Downloaded subtitles ({subtitle_format:?}) to {}",
@@ -3548,7 +3550,7 @@ async fn fetch_fragment(
                                 .next_back()
                             {
                                 let vf_file = fragment_path.clone().join(fragment_type).join(path);
-                                if let Ok(f) = File::create(vf_file) {
+                                if let Ok(f) = File::create(vf_file).await {
                                     fragment_out = Some(f)
                                 }
                             }
@@ -3571,7 +3573,8 @@ async fn fetch_fragment(
                             }
                             if let Some(ref mut fout) = fragment_out {
                                 fout.write_all(&chunk)
-                                    .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))?;
+                                    .map_err(|e| DashMpdError::Io(e, format!("writing {fragment_type} fragment")))
+                                    .await?;
                             }
                             let elapsed = downloader.bw_estimator_started.elapsed().as_secs_f64();
                             if (elapsed > 1.5) || (downloader.bw_estimator_bytes > 100_000) {
@@ -3628,7 +3631,7 @@ async fn fetch_period_audio(
         // We need a local scope for our temporary File, so that the file is closed when we later
         // optionally call the decryption application (which requires exclusive access to its input
         // file on Windows).
-        let tmpfile_audio = File::create(tmppath.clone())
+        let tmpfile_audio = File::create(tmppath.clone()).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
         ensure_permissions_readable(&tmppath)?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
@@ -3636,7 +3639,7 @@ async fn fetch_period_audio(
         if let Some(ref fragment_path) = downloader.fragment_path {
             let audio_fragment_dir = fragment_path.join("audio");
             if !audio_fragment_dir.exists() {
-                fs::create_dir_all(audio_fragment_dir)
+                fs::create_dir_all(audio_fragment_dir).await
                     .map_err(|e| DashMpdError::Io(e, String::from("creating audio fragment dir")))?;
             }
         }
@@ -3663,10 +3666,9 @@ async fn fetch_period_audio(
                 if downloader.verbosity > 2 {
                     info!("  Audio segment data URL -> {} octets", body.len());
                 }
-                if let Err(e) = tmpfile_audio.write_all(&body) {
-                    error!("Unable to write DASH audio data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                }
+                tmpfile_audio.write_all(&body)
+                    .map_err(|e| DashMpdError::Io(e, String::from("writing DASH audio data")))
+                    .await?;
                 have_audio = true;
             } else {
                 // We could download these segments in parallel, but that might upset some servers.
@@ -3678,10 +3680,9 @@ async fn fetch_period_audio(
                             let mut buf = Vec::new();
                             frag_file.read_to_end(&mut buf)
                                 .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
-                            if let Err(e) = tmpfile_audio.write_all(&buf) {
-                                error!("Unable to write DASH audio data: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing DASH audio data")));
-                            }
+                            tmpfile_audio.write_all(&buf)
+                                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH audio data")))
+                                .await?;
                             have_audio = true;
                             break 'done;
                         },
@@ -3707,11 +3708,11 @@ async fn fetch_period_audio(
         tmpfile_audio.flush().map_err(|e| {
             error!("Couldn't flush DASH audio file: {e}");
             DashMpdError::Io(e, String::from("flushing DASH audio file"))
-        })?;
+        }).await?;
     } // end local scope for the FileHandle
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone())
+            let metadata = fs::metadata(tmppath.clone()).await
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted audio metadata")))?;
             info!("  Attempting to decrypt audio stream ({} kB) with {}",
                   metadata.len() / 1024,
@@ -3737,7 +3738,7 @@ async fn fetch_period_audio(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             let mut no_output = true;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -3783,7 +3784,7 @@ async fn fetch_period_audio(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
             let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -3819,7 +3820,7 @@ async fn fetch_period_audio(
                 drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
             }
             drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents)
+            fs::write(&drmfile, drmfile_contents).await
                 .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
             args.push("-decrypt".to_string());
             args.push(drmfile.display().to_string());
@@ -3834,7 +3835,7 @@ async fn fetch_period_audio(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
             let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -3855,7 +3856,7 @@ async fn fetch_period_audio(
                     warn!("  MP4Box stderr: {msg}");
                 }
             }
-            if let Err(e) = fs::remove_file(drmfile) {
+            if let Err(e) = fs::remove_file(drmfile).await {
                 warn!("  Failed to delete temporary MP4Box crypt file: {e:?}");
             }
             if no_output {
@@ -3866,10 +3867,10 @@ async fn fetch_period_audio(
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        fs::rename(decrypted, tmppath.clone())
+        fs::rename(decrypted, tmppath.clone()).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+    if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
@@ -3894,7 +3895,7 @@ async fn fetch_period_video(
     {
         // We need a local scope for our tmpfile_video File, so that the file is closed when
         // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
-        let tmpfile_video = File::create(tmppath.clone())
+        let tmpfile_video = File::create(tmppath.clone()).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
         ensure_permissions_readable(&tmppath)?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
@@ -3902,7 +3903,7 @@ async fn fetch_period_video(
         if let Some(ref fragment_path) = downloader.fragment_path {
             let video_fragment_dir = fragment_path.join("video");
             if !video_fragment_dir.exists() {
-                fs::create_dir_all(video_fragment_dir)
+                fs::create_dir_all(video_fragment_dir).await
                     .map_err(|e| DashMpdError::Io(e, String::from("creating video fragment dir")))?;
             }
         }
@@ -3922,10 +3923,9 @@ async fn fetch_period_video(
                 if downloader.verbosity > 2 {
                     info!("  Video segment data URL -> {} octets", body.len());
                 }
-                if let Err(e) = tmpfile_video.write_all(&body) {
-                    error!("Unable to write DASH video data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                }
+                tmpfile_video.write_all(&body)
+                    .map_err(|e| DashMpdError::Io(e, String::from("writing DASH video data")))
+                    .await?;
                 have_video = true;
             } else {
                 'done: for _ in 0..downloader.fragment_retry_count {
@@ -3936,10 +3936,9 @@ async fn fetch_period_video(
                             let mut buf = Vec::new();
                             frag_file.read_to_end(&mut buf)
                                 .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
-                            if let Err(e) = tmpfile_video.write_all(&buf) {
-                                error!("Unable to write DASH video data: {e:?}");
-                                return Err(DashMpdError::Io(e, String::from("writing DASH video data")));
-                            }
+                            tmpfile_video.write_all(&buf)
+                                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH video data")))
+                                .await?;
                             have_video = true;
                             break 'done;
                         },
@@ -3964,11 +3963,11 @@ async fn fetch_period_video(
         tmpfile_video.flush().map_err(|e| {
             error!("  Couldn't flush video file: {e}");
             DashMpdError::Io(e, String::from("flushing video file"))
-        })?;
+        }).await?;
     } // end local scope for tmpfile_video File
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone())
+            let metadata = fs::metadata(tmppath.clone()).await
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
             info!("  Attempting to decrypt video stream ({} kB) with {}",
                    metadata.len() / 1024,
@@ -3994,7 +3993,7 @@ async fn fetch_period_video(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
             let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -4044,7 +4043,7 @@ async fn fetch_period_video(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
             let mut no_output = true;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -4074,7 +4073,7 @@ async fn fetch_period_video(
                 drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
             }
             drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents)
+            fs::write(&drmfile, drmfile_contents).await
                 .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
             args.push("-decrypt".to_string());
             args.push(drmfile.display().to_string());
@@ -4089,7 +4088,7 @@ async fn fetch_period_video(
                 .output()
                 .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
             let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()) {
+            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
                 if downloader.verbosity > 0 {
                     info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
                 }
@@ -4118,10 +4117,10 @@ async fn fetch_period_video(
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        fs::rename(decrypted, tmppath.clone())
+        fs::rename(decrypted, tmppath.clone()).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+    if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
@@ -4146,7 +4145,7 @@ async fn fetch_period_subtitles(
     let start_download = Instant::now();
     let mut have_subtitles = false;
     {
-        let tmpfile_subs = File::create(tmppath.clone())
+        let tmpfile_subs = File::create(tmppath.clone()).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
         ensure_permissions_readable(&tmppath)?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
@@ -4170,10 +4169,9 @@ async fn fetch_period_subtitles(
                 if downloader.verbosity > 2 {
                     info!("  Subtitle segment data URL -> {} octets", body.len());
                 }
-                if let Err(e) = tmpfile_subs.write_all(&body) {
-                    error!("Unable to write DASH subtitle data: {e:?}");
-                    return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
-                }
+                tmpfile_subs.write_all(&body)
+                    .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
+                    .await?;
                 have_subtitles = true;
             } else {
                 let fetch = || async {
@@ -4220,9 +4218,9 @@ async fn fetch_period_subtitles(
                             }
                             let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
                             throttle_download_rate(downloader, size).await?;
-                            if let Err(e) = tmpfile_subs.write_all(&dash_bytes) {
-                                return Err(DashMpdError::Io(e, String::from("writing DASH subtitle data")));
-                            }
+                            tmpfile_subs.write_all(&dash_bytes)
+                                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
+                                .await?;
                             have_subtitles = true;
                         } else {
                             failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -4248,10 +4246,10 @@ async fn fetch_period_subtitles(
         tmpfile_subs.flush().map_err(|e| {
             error!("Couldn't flush subs file: {e}");
             DashMpdError::Io(e, String::from("flushing subtitle file"))
-        })?;
+        }).await?;
     } // end local scope for tmpfile_subs File
     if have_subtitles {
-        if let Ok(metadata) = fs::metadata(tmppath.clone()) {
+        if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
                 let elapsed = start_download.elapsed();
@@ -4409,7 +4407,7 @@ async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
         .map_err(|_| DashMpdError::Other(String::from("parsing MPD URL")))?;
     let path = url.to_file_path()
         .map_err(|_| DashMpdError::Other(String::from("extracting path from file:// URL")))?;
-    let octets = fs::read(path)
+    let octets = fs::read(path).await
                .map_err(|_| DashMpdError::Other(String::from("reading from file:// URL")))?;
     Ok(Bytes::from(octets))
 }
@@ -4757,21 +4755,21 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                                 // Copy the output file from mkvmerge to the period_output_path
                                 // local scope so that tmppath is not busy on Windows and can be deleted
                                 {
-                                    let tmpfile = File::open(tmppath.clone())
+                                    let tmpfile = File::open(tmppath.clone()).await
                                         .map_err(|e| DashMpdError::Io(
                                             e, String::from("opening mkvmerge output")))?;
                                     let mut merged = BufReader::new(tmpfile);
                                     // This will truncate the period_output_path
-                                    let outfile = File::create(period_output_path.clone())
+                                    let outfile = File::create(period_output_path.clone()).await
                                         .map_err(|e| DashMpdError::Io(
                                             e, String::from("creating output file")))?;
                                     let mut sink = BufWriter::new(outfile);
-                                    io::copy(&mut merged, &mut sink)
+                                    io::copy(&mut merged, &mut sink).await
                                         .map_err(|e| DashMpdError::Io(
                                             e, String::from("copying mkvmerge output to output file")))?;
                                 }
                                 if env::var("DASHMPD_PERSIST_FILES").is_err() {
-	                            if let Err(e) = fs::remove_file(tmppath) {
+	                            if let Err(e) = fs::remove_file(tmppath).await {
                                         warn!("  Error deleting temporary mkvmerge output: {e}");
                                     }
                                 }
@@ -4796,7 +4794,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(clippy::collapsible_if)]
         if downloader.keep_audio.is_none() && downloader.fetch_audio {
             if env::var("DASHMPD_PERSIST_FILES").is_err() {
-                if tmppath_audio.exists() && fs::remove_file(tmppath_audio).is_err() {
+                if tmppath_audio.exists() && fs::remove_file(tmppath_audio).await.is_err() {
                     info!("  Failed to delete temporary file for audio stream");
                 }
             }
@@ -4804,19 +4802,20 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(clippy::collapsible_if)]
         if downloader.keep_video.is_none() && downloader.fetch_video {
             if env::var("DASHMPD_PERSIST_FILES").is_err() {
-                if tmppath_video.exists() && fs::remove_file(tmppath_video).is_err() {
+                if tmppath_video.exists() && fs::remove_file(tmppath_video).await.is_err() {
                     info!("  Failed to delete temporary file for video stream");
                 }
             }
         }
         #[allow(clippy::collapsible_if)]
         if env::var("DASHMPD_PERSIST_FILES").is_err() {
-            if downloader.fetch_subtitles && tmppath_subs.exists() && fs::remove_file(tmppath_subs).is_err() {
+            if downloader.fetch_subtitles && tmppath_subs.exists() &&
+                fs::remove_file(tmppath_subs).await.is_err() {
                 info!("  Failed to delete temporary file for subtitles");
             }
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
-            if let Ok(metadata) = fs::metadata(period_output_path.clone()) {
+            if let Ok(metadata) = fs::metadata(period_output_path.clone()).await {
                 info!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
             }
         }
@@ -4840,7 +4839,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             info!("Preparing to concatenate multiple Periods into one output file");
             concat_output_files(downloader, &period_output_paths)?;
             for p in &period_output_paths[1..] {
-                if fs::remove_file(p).is_err() {
+                if fs::remove_file(p).await.is_err() {
                     warn!("  Failed to delete temporary file {}", p.display());
                 }
             }

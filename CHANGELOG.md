@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.19.3] - Unreleased
+
+- Move from `std::fs` to `tokio::fs` implementations for filesystem operations.
+
 
 ## [0.19.2] - 2025-12-26
 
