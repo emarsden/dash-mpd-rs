@@ -36,6 +36,7 @@ use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
 use crate::media::{temporary_outpath, AudioTrack};
+use crate::decryption::{decrypt_mp4decrypt, decrypt_shaka, decrypt_mp4box};
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -62,7 +63,7 @@ pub fn partial_process_output(output: &[u8]) -> Cow<'_, str> {
 
 // This doesn't work correctly on modern Android, where there is no global location for temporary
 // files (fix needed in the tempfile crate)
-fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdError> {
+pub fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpdError> {
     if let Some(ext) = extension.to_str() {
         // suffix should include the "." separator
         let fmt = format!(".{}", extension.to_string_lossy());
@@ -165,7 +166,7 @@ pub struct DashDownloader {
     keep_audio: Option<PathBuf>,
     concatenate_periods: bool,
     fragment_path: Option<PathBuf>,
-    decryption_keys: HashMap<String, String>,
+    pub decryption_keys: HashMap<String, String>,
     xslt_stylesheets: Vec<PathBuf>,
     minimum_period_duration: Option<Duration>,
     content_type_checks: bool,
@@ -3723,147 +3724,11 @@ async fn fetch_period_audio(
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-audio", out_ext)?;
         if downloader.decryptor_preference.eq("mp4decrypt") {
-            let mut args = Vec::new();
-            for (k, v) in downloader.decryption_keys.iter() {
-                args.push("--key".to_string());
-                args.push(format!("{k}:{v}"));
-            }
-            args.push(String::from(tmppath.to_string_lossy()));
-            args.push(String::from(decrypted.to_string_lossy()));
-            if downloader.verbosity > 1 {
-                info!("  Running mp4decrypt {}", args.join(" "));
-            }
-            let out = Command::new(downloader.mp4decrypt_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-            let mut no_output = true;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
-                }
-                no_output = false;
-            }
-            if !out.status.success() || no_output {
-                warn!("  mp4decrypt subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  mp4decrypt stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  mp4decrypt stderr: {msg}");
-                }
-            }
-            if no_output {
-                error!("  Failed to decrypt audio stream with mp4decrypt");
-                warn!("  Undecrypted audio left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
-            }
+            decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
-            let mut args = Vec::new();
-            let mut keys = Vec::new();
-            if downloader.verbosity < 1 {
-                args.push("--quiet".to_string());
-            }
-            args.push(format!("in={},stream=audio,output={}", tmppath.display(), decrypted.display()));
-            let mut drm_label = 0;
-            #[allow(clippy::explicit_counter_loop)]
-            for (k, v) in downloader.decryption_keys.iter() {
-                keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
-                drm_label += 1;
-            }
-            args.push("--enable_raw_key_decryption".to_string());
-            args.push("--keys".to_string());
-            args.push(keys.join(","));
-            if downloader.verbosity > 1 {
-                info!("  Running shaka-packager {}", args.join(" "));
-            }
-            let out = Command::new(downloader.shaka_packager_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
-            let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
-                }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
-            }
-            if !out.status.success() || no_output {
-                warn!("  shaka-packager subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  shaka-packager stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  shaka-packager stderr: {msg}");
-                }
-            }
-            if no_output {
-                error!("  Failed to decrypt audio stream with shaka-packager");
-                warn!("  Undecrypted audio stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
-            }
-        // Decrypt with MP4Box as per https://wiki.gpac.io/xmlformats/Common-Encryption/
-        //    MP4Box -decrypt drm_file.xml encrypted.mp4 -out decrypted.mp4
+            decrypt_shaka(downloader, &tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
-            let mut args = Vec::new();
-            let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
-            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
-            for (k, v) in downloader.decryption_keys.iter() {
-                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
-            }
-            drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents).await
-                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
-            args.push("-decrypt".to_string());
-            args.push(drmfile.display().to_string());
-            args.push(String::from(tmppath.to_string_lossy()));
-            args.push("-out".to_string());
-            args.push(String::from(decrypted.to_string_lossy()));
-            if downloader.verbosity > 1 {
-                info!("  Running decryption application MP4Box {}", args.join(" "));
-            }
-            let out = Command::new(downloader.mp4box_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
-            let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted audio stream of size {} kB.", metadata.len() / 1024);
-                }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
-            }
-            if !out.status.success() || no_output {
-                warn!("  MP4Box decryption subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  MP4Box stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  MP4Box stderr: {msg}");
-                }
-            }
-            if let Err(e) = fs::remove_file(drmfile).await {
-                warn!("  Failed to delete temporary MP4Box crypt file: {e:?}");
-            }
-            if no_output {
-                error!("  Failed to decrypt audio stream with MP4Box");
-                warn!("  Undecrypted audio stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("audio stream")));
-            }
+            decrypt_mp4box(downloader, &tmppath, &decrypted, "audio").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
@@ -3978,142 +3843,11 @@ async fn fetch_period_video(
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-video", out_ext)?;
         if downloader.decryptor_preference.eq("mp4decrypt") {
-            let mut args = Vec::new();
-            for (k, v) in downloader.decryption_keys.iter() {
-                args.push("--key".to_string());
-                args.push(format!("{k}:{v}"));
-            }
-            args.push(tmppath.to_string_lossy().to_string());
-            args.push(decrypted.to_string_lossy().to_string());
-            if downloader.verbosity > 1 {
-                info!("  Running mp4decrypt {}", args.join(" "));
-            }
-            let out = Command::new(downloader.mp4decrypt_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
-            let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
-                }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
-            }
-            if !out.status.success() || no_output {
-                error!("  mp4decrypt subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  mp4decrypt stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  mp4decrypt stderr: {msg}");
-                }
-            }
-            if no_output {
-                error!("  Failed to decrypt video stream with mp4decrypt");
-                warn!("  Undecrypted video stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
-            }
+            decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
-            let mut args = Vec::new();
-            let mut keys = Vec::new();
-            if downloader.verbosity < 1 {
-                args.push("--quiet".to_string());
-            }
-            args.push(format!("in={},stream=video,output={}", tmppath.display(), decrypted.display()));
-            let mut drm_label = 0;
-            #[allow(clippy::explicit_counter_loop)]
-            for (k, v) in downloader.decryption_keys.iter() {
-                keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
-                drm_label += 1;
-            }
-            args.push("--enable_raw_key_decryption".to_string());
-            args.push("--keys".to_string());
-            args.push(keys.join(","));
-            if downloader.verbosity > 1 {
-                info!("  Running shaka-packager {}", args.join(" "));
-            }
-            let out = Command::new(downloader.shaka_packager_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
-            let mut no_output = true;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
-                }
-                no_output = false;
-            }
-            if !out.status.success() || no_output {
-                warn!("  shaka-packager subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  shaka-packager stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  shaka-packager stderr: {msg}");
-                }
-            }
-            if no_output {
-                error!("  Failed to decrypt video stream with shaka-packager");
-                warn!("  Undecrypted video left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
-            }
+            decrypt_shaka(downloader, &tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
-            let mut args = Vec::new();
-            let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
-            let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
-            for (k, v) in downloader.decryption_keys.iter() {
-                drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
-            }
-            drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-            fs::write(&drmfile, drmfile_contents).await
-                .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
-            args.push("-decrypt".to_string());
-            args.push(drmfile.display().to_string());
-            args.push(String::from(tmppath.to_string_lossy()));
-            args.push("-out".to_string());
-            args.push(String::from(decrypted.to_string_lossy()));
-            if downloader.verbosity > 1 {
-                info!("  Running decryption application MP4Box {}", args.join(" "));
-            }
-            let out = Command::new(downloader.mp4box_location.clone())
-                .args(args)
-                .output()
-                .map_err(|e| DashMpdError::Io(e, String::from("spawning MP4Box")))?;
-            let mut no_output = false;
-            if let Ok(metadata) = fs::metadata(decrypted.clone()).await {
-                if downloader.verbosity > 0 {
-                    info!("  Decrypted video stream of size {} kB.", metadata.len() / 1024);
-                }
-                if metadata.len() == 0 {
-                    no_output = true;
-                }
-            } else {
-                no_output = true;
-            }
-            if !out.status.success() || no_output {
-                warn!("  MP4Box decryption subprocess failed");
-                let msg = partial_process_output(&out.stdout);
-                if !msg.is_empty() {
-                    warn!("  MP4Box stdout: {msg}");
-                }
-                let msg = partial_process_output(&out.stderr);
-                if !msg.is_empty() {
-                    warn!("  MP4Box stderr: {msg}");
-                }
-            }
-            if no_output {
-                error!("  Failed to decrypt video stream with MP4Box");
-                warn!("  Undecrypted video stream left in {}", tmppath.display());
-                return Err(DashMpdError::Decrypting(String::from("video stream")));
-            }
+            decrypt_mp4box(downloader, &tmppath, &decrypted, "video").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
