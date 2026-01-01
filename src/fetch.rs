@@ -36,7 +36,13 @@ use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
 use crate::media::{temporary_outpath, AudioTrack};
-use crate::decryption::{decrypt_mp4decrypt, decrypt_shaka, decrypt_mp4box};
+use crate::decryption::{
+    decrypt_mp4decrypt,
+    decrypt_shaka,
+    decrypt_shaka_container,
+    decrypt_mp4box,
+    decrypt_mp4box_container
+};
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -790,7 +796,9 @@ impl DashDownloader {
     ///
     /// # Arguments
     ///
-    /// * `decryption_tool`: either "mp4decrypt" or "shaka" or "mp4box"
+    /// * `decryption_tool`: one of "mp4decrypt", "shaka", "mp4box", "shaka-container",
+    ///   "mp4box-container". The options with `-container` in the name are run via a Docker/Podman
+    ///   container.
     #[must_use]
     pub fn with_decryptor_preference(mut self, decryption_tool: &str) -> DashDownloader {
         self.decryptor_preference = decryption_tool.to_string();
@@ -3727,8 +3735,12 @@ async fn fetch_period_audio(
             decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
             decrypt_shaka(downloader, &tmppath, &decrypted, "audio").await?;
+        } else if downloader.decryptor_preference.eq("shaka-container") {
+            decrypt_shaka_container(downloader, &tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
             decrypt_mp4box(downloader, &tmppath, &decrypted, "audio").await?;
+        } else if downloader.decryptor_preference.eq("mp4box-container") {
+            decrypt_mp4box_container(downloader, &tmppath, &decrypted, "audio").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
@@ -3846,8 +3858,12 @@ async fn fetch_period_video(
             decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
             decrypt_shaka(downloader, &tmppath, &decrypted, "video").await?;
+        } else if downloader.decryptor_preference.eq("shaka-container") {
+            decrypt_shaka_container(downloader, &tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
             decrypt_mp4box(downloader, &tmppath, &decrypted, "video").await?;
+        } else if downloader.decryptor_preference.eq("mp4box-container") {
+            decrypt_mp4box_container(downloader, &tmppath, &decrypted, "video").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
