@@ -1,4 +1,13 @@
 //! Support for decrypting media content
+//
+// We provide implementations for decrypting using the following helper applications:
+//
+//   - the historical mp4decrypt application from the Bento4 suite
+//   - shaka-packager
+//   - shaka-packager running in a Docker/Podman container
+//   - MP4Box from the GPAC suite
+//   - MP4Box from the official GPAC Docker/Podman container
+
 
 use std::path::Path;
 use std::process::Command;
@@ -114,25 +123,41 @@ pub async fn decrypt_shaka(
     Ok(())
 }
 
+
+// Run shaka-packager via its official Docker container, as per
+// https://github.com/shaka-project/shaka-packager/blob/main/docs/source/docker_instructions.md
 pub async fn decrypt_shaka_container(
     downloader: &DashDownloader,
     inpath: &Path,
     outpath: &Path,
     media_type: &str) -> Result<(), DashMpdError>
 {
+    // We need to pass inpath and outpath into the container, in a manner which works both on Linux
+    // and on Windows. We assume the container is a Linux container. We can't map outpath directly
+    // in Docker/Podman using the -v argument, because outpath does not exist yet. We know that both
+    // inpath and outpath are created in the same system temporary directory (they are created using
+    // tmp_file_path, which uses the tempfile crate). The solution chosen here is to map the
+    // temporary directory of the host (the parent directory of the inpath) to /tmp in the Linux
+    // container, and in the container to refer to files in /tmp with the same filenames as on the
+    // host.
+    let inpath_dir = inpath.parent()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("inpath parent")))?;
+    let inpath_nondir = inpath.file_name()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("inpath file name")))?;
+    let outpath_nondir = outpath.file_name()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("outpath file name")))?;
     let mut args = Vec::new();
     let mut keys = Vec::new();
     args.push(String::from("run"));
     args.push(String::from("--rm"));
     args.push(String::from("-v"));
-    args.push(format!("{}:/tmp/shakainput.mp4", inpath.display()));
-    args.push(String::from("-v"));
-    args.push(String::from("/tmp:/tmp"));
+    args.push(format!("{}:/tmp", inpath_dir.display()));
     args.push(String::from("docker.io/google/shaka-packager:latest"));
     args.push(String::from("packager"));
     // Without the --quiet option, shaka-packager prints debugging output to stderr
     args.push("--quiet".to_string());
-    args.push(format!("in=/tmp/shakainput.mp4,stream={media_type},output={}", outpath.display()));
+    args.push(format!("in=/tmp/{},stream={media_type},output=/tmp/{}",
+                      inpath_nondir.display(), outpath_nondir.display()));
     let mut drm_label = 0;
     #[allow(clippy::explicit_counter_loop)]
     for (k, v) in downloader.decryption_keys.iter() {
@@ -145,7 +170,7 @@ pub async fn decrypt_shaka_container(
     if downloader.verbosity > 1 {
         info!("  Running shaka-packager container {}", args.join(" "));
     }
-    // https://github.com/shaka-project/shaka-packager/blob/main/docs/source/docker_instructions.md
+    // TODO: make container runner a DashDownloader option
     let out = Command::new("podman")
         .args(args)
         .output()
@@ -241,36 +266,41 @@ pub async fn decrypt_mp4box(
 }
 
 
+// Decrypt using MP4Box from the GPAC suite, using their official Docker/Podman container.
 pub async fn decrypt_mp4box_container(
     downloader: &DashDownloader,
     inpath: &Path,
     outpath: &Path,
     media_type: &str) -> Result<(), DashMpdError>
 {
+    let inpath_dir = inpath.parent()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("inpath parent")))?;
+    let inpath_nondir = inpath.file_name()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("inpath file name")))?;
+    let outpath_nondir = outpath.file_name()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("outpath file name")))?;
     let mut args = Vec::new();
-    let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
-    let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
+    let drmpath = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
+    let drmpath_nondir = drmpath.file_name()
+        .ok_or_else(|| DashMpdError::Decrypting(String::from("drmpath file name")))?;
+    let mut drm_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
     for (k, v) in downloader.decryption_keys.iter() {
-        drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+        drm_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
     }
-    drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
-    fs::write(&drmfile, drmfile_contents).await
+    drm_contents += "  </CrypTrack>\n</GPACDRM>\n";
+    fs::write(&drmpath, drm_contents).await
         .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
     args.push(String::from("run"));
     args.push(String::from("--rm"));
     args.push(String::from("-v"));
-    args.push(format!("{}:/tmp/mp4boxinput.mp4", inpath.display()));
-    args.push(String::from("-v"));
-    args.push(format!("{}:/tmp/mp4boxcrypt", drmfile.display()));
-    args.push(String::from("-v"));
-    args.push(String::from("/tmp:/tmp"));
+    args.push(format!("{}:/tmp", inpath_dir.display()));
     args.push(String::from("docker.io/gpac/ubuntu:latest"));
     args.push(String::from("MP4Box"));
     args.push("-decrypt".to_string());
-    args.push(String::from("/tmp/mp4boxcrypt"));
-    args.push(String::from(inpath.to_string_lossy()));
+    args.push(format!("/tmp/{}", drmpath_nondir.display()));
+    args.push(format!("/tmp/{}", inpath_nondir.display()));
     args.push("-out".to_string());
-    args.push(String::from(outpath.to_string_lossy()));
+    args.push(format!("/tmp/{}", outpath_nondir.display()));
     if downloader.verbosity > 1 {
         info!("  Running decryption container GPAC/MP4Box {}", args.join(" "));
     }
