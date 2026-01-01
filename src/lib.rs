@@ -77,6 +77,8 @@ pub mod ffmpeg;
 pub mod sidx;
 #[cfg(feature = "fetch")]
 pub mod fetch;
+#[cfg(feature = "fetch")]
+pub mod decryption;
 // Support for the SCTE-35 standard for insertion of alternate content
 #[cfg(feature = "scte35")]
 pub mod scte35;
