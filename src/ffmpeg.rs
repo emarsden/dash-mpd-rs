@@ -1708,7 +1708,7 @@ mod tests {
         fs::copy(&red, &output_ffmpeg_filter).unwrap();
         concat_output_files_ffmpeg_filter(
             &ddl,
-            &[output_ffmpeg_filter.clone(), green.clone(), blue.clone()]).unwrap();
+            &[&output_ffmpeg_filter, &green, &blue]).unwrap();
         check_color_sequence(&output_ffmpeg_filter);
         fs::remove_file(&output_ffmpeg_filter).unwrap();
 
@@ -1716,7 +1716,7 @@ mod tests {
         fs::copy(&red, &output_ffmpeg_demuxer).unwrap();
         concat_output_files_ffmpeg_demuxer(
             &ddl,
-            &[output_ffmpeg_demuxer.clone(), green.clone(), blue.clone()]).unwrap();
+            &[&output_ffmpeg_demuxer, &green, &blue]).unwrap();
         check_color_sequence(&output_ffmpeg_demuxer);
         fs::remove_file(&output_ffmpeg_demuxer).unwrap();
 
@@ -1735,7 +1735,7 @@ mod tests {
         fs::copy(&red, &output_mkvmerge).unwrap();
         concat_output_files_mkvmerge(
             &ddl,
-            &[output_mkvmerge.clone(), green.clone(), blue.clone()]).unwrap();
+            &[&output_mkvmerge, &green, &blue]).unwrap();
         check_color_sequence(&output_mkvmerge);
         fs::remove_file(&output_mkvmerge).unwrap();
 
@@ -1743,7 +1743,7 @@ mod tests {
         fs::copy(&red, &output_ffmpeg_filter).unwrap();
         concat_output_files_ffmpeg_filter(
             &ddl,
-            &[output_ffmpeg_filter.clone(), green.clone(), blue.clone()]).unwrap();
+            &[&output_ffmpeg_filter, &green, &blue]).unwrap();
         check_color_sequence(&output_ffmpeg_filter);
         fs::remove_file(&output_ffmpeg_filter).unwrap();
 
@@ -1751,7 +1751,7 @@ mod tests {
         fs::copy(&red, &output_ffmpeg_demuxer).unwrap();
         concat_output_files_ffmpeg_demuxer(
             &ddl,
-            &[output_ffmpeg_demuxer.clone(), green.clone(), blue.clone()]).unwrap();
+            &[&output_ffmpeg_demuxer, &green, &blue]).unwrap();
         check_color_sequence(&output_ffmpeg_demuxer);
         fs::remove_file(&output_ffmpeg_demuxer).unwrap();
 
