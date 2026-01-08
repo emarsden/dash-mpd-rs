@@ -99,7 +99,7 @@ fn parse_aspect_ratio(s: &str) -> Option<f64> {
 // Return metainformation concerning the first stream of the media content at path.
 // Uses ffprobe as a subprocess.
 #[tracing::instrument(level="trace")]
-fn video_container_metainfo(path: &PathBuf) -> Result<VideoMetainfo, DashMpdError> {
+fn video_container_metainfo(path: &Path) -> Result<VideoMetainfo, DashMpdError> {
     match ffprobe::ffprobe(path) {
         Ok(meta) => {
             if meta.streams.is_empty() {
@@ -123,7 +123,7 @@ fn video_container_metainfo(path: &PathBuf) -> Result<VideoMetainfo, DashMpdErro
 }
 
 #[tracing::instrument(level="trace")]
-pub(crate) fn container_only_audio(path: &PathBuf) -> bool {
+pub(crate) fn container_only_audio(path: &Path) -> bool {
     if let Ok(meta) =  ffprobe::ffprobe(path) {
         return meta.streams.iter().all(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("audio")));
     }
@@ -133,7 +133,7 @@ pub(crate) fn container_only_audio(path: &PathBuf) -> bool {
 
 // Does the media container at path contain an audio track (separate from the video track)?
 #[tracing::instrument(level="trace")]
-pub(crate) fn container_has_audio(path: &PathBuf) -> bool {
+pub(crate) fn container_has_audio(path: &Path) -> bool {
     if let Ok(meta) =  ffprobe::ffprobe(path) {
         return meta.streams.iter().any(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("audio")));
     }
@@ -142,7 +142,7 @@ pub(crate) fn container_has_audio(path: &PathBuf) -> bool {
 
 // Does the media container at path contain a video track?
 #[tracing::instrument(level="trace")]
-pub(crate) fn container_has_video(path: &PathBuf) -> bool {
+pub(crate) fn container_has_video(path: &Path) -> bool {
     if let Ok(meta) =  ffprobe::ffprobe(path) {
         return meta.streams.iter().any(|s| s.codec_type.as_ref().is_some_and(|typ| typ.eq("video")));
     }
@@ -154,7 +154,7 @@ pub(crate) fn container_has_video(path: &PathBuf) -> bool {
 //   - they have identical resolutions, frame rate and aspect ratio
 //   - they all only contain audio content
 #[tracing::instrument(level="trace", skip(_downloader))]
-pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &[PathBuf]) -> bool {
+pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &[&Path]) -> bool {
     if paths.is_empty() {
         return false;
     }
@@ -164,7 +164,7 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
                 |p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
         }
     }
-    paths.iter().all(container_only_audio)
+    paths.iter().all(|p: &&Path| container_only_audio(*p))
 }
 
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we

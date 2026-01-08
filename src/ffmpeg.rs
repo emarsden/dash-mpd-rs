@@ -12,7 +12,7 @@
 use std::env;
 use std::io;
 use std::io::{Write, BufReader, BufWriter};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use fs_err as fs;
 use fs::File;
@@ -1097,7 +1097,7 @@ pub fn copy_audio_to_container(
 // Example for n=2 with only audio:
 //   -i /tmp/audio1 -i /tmp/audio2 -filter_complex "[0:a][1:a] concat=n=2:v=0:a=1 [outa]" -map "[outa]" 
 #[tracing::instrument(level="trace")]
-fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
+fn make_ffmpeg_concat_filter_args(paths: &[&Path]) -> Vec<String> {
     let n = paths.len();
     let mut args = Vec::new();
     let mut anullsrc = String::new();
@@ -1178,7 +1178,7 @@ fn make_ffmpeg_concat_filter_args(paths: &[PathBuf]) -> Vec<String> {
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_ffmpeg_filter(
     downloader: &DashDownloader,
-    paths: &[PathBuf]) -> Result<(), DashMpdError>
+    paths: &[&Path]) -> Result<(), DashMpdError>
 {
     if paths.len() < 2 {
         return Err(DashMpdError::Muxing(String::from("need at least two files")));
@@ -1201,22 +1201,17 @@ pub(crate) fn concat_output_files_ffmpeg_filter(
         .rand_bytes(5)
         .tempfile()
         .map_err(|e| DashMpdError::Io(e, String::from("creating temporary output file")))?;
-    let tmppath = &tmpout
-        .path()
-        .to_str()
-        .ok_or_else(|| DashMpdError::Io(
-            io::Error::other("obtaining tmpfile name"),
-            String::from("")))?;
-    fs::copy(paths[0].clone(), tmppath)
+    let tmppath = &tmpout.path();
+    fs::copy(paths[0], tmppath)
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
     let mut args = vec!["-hide_banner", "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
                         "-y",
                         "-nostdin"];
-    let mut inputs = Vec::<PathBuf>::new();
-    inputs.push(tmppath.into());
+    let mut inputs = Vec::<&Path>::new();
+    inputs.push(tmppath);
     for p in &paths[1..] {
-        inputs.push(p.to_path_buf());
+        inputs.push(p);
     }
     let filter_args = make_ffmpeg_concat_filter_args(&inputs);
     filter_args.iter().for_each(|a| args.push(a));
@@ -1265,7 +1260,7 @@ pub(crate) fn concat_output_files_ffmpeg_filter(
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_ffmpeg_demuxer(
     downloader: &DashDownloader,
-    paths: &[PathBuf]) -> Result<(), DashMpdError>
+    paths: &[&Path]) -> Result<(), DashMpdError>
 {
     if paths.len() < 2 {
         return Err(DashMpdError::Muxing(String::from("need at least two files")));
@@ -1294,7 +1289,7 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
-    fs::copy(paths[0].clone(), tmppath)
+    fs::copy(paths[0], tmppath)
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
     let mut args = vec!["-hide_banner", "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
@@ -1375,7 +1370,7 @@ pub(crate) fn concat_output_files_ffmpeg_demuxer(
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_mp4box(
     downloader: &DashDownloader,
-    paths: &[PathBuf]) -> Result<(), DashMpdError>
+    paths: &[&Path]) -> Result<(), DashMpdError>
 {
     if paths.len() < 2 {
         return Err(DashMpdError::Muxing(String::from("need at least two files")));
@@ -1393,7 +1388,7 @@ pub(crate) fn concat_output_files_mp4box(
             io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let mut tmpoutb = BufWriter::new(&tmpout);
-    let overwritten = File::open(paths[0].clone())
+    let overwritten = File::open(paths[0])
         .map_err(|e| DashMpdError::Io(e, String::from("opening first container")))?;
     let mut overwritten = BufReader::new(overwritten);
     io::copy(&mut overwritten, &mut tmpoutb)
@@ -1439,7 +1434,7 @@ pub(crate) fn concat_output_files_mp4box(
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files_mkvmerge(
     downloader: &DashDownloader,
-    paths: &[PathBuf]) -> Result<(), DashMpdError>
+    paths: &[&Path]) -> Result<(), DashMpdError>
 {
     if paths.len() < 2 {
         return Err(DashMpdError::Muxing(String::from("need at least two files")));
@@ -1457,7 +1452,7 @@ pub(crate) fn concat_output_files_mkvmerge(
             io::Error::other("obtaining tmpfile name"),
             String::from("")))?;
     let mut tmpoutb = BufWriter::new(&tmpout);
-    let overwritten = File::open(paths[0].clone())
+    let overwritten = File::open(paths[0])
         .map_err(|e| DashMpdError::Io(e, String::from("opening first container")))?;
     let mut overwritten = BufReader::new(overwritten);
     io::copy(&mut overwritten, &mut tmpoutb)
@@ -1512,7 +1507,7 @@ pub(crate) fn concat_output_files_mkvmerge(
 #[tracing::instrument(level="trace", skip(downloader))]
 pub(crate) fn concat_output_files(
     downloader: &DashDownloader,
-    paths: &[PathBuf]) -> Result<(), DashMpdError> {
+    paths: &[&Path]) -> Result<(), DashMpdError> {
     if paths.len() < 2 {
         return Ok(());
     }

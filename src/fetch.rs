@@ -96,7 +96,7 @@ pub fn tmp_file_path(prefix: &str, extension: &OsStr) -> Result<PathBuf, DashMpd
 // platforms.
 // https://rust-lang.github.io/rust-clippy/master/index.html#permissions_set_readonly_false
 #[cfg(unix)]
-async fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
+async fn ensure_permissions_readable(path: &Path) -> Result<(), DashMpdError> {
     use std::fs::Permissions;
     use std::os::unix::fs::PermissionsExt;
 
@@ -3630,7 +3630,7 @@ async fn fetch_fragment(
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_audio(
     downloader: &mut DashDownloader,
-    tmppath: PathBuf,
+    tmppath: &Path,
     audio_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
@@ -3640,9 +3640,9 @@ async fn fetch_period_audio(
         // We need a local scope for our temporary File, so that the file is closed when we later
         // optionally call the decryption application (which requires exclusive access to its input
         // file on Windows).
-        let tmpfile_audio = File::create(tmppath.clone()).await
+        let tmpfile_audio = File::create(tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating audio tmpfile")))?;
-        ensure_permissions_readable(&tmppath).await?;
+        ensure_permissions_readable(tmppath).await?;
         let mut tmpfile_audio = BufWriter::new(tmpfile_audio);
         // Optionally create the directory to which we will save the audio fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
@@ -3721,7 +3721,7 @@ async fn fetch_period_audio(
     } // end local scope for the FileHandle
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone()).await
+            let metadata = fs::metadata(tmppath).await
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted audio metadata")))?;
             info!("  Attempting to decrypt audio stream ({} kB) with {}",
                   metadata.len() / 1024,
@@ -3732,22 +3732,22 @@ async fn fetch_period_audio(
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-audio", out_ext)?;
         if downloader.decryptor_preference.eq("mp4decrypt") {
-            decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "audio").await?;
+            decrypt_mp4decrypt(downloader, tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
-            decrypt_shaka(downloader, &tmppath, &decrypted, "audio").await?;
+            decrypt_shaka(downloader, tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("shaka-container") {
-            decrypt_shaka_container(downloader, &tmppath, &decrypted, "audio").await?;
+            decrypt_shaka_container(downloader, tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
-            decrypt_mp4box(downloader, &tmppath, &decrypted, "audio").await?;
+            decrypt_mp4box(downloader, tmppath, &decrypted, "audio").await?;
         } else if downloader.decryptor_preference.eq("mp4box-container") {
-            decrypt_mp4box_container(downloader, &tmppath, &decrypted, "audio").await?;
+            decrypt_mp4box_container(downloader, tmppath, &decrypted, "audio").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        fs::rename(decrypted, tmppath.clone()).await
+        fs::rename(decrypted, tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
+    if let Ok(metadata) = fs::metadata(tmppath).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
@@ -3763,18 +3763,19 @@ async fn fetch_period_audio(
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_video(
     downloader: &mut DashDownloader,
-    tmppath: PathBuf,
+    tmppath: &Path,
     video_fragments: &[MediaFragment],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
     let start_download = Instant::now();
     let mut have_video = false;
     {
-        // We need a local scope for our tmpfile_video File, so that the file is closed when
-        // we later call mp4decrypt (which requires exclusive access to its input file on Windows).
-        let tmpfile_video = File::create(tmppath.clone()).await
+        // We need a local scope for our tmpfile_video File, so that the file is closed when we
+        // later call the decryption helper application. Certain helper configurations like
+        // mp4decrypt on Windows require exclusive access to its input file.
+        let tmpfile_video = File::create(tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating video tmpfile")))?;
-        ensure_permissions_readable(&tmppath).await?;
+        ensure_permissions_readable(tmppath).await?;
         let mut tmpfile_video = BufWriter::new(tmpfile_video);
         // Optionally create the directory to which we will save the video fragments.
         if let Some(ref fragment_path) = downloader.fragment_path {
@@ -3844,7 +3845,7 @@ async fn fetch_period_video(
     } // end local scope for tmpfile_video File
     if !downloader.decryption_keys.is_empty() {
         if downloader.verbosity > 0 {
-            let metadata = fs::metadata(tmppath.clone()).await
+            let metadata = fs::metadata(tmppath).await
                 .map_err(|e| DashMpdError::Io(e, String::from("reading encrypted video metadata")))?;
             info!("  Attempting to decrypt video stream ({} kB) with {}",
                    metadata.len() / 1024,
@@ -3855,22 +3856,22 @@ async fn fetch_period_video(
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-video", out_ext)?;
         if downloader.decryptor_preference.eq("mp4decrypt") {
-            decrypt_mp4decrypt(downloader, &tmppath, &decrypted, "video").await?;
+            decrypt_mp4decrypt(downloader, tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("shaka") {
-            decrypt_shaka(downloader, &tmppath, &decrypted, "video").await?;
+            decrypt_shaka(downloader, tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("shaka-container") {
-            decrypt_shaka_container(downloader, &tmppath, &decrypted, "video").await?;
+            decrypt_shaka_container(downloader, tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("mp4box") {
-            decrypt_mp4box(downloader, &tmppath, &decrypted, "video").await?;
+            decrypt_mp4box(downloader, tmppath, &decrypted, "video").await?;
         } else if downloader.decryptor_preference.eq("mp4box-container") {
-            decrypt_mp4box_container(downloader, &tmppath, &decrypted, "video").await?;
+            decrypt_mp4box_container(downloader, tmppath, &decrypted, "video").await?;
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        fs::rename(decrypted, tmppath.clone()).await
+        fs::rename(decrypted, tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
+    if let Ok(metadata) = fs::metadata(tmppath).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
@@ -3886,7 +3887,7 @@ async fn fetch_period_video(
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_period_subtitles(
     downloader: &DashDownloader,
-    tmppath: PathBuf,
+    tmppath: &Path,
     subtitle_fragments: &[MediaFragment],
     subtitle_formats: &[SubtitleType],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
@@ -3895,9 +3896,9 @@ async fn fetch_period_subtitles(
     let start_download = Instant::now();
     let mut have_subtitles = false;
     {
-        let tmpfile_subs = File::create(tmppath.clone()).await
+        let tmpfile_subs = File::create(tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
-        ensure_permissions_readable(&tmppath).await?;
+        ensure_permissions_readable(tmppath).await?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
             // Update any ProgressObservers
@@ -3999,7 +4000,7 @@ async fn fetch_period_subtitles(
         }).await?;
     } // end local scope for tmpfile_subs File
     if have_subtitles {
-        if let Ok(metadata) = fs::metadata(tmppath.clone()).await {
+        if let Ok(metadata) = fs::metadata(tmppath).await {
             if downloader.verbosity > 1 {
                 let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
                 let elapsed = start_download.elapsed();
@@ -4057,7 +4058,7 @@ async fn fetch_period_subtitles(
             }
             let out = downloader.output_path.as_ref().unwrap()
                 .with_extension("ttml");
-            let tmppath_arg = &tmppath.to_string_lossy();
+            let tmppath_arg = tmppath.to_string_lossy();
             let out_arg = &out.to_string_lossy();
             let ffmpeg_args = vec![
                 "-hide_banner",
@@ -4065,7 +4066,7 @@ async fn fetch_period_subtitles(
                 "-loglevel", "error",
                 "-y",  // overwrite output file if it exists
                 "-nostdin",
-                "-i", tmppath_arg,
+                "-i", &tmppath_arg,
                 "-f", "data",
                 "-map", "0",
                 "-c", "copy",
@@ -4343,7 +4344,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
     let output_path = &downloader.output_path.as_ref().unwrap().clone();
-    let mut period_output_paths: Vec<PathBuf> = Vec::new();
+    let mut period_output_pathbufs: Vec<PathBuf> = Vec::new();
     let mut ds = DownloadState {
         period_counter: 0,
         // The additional +2 is for our initial .mpd fetch action and final muxing action
@@ -4390,12 +4391,12 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             // need to call fetch_period_audio multiple times with a different file path each time,
             // and with the audio_fragments only relevant for that language.
             have_audio = fetch_period_audio(downloader,
-                                            tmppath_audio.clone(), &pd.audio_fragments,
+                                            &tmppath_audio, &pd.audio_fragments,
                                             &mut ds).await?;
         }
         if downloader.fetch_video && !pd.video_fragments.is_empty() {
             have_video = fetch_period_video(downloader,
-                                            tmppath_video.clone(), &pd.video_fragments,
+                                            &tmppath_video, &pd.video_fragments,
                                             &mut ds).await?;
         }
         // Here we handle subtitles that are distributed in fragmented MP4 segments, rather than as a
@@ -4403,7 +4404,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         // formatted as EBU-TT for DASH media) formats.
         if downloader.fetch_subtitles && !pd.subtitle_fragments.is_empty() {
             have_subtitles = fetch_period_subtitles(downloader,
-                                                    tmppath_subs.clone(),
+                                                    &tmppath_subs,
                                                     &pd.subtitle_fragments,
                                                     &pd.subtitle_formats,
                                                     &mut ds).await?;
@@ -4565,14 +4566,18 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             }
         }
         if downloader.verbosity > 1 && (downloader.fetch_audio || downloader.fetch_video || have_subtitles) {
-            if let Ok(metadata) = fs::metadata(period_output_path.clone()).await {
+            if let Ok(metadata) = fs::metadata(&period_output_path).await {
                 info!("  Wrote {:.1}MB to media file", metadata.len() as f64 / (1024.0 * 1024.0));
             }
         }
         if have_audio || have_video {
-            period_output_paths.push(period_output_path);
+            period_output_pathbufs.push(period_output_path);
         }
     } // Period iterator
+    let period_output_paths: Vec<&Path> = period_output_pathbufs
+        .iter()
+        .map(PathBuf::as_path)
+        .collect();
     #[allow(clippy::comparison_chain)]
     if period_output_paths.len() == 1 {
         // We already arranged to write directly to the requested output_path.
@@ -4585,6 +4590,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         #[allow(unused_mut)]
         let mut concatenated = false;
         #[cfg(not(feature = "libav"))]
+        // if downloader.concatenate_periods && video_containers_concatable(downloader, &period_output_paths) {
         if downloader.concatenate_periods && video_containers_concatable(downloader, &period_output_paths) {
             info!("Preparing to concatenate multiple Periods into one output file");
             concat_output_files(downloader, &period_output_paths)?;
@@ -4605,7 +4611,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             for p in period_output_paths {
                 period_counter += 1;
                 info!("  Period #{period_counter}: {}", p.display());
-                maybe_record_metainformation(&p, downloader, &mpd);
+                maybe_record_metainformation(p, downloader, &mpd);
             }
         }
     }

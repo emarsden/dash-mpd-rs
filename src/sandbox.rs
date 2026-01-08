@@ -54,7 +54,13 @@
 //
 // - Look into adding support for the seccomp security module for Linux.
 //
-// - Look into sandboxing mechanisms for Microsoft Windows.
+// - Look into sandboxing mechanisms for Microsoft Windows, perhaps using the
+//   CreateAppContainerProfile API.
+//
+// - Investigate the MacOS sandbox mechanism, with a SBPL policy or sandbox-exec
+//   https://igorstechnoclub.com/sandbox-exec/
+//
+// - Add support for running all helper applications via Docker/Podman.
 
 
 
