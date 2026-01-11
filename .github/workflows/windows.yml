@@ -70,6 +70,11 @@ jobs:
     - name: install mediainfo (CLI)
       run: choco install --yes --limit-output mediainfo-cli
 
+    - name: install podman
+      run: |
+        choco install --yes --limit-output podman-cli
+        podman machine start
+
     - run: cargo hack check --feature-powerset --exclude-features libav,sandbox,http3 --no-dev-deps
       shell: msys2 {0}
 
