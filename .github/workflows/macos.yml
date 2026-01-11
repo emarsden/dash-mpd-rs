@@ -2,10 +2,9 @@ on: [push]
 
 name: macos
 
-# This is currently needed to build the http3 functionality in the reqwest crate
 env:
+  # This is currently needed to build the http3 functionality in the reqwest crate
   RUSTFLAGS: '--cfg reqwest_unstable'
-  DOCKER: 'docker'
 
 jobs:
   build:
@@ -62,4 +61,7 @@ jobs:
     - run: cargo hack check --feature-powerset --exclude-features libav,socks,http3 --no-dev-deps
     - run: cargo build
     - run: RUST_LOG=info cargo test --jobs 1 --verbose --no-run
-    - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output
+
+    # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
+    # because they don't support nested virtualization, and therefore can't run Docker/Podman.
+    - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output --test-threads=1 --skip containerized

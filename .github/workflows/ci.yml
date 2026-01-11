@@ -6,7 +6,6 @@ name: build
 env:
   RUSTFLAGS: '--cfg reqwest_unstable'
 
-
 jobs:
   check:
     name: dash-mpd-rs check/nightly
@@ -56,7 +55,8 @@ jobs:
         run: sudo apt install xsltproc protobuf-compiler cmake libxml2-utils
 
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output
-      - run: RUST_LOG=info cargo test --jobs 1
-      - run: cargo test --jobs 1 --all-features
+      - run: RUST_LOG=info DOCKER=docker cargo test --jobs 1 --test content_protection_containerized -- --show-output
+      - run: RUST_LOG=info cargo test --jobs 1 -- --test-threads=1
+      - run: cargo test --jobs 1 --all-features -- --test-threads=1
       - run: cargo run --example serialize
       - run: cargo run --example pprint_bbc_adaptive
