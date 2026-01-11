@@ -171,9 +171,18 @@ pub async fn decrypt_shaka_container(
     if downloader.verbosity > 1 {
         info!("  Running shaka-packager container {}", args.join(" "));
     }
-    // TODO: make container runner a DashDownloader option
+    // TODO: make container runner a DashDownloader option.
+    // TODO: perhaps use the bollard crate to use Docker API
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
-    let out = Command::new(container_runtime)
+    let pull = Command::new(&container_runtime)
+        .args(["pull", "docker.io/google/shaka-packager:latest"])
+        .output()
+        .map_err(|e| DashMpdError::Decrypting(format!("pulling shaka-packager container: {e:?}")))?;
+    if !pull.status.success() {
+        warn!("  Unable to pull shaka-packager decryption container");
+        return Err(DashMpdError::Decrypting(format!("pulling container docker.io/google/shaka-packager:latest")));
+    }
+    let out = Command::new(&container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("running shaka-packager container: {e:?}")))?;
@@ -307,7 +316,15 @@ pub async fn decrypt_mp4box_container(
         info!("  Running decryption container GPAC/MP4Box {}", args.join(" "));
     }
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
-    let out = Command::new(container_runtime)
+    let pull = Command::new(&container_runtime)
+        .args(["pull", "docker.io/gpac/ubuntu:latest"])
+        .output()
+        .map_err(|e| DashMpdError::Decrypting(format!("pulling MP4Box container: {e:?}")))?;
+    if !pull.status.success() {
+        warn!("  Unable to pull MP4Box decryption container");
+        return Err(DashMpdError::Decrypting(format!("pulling container docker.io/gpac/ubuntu:latest")));
+    }
+    let out = Command::new(&container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("spawning MP4Box container: {e:?}")))?;
