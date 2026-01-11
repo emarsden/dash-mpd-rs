@@ -164,7 +164,7 @@ pub(crate) fn video_containers_concatable(_downloader: &DashDownloader, paths: &
                 |p| video_container_metainfo(p).is_ok_and(|m| m == p0m));
         }
     }
-    paths.iter().all(|p: &&Path| container_only_audio(*p))
+    paths.iter().all(|p: &&Path| container_only_audio(p))
 }
 
 // mkvmerge on Windows is compiled using MinGW and isn't able to handle native pathnames, so we
