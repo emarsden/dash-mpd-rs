@@ -3739,6 +3739,9 @@ async fn fetch_period_audio(
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
+        if let Err(e) = fs::metadata(tmppath).await {
+            return Err(DashMpdError::Decrypting(format!("missing decrypted audio file: {e:?}")));
+        }
         fs::rename(decrypted, tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
     }
