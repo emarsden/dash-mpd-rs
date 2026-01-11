@@ -138,7 +138,8 @@ async fn test_subtitles_vtt () {
         .prefer_language(String::from("de"))
         .download_to(outpath.clone()).await
         .unwrap();
-    assert!(fs::metadata(subpath).is_ok());
+    let meta = fs::metadata(subpath).unwrap();
+    assert!(meta.len() > 0);
     let format = FileFormat::from_file(subpath).unwrap();
     assert_eq!(format, FileFormat::WebVideoTextTracks);
     // This manifest contains a single subtitle track, available in VTT format via BaseURL addressing.
