@@ -11,6 +11,8 @@
 
 - Replace the unmaintained `backoff` crate by the `backon` crate.
 
+- Replace the unmaintained dev dependency `json` by the `jzon` crate.
+
 
 ## [0.19.2] - 2025-12-26
 

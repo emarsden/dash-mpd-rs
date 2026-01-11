@@ -241,7 +241,7 @@ pub fn ffprobe_metadata_title(mp4: &Path) -> Result<u8> {
         .output()
         .expect("spawning ffmpeg");
     assert!(ffprobe.status.success());
-    let parsed = json::parse(&String::from_utf8_lossy(&ffprobe.stdout)).unwrap();
+    let parsed = jzon::parse(&String::from_utf8_lossy(&ffprobe.stdout)).unwrap();
     let title = parsed["format"]["tags"]["title"].as_str().unwrap();
     title.parse().context("parsing title metadata")
 }
