@@ -28,7 +28,12 @@ setup-coverage-tools:
   rustup component add llvm-tools-preview
   cargo install grcov
   cargo install cargo-tarpaulin
-    
+
+
+# Requires cargo-audit from https://crates.io/crates/cargo-audit
+audit:
+    cargo audit
+
 
 # Builds with the mold linker are faster (for Linux/AMD64)
 moldy-build:
