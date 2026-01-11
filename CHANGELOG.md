@@ -4,6 +4,13 @@
 
 - Move from `std::fs` to `tokio::fs` implementations for filesystem operations.
 
+- Add the ability to decrypt media content with the shaka-packager helper application running in its
+  official Docker/Podman container (instead of installed locally on the host), and with the MP4Box
+  helper application from the official GPAC Docker/Podman container. These rely on Podman being
+  installed.
+
+- Replace the unmaintained `backoff` crate by the `backon` crate.
+
 
 ## [0.19.2] - 2025-12-26
 

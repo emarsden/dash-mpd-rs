@@ -24,7 +24,7 @@ use url::Url;
 use bytes::Bytes;
 use data_url::DataUrl;
 use reqwest::header::{RANGE, CONTENT_TYPE};
-use backoff::{future::retry_notify, ExponentialBackoff};
+use backon::{ExponentialBuilder, Retryable};
 use governor::{Quota, RateLimiter};
 use lazy_static::lazy_static;
 use xot::{xmlname, Xot};
@@ -1586,15 +1586,7 @@ fn reqwest_error_transient_p(e: &reqwest::Error) -> bool {
     false
 }
 
-fn categorize_reqwest_error(e: reqwest::Error) -> backoff::Error<reqwest::Error> {
-    if reqwest_error_transient_p(&e) {
-        backoff::Error::retry_after(e, Duration::new(5, 0))
-    } else {
-        backoff::Error::permanent(e)
-    }
-}
-
-fn notify_transient<E: std::fmt::Debug>(err: E, dur: Duration) {
+fn notify_transient<E: std::fmt::Debug>(err: &E, dur: Duration) {
     warn!("Transient error after {dur:?}: {err:?}");
 }
 
@@ -3533,12 +3525,15 @@ async fn fetch_fragment(
         if let Some(token) = &downloader.auth_bearer_token {
             req = req.bearer_auth(token);
         }
-        req.send().await
-            .map_err(categorize_reqwest_error)?
+        req.send().await?
             .error_for_status()
-            .map_err(categorize_reqwest_error)
     };
-    match retry_notify(ExponentialBackoff::default(), send_request, notify_transient).await {
+    match send_request
+        .retry(ExponentialBuilder::default())
+        .when(reqwest_error_transient_p)
+        .notify(notify_transient)
+        .await
+    {
         Ok(response) => {
             match response.error_for_status() {
                 Ok(mut resp) => {
@@ -3946,13 +3941,16 @@ async fn fetch_period_subtitles(
                     if let Some(token) = &downloader.auth_bearer_token {
                         req = req.bearer_auth(token);
                     }
-                    req.send().await
-                        .map_err(categorize_reqwest_error)?
+                    req.send().await?
                         .error_for_status()
-                        .map_err(categorize_reqwest_error)
                 };
                 let mut failure = None;
-                match retry_notify(ExponentialBackoff::default(), fetch, notify_transient).await {
+                match fetch
+                    .retry(ExponentialBuilder::default())
+                    .when(reqwest_error_transient_p)
+                    .notify(notify_transient)
+                    .await
+                {
                     Ok(response) => {
                         if response.status().is_success() {
                             let dash_bytes = response.bytes().await
@@ -4122,10 +4120,8 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
         if let Some(token) = &downloader.auth_bearer_token {
             req = req.bearer_auth(token);
         }
-        req.send().await
-            .map_err(categorize_reqwest_error)?
+        req.send().await?
             .error_for_status()
-            .map_err(categorize_reqwest_error)
     };
     for observer in &downloader.progress_observers {
         observer.update(1, "Fetching DASH manifest");
@@ -4136,7 +4132,10 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
         }
         info!("Fetching the DASH manifest");
     }
-    let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
+    let response = send_request
+        .retry(ExponentialBuilder::default())
+        .when(reqwest_error_transient_p)
+        .notify(notify_transient)
         .await
         .map_err(|e| network_error("requesting DASH manifest", &e))?;
     if !response.status().is_success() {
@@ -4205,12 +4204,13 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
             if let Some(token) = &downloader.auth_bearer_token {
                 req = req.bearer_auth(token);
             }
-            req.send().await
-                .map_err(categorize_reqwest_error)?
+            req.send().await?
                 .error_for_status()
-                .map_err(categorize_reqwest_error)
         };
-        let response = retry_notify(ExponentialBackoff::default(), send_request, notify_transient)
+        let response = send_request
+            .retry(ExponentialBuilder::default())
+            .when(reqwest_error_transient_p)
+            .notify(notify_transient)
             .await
             .map_err(|e| network_error("requesting relocated DASH manifest", &e))?;
         if !response.status().is_success() {
