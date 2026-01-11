@@ -9,6 +9,7 @@
 //   - MP4Box from the official GPAC Docker/Podman container
 
 
+use std::env;
 use std::path::Path;
 use std::process::Command;
 use std::ffi::OsStr;
@@ -171,7 +172,8 @@ pub async fn decrypt_shaka_container(
         info!("  Running shaka-packager container {}", args.join(" "));
     }
     // TODO: make container runner a DashDownloader option
-    let out = Command::new("podman")
+    let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
+    let out = Command::new(container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("running shaka-packager container: {e:?}")))?;
@@ -304,7 +306,8 @@ pub async fn decrypt_mp4box_container(
     if downloader.verbosity > 1 {
         info!("  Running decryption container GPAC/MP4Box {}", args.join(" "));
     }
-    let out = Command::new("podman")
+    let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
+    let out = Command::new(container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("spawning MP4Box container: {e:?}")))?;

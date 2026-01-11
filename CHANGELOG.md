@@ -6,8 +6,9 @@
 
 - Add the ability to decrypt media content with the shaka-packager helper application running in its
   official Docker/Podman container (instead of installed locally on the host), and with the MP4Box
-  helper application from the official GPAC Docker/Podman container. These rely on Podman being
-  installed.
+  helper application from the official GPAC Docker/Podman container. These rely on a container
+  runtime (Podman or Docker) being installed. The container runtime to use can be specified using
+  the `DOCKER` environment variable (defaults to `podman`).
 
 - Replace the unmaintained `backoff` crate by the `backon` crate.
 
