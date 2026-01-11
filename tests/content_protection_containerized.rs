@@ -24,7 +24,7 @@ use common::{check_file_size_approx, ffmpeg_approval, setup_logging};
 async fn test_decryption_webm_shaka_container() {
     setup_logging();
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
-    let out = env::temp_dir().join("angel.webm");
+    let out = env::temp_dir().join("angel-shaka-container.webm");
     if out.exists() {
         let _ = fs::remove_file(out.clone());
     }
