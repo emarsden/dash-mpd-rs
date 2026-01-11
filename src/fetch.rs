@@ -107,7 +107,7 @@ async fn ensure_permissions_readable(path: &Path) -> Result<(), DashMpdError> {
 }
 
 #[cfg(not(unix))]
-async fn ensure_permissions_readable(path: &PathBuf) -> Result<(), DashMpdError> {
+async fn ensure_permissions_readable(path: &Path) -> Result<(), DashMpdError> {
     let mut perms = fs::metadata(path).await
         .map_err(|e| DashMpdError::Io(e, String::from("reading file permissions")))?
         .permissions();
