@@ -614,6 +614,36 @@ async fn test_supplemental_property() {
 
 
 #[tokio::test]
+async fn test_supplemental_extension_type() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://media.developer.dolby.com/DolbyVision_Atmos/profile8.1_DASH/p8.1.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml);
+    assert!(mpd.is_ok());
+    let mpd = mpd.unwrap();
+    let audio_adap = mpd.periods.iter()
+        .find_map(
+            |p| p.adaptations.iter().find(
+                |a| a.mimeType.as_ref().is_some_and(|m| m.starts_with("audio/"))))
+        .unwrap();
+   assert!(audio_adap.representations.iter().all(
+       |r| r.supplemental_property.iter().any(
+           |sp| sp.schemeIdUri.contains("ExtensionType") &&
+               sp.value.as_ref().is_some_and(|v| v.eq("JOC")))));
+}
+
+
+#[tokio::test]
 async fn test_parsing_leapsecond_information() {
     setup_logging();
     let client = reqwest::Client::builder()
