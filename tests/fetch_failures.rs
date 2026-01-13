@@ -245,3 +245,11 @@ async fn test_error_tls_wrong_name() {
         .unwrap();
 }
 
+
+#[tokio::test]
+#[should_panic(expected = "NetworkConnect")]
+async fn test_error_tls_3des_insecure() {
+    DashDownloader::new("https://3des.badssl.com/ignored.mpd")
+        .download().await
+        .unwrap();
+}
