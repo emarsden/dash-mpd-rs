@@ -1,4 +1,4 @@
-/// Shared code for our test harness.
+//! Shared code for our test harness.
 
 
 use fs_err as fs;
