@@ -180,7 +180,7 @@ pub async fn decrypt_shaka_container(
         .map_err(|e| DashMpdError::Decrypting(format!("pulling shaka-packager container: {e:?}")))?;
     if !pull.status.success() {
         warn!("  Unable to pull shaka-packager decryption container");
-        return Err(DashMpdError::Decrypting(format!("pulling container docker.io/google/shaka-packager:latest")));
+        return Err(DashMpdError::Decrypting(String::from("pulling container docker.io/google/shaka-packager:latest")));
     }
     let out = Command::new(&container_runtime)
         .args(args)
@@ -322,7 +322,7 @@ pub async fn decrypt_mp4box_container(
         .map_err(|e| DashMpdError::Decrypting(format!("pulling MP4Box container: {e:?}")))?;
     if !pull.status.success() {
         warn!("  Unable to pull MP4Box decryption container");
-        return Err(DashMpdError::Decrypting(format!("pulling container docker.io/gpac/ubuntu:latest")));
+        return Err(DashMpdError::Decrypting(String::from("pulling container docker.io/gpac/ubuntu:latest")));
     }
     let out = Command::new(&container_runtime)
         .args(args)
