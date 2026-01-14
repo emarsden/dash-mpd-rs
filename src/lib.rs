@@ -2946,9 +2946,9 @@ mod tests {
             path.push("fixtures");
             path.push(fixture);
             let xml = fs::read_to_string(path)
-                .expect(&format!("failed to read fixture {fixture}"));
+                .unwrap_or_else(|_| panic!("failed to read fixture {fixture}"));
             let mpd = parse(&xml)
-                .expect(&format!("failed to parse fixture {fixture}"));
+                .unwrap_or_else(|_| panic!("failed to parse fixture {fixture}"));
             let anomalies = check_conformity(&mpd);
             assert!(anomalies.is_empty());
         }
