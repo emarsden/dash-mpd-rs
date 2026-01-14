@@ -101,7 +101,8 @@ async fn test_subtitles_ttml () {
     // We didn't specify a preferred language, so the first available one in the manifest (here
     // English) is downloaded.
     assert!(ttml.contains("You're a jerk"));
-    let _ = fs::remove_file(outpath.clone());
+    let _ = fs::remove_file(&outpath);
+    let _ = fs::remove_file(&subpath);
 
     DashDownloader::new(mpd)
         .fetch_audio(false)
@@ -110,7 +111,8 @@ async fn test_subtitles_ttml () {
         .prefer_language(String::from("de"))
         .download_to(outpath.clone()).await
         .unwrap();
-    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(fs::metadata(&subpath).is_ok());
+    let ttml = fs::read_to_string(&subpath).unwrap();
     // This time we requested German subtitles.
     assert!(ttml.contains("Du bist ein Vollidiot"));
     let _ = fs::remove_file(outpath);
