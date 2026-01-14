@@ -54,8 +54,13 @@ jobs:
       - name: Install xsltproc + protoc
         run: sudo apt install xsltproc protobuf-compiler cmake libxml2-utils
 
+      - name: Install Podman in rootless mode
+        run: |
+          sudo apt install podman podman-docker
+          sudo systemctl --user enable --now podman.socket
+
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
-      - run: RUST_LOG=info DOCKER=docker cargo test --jobs 1 --test content_protection_containerized -- --show-output --test-threads=1
+#      - run: RUST_LOG=info DOCKER=docker cargo test --jobs 1 --test content_protection_containerized -- --show-output --test-threads=1
       - run: RUST_LOG=info cargo test --jobs 1 -- --test-threads=1
       - run: cargo test --jobs 1 --all-features -- --test-threads=1
       - run: cargo run --example serialize
