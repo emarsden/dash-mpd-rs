@@ -333,6 +333,38 @@ async fn test_dl_dolby_dtsc() {
 
 
 #[tokio::test]
+async fn test_dl_bok() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://www.bok.net/dash/tears_of_steel/cleartext/stream.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("bok-tears.mkv");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .sandbox(true)
+        .with_muxer_preference("mkv", "mkvmerge")
+        .content_type_checks(false)
+        .conformity_checks(false)
+        .verbosity(0)
+        .download_to(out.clone()).await
+        .unwrap();
+    check_file_size_approx(&out, 59_936_277);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+#[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_hevc_hdr() {
     setup_logging();
