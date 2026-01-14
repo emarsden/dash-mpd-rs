@@ -3745,7 +3745,7 @@ async fn fetch_period_audio(
         fs::remove_file(&tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("deleting encrypted audio tmpfile")))?;
         fs::rename(&decrypted, &tmppath).await
-            .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
+            .map_err(|e| DashMpdError::Io(e, format!("renaming decrypted audio {}->{}", decrypted.display(), tmppath.display())))?;
     }
     if let Ok(metadata) = fs::metadata(&tmppath).await {
         if downloader.verbosity > 1 {
