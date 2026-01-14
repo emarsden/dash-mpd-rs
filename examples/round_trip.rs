@@ -1,4 +1,4 @@
-/// round_trip.rs -- check round trip from XML to Rust structs to XML.
+//! round_trip.rs -- check round trip from XML to Rust structs to XML.
 //
 // This tool fetches a DASH manifest, deserializes the content to our Rust structs, then serializes
 // the result back to XML. It can be used to help identify attributes and nodes that are incorrectly
