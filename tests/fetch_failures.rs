@@ -251,7 +251,7 @@ async fn test_error_tls_wrong_name() {
 #[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_3des_insecure() {
     #[cfg(all(target_os = "macos", feature = "native-tls"))]
-    panic!("NetWorkConnect failing test on MacOS + native-tls");
+    panic!("NetworkConnect failing test on MacOS + native-tls");
     DashDownloader::new("https://3des.badssl.com/ignored.mpd")
         .download().await
         .unwrap();
