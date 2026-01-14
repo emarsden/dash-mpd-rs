@@ -142,7 +142,7 @@ fn test_unknown_elements () {
      </ProgramInformation></MPD>"#;
     let res = parse(case3);
     let mpd = res.unwrap();
-    assert!(mpd.ProgramInformation.len() > 0);
+    assert!(!mpd.ProgramInformation.is_empty());
     let pi = &mpd.ProgramInformation.first().unwrap();
     assert!(&pi.Title.is_some());
     let title = pi.Title.as_ref().unwrap();
@@ -153,7 +153,7 @@ fn test_unknown_elements () {
      </ProgramInformation></MPD>"#;
     let res = parse(case4);
     let mpd = res.unwrap();
-    assert!(mpd.ProgramInformation.len() > 0);
+    assert!(!mpd.ProgramInformation.is_empty());
     let pi = &mpd.ProgramInformation.first().unwrap();
     assert!(pi.Title.is_some());
     let title = pi.Title.as_ref().unwrap();
@@ -608,7 +608,7 @@ async fn test_supplemental_property() {
     let mpd = mpd.unwrap();
     let adap = mpd.periods.first().unwrap()
         .adaptations.first().unwrap();
-    assert!(adap.essential_property.len() == 0);
+    assert!(adap.essential_property.is_empty());
     assert!(adap.supplemental_property.len() == 3);
 }
 
@@ -687,7 +687,7 @@ async fn test_parsing_online() {
             .text().await
             .expect("fetching MPD content");
         parse(&xml)
-            .expect(&format!("Failed to parse {}", url));
+            .unwrap_or_else(|_| panic!("Failed to parse {url}"));
     }
 
     let client = reqwest::Client::builder()
@@ -908,7 +908,7 @@ async fn test_parsing_servicelocation() {
     let mpd = dash_mpd::parse(&xml);
     let mpd = mpd.unwrap();
     assert!(mpd.publishTime.is_some());
-    assert!(mpd.UTCTiming.len() > 0);
+    assert!(!mpd.UTCTiming.is_empty());
     assert_eq!(mpd.base_url.len(), 1);
     let base_url = mpd.base_url.first().unwrap();
     assert!(base_url.priority.is_some());
@@ -928,7 +928,7 @@ async fn test_parsing_servicedescription() {
   <Latency min="3000" max="5000" target="4000"/>
   <PlaybackRate min="0.95" max="1.05"/>
 </ServiceDescription>"#;
-    let sd: dash_mpd::ServiceDescription = quick_xml::de::from_str(&fragment).unwrap();
+    let sd: dash_mpd::ServiceDescription = quick_xml::de::from_str(fragment).unwrap();
     let serialized = quick_xml::se::to_string(&sd).unwrap();
     let pos1 = serialized.find("Scope").unwrap();
     let pos2 = serialized.find("Latency").unwrap();
