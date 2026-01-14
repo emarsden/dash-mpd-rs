@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Podman in rootless mode
         run: |
-          sudo apt install podman podman-docker
+          sudo apt install podman
           sudo systemctl --user enable --now podman.socket
 
       - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
