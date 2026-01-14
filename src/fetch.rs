@@ -3739,13 +3739,15 @@ async fn fetch_period_audio(
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        if let Err(e) = fs::metadata(tmppath).await {
+        if let Err(e) = fs::metadata(&decrypted).await {
             return Err(DashMpdError::Decrypting(format!("missing decrypted audio file: {e:?}")));
         }
-        fs::rename(decrypted, tmppath).await
+        fs::remove_file(&tmppath).await
+            .map_err(|e| DashMpdError::Io(e, String::from("deleting encrypted audio tmpfile")))?;
+        fs::rename(&decrypted, &tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted audio")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath).await {
+    if let Ok(metadata) = fs::metadata(&tmppath).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
@@ -3866,10 +3868,15 @@ async fn fetch_period_video(
         } else {
             return Err(DashMpdError::Decrypting(String::from("unknown decryption application")));
         }
-        fs::rename(decrypted, tmppath).await
+        if let Err(e) = fs::metadata(&decrypted).await {
+            return Err(DashMpdError::Decrypting(format!("missing decrypted video file: {e:?}")));
+        }
+        fs::remove_file(&tmppath).await
+            .map_err(|e| DashMpdError::Io(e, String::from("deleting encrypted video tmpfile")))?;
+        fs::rename(&decrypted, &tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("renaming decrypted video")))?;
     }
-    if let Ok(metadata) = fs::metadata(tmppath).await {
+    if let Ok(metadata) = fs::metadata(&tmppath).await {
         if downloader.verbosity > 1 {
             let mbytes = metadata.len() as f64 / (1024.0 * 1024.0);
             let elapsed = start_download.elapsed();
