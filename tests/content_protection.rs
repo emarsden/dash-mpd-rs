@@ -123,7 +123,7 @@ async fn test_decryption_webm_shaka() {
         .output()
         .expect("spawning ffmpeg");
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         eprintln!("FFMPEG stderr {msg}");
     }
     // ffmpeg 8 is displaying an error concerning invalid Opus content
