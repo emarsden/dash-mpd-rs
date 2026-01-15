@@ -4,9 +4,15 @@
 //
 //   - the historical mp4decrypt application from the Bento4 suite
 //   - shaka-packager
-//   - shaka-packager running in a Docker/Podman container
+//   - shaka-packager running in a Podman/Docker container
 //   - MP4Box from the GPAC suite
-//   - MP4Box from the official GPAC Docker/Podman container
+//   - MP4Box from the official GPAC Podman/Docker container
+//
+// The options for running a helper application in a container rely on being able to run the
+// container in rootless mode, to ensure that the decypted media files are owned by the user running
+// our library. This is the default configuration for Podman, so we default to using that. It is
+// possible to configure Docker to run in rootless mode; if you prefer to use Docker you can set the
+// DOCKER environment variable to "docker".
 
 
 use std::env;
@@ -127,6 +133,9 @@ pub async fn decrypt_shaka(
 
 // Run shaka-packager via its official Docker container, as per
 // https://github.com/shaka-project/shaka-packager/blob/main/docs/source/docker_instructions.md
+//
+// Given the complexity of Podman/Docker arguments, this would be a good candidate for a plugin
+// mechanism or use of a scripting language.
 pub async fn decrypt_shaka_container(
     downloader: &DashDownloader,
     inpath: &Path,
@@ -151,6 +160,8 @@ pub async fn decrypt_shaka_container(
     let mut keys = Vec::new();
     args.push(String::from("run"));
     args.push(String::from("--rm"));
+    args.push(String::from("--network=none"));
+    args.push(String::from("--userns=keep-id"));
     args.push(String::from("-v"));
     args.push(format!("{}:/tmp", inpath_dir.display()));
     args.push(String::from("docker.io/google/shaka-packager:latest"));
@@ -172,24 +183,28 @@ pub async fn decrypt_shaka_container(
         info!("  Running shaka-packager container {}", args.join(" "));
     }
     // TODO: make container runner a DashDownloader option.
-    // TODO: perhaps use the bollard crate to use Docker API
+    // TODO: perhaps use the bollard crate to use Docker API.
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
     let pull = Command::new(&container_runtime)
-        .args(["pull", "docker.io/google/shaka-packager:latest"])
+        .args(["pull", "--quiet", "docker.io/google/shaka-packager:latest"])
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("pulling shaka-packager container: {e:?}")))?;
     if !pull.status.success() {
-        warn!("  Unable to pull shaka-packager decryption container");
+        error!("  Unable to pull shaka-packager decryption container with {container_runtime}");
+        let msg = partial_process_output(&pull.stdout);
+        if !msg.is_empty() {
+            info!("  {container_runtime} stdout: {msg}");
+        }
+        let msg = partial_process_output(&pull.stderr);
+        if !msg.is_empty() {
+            info!("  {container_runtime} stderr: {msg}");
+        }
         return Err(DashMpdError::Decrypting(String::from("pulling container docker.io/google/shaka-packager:latest")));
     }
-    let out = Command::new(&container_runtime)
+    let runner = Command::new(&container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("running shaka-packager container: {e:?}")))?;
-    if !out.status.success() {
-        return Err(DashMpdError::Decrypting(
-            String::from("shaka-packager container exit status indicates failure")));
-    }
     let mut no_output = false;
     if let Ok(metadata) = fs::metadata(outpath).await {
         if downloader.verbosity > 0 {
@@ -197,20 +212,20 @@ pub async fn decrypt_shaka_container(
         }
         no_output = false;
     }
-    if !out.status.success() || no_output {
+    if !runner.status.success() || no_output {
         warn!("  shaka-packager container failed");
-        let msg = partial_process_output(&out.stdout);
+        let msg = partial_process_output(&runner.stdout);
         if !msg.is_empty() {
             warn!("  shaka-packager stdout: {msg}");
         }
-        let msg = partial_process_output(&out.stderr);
+        let msg = partial_process_output(&runner.stderr);
         if !msg.is_empty() {
             warn!("  shaka-packager stderr: {msg}");
         }
     }
     if no_output {
         error!("  Failed to decrypt {media_type} stream with shaka-packager container");
-        warn!("  Undecrypted {media_type} left in {}", inpath.display());
+        error!("  Undecrypted {media_type} left in {}", inpath.display());
         return Err(DashMpdError::Decrypting(format!("{media_type} stream")));
     }
     Ok(())
@@ -303,6 +318,8 @@ pub async fn decrypt_mp4box_container(
         .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
     args.push(String::from("run"));
     args.push(String::from("--rm"));
+    args.push(String::from("--network=none"));
+    args.push(String::from("--userns=keep-id"));
     args.push(String::from("-v"));
     args.push(format!("{}:/tmp", inpath_dir.display()));
     args.push(String::from("docker.io/gpac/ubuntu:latest"));
@@ -317,19 +334,19 @@ pub async fn decrypt_mp4box_container(
     }
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
     let pull = Command::new(&container_runtime)
-        .args(["pull", "docker.io/gpac/ubuntu:latest"])
+        .args(["pull", "--quiet", "docker.io/gpac/ubuntu:latest"])
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("pulling MP4Box container: {e:?}")))?;
     if !pull.status.success() {
         warn!("  Unable to pull MP4Box decryption container");
         return Err(DashMpdError::Decrypting(String::from("pulling container docker.io/gpac/ubuntu:latest")));
     }
-    let out = Command::new(&container_runtime)
+    let runner = Command::new(&container_runtime)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("spawning MP4Box container: {e:?}")))?;
     let mut no_output = false;
-    if let Ok(metadata) = fs::metadata(outpath).await {
+    if let Ok(metadata) = fs::metadata(&outpath).await {
         if downloader.verbosity > 0 {
             info!("  Decrypted {media_type} stream of size {} kB.", metadata.len() / 1024);
         }
@@ -339,20 +356,20 @@ pub async fn decrypt_mp4box_container(
     } else {
         no_output = true;
     }
-    if !out.status.success() || no_output {
+    if !runner.status.success() || no_output {
         warn!("  MP4Box decryption container failed");
-        let msg = partial_process_output(&out.stdout);
+        let msg = partial_process_output(&runner.stdout);
         if !msg.is_empty() {
             warn!("  MP4Box stdout: {msg}");
         }
-        let msg = partial_process_output(&out.stderr);
+        let msg = partial_process_output(&runner.stderr);
         if !msg.is_empty() {
             warn!("  MP4Box stderr: {msg}");
         }
     }
     if no_output {
         error!("  Failed to decrypt {media_type} with MP4Box container");
-        warn!("  Undecrypted {media_type} stream left in {}", inpath.display());
+        error!("  Undecrypted {media_type} stream left in {}", inpath.display());
         return Err(DashMpdError::Decrypting(format!("{media_type} stream")));
     }
     Ok(())

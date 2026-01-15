@@ -18,9 +18,9 @@ jobs:
       - name: Install ffmpeg + protoc
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake libxml2-utils
-      - run: cargo check
-      - run: cargo hack check --feature-powerset --no-dev-deps --skip socks,http3
+          sudo apt-get -y install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake libxml2-utils
+          cargo check
+          cargo hack check --feature-powerset --no-dev-deps --skip socks,http3
 
   test:
     name: dash-mpd-rs test/stable
@@ -33,7 +33,7 @@ jobs:
       - name: Install ffmpeg + GPAC + mediainfo
         run: |
           sudo apt-get update
-          sudo apt-get install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac mediainfo 
+          sudo apt-get -y install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev gpac mediainfo 
           MP4Box -version
 
       - name: Install mkvmerge
@@ -52,16 +52,16 @@ jobs:
           chmod +x /usr/local/bin/shaka-packager
 
       - name: Install xsltproc + protoc
-        run: sudo apt install xsltproc protobuf-compiler cmake libxml2-utils
+        run: sudo apt-get -y install xsltproc protobuf-compiler cmake libxml2-utils
 
-      - name: Install Podman in rootless mode
+      - name: Install Podman (hopefully in rootless mode)
         run: |
-          sudo apt install podman
-          sudo systemctl --user enable --now podman.socket
+          sudo apt-get -y install podman uidmap
 
-      - run: RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
-#      - run: RUST_LOG=info DOCKER=docker cargo test --jobs 1 --test content_protection_containerized -- --show-output --test-threads=1
-      - run: RUST_LOG=info cargo test --jobs 1 -- --test-threads=1
-      - run: cargo test --jobs 1 --all-features -- --test-threads=1
-      - run: cargo run --example serialize
-      - run: cargo run --example pprint_bbc_adaptive
+      - name: Run tests
+        run: |
+          RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
+          RUST_LOG=info cargo test --jobs 1 -- --test-threads=1
+          cargo test --jobs 1 --all-features -- --test-threads=1
+          cargo run --example serialize
+          cargo run --example pprint_bbc_adaptive
