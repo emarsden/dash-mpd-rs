@@ -54,10 +54,6 @@ jobs:
       - name: Install xsltproc + protoc
         run: sudo apt-get -y install xsltproc protobuf-compiler cmake libxml2-utils
 
-      - name: Install Podman (hopefully in rootless mode)
-        run: |
-          sudo apt-get -y install podman uidmap
-
       - name: Run tests
         run: |
           RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
