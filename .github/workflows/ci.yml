@@ -54,10 +54,12 @@ jobs:
       - name: Install xsltproc + protoc
         run: sudo apt-get -y install xsltproc protobuf-compiler cmake libxml2-utils
 
+      # The Github runners are failing the container-based tests with a "cannot retrieve cmd line"
+      # error from podman.
       - name: Run tests
         run: |
           RUST_LOG=info cargo test --jobs 1 --test muxing -- --show-output --test-threads=1
-          RUST_LOG=info cargo test --jobs 1 -- --test-threads=1
-          cargo test --jobs 1 --all-features -- --test-threads=1
+          RUST_LOG=info cargo test --jobs 1 -- --test-threads=1 --skip container
+          cargo test --jobs 1 --all-features -- --test-threads=1 --skip container
           cargo run --example serialize
           cargo run --example pprint_bbc_adaptive
