@@ -25,12 +25,13 @@ async fn test_transcode_mkv() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(3)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
 }
 
+// The file size is unreliable, depending on whether the muxer selects a WebM container or an MP4 container.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_webm() {
@@ -39,11 +40,10 @@ async fn test_transcode_webm() {
     let out = env::temp_dir().join("cf.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    // The file size is unreliable: in 2026-01 has chagned to 410218 octets...
-    // check_file_size_approx(&out, 69_243);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    // check_file_size_approx(&out, 410_218);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Webm);
 }
 
@@ -58,10 +58,10 @@ async fn test_transcode_avi() {
     let out = env::temp_dir().join("cf.avi");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 513_308);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::AudioVideoInterleave);
 }
 
@@ -78,7 +78,7 @@ async fn test_transcode_av1() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .with_muxer_preference("webm", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 12_987_188);
     let meta = ffprobe(&out).unwrap();
@@ -108,10 +108,10 @@ async fn test_transcode_audio_vorbis() {
     let out = env::temp_dir().join("sintel-audio.ogg");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 9_880_500);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::OggVorbis);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
@@ -132,10 +132,10 @@ async fn test_transcode_audio_multiperiod_mp3() {
     let out = env::temp_dir().join("multiperiod-audio.mp3");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 23_362_703);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
