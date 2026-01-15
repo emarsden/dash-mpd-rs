@@ -186,7 +186,7 @@ pub async fn decrypt_shaka_container(
     // TODO: perhaps use the bollard crate to use Docker API.
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
     let pull = Command::new(&container_runtime)
-        .args(["pull", "--quiet", "docker.io/google/shaka-packager:latest"])
+        .args(["pull", "docker.io/google/shaka-packager:latest"])
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("pulling shaka-packager container: {e:?}")))?;
     if !pull.status.success() {
@@ -334,7 +334,7 @@ pub async fn decrypt_mp4box_container(
     }
     let container_runtime = env::var("DOCKER").unwrap_or(String::from("podman"));
     let pull = Command::new(&container_runtime)
-        .args(["pull", "--quiet", "docker.io/gpac/ubuntu:latest"])
+        .args(["pull", "docker.io/gpac/ubuntu:latest"])
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("pulling MP4Box container: {e:?}")))?;
     if !pull.status.success() {
