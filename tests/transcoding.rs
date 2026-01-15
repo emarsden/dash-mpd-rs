@@ -31,18 +31,24 @@ async fn test_transcode_mkv() {
     assert_eq!(format, FileFormat::MatroskaVideo);
 }
 
-// The file size is unreliable, depending on whether the muxer selects a WebM container or an MP4 container.
+// We need to force the use of ffmpeg as a muxer, because if VLC is installed on the test machine,
+// it is higher in priority for WebM content than ffmpeg, and it reencodes the media, leading to a
+// different file size.
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_transcode_webm() {
     setup_logging();
-    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("cf.webm");
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://storage.googleapis.com/shaka-demo-assets/sintel-webm-only/dash.mpd";
+    let out = env::temp_dir().join("sintel-webm.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .with_muxer_preference("webm", "ffmpeg")
         .download_to(&out).await
         .unwrap();
-    // check_file_size_approx(&out, 410_218);
+    check_file_size_approx(&out, 23_722_079);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Webm);
 }
