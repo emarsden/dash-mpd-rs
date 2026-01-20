@@ -4448,7 +4448,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     language: pd.selected_audio_language,
                     path: tmppath_audio.clone()
                 }];
-            mux_audio_video(downloader, &period_output_path, &audio_tracks, &tmppath_video)?;
+            mux_audio_video(downloader, &period_output_path, &audio_tracks, &tmppath_video).await?;
             if pd.subtitle_formats.contains(&SubtitleType::Stpp) {
                 let container = match &period_output_path.extension() {
                     Some(ext) => ext.to_str().unwrap_or("mp4"),
@@ -4556,9 +4556,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 }
             }
         } else if have_audio {
-            copy_audio_to_container(downloader, &period_output_path, &tmppath_audio)?;
+            copy_audio_to_container(downloader, &period_output_path, &tmppath_audio).await?;
         } else if have_video {
-            copy_video_to_container(downloader, &period_output_path, &tmppath_video)?;
+            copy_video_to_container(downloader, &period_output_path, &tmppath_video).await?;
         } else if downloader.fetch_video && downloader.fetch_audio {
             return Err(DashMpdError::UnhandledMediaStream("no audio or video streams found".to_string()));
         } else if downloader.fetch_video {
@@ -4617,7 +4617,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         // if downloader.concatenate_periods && video_containers_concatable(downloader, &period_output_paths) {
         if downloader.concatenate_periods && video_containers_concatable(downloader, &period_output_paths) {
             info!("Preparing to concatenate multiple Periods into one output file");
-            concat_output_files(downloader, &period_output_paths)?;
+            concat_output_files(downloader, &period_output_paths).await?;
             for p in &period_output_paths[1..] {
                 if fs::remove_file(p).await.is_err() {
                     warn!("  Failed to delete temporary file {}", p.display());
