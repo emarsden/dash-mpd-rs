@@ -410,9 +410,13 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-// mkvmerge fails to concatenate this stream with error
+// 2025-06: mkvmerge fails to concatenate this stream with error
 //
 //   Quicktime/MP4 reader: Could not read chunk number 48/62 with size 1060 from position 15936. Aborting.
+//
+// 2026-01: mkvmerge 97.0 no longer fails to concatenate, but produces a file with Matroska content,
+// instead of MPEG4 as requested, so we disable this test.
+#[ignore]
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 #[should_panic(expected = "all concat helpers failed")]
