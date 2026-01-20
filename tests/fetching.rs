@@ -10,6 +10,7 @@
 //   https://dash.itec.aau.at/dash-dataset/
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 //   https://github.com/gpac/gpac/wiki/DASH-Sequences
+//   https://dash.akamaized.net/
 
 
 pub mod common;
@@ -32,7 +33,7 @@ async fn test_dl_none() {
         .fetch_audio(false)
         .fetch_video(false)
         .fetch_subtitles(false)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     assert!(!out.exists());
 }
@@ -50,11 +51,11 @@ async fn test_dl_mp4() {
         .max_error_count(5)
         .record_metainformation(false)
         .with_authentication("user", "dummy")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     // Curious: this download size changed abruptly from 60_939 to this size early Nov. 2023.
     check_file_size_approx(&out, 410_218);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -73,12 +74,12 @@ async fn test_dl_segmentbase_baseurl() {
         .sandbox(true)
         .max_error_count(5)
         .record_metainformation(false)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 62_177);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -100,12 +101,12 @@ async fn test_dl_segmenttemplate_tiny() {
         .intermediate_quality()
         .sandbox(true)
         .record_metainformation(false)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 4_546);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -130,10 +131,10 @@ async fn test_dl_audio_mp4a() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 7_456_334);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -159,10 +160,10 @@ async fn test_dl_audio_flac() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 81_603_640);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -186,10 +187,10 @@ async fn test_dl_dolby_eac3() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 2_436_607);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
@@ -217,7 +218,7 @@ async fn test_dl_dolby_ac4_mkv() {
         .worst_quality()
         .sandbox(true)
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 11_668_955);
     let meta = ffprobe(out).unwrap();
@@ -247,7 +248,7 @@ async fn test_dl_sessionid() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 64_617_930);
     let meta = ffprobe(out).unwrap();
@@ -281,7 +282,7 @@ async fn test_dl_dolby_ac4_mp4() {
         .sandbox(true)
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 8_416_451);
     // Don't attempt to ffprobe, because it generates an error ("no decoder could be found for codec
@@ -312,7 +313,7 @@ async fn test_dl_dolby_dtsc() {
         .content_type_checks(false)
         .conformity_checks(false)
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 35_408_836);
     let meta = ffprobe(out).unwrap();
@@ -348,7 +349,7 @@ async fn test_dl_bok() {
         .content_type_checks(false)
         .conformity_checks(false)
         .verbosity(0)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 59_936_277);
     let meta = ffprobe(out).unwrap();
@@ -378,7 +379,7 @@ async fn test_dl_hevc_hdr() {
         .worst_quality()
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 4_052_727);
     let meta = ffprobe(out).unwrap();
@@ -407,7 +408,7 @@ async fn test_dl_hvc1() {
         .worst_quality()
         .sandbox(true)
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_652_846);
     let meta = ffprobe(out).unwrap();
@@ -442,7 +443,7 @@ async fn test_dl_vp9_uhd() {
         .worst_quality()
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 71_339_734);
     let meta = ffprobe(out).unwrap();
@@ -473,7 +474,7 @@ async fn test_dl_vvc() {
         .worst_quality()
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 9_311_029);
     // ffprobe is not able to read metainformation on the video (it panics)
@@ -515,7 +516,7 @@ async fn test_dl_mp2t() {
         .worst_quality()
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 9_019_006);
     let meta = ffprobe(&out).unwrap();
@@ -544,10 +545,10 @@ async fn test_dl_segment_timeline() {
     let out = tmpd.path().join("broadpeak-tos.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 23_823_326);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -567,10 +568,10 @@ async fn test_dl_segment_timeline_heaacv2() {
     let out = tmpd.path().join("segment-timeline-heaacv2.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 3_060_741);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 1);
@@ -594,11 +595,11 @@ async fn test_dl_segment_list() {
     let out = tmpd.path().join("handshake.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     // 2025-09-29: seeing test failure, File sizes: expected 273629, got 546348
     check_file_size_approx(&out, 273_629);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -622,10 +623,10 @@ async fn test_dl_segment_base_indexrange() {
         .worst_quality()
         .verbosity(3)
         .sleep_between_requests(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 9_687_251);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -633,26 +634,52 @@ async fn test_dl_segment_base_indexrange() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+
+#[tokio::test]
+async fn test_dl_segment_timeline_bbb() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps_320x180_200k.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("bbb-segment-timeline.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .verbosity(1)
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 16_033_406);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_media_duration(&out, 634.57);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // This manifest is built using a difficult structure, rarely seen in the wild. To retrieve segments
 // it is necessary to combine information from the AdaptationSet.SegmentTemplate element (which has
 // the SegmentTimeline) and the Representation.SegmentTemplate element (which has the media
 // template).
 #[tokio::test]
-async fn test_dl_segment_template_multilevel() {
+async fn test_dl_segment_timeline_multilevel() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
     let mpd_url = "https://dash.akamaized.net/akamai/test/bbb_enc/BigBuckBunny_320x180_enc_dash.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("bbb-segment-template.mp4");
+    let out = tmpd.path().join("bbb-template-multilevel.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(3)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 52_758_303);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -674,10 +701,10 @@ async fn test_dl_baseurl() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 38_710_852);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -699,10 +726,10 @@ async fn test_dl_adaptation_segment_list() {
         .worst_quality()
         .verbosity(2)
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 110_010_161);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -724,10 +751,10 @@ async fn test_dl_adaptation_set_variants() {
         .worst_quality()
         .verbosity(2)
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 94_921_878);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -745,6 +772,7 @@ async fn test_dl_adaptation_set_variants() {
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
     let _ = fs::remove_dir_all(tmpd);
 }
+
 
 // A test for the progress observer functionality.
 #[tokio::test]
@@ -766,10 +794,10 @@ async fn test_progress_observer() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .add_progress_observer(Arc::new(DownloadProgressionTest{}))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 410_218);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
@@ -796,7 +824,7 @@ async fn test_downloader() {
         match DashDownloader::new(mpd_url).download().await {
             Ok(path) => {
                 // check that ffprobe identifies this as a media file
-                let probed_meta = ffprobe(path.clone());
+                let probed_meta = ffprobe(&path);
                 if let Ok(meta) = probed_meta {
                     if meta.streams.is_empty() {
                         eprintln!("   {}", "ffprobe finds zero media streams in file".red());
@@ -858,9 +886,9 @@ async fn test_dl_usp_tos() {
     let out = tmpd.path().join("usp-tos.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 41_621_346);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -882,9 +910,9 @@ async fn test_dl_h265() {
     let out = tmpd.path().join("h265.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 48_352_569);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -909,9 +937,9 @@ async fn test_dl_usp_packager() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 206_901_334);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -932,9 +960,9 @@ async fn test_dl_arte() {
     let out = tmpd.path().join("arte.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 33_188_592);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -957,9 +985,9 @@ async fn test_dl_content_type() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 19_639_475);
     let meta = ffprobe(&out).unwrap();
@@ -1005,7 +1033,7 @@ async fn test_dl_content_steering() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 267_380_193);
     let meta = ffprobe(&out).unwrap();
@@ -1048,7 +1076,7 @@ async fn test_dl_filename_ampersand() {
         .allow_live_streams(true)
         .download().await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 541_593);
     let meta = ffprobe(&out).unwrap();
@@ -1081,10 +1109,10 @@ async fn test_dl_forced_duration_audio() {
         .worst_quality()
         .allow_live_streams(true)
         .force_duration(8.0)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 281_821);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
@@ -1111,9 +1139,9 @@ async fn test_dl_follow_redirect() {
     let out = tmpd.path().join("itec-redirected.mp4");
     DashDownloader::new(&redirector)
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 410_218);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -1124,4 +1152,7 @@ async fn test_dl_follow_redirect() {
 
 
 
-// We could test this live stream: https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd
+// More possible test streams:
+//
+//   - https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd (live)
+//   - https://dash-large-files.akamaized.net/WAVE/Proposed/ToS_Fragmented_AVC_AAC/output.mpd
