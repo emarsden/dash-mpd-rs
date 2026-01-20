@@ -1433,9 +1433,11 @@ fn print_available_streams_period(p: &Period) {
 
 #[tracing::instrument(level="trace", skip_all)]
 fn print_available_streams(mpd: &MPD) {
+    use humantime::format_duration;
+
     let mut counter = 0;
     for p in &mpd.periods {
-        let mut period_duration_secs: f64 = 0.0;
+        let mut period_duration_secs: f64 = -1.0;
         if let Some(d) = mpd.mediaPresentationDuration {
             period_duration_secs = d.as_secs_f64();
         }
@@ -1443,10 +1445,15 @@ fn print_available_streams(mpd: &MPD) {
             period_duration_secs = d.as_secs_f64();
         }
         counter += 1;
-        if let Some(id) = p.id.as_ref() {
-            info!("Streams in period {id} (#{counter}), duration {period_duration_secs:.3}s:");
+        let duration = if period_duration_secs > 0.0 {
+            format_duration(Duration::from_secs_f64(period_duration_secs)).to_string()
         } else {
-            info!("Streams in period #{counter}, duration {period_duration_secs:.3}s:");
+            String::from("unknown")
+        };
+        if let Some(id) = p.id.as_ref() {
+            info!("Streams in period {id} (#{counter}), duration {duration}:");
+        } else {
+            info!("Streams in period #{counter}, duration {duration}:");
         }
         print_available_streams_period(p);
     }
@@ -2114,7 +2121,7 @@ async fn do_period_audio(
     period: &Period,
     period_counter: u8,
     base_url: Url
-    ) -> Result<PeriodOutputs, DashMpdError>
+) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
@@ -2125,7 +2132,7 @@ async fn do_period_audio(
     let mut start_number = 1;
     // The period_duration is specified either by the <Period> duration attribute, or by the
     // mediaPresentationDuration of the top-level MPD node.
-    let mut period_duration_secs: f64 = 0.0;
+    let mut period_duration_secs: f64 = -1.0;
     if let Some(d) = mpd.mediaPresentationDuration {
         period_duration_secs = d.as_secs_f64();
     }
