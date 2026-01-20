@@ -34,9 +34,9 @@ async fn test_dl_dynamic_stream() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -65,9 +65,9 @@ async fn test_dl_dynamic_vos360() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .allow_live_streams(true)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -98,9 +98,9 @@ async fn test_dl_dynamic_5cents() {
         .worst_quality()
         .allow_live_streams(true)
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -130,9 +130,9 @@ async fn test_dl_dynamic_forced_duration() {
         .verbosity(2)
         .allow_live_streams(true)
         .force_duration(6.5)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -165,9 +165,9 @@ async fn test_dl_lowlatency_forced_duration() {
         .worst_quality()
         .allow_live_streams(true)
         .force_duration(11.0)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -211,9 +211,9 @@ async fn test_dl_bbcws_dynamic() {
         .audio_only()
         .force_duration(25.0)
         .sleep_between_requests(7)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
@@ -229,6 +229,87 @@ async fn test_dl_bbcws_dynamic() {
 
 
 
+#[tokio::test]
+async fn test_dl_ustreaming_lldynamic() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://demo.unified-streaming.com/k8s/low-latency/stable/channel1/channel1.isml/.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-ll-ustreaming.mp4");
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("creating HTTP client");
+    DashDownloader::new(mpd_url)
+        .with_http_client(client)
+        .worst_quality()
+        .sandbox(true)
+        .allow_live_streams(true)
+        .force_duration(21.0)
+        .sleep_between_requests(1)
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 21.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+
+#[tokio::test]
+async fn test_dl_broadpeak_lldynamic() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-ll-broadpeak.mp4");
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("creating HTTP client");
+    DashDownloader::new(mpd_url)
+        .with_http_client(client)
+        .worst_quality()
+        .sandbox(true)
+        .allow_live_streams(true)
+        .force_duration(23.0)
+        .sleep_between_requests(1)
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 23.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
 
 
 
