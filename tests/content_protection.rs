@@ -79,7 +79,7 @@ async fn test_decryption_webm_shaka() {
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out = env::temp_dir().join("angel.webm");
     if out.exists() {
-        let _ = fs::remove_file(out.clone());
+        let _ = fs::remove_file(&out);
     }
     DashDownloader::new(url)
         .worst_quality()
@@ -97,10 +97,10 @@ async fn test_decryption_webm_shaka() {
                             String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
         .with_muxer_preference("webm", "ffmpeg")
         .with_decryptor_preference("shaka")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 1_331_284);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     // The order of audio and video streams in the output WebM container is unreliable with Shaka
     // packager, so we need to test this carefully.
@@ -145,7 +145,7 @@ async fn test_decryption_cra () {
     let mpd = "https://devs.origin.cdn.cra.cz/dashmultikey/manifest.mpd";
     let outpath = env::temp_dir().join("cra.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -153,10 +153,10 @@ async fn test_decryption_cra () {
         .sandbox(true)
         .add_decryption_key(String::from("75bf33ac08440c81d623019c87fe1360"),
                             String::from("bacd0a82f91a44d9315e6269dd769e0f"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 28_926_446);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
@@ -175,7 +175,7 @@ async fn test_decryption_wvcenc_mp4decrypt () {
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("spring-mp4decrypt.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -185,10 +185,10 @@ async fn test_decryption_wvcenc_mp4decrypt () {
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 33_746_341);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We see occasional errors here from ffmpeg that we don't understand.
     assert!(ffmpeg_approval(&outpath));
@@ -206,7 +206,7 @@ async fn test_decryption_wvcenc_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("spring-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -217,14 +217,14 @@ async fn test_decryption_wvcenc_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 33_746_341);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We are seeing spurious random failures with this ffmpeg check, for unknown reasons.
-    assert!(ffmpeg_approval(&outpath.clone()));
-    let _ = fs::remove_file(outpath);
+    assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(&outpath);
 }
 
 
@@ -237,7 +237,7 @@ async fn test_decryption_wvcenc_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("spring-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -248,10 +248,10 @@ async fn test_decryption_wvcenc_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 33_746_341);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We see occasional errors here from ffmpeg that we don't understand.
     assert!(ffmpeg_approval(&outpath));
@@ -269,7 +269,7 @@ async fn test_decryption_wvcbcs_mp4decrypt () {
     let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("tears-steel-wvcbcs-mp4decrypt.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -279,10 +279,10 @@ async fn test_decryption_wvcbcs_mp4decrypt () {
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 79_731_116);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
     // various anomalies in the AAC audio stream, though it seems to play the content OK.
@@ -300,7 +300,7 @@ async fn test_decryption_wvcbcs_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("tears-steel-wvcbcs-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -311,10 +311,10 @@ async fn test_decryption_wvcbcs_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 79_731_116);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
     // various anomalies in the AAC audio stream, though it seems to play the content OK.
@@ -332,7 +332,7 @@ async fn test_decryption_wvcbcs_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("tears-steel-wvcbcs-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -343,10 +343,10 @@ async fn test_decryption_wvcbcs_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 79_731_116);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
     // various anomalies in the AAC audio stream, though it seems to play the content OK.
@@ -365,7 +365,7 @@ async fn test_decryption_prcenc_mp4decrypt () {
     let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
     let outpath = env::temp_dir().join("llama-prcenc-mp4decrypt.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -373,10 +373,10 @@ async fn test_decryption_prcenc_mp4decrypt () {
         .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 26_420_624);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
@@ -392,7 +392,7 @@ async fn test_decryption_prcenc_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
     let outpath = env::temp_dir().join("llama-prcenc-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -401,10 +401,10 @@ async fn test_decryption_prcenc_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 26_420_624);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
@@ -420,7 +420,7 @@ async fn test_decryption_prcenc_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
     let outpath = env::temp_dir().join("llama-prcenc-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -429,10 +429,10 @@ async fn test_decryption_prcenc_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 26_420_624);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
@@ -449,7 +449,7 @@ async fn test_decryption_marlincenc_mp4decrypt () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cenc-mp4decrypt.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -457,12 +457,12 @@ async fn test_decryption_marlincenc_mp4decrypt () {
         .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_917);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    assert!(ffmpeg_approval(&outpath.clone()));
+    assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -476,7 +476,7 @@ async fn test_decryption_marlincenc_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cenc-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -485,12 +485,12 @@ async fn test_decryption_marlincenc_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_917);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    assert!(ffmpeg_approval(&outpath.clone()));
+    assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -504,7 +504,7 @@ async fn test_decryption_marlincenc_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cenc-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -513,12 +513,12 @@ async fn test_decryption_marlincenc_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_917);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    assert!(ffmpeg_approval(&outpath.clone()));
+    assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -533,7 +533,7 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cbcs.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -541,14 +541,14 @@ async fn test_decryption_marlincbcs_mp4decrypt () {
         .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
-    // assert!(ffmpeg_approval(&outpath.clone()));
+    // assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -563,7 +563,7 @@ async fn test_decryption_marlincbcs_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cbcs-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -572,14 +572,14 @@ async fn test_decryption_marlincbcs_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
-    // assert!(ffmpeg_approval(&outpath.clone()));
+    // assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -593,7 +593,7 @@ async fn test_decryption_marlincbcs_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-marlin-cbcs-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -602,15 +602,15 @@ async fn test_decryption_marlincbcs_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
-    // assert!(ffmpeg_approval(&outpath.clone()));
-    let _ = fs::remove_file(outpath);
+    // assert!(ffmpeg_approval(&outpath));
+    let _ = fs::remove_file(&outpath);
 }
 
 
@@ -625,7 +625,7 @@ async fn test_decryption_mlcenc_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cenc/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-mlcenc-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -633,13 +633,13 @@ async fn test_decryption_mlcenc_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_917);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
-    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(&outpath);
 }
 
 
@@ -653,7 +653,7 @@ async fn test_decryption_mlcbcs_shaka () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-mlcbcs-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -662,10 +662,10 @@ async fn test_decryption_mlcbcs_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
@@ -683,7 +683,7 @@ async fn test_decryption_mlcbcs_mp4box () {
     let mpd = "https://refapp.hbbtv.org/videos/agent327_h264_v8/cbcs/manifest_mlcenc.mpd";
     let outpath = env::temp_dir().join("llama-mlcbcs-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -692,15 +692,15 @@ async fn test_decryption_mlcbcs_mp4box () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 14_357_925);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // Also can't test the validity of this stream using ffmpeg, for the same reasons as above
     // (complaints concerning the AAC audio stream).
     assert!(ffmpeg_approval(&outpath));
-    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(&outpath);
 }
 
 
@@ -718,7 +718,7 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
     let mpd = "https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.mpd";
     let outpath = env::temp_dir().join("axinom-h264-multikey.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -730,10 +730,10 @@ async fn test_decryption_axinom_cmaf_h265_multikey () {
                             String::from("a776f83276a107a3c322f9dbd6d4f48c"))
         .add_decryption_key(String::from("a76f0ca68e7d40d08a37906f3e24dde2"),
                             String::from("2a99b42f08005ab4b57af20f4da3cc05"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 48_233_447);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -748,7 +748,7 @@ async fn test_decryption_axinom_cbcs_shaka () {
     let mpd = "https://media.axprod.net/TestVectors/v9-MultiFormat/Encrypted_Cbcs/Manifest_1080p.mpd";
     let outpath = env::temp_dir().join("axinom-cbcs-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -759,10 +759,10 @@ async fn test_decryption_axinom_cbcs_shaka () {
         // For an unknown reason, mp4decrypt is not able to decrypt the audio stream for this
         // manifest (though the video works fine).
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 41_614_809);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -777,7 +777,7 @@ async fn test_decryption_axinom_cbcs_mp4box () {
     let mpd = "https://media.axprod.net/TestVectors/v9-MultiFormat/Encrypted_Cbcs/Manifest_1080p.mpd";
     let outpath = env::temp_dir().join("axinom-cbcs-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -786,10 +786,10 @@ async fn test_decryption_axinom_cbcs_mp4box () {
         .add_decryption_key(String::from("f8c80c25690f47368132430e5c6994ce"),
                             String::from("7bc99cb1dd0623cd0b5065056a57a1dd"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 41_614_809);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -805,7 +805,7 @@ async fn test_decryption_axinom_widevine_shaka () {
     let mpd = "http://media.axprod.net/TestVectors/v6.1-MultiDRM/Manifest_1080p.mpd";
     let outpath = env::temp_dir().join("axinom-widevine-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -815,10 +815,10 @@ async fn test_decryption_axinom_widevine_shaka () {
                             // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
                             String::from("197f26f572c864d2338b3ae5d114ea9c"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 47_396_046);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -833,7 +833,7 @@ async fn test_decryption_axinom_widevine_mp4box () {
     let mpd = "http://media.axprod.net/TestVectors/v6.1-MultiDRM/Manifest_1080p.mpd";
     let outpath = env::temp_dir().join("axinom-widevine-mp4box.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -843,10 +843,10 @@ async fn test_decryption_axinom_widevine_mp4box () {
                             // (encode-hex-string (base64-decode-string "GX8m9XLIZNIzizrl0RTqnA=="))
                             String::from("197f26f572c864d2338b3ae5d114ea9c"))
         .with_decryptor_preference("mp4box")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 47_396_046);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -865,14 +865,14 @@ async fn test_decryption_oldsmall () {
     let mpd = "https://m.dtv.fi/dash/dasherh264/drm/manifest_clearkey.mpd";
     let outpath = env::temp_dir().join("caminandes.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
         .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 6_975_147);
     assert!(ffmpeg_approval(&outpath));
@@ -886,7 +886,7 @@ async fn test_decryption_small () {
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let outpath = env::temp_dir().join("angel.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -903,7 +903,7 @@ async fn test_decryption_small () {
                             String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
         .with_muxer_preference("webm", "ffmpeg")
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 1_316_391);
     assert!(ffmpeg_approval(&outpath));
@@ -918,7 +918,7 @@ async fn test_decryption_unencrypted_mp4decrypt () {
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-mp4decrypt.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -927,10 +927,10 @@ async fn test_decryption_unencrypted_mp4decrypt () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("mp4decrypt")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 12_975_377);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
 }
@@ -951,7 +951,7 @@ async fn test_decryption_unencrypted_shaka () {
     let mpd = "http://dash.edgesuite.net/envivio/dashpr/clear/Manifest.mpd";
     let outpath = env::temp_dir().join("unencrypted-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -960,10 +960,10 @@ async fn test_decryption_unencrypted_shaka () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 12_975_377);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
@@ -982,7 +982,7 @@ async fn test_decryption_invalid_decryptor () {
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
         .with_decryptor_preference("unknown")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
 }
 
@@ -997,7 +997,7 @@ async fn test_decryption_invalid_key_mp4decrypt () {
         .add_decryption_key(String::from("66"),
                             String::from("99"))
         .with_decryptor_preference("mp4decrypt")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
 }
 
@@ -1012,7 +1012,7 @@ async fn test_decryption_invalid_key_shaka () {
         .add_decryption_key(String::from("66"),
                             String::from("99"))
         .with_decryptor_preference("shaka")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
 }
 
