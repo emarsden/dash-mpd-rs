@@ -77,10 +77,10 @@ fn has_invalid_timestamps(p: &Packet, last_dts: Timestamp) -> bool {
 }
 
 
-pub fn mux_audio_video(
+pub async fn mux_audio_video(
     _downloader: &DashDownloader,
     output_path: &Path,
-    audio_tracks: &Vec<AudioTrack>,
+    audio_tracks: &[AudioTrack],
     video_path: &Path) -> Result<(), DashMpdError> {
     ac_ffmpeg::set_log_callback(|_count, msg: &str| info!("ffmpeg: {msg}"));
     if audio_tracks.len() > 1 {
@@ -90,12 +90,12 @@ pub fn mux_audio_video(
     let audio_str = &audio_tracks[0].path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining audiopath name"),
+            io::Error::other("obtaining audiopath name"),
             String::from("")))?;
     let video_str = video_path
         .to_str()
         .ok_or_else(|| DashMpdError::Io(
-            io::Error::new(io::ErrorKind::Other, "obtaining videopath name"),
+            io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let mut video_demuxer = libav_open_input(video_str)
         .map_err(|_| DashMpdError::Muxing(String::from("opening input video stream")))?;
@@ -221,7 +221,7 @@ pub fn mux_audio_video(
 }
 
 
-pub fn copy_video_to_container(
+pub async fn copy_video_to_container(
     _downloader: &DashDownloader,
     output_path: &Path,
     video_path: &Path) -> Result<(), DashMpdError>
@@ -248,7 +248,7 @@ pub fn copy_video_to_container(
 }
 
 
-pub fn copy_audio_to_container(
+pub async fn copy_audio_to_container(
     _downloader: &DashDownloader,
     output_path: &Path,
     audio_path: &Path) -> Result<(), DashMpdError>
