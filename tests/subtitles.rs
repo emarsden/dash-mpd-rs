@@ -45,7 +45,7 @@ async fn test_subtitles_wvtt () {
         .fetch_video(false)
         .fetch_subtitles(true)
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(subpath_wvtt).is_ok());
     assert!(fs::metadata(subpath_srt).is_ok());
@@ -63,7 +63,7 @@ async fn test_subtitles_wvtt () {
     if let Err(e) = fs::remove_file(subpath_srt) {
         info!("Failed to delete temporary file for srt usbs: {e}");
     }
-    let _ = fs::remove_file(outpath.clone());
+    let _ = fs::remove_file(&outpath);
 
     // Now download the english subtitles and check that we got the expected content.
     DashDownloader::new(mpd)
@@ -71,12 +71,12 @@ async fn test_subtitles_wvtt () {
         .fetch_video(false)
         .fetch_subtitles(true)
         .prefer_language(String::from("eng"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     let srt = fs::read_to_string(subpath_srt).unwrap();
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
-    let _ = fs::remove_file(outpath.clone());
+    let _ = fs::remove_file(&outpath);
 }
 
 
@@ -92,7 +92,7 @@ async fn test_subtitles_ttml () {
         .fetch_audio(false)
         .fetch_video(false)
         .fetch_subtitles(true)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
@@ -109,7 +109,7 @@ async fn test_subtitles_ttml () {
         .fetch_video(false)
         .fetch_subtitles(true)
         .prefer_language(String::from("de"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(&subpath).is_ok());
     let ttml = fs::read_to_string(&subpath).unwrap();
@@ -127,7 +127,7 @@ async fn test_subtitles_vtt () {
     let mpd = "http://dash.edgesuite.net/akamai/test/caption_test/ElephantsDream/elephants_dream_480p_heaac5_1.mpd";
     let outpath = env::temp_dir().join("elephants-dream.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     let mut subpath = outpath.clone();
     subpath.set_extension("vtt");
@@ -138,7 +138,7 @@ async fn test_subtitles_vtt () {
         .fetch_subtitles(true)
         .verbosity(2)
         .prefer_language(String::from("de"))
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     let meta = fs::metadata(subpath).unwrap();
     assert!(meta.len() > 0);
@@ -162,14 +162,14 @@ async fn test_subtitles_stpp() {
     let mpd = "https://rdmedia.bbc.co.uk/elephants_dream/1/client_manifest-all.mpd";
     let outpath = env::temp_dir().join("elephants-dream-bbc.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .fetch_audio(true)
         .fetch_video(true)
         .fetch_subtitles(true)
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
@@ -190,7 +190,7 @@ async fn test_subtitles_stpp_imsc1() {
     let mpd = "https://livesim.dashif.org/dash/vod/testpic_2s/imsc1_img.mpd";
     let outpath = env::temp_dir().join("imsc1-subs.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .fetch_audio(true)
@@ -220,7 +220,7 @@ async fn test_subtitles_tx3g() {
     let mpd = "http://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-live-subtitle/mp4-live-subtitle-mpd-AVST.mpd";
     let outpath = env::temp_dir().join("tx3g.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     let mut subpath = outpath.clone();
     subpath.set_extension("srt");
@@ -231,7 +231,7 @@ async fn test_subtitles_tx3g() {
         .fetch_subtitles(true)
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
@@ -255,7 +255,7 @@ async fn test_subtitles_segmentbase() {
     let mpd = "https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd";
     let outpath = env::temp_dir().join("segbase.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     let mut subpath = outpath.clone();
     subpath.set_extension("ttml");
@@ -266,7 +266,7 @@ async fn test_subtitles_segmentbase() {
         .fetch_subtitles(true)
         .without_content_type_checks()
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
