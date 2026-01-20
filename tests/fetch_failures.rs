@@ -137,7 +137,7 @@ async fn test_error_ratelimit() {
         .max_error_count(1)
         .with_http_client(client)
         .with_rate_limit(100 * 1024)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 }
 
@@ -150,7 +150,7 @@ async fn test_error_missing_mpd() {
     let out = env::temp_dir().join("failure1.mkv");
     DashDownloader::new("http://httpbin.org/status/404")
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 }
 
@@ -162,7 +162,7 @@ async fn test_error_xlink_gone() {
     let out = env::temp_dir().join("failure_xlink.mkv");
     DashDownloader::new("https://dash.akamaized.net/dash264/TestCases/5c/nomor/5_1d.mpd")
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 }
 
