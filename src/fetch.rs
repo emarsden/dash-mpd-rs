@@ -655,7 +655,14 @@ impl DashDownloader {
     /// can also be used to capture only the first part of a normal (static/on-demand) media stream.
     #[must_use]
     pub fn force_duration(mut self, seconds: f64) -> DashDownloader {
-        self.force_duration = Some(seconds);
+        if seconds < 0.0 {
+            warn!("Ignoring negative value for force_duration()");
+        } else {
+            self.force_duration = Some(seconds);
+            if self.verbosity > 1 {
+                info!("Setting forced duration to {seconds:.1} seconds");
+            }
+        }
         self
     }
 
@@ -722,6 +729,9 @@ impl DashDownloader {
         #[cfg(not(all(feature = "sandbox", target_os = "linux")))]
         if enable {
             warn!("Sandboxing only available on Linux with crate feature sandbox enabled");
+        }
+        if self.verbosity > 1 && enable {
+            info!("Enabling sandboxing support");
         }
         self.sandbox = enable;
         self
@@ -2406,12 +2416,21 @@ async fn do_period_audio(
                         .build();
                     fragments.push(mf);
                 }
+                let mut elapsed_seconds = 0.0;
                 if let Some(media) = opt_media {
                     let audio_path = resolve_url_template(&media, &dict);
                     let mut segment_time = 0;
                     let mut segment_duration;
                     let mut number = start_number;
-                    for s in &stl.segments {
+                    let mut target_duration = period_duration_secs;
+                    if let Some(target) = downloader.force_duration {
+                        if target > period_duration_secs {
+                            warn!("  Requested forced duration exceeds available content");
+                        } else {
+                            target_duration = target;
+                        }
+                    }
+                    'segment_loop: for s in &stl.segments {
                         if let Some(t) = s.t {
                             segment_time = t;
                         }
@@ -2423,28 +2442,30 @@ async fn do_period_audio(
                         let u = merge_baseurls(&base_url, &path)?;
                         fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
                         number += 1;
+                        elapsed_seconds += segment_duration as f64 / timescale as f64;
+                        if downloader.force_duration.is_some() &&
+                            target_duration > 0.0 &&
+                            elapsed_seconds > target_duration {
+                            break 'segment_loop;
+                        }
                         if let Some(r) = s.r {
                             let mut count = 0i64;
-                            // FIXME perhaps we also need to account for startTime?
-                            let end_time = period_duration_secs * timescale as f64;
                             loop {
                                 count += 1;
-                                // Exit from the loop after @r iterations (if @r is
-                                // positive). A negative value of the @r attribute indicates
-                                // that the duration indicated in @d attribute repeats until
-                                // the start of the next S element, the end of the Period or
-                                // until the next MPD update.
-                                if r >= 0 {
-                                    if count > r {
-                                        break;
-                                    }
-                                    if downloader.force_duration.is_some() && segment_time as f64 > end_time {
-                                        break;
-                                    }
-                                } else if segment_time as f64 > end_time {
+                                // Exit from the loop after @r iterations (if @r is positive). A
+                                // negative value of the @r attribute indicates that the duration
+                                // indicated in @d attribute repeats until the start of the next S
+                                // element, the end of the Period or until the next MPD update.
+                                if r >= 0 && count > r {
                                     break;
                                 }
+                                if downloader.force_duration.is_some() &&
+                                    target_duration > 0.0 &&
+                                    elapsed_seconds > target_duration {
+                                    break 'segment_loop;
+                                }
                                 segment_time += segment_duration;
+                                elapsed_seconds += segment_duration as f64 / timescale as f64;
                                 let dict = HashMap::from([("Time", segment_time.to_string()),
                                                           ("Number", number.to_string())]);
                                 let path = resolve_url_template(&audio_path, &dict);
@@ -2523,7 +2544,7 @@ async fn do_period_audio(
             }
             let mf = do_segmentbase_indexrange(downloader, period_counter, base_url, sb, &dict).await?;
             fragments.extend(mf);
-         } else if fragments.is_empty() {
+        } else if fragments.is_empty() {
             if let Some(bu) = audio_repr.BaseURL.first() {
                 // (6) plain BaseURL addressing mode
                 if downloader.verbosity > 1 {
@@ -2841,12 +2862,21 @@ async fn do_period_video(
                             .build();
                         fragments.push(mf);
                     }
+                    let mut elapsed_seconds = 0.0;
                     if let Some(media) = opt_media {
                         let video_path = resolve_url_template(&media, &dict);
                         let mut segment_time = 0;
                         let mut segment_duration;
                         let mut number = start_number;
-                        for s in &stl.segments {
+                        let mut target_duration = period_duration_secs;
+                        if let Some(target) = downloader.force_duration {
+                            if target > period_duration_secs {
+                                warn!("  Requested forced duration exceeds available content");
+                            } else {
+                                target_duration = target;
+                            }
+                        }
+                        'segment_loop: for s in &stl.segments {
                             if let Some(t) = s.t {
                                 segment_time = t;
                             }
@@ -2859,10 +2889,15 @@ async fn do_period_video(
                             let mf = MediaFragmentBuilder::new(period_counter, u).build();
                             fragments.push(mf);
                             number += 1;
+                            elapsed_seconds += segment_duration as f64 / timescale as f64;
+                            if downloader.force_duration.is_some() &&
+                                target_duration > 0.0 &&
+                                elapsed_seconds > target_duration
+                            {
+                                break 'segment_loop;
+                            }
                             if let Some(r) = s.r {
                                 let mut count = 0i64;
-                                // FIXME perhaps we also need to account for startTime?
-                                let end_time = period_duration_secs * timescale as f64;
                                 loop {
                                     count += 1;
                                     // Exit from the loop after @r iterations (if @r is
@@ -2870,17 +2905,17 @@ async fn do_period_video(
                                     // that the duration indicated in @d attribute repeats until
                                     // the start of the next S element, the end of the Period or
                                     // until the next MPD update.
-                                    if r >= 0 {
-                                        if count > r {
-                                            break;
-                                        }
-                                        if downloader.force_duration.is_some() && segment_time as f64 > end_time {
-                                            break;
-                                        }
-                                    } else if segment_time as f64 > end_time {
+                                    if r >= 0 && count > r {
                                         break;
                                     }
+                                    if downloader.force_duration.is_some() &&
+                                        target_duration > 0.0 &&
+                                        elapsed_seconds > target_duration
+                                    {
+                                        break 'segment_loop;
+                                    }
                                     segment_time += segment_duration;
+                                    elapsed_seconds += segment_duration as f64 / timescale as f64;
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
                                                               ("Number", number.to_string())]);
                                     let path = resolve_url_template(&video_path, &dict);

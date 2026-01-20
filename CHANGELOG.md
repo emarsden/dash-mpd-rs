@@ -2,13 +2,24 @@
 
 ## [0.19.3] - Unreleased
 
-- Move from `std::fs` to `tokio::fs` implementations for filesystem operations.
+- Downloading: move from `std::fs` to `tokio::fs` implementations for filesystem operations.
 
-- Add the ability to decrypt media content with the shaka-packager helper application running in its
-  official Docker/Podman container (instead of installed locally on the host), and with the MP4Box
-  helper application from the official GPAC Docker/Podman container. These rely on a container
-  runtime (Podman or Docker) being installed. The container runtime to use can be specified using
-  the `DOCKER` environment variable (defaults to `podman`).
+- Downloading: add the ability to decrypt media content with the shaka-packager helper application
+  running in its official Docker/Podman container (instead of installed locally on the host), and
+  with the MP4Box helper application from the official GPAC Docker/Podman container. These rely on a
+  container runtime (Podman or Docker) being installed. The container runtime to use can be
+  specified using the `DOCKER` environment variable (defaults to `podman`; it will only work with
+  Docker if it is configured for rootless operation, or you will encounter file ownership problems).
+
+- Downloading: improve support for dynamic manifests that use SegmentTemplate+SegmentTimeline
+  addressing.
+
+- Downloading: improve handling of manifests without a `MPD.mediaPresentationDuration` attribute
+  and without a `Period.duration` attribute.
+
+- Downloading: clean up the temporary file used to invoke the decryption helper mp4box.
+
+- Downloading: use human-readable formatting when displaying per-Period duration information.
 
 - Replace the unmaintained `backoff` crate by the `backon` crate.
 
