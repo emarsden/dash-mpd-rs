@@ -34,6 +34,10 @@ setup-coverage-tools:
 audit:
     cargo audit
 
+# Requires cargo-udeps from https://github.com/est31/cargo-udeps
+udeps:
+    cargo +nightly udeps
+
 
 # Builds with the mold linker are faster (for Linux/AMD64)
 moldy-build:
