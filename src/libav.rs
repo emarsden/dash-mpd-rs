@@ -20,7 +20,7 @@
 
 use std::io;
 use std::cmp::{min, max};
-use fs_err as fs;
+use std::fs;
 use fs::File;
 use std::path::Path;
 use std::io::{BufReader, BufWriter};
