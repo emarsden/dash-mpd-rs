@@ -15,7 +15,7 @@
 // were correctly encoded then decoded, and that the media fragments were correctly reassembled.
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::process::Command;

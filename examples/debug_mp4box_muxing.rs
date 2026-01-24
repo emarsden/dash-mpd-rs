@@ -1,6 +1,6 @@
 // Example for debugging an mp4box muxing issue that arises on CI machines
 
-use fs_err as fs;
+use std::fs;
 use dash_mpd::fetch::DashDownloader;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;

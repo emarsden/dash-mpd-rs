@@ -1,7 +1,7 @@
 // TODO: the manifest at https://refplayer-dev.cloud.digitaluk.co.uk/dynamic/stl-dashads-dartest.mpd
 // has scte35:Binary content that doesn't parse as Base64, for some reason.
 
-use fs_err as fs;
+use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use dash_mpd::{MPD, parse};

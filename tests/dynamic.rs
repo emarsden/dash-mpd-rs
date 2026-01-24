@@ -9,7 +9,7 @@
 // streamed content when we are downloading the compressed size may differ.
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;

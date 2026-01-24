@@ -5,7 +5,7 @@
 //    cargo test --test serializing -- --show-output
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::io;
 use std::io::prelude::*;
 use fs::File;

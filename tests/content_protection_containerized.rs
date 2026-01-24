@@ -10,7 +10,7 @@
 
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::env;
 use std::process::Command;
 use ffprobe::ffprobe;

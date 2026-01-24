@@ -12,7 +12,7 @@
 extern crate approx;
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;

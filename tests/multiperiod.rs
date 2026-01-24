@@ -5,7 +5,7 @@
 //    cargo test --test multiperiod -- --show-output
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::env;
 use file_format::FileFormat;
 use ffprobe::ffprobe;

@@ -1,7 +1,7 @@
 //! Shared code for our test harness.
 
 
-use fs_err as fs;
+use std::fs;
 use fs::File;
 use std::env;
 use std::path::Path;

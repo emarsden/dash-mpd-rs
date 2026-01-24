@@ -7,7 +7,7 @@
 // https://testassets.dashif.org/#feature/details/5a1c4bd87cccbb15567e567e
 
 pub mod common;
-use fs_err as fs;
+use std::fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
