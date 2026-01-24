@@ -50,6 +50,9 @@
 //   their dependent libraries even outside of LD_LIBRARY_PATH, but that seems excessive for our use
 //   case.
 //
+// - Our sandboxing ruleset is too restrictive to allow a container runtime such as Podman to work.
+//   If you want to use one of our containerized helper applications, do not enable sandboxing.
+//
 // TODO:
 //
 // - Look into adding support for the seccomp security module for Linux.
@@ -59,8 +62,6 @@
 //
 // - Investigate the MacOS sandbox mechanism, with a SBPL policy or sandbox-exec
 //   https://igorstechnoclub.com/sandbox-exec/
-//
-// - Add support for running all helper applications via Docker/Podman.
 
 
 
@@ -103,6 +104,8 @@ pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> 
     ro_dirs.push(String::from("/proc/stat"));
     ro_dirs.push(String::from("/proc/cpuinfo"));
     ro_dirs.push(String::from("/proc/cmdline"));
+    ro_dirs.push(String::from("/proc/self/cmdline"));
+    ro_dirs.push(String::from("/proc/self/ns/"));
     ro_dirs.push(String::from("/proc/sys/kernel/version"));
     ro_dirs.push(String::from("/proc/sys/vm/overcommit_memory"));
     ro_dirs.push(String::from("/sys/devices/system/cpu/"));
@@ -117,6 +120,16 @@ pub fn restrict_thread(downloader: &DashDownloader) -> Result<(), DashMpdError> 
         ro_dirs.push(String::from(data_str.to_string_lossy()));
     }
     let mut rw_dirs = Vec::new();
+    // Podman: allow ~/.local/share/containers
+    if let Some(data_dir) = dir_spec::data_home() {
+        let containers_str = data_dir.join(".local/share/containers").into_os_string();
+        rw_dirs.push(String::from(containers_str.to_string_lossy()));
+    }
+    // Podman: allow $XDG_RUNTIME_DIR/containers
+    if let Some(runtime_dir) = dir_spec::runtime() {
+        let containers_str = runtime_dir.join("containers").into_os_string();
+        rw_dirs.push(String::from(containers_str.to_string_lossy()));
+    }
     // For mdns4 resolution
     rw_dirs.push(String::from("/run/avahi-daemon/socket"));
     rw_dirs.push(String::from("/run/nscd/socket"));
