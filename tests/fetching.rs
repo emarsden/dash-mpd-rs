@@ -573,7 +573,7 @@ async fn test_dl_segment_timeline_heaacv2() {
     check_file_size_approx(&out, 3_060_741);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
@@ -585,27 +585,39 @@ async fn test_dl_segment_timeline_heaacv2() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
-// A test for SegmentList addressing
+
+// A second test for SegmentList+SegmentURL addressing
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_segment_list() {
     setup_logging();
-    let mpd_url = "https://res.cloudinary.com/demo/video/upload/sp_full_hd/handshake.mpd";
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://download.tsi.telecom-paristech.fr/gpac/DASH_CONFORMANCE/TelecomParisTech/mp4-main-multi/mp4-main-multi-mpd-AV-BS.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("handshake.mp4");
+    let out = tmpd.path().join("gpac-main-multi-AV-BS.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        // ffmpeg fails to mux this content ("Not yet implemented in FFmpeg")
+        .with_muxer_preference("mp4", "mp4box")
         .download_to(&out).await
         .unwrap();
-    // 2025-09-29: seeing test failure, File sizes: expected 273629, got 546348
-    check_file_size_approx(&out, 273_629);
+    check_file_size_approx(&out, 5_160_973);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 600.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
     let _ = fs::remove_dir_all(tmpd);
 }
+
 
 // A test for SegmentBase@indexRange addressing with a single audio and video fragment that
 // is convenient for testing sleep_between_requests()
@@ -663,7 +675,7 @@ async fn test_dl_segment_timeline_bbb() {
 // This manifest is built using a difficult structure, rarely seen in the wild. To retrieve segments
 // it is necessary to combine information from the AdaptationSet.SegmentTemplate element (which has
 // the SegmentTimeline) and the Representation.SegmentTemplate element (which has the media
-// template).
+// template). Note that this content is encrypted and we don't have the key.
 #[tokio::test]
 async fn test_dl_segment_timeline_multilevel() {
     setup_logging();
