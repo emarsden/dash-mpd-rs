@@ -43,7 +43,7 @@ ffprobe = { version = "0.4.0", optional = true }
 file-format = { version = "0.28.0", features = ["reader"], optional = true }
 bstr = { version = "1.12.1", optional = true }
 hex-literal = { version = "1.1.0", optional = true }
-pssh-box = { version = "0.2.1", optional = true }
+pssh-box = { version = "0.2.2", optional = true }
 humantime = { version = "2.3.0", optional = true }
 dir_spec = { version = "0.5.0", optional = true }
 hxdmp = "0.2.1"
