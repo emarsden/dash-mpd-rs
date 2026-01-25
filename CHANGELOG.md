@@ -1,8 +1,9 @@
 # Changelog
 
-## [0.19.3] - Unreleased
+## [0.19.3] - 2026-01-25
 
-- Downloading: move from `std::fs` to `tokio::fs` implementations for filesystem operations.
+- Downloading: move from `std::fs` to `tokio::fs` implementations for asynchronous filesystem
+  operations.
 
 - Downloading: add the ability to decrypt media content with the shaka-packager helper application
   running in its official Docker/Podman container (instead of installed locally on the host), and
