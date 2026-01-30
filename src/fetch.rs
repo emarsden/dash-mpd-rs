@@ -4,8 +4,7 @@ use std::env;
 use tokio::io;
 use tokio::fs;
 use tokio::fs::File;
-use tokio::io::{BufReader, BufWriter, AsyncWriteExt};
-use std::io::{Read, Write, Seek};
+use tokio::io::{BufReader, BufWriter, AsyncWriteExt, AsyncSeekExt, AsyncReadExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -3536,7 +3535,7 @@ async fn fetch_fragment(
     downloader: &mut DashDownloader,
     frag: &MediaFragment,
     fragment_type: &str,
-    progress_percent: u32) -> Result<std::fs::File, DashMpdError>
+    progress_percent: u32) -> Result<File, DashMpdError>
 {
     let send_request = || async {
         trace!("send_request {}", frag.url.clone());
@@ -3579,8 +3578,9 @@ async fn fetch_fragment(
         Ok(response) => {
             match response.error_for_status() {
                 Ok(mut resp) => {
-                    let mut tmp_out = tempfile::tempfile()
+                    let tmp_out_std = tempfile::tempfile()
                         .map_err(|e| DashMpdError::Io(e, String::from("creating tmpfile for fragment")))?;
+                    let mut tmp_out = tokio::fs::File::from_std(tmp_out_std);
                       let content_type_checker = if fragment_type.eq("audio") {
                         content_type_audio_p
                     } else if fragment_type.eq("video") {
@@ -3614,7 +3614,7 @@ async fn fetch_fragment(
                             downloader.bw_estimator_bytes += chunk.len();
                             let size = min((chunk.len()/1024+1) as u32, u32::MAX);
                             throttle_download_rate(downloader, size).await?;
-                            if let Err(e) = tmp_out.write_all(&chunk) {
+                            if let Err(e) = tmp_out.write_all(&chunk).await {
                                 return Err(DashMpdError::Io(e, format!("writing DASH {fragment_type} data")));
                             }
                             if let Some(ref mut fout) = fragment_out {
@@ -3651,7 +3651,7 @@ async fn fetch_fragment(
                     } else {
                         warn!("Ignoring segment {} with non-{fragment_type} content-type", frag.url);
                     };
-                    tmp_out.sync_all()
+                    tmp_out.sync_all().await
                         .map_err(|e| DashMpdError::Io(e, format!("syncing {fragment_type} fragment")))?;
                     Ok(tmp_out)
                 },
@@ -3721,10 +3721,10 @@ async fn fetch_period_audio(
                 'done: for _ in 0..downloader.fragment_retry_count {
                     match fetch_fragment(downloader, frag, "audio", progress_percent).await {
                         Ok(mut frag_file) => {
-                            frag_file.rewind()
+                            frag_file.rewind().await
                                 .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
                             let mut buf = Vec::new();
-                            frag_file.read_to_end(&mut buf)
+                            frag_file.read_to_end(&mut buf).await
                                 .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
                             tmpfile_audio.write_all(&buf)
                                 .map_err(|e| DashMpdError::Io(e, String::from("writing DASH audio data")))
@@ -3858,10 +3858,10 @@ async fn fetch_period_video(
                 'done: for _ in 0..downloader.fragment_retry_count {
                     match fetch_fragment(downloader, frag, "video", progress_percent).await {
                         Ok(mut frag_file) => {
-                            frag_file.rewind()
+                            frag_file.rewind().await
                                 .map_err(|e| DashMpdError::Io(e, String::from("rewinding fragment tempfile")))?;
                             let mut buf = Vec::new();
-                            frag_file.read_to_end(&mut buf)
+                            frag_file.read_to_end(&mut buf).await
                                 .map_err(|e| DashMpdError::Io(e, String::from("reading fragment tempfile")))?;
                             tmpfile_video.write_all(&buf)
                                 .map_err(|e| DashMpdError::Io(e, String::from("writing DASH video data")))
