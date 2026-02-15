@@ -795,8 +795,10 @@ async fn test_progress_observer() {
     struct DownloadProgressionTest { }
 
     impl ProgressObserver for DownloadProgressionTest {
-        fn update(&self, percent: u32, _message: &str) {
+        fn update(&self, percent: u32, bandwidth: u64, _message: &str) {
             assert!(percent <= 100);
+            // 1000 GB/s should be enough for everybody.
+            assert!(bandwidth < 1_000_000_000_000);
         }
     }
 

@@ -30,7 +30,7 @@ impl DownloadProgressBar {
 }
 
 impl ProgressObserver for DownloadProgressBar {
-    fn update(&self, percent: u32, message: &str) {
+    fn update(&self, percent: u32, _bandwidth: u64, message: &str) {
         if percent <= 100 {
             self.bar.set_position(percent.into());
             self.bar.set_message(message.to_string());

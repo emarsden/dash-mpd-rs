@@ -118,9 +118,9 @@ async fn ensure_permissions_readable(path: &Path) -> Result<(), DashMpdError> {
 
 
 /// Receives updates concerning the progression of the download, and can display this information to
-/// the user, for example using a progress bar.
+/// the user, for example using a progress bar. Bandwidth is reported in units of octets per second.
 pub trait ProgressObserver: Send + Sync {
-    fn update(&self, percent: u32, message: &str);
+    fn update(&self, percent: u32, bandwidth: u64, message: &str);
 }
 
 
@@ -168,6 +168,7 @@ pub struct DashDownloader {
     fetch_audio: bool,
     fetch_subtitles: bool,
     keep_video: Option<PathBuf>,
+    // FIXME this should be a Vec<PathBuf> to handle streams with multiple audio tracks
     keep_audio: Option<PathBuf>,
     concatenate_periods: bool,
     fragment_path: Option<PathBuf>,
@@ -3624,15 +3625,9 @@ async fn fetch_fragment(
                             }
                             let elapsed = downloader.bw_estimator_started.elapsed().as_secs_f64();
                             if (elapsed > 1.5) || (downloader.bw_estimator_bytes > 100_000) {
-                                let bw = downloader.bw_estimator_bytes as f64 / (1e6 * elapsed);
-                                let msg = if bw > 0.5 {
-                                    format!("Fetching {fragment_type} segments ({bw:.1} MB/s)")
-                                } else {
-                                    let kbs = (bw * 1000.0).round() as u64;
-                                    format!("Fetching {fragment_type} segments ({kbs:3} kB/s)")
-                                };
+                                let bw = downloader.bw_estimator_bytes as f64 / elapsed;
                                 for observer in &downloader.progress_observers {
-                                    observer.update(progress_percent, &msg);
+                                    observer.update(progress_percent, bw as u64, &format!("Fetching {fragment_type} segments)"));
                                 }
                                 downloader.bw_estimator_started = Instant::now();
                                 downloader.bw_estimator_bytes = 0;
@@ -3959,7 +3954,7 @@ async fn fetch_period_subtitles(
             ds.segment_counter += 1;
             let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
             for observer in &downloader.progress_observers {
-                observer.update(progress_percent, "Fetching subtitle segments");
+                observer.update(progress_percent, 1, "Fetching subtitle segments");
             }
             if frag.url.scheme() == "data" {
                 let us = &frag.url.to_string();
@@ -4183,7 +4178,7 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
             .error_for_status()
     };
     for observer in &downloader.progress_observers {
-        observer.update(1, "Fetching DASH manifest");
+        observer.update(1, 1, "Fetching DASH manifest");
     }
     if downloader.verbosity > 0 {
         if !downloader.fetch_audio && !downloader.fetch_video && !downloader.fetch_subtitles {
@@ -4473,7 +4468,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         // are present, or just the audio stream, or just the video stream.
         if have_audio && have_video {
             for observer in &downloader.progress_observers {
-                observer.update(99, "Muxing audio and video");
+                observer.update(99, 1, "Muxing audio and video");
             }
             if downloader.verbosity > 1 {
                 info!("  Muxing audio and video streams");
@@ -4683,7 +4678,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         warn!("Manifest seems to use ContentProtection (DRM), but you didn't provide decryption keys.");
     }
     for observer in &downloader.progress_observers {
-        observer.update(100, "Done");
+        observer.update(100, 1, "Done");
     }
     Ok(PathBuf::from(output_path))
 }

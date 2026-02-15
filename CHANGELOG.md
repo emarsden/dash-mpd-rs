@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.0] - Unreleased
+
+- Incompatible change in download support: the signature of progress observers (as used in method
+  `add_progress_reporter` on `DashDownloader` has been changed to include a third argument that
+  specifies the current download bandwidth, in octets per second. Previously, the bandwidth was
+  reported in the textual message supplied to progress observers.
+
+- Downloading: further use of `tokio::fs` implementations of asynchronous filesystem operations.
+
+
 ## [0.19.3] - 2026-01-25
 
 - Downloading: move from `std::fs` to `tokio::fs` implementations for asynchronous filesystem
