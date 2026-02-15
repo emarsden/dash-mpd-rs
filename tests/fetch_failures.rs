@@ -77,7 +77,21 @@ async fn test_error_bad_baseurl() {
 async fn test_error_smoothstreaming() {
     // SmoothStreamingMedia manifests are an XML format, but not the same schema as DASH (root
     // element is "SmoothStreamingMedia").
-    let url = "http://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest";
+    // let url = "http://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest";
+    let url = "https://github.com/canalplus/rx-player/raw/refs/heads/dev/tests/contents/Smooth_static/media/Manifest_Regular.xml";
+    DashDownloader::new(url)
+        .best_quality()
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "parsing DASH XML")]
+async fn test_error_smoothstreaming2() {
+    // SmoothStreamingMedia manifests are an XML format, but not the same schema as DASH (root
+    // element is "SmoothStreamingMedia").
+    let url = "http://test.playready.microsoft.com/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest";
     DashDownloader::new(url)
         .best_quality()
         .download().await
