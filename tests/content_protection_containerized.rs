@@ -26,7 +26,7 @@ async fn test_decryption_webm_shaka_container() {
     let url = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
     let out = env::temp_dir().join("angel-shaka-container.webm");
     if out.exists() {
-        let _ = fs::remove_file(out.clone());
+        let _ = fs::remove_file(&out);
     }
     DashDownloader::new(url)
         .worst_quality()
@@ -44,10 +44,10 @@ async fn test_decryption_webm_shaka_container() {
                             String::from("efa2878c2ccf6dd47ab349fcf90e6259"))
         .with_muxer_preference("webm", "ffmpeg")
         .with_decryptor_preference("shaka-container")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 1_331_284);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     // The order of audio and video streams in the output WebM container is unreliable with Shaka
     // packager, so we need to test this carefully.
@@ -89,7 +89,7 @@ async fn test_decryption_wvcenc_shaka_container () {
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("spring-shaka.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -100,13 +100,13 @@ async fn test_decryption_wvcenc_shaka_container () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka-container")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 33_746_341);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We are seeing spurious random failures with this ffmpeg check, for unknown reasons.
-    assert!(ffmpeg_approval(&outpath.clone()));
+    assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
 }
 
@@ -120,7 +120,7 @@ async fn test_decryption_wvcenc_mp4box_container () {
     let mpd = "https://refapp.hbbtv.org/videos/spring_h265_v8/cenc/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("spring-mp4box-container.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -131,10 +131,10 @@ async fn test_decryption_wvcenc_mp4box_container () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box-container")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 33_746_341);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We see occasional errors here from ffmpeg that we don't understand.
     assert!(ffmpeg_approval(&outpath));
@@ -151,7 +151,7 @@ async fn test_decryption_wvcbcs_mp4box_container () {
     let mpd = "https://refapp.hbbtv.org/videos/tears_of_steel_h265_v8/cbcs/manifest_wvcenc.mpd";
     let outpath = env::temp_dir().join("tears-steel-wvcbcs-mp4box-container.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -162,10 +162,10 @@ async fn test_decryption_wvcbcs_mp4box_container () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("mp4box-container")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 79_731_116);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // We can't check the validity of this stream using ffmpeg, because ffmpeg complains a lot about
     // various anomalies in the AAC audio stream, though it seems to play the content OK.
@@ -183,7 +183,7 @@ async fn test_decryption_prcenc_shaka_container () {
     let mpd = "https://refapp.hbbtv.org/videos/00_llama_h264_v8_8s/cenc/manifest_prcenc.mpd";
     let outpath = env::temp_dir().join("llama-prcenc-shaka-container.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .worst_quality()
@@ -192,10 +192,10 @@ async fn test_decryption_prcenc_shaka_container () {
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka-container")
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     check_file_size_approx(&outpath, 26_420_624);
-    let format = FileFormat::from_file(outpath.clone()).unwrap();
+    let format = FileFormat::from_file(&outpath).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     assert!(ffmpeg_approval(&outpath));
     let _ = fs::remove_file(outpath);
