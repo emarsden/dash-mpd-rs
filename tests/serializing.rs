@@ -132,15 +132,17 @@ fn test_serialize_xsd_uintvector() {
 // Validate the MPD manifests against the XML schema (XSD) included in the DASH MPD specification.
 //
 // We are using xmllint for the schema valiation. This is not a perfect solution because xmllint
-// (really, libxml2) does not supporting downloading HTTPS targets for validation (for any schemas
-// that are xlinked inside the DASH XSD), only supporting HTTP URLs. Though the URLs in the schema
-// descriptions are HTTP links (eg. http://www.w3.org/1999/xlink), they redirect to HTTPS.
-// Alternative validators are not preferable: there doesn't seem to be a working Rust library for
-// schema validation; Saxon is not free (Saxon-HE has no schema validation support); xmlstarlet has
-// the same limitations because it also binds to libxml2; and the Python xmlvalidate library doesn't
-// work well (internal errors during validation). We work around this libxml2 limitation by putting
-// together our own pseudo system catalog of schemas and validating against an XSD that imports
-// these using local schemaLocation URLs.
+// (really, libxml2) as generally packaged does not supporting downloading HTTPS targets for
+// validation (for any schemas that are xlinked inside the DASH XSD), only supporting HTTP URLs.
+// Though the URLs in the schema descriptions are HTTP links (eg. http://www.w3.org/1999/xlink),
+// they redirect to HTTPS. Alternative validators are not preferable: there doesn't seem to be a
+// working Rust library for schema validation; Saxon is not free (Saxon-HE has no schema validation
+// support); xmlstarlet has the same limitations because it also binds to libxml2; and the Python
+// xmlvalidate library doesn't work well (internal errors during validation). We work around this
+// libxml2 limitation by putting together our own pseudo system catalog of schemas and validating
+// against an XSD that imports these using local schemaLocation URLs.
+//
+// Possible update: use xmlschema-validate -v <manifest> from python3-xmlschema package to validate.
 #[test]
 fn test_fixtures_xsd_validity() {
     setup_logging();
@@ -156,6 +158,17 @@ fn test_fixtures_xsd_validity() {
          &dir.path().join("xlink.xsd")).unwrap();
     curl("http://www.w3.org/2001/xml.xsd",
          &dir.path().join("xml.xsd")).unwrap();
+    // We need the xmlns:dashif namespace in order to validate MPDs that contain the dashif:laurl
+    // element. This is defined in the DASH-IF-CPS.xsd schema, which should be online at
+    // https://dashif.org/CPS, but isn't. We have extracted the content from Annex A of
+    // https://dashif.org/docs/IOP-Guidelines/DASH-IF-IOP-Part6-v5.0.0.pdf
+    let mut xsd_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xsd_path.push("tests");
+    xsd_path.push("fixtures");
+    xsd_path.push("DASH-IF-CPS");
+    xsd_path.set_extension("xsd");
+    fs::copy(xsd_path, &dir.path().join("DASH-IF-CPS.xsd")).unwrap();
+
     let multischema_path = dir.path().join("multischema.xsd");
     let mut multischema_out = File::create(multischema_path).expect("creating multischema.xsd");
     multischema_out.write_all(
@@ -164,6 +177,8 @@ fn test_fixtures_xsd_validity() {
   <import namespace=\"http://www.w3.org/2001/xml.xsd\" schemaLocation=\"xml.xsd\"/>
   <import namespace=\"http://www.w3.org/1999/xlink\" schemaLocation=\"xlink.xsd\"/>
   <import namespace=\"urn:mpeg:dash:schema:mpd:2011\" schemaLocation=\"DASH-MPD.xsd\"/>
+  <import namespace=\"xmlns:dashif\" schemaLocation=\"DASH-IF-CPS.xsd\"/>
+  <import namespace=\"https://dashif.org/CPS\" schemaLocation=\"DASH-IF-CPS.xsd\"/>
 </schema>\n").unwrap();
 
     // Several of these MPDs (taken from various sources in the wild) are known to fail validation
@@ -189,36 +204,42 @@ fn test_fixtures_xsd_validity() {
         "orange.xml",
         "vod-aip-unif-streaming.mpd"
     ];
+    let mut counter = 0;
     let mut base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     base_path.push("tests");
     base_path.push("fixtures");
     for test in tests {
+        counter += 1;
         let mut path = base_path.clone();
         path.push(test);
         let xml = fs::read_to_string(&path).unwrap();
         let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_owned()
+            + "\n"
             + &parse(&xml).unwrap().to_string();
-        let mpd_path = dir.path().join("serialized.mpd");
+        let mpd_path = dir.path().join(format!("serialized-{counter}.mpd"));
         fs::write(&mpd_path, &serialized).unwrap();
         // Format the MPD manifest for better error messages.
-        Command::new("xmllint")
+        let xmllint = Command::new("xmllint")
             .current_dir(&dir)
             .arg("--format")
             .arg(&mpd_path)
             .arg("--output")
-            .arg("formatted.mpd")
+            .arg(format!("formatted-{counter}.mpd"))
             .output()
             .unwrap();
+        assert!(xmllint.status.success(), "Failed to format file {}\nstderr: {}",
+                mpd_path.display(),
+                String::from_utf8_lossy(&xmllint.stderr));
         let xmllint = Command::new("xmllint")
             .current_dir(&dir)
             .arg("--noout")
             .arg("--schema")
             .arg("multischema.xsd")
-            .arg("formatted.mpd")
+            .arg(format!("formatted-{counter}.mpd"))
             .output()
             .unwrap();
         if !xmllint.status.success() {
-            println!("== failed serializing test {} running in dir {}", &test, mpd_path.display());
+            eprintln!("== failed serializing test {} running in dir {}", &test, mpd_path.display());
             let stderr = String::from_utf8_lossy(&xmllint.stderr)
                 .lines()
                 .filter(|ln| !ln.contains("Skipping import of schema located at"))
@@ -244,6 +265,15 @@ fn test_urls_xsd_validity() {
          &dir.path().join("xlink.xsd")).unwrap();
     curl("http://www.w3.org/2001/xml.xsd",
          &dir.path().join("xml.xsd")).unwrap();
+    // The DASH-IF-CPS.xsd schema should be online at https://dashif.org/CPS, but isn't. We have
+    // extracted the content from Annex A of
+    // https://dashif.org/docs/IOP-Guidelines/DASH-IF-IOP-Part6-v5.0.0.pdf
+    let mut xsd_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    xsd_path.push("tests");
+    xsd_path.push("fixtures");
+    xsd_path.push("DASH-IF-CPS");
+    xsd_path.set_extension("xsd");
+    fs::copy(xsd_path, &dir.path().join("DASH-IF-CPS.xsd")).unwrap();
 
     let multischema_path = dir.path().join("multischema.xsd");
     let mut multischema_out = File::create(multischema_path).expect("creating multischema.xsd");
@@ -253,6 +283,8 @@ fn test_urls_xsd_validity() {
   <import namespace=\"http://www.w3.org/2001/xml.xsd\" schemaLocation=\"xml.xsd\"/>
   <import namespace=\"http://www.w3.org/1999/xlink\" schemaLocation=\"xlink.xsd\"/>
   <import namespace=\"urn:mpeg:dash:schema:mpd:2011\" schemaLocation=\"DASH-MPD.xsd\"/>
+  <import namespace=\"xmlns:dashif\" schemaLocation=\"DASH-IF-CPS.xsd\"/>
+  <import namespace=\"https://dashif.org/CPS\" schemaLocation=\"DASH-IF-CPS.xsd\"/>
 </schema>\n").unwrap();
 
     let tests = [
@@ -282,7 +314,8 @@ fn test_urls_xsd_validity() {
         "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
         "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd",
         "https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd",
-        "https://cdn.bitmovin.com/content/assets/playhouse-vr/mpds/105560.mpd",
+        // moved behind Cloudflare on 2026-02
+        // "https://cdn.bitmovin.com/content/assets/playhouse-vr/mpds/105560.mpd",
         // "https://www.content-steering.com/bbb/playlist_steering_cloudfront_https.mpd",
         "https://livesim2.dashif.org/livesim2/segtimeline_1/testpic_2s/Manifest.mpd",
         "https://livesim2.dashif.org/livesim2/ato_inf/testpic_2s/Manifest.mpd",
@@ -302,26 +335,29 @@ fn test_urls_xsd_validity() {
         let dash_filename = dir.path().join(format!("{counter}-orig.mpd"));
         let mut dash_out = File::create(dash_filename).expect("failed to create file");
         io::copy(&mut body.as_bytes(), &mut dash_out).unwrap();
-        let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_owned()
-            + &parse(&body).unwrap().to_string();
+        let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_owned() + "\n" +
+            &parse(&body)
+            .expect(&format!("parsing input {test}"))
+            .to_string();
         let mpd_path = dir.path().join(format!("{counter}-serialized.mpd"));
-        let mpd_formatted = format!("{counter}-formatted.mpd");
+        let mpd_formatted = dir.path().join(format!("{counter}-formatted.mpd"));
         fs::write(&mpd_path, &serialized).unwrap();
         // Format the MPD manifest for better error messages.
-        Command::new("xmllint")
+        let xmllint = Command::new("xmllint")
             .current_dir(&dir)
             .arg("--format")
             .arg(&mpd_path)
             .arg("--output")
-            .arg(mpd_formatted.clone())
+            .arg(&mpd_formatted)
             .output()
             .unwrap();
+        assert!(xmllint.status.success(), "Failed to format file {}", mpd_path.display());
         let xmllint = Command::new("xmllint")
             .current_dir(&dir)
             .arg("--noout")
             .arg("--schema")
             .arg("multischema.xsd")
-            .arg(mpd_formatted.clone())
+            .arg(&mpd_formatted)
             .output()
             .unwrap();
         if !xmllint.status.success() {
