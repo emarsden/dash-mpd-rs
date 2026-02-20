@@ -29,9 +29,9 @@ async fn test_concat_noaudio_ffmpeg() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_781_840);
     let meta = ffprobe(out).unwrap();
@@ -66,9 +66,9 @@ async fn test_concat_noaudio_ffmpegdemuxer() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_781_840);
     let meta = ffprobe(out).unwrap();
@@ -106,7 +106,7 @@ async fn test_concat_noaudio_mkvmerge_mp4() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let _ = fs::remove_dir_all(tmpd);
 }
@@ -127,9 +127,9 @@ async fn test_concat_noaudio_mkv_concat_fallback() {
         .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .with_concat_preference("mkv", "mkvmerge,ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 7_258_379);
     let meta = ffprobe(out).unwrap();
@@ -165,9 +165,9 @@ async fn test_concat_singleases_ffmpeg() {
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .minimum_period_duration(Duration::new(10, 0))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_781_840);
     let meta = ffprobe(out).unwrap();
@@ -202,9 +202,9 @@ async fn test_concat_singleases_ffmpegdemuxer() {
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .minimum_period_duration(Duration::new(10, 0))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_781_840);
     let meta = ffprobe(out).unwrap();
@@ -246,7 +246,7 @@ async fn test_concat_singleases_mkvmerge() {
         .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
         .minimum_period_duration(Duration::new(10, 0))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let _ = fs::remove_dir_all(tmpd);
 }
@@ -263,9 +263,9 @@ async fn test_concat_heliocentrism_ffmpeg_mp4() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 36_829);
     let meta = ffprobe(&out).unwrap();
@@ -294,9 +294,9 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mp4() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     // FIXME problem here: on Windows we see a size of 16_384
     // check_file_size_approx(&out, 40_336);
@@ -330,7 +330,7 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
         .verbosity(3)
         .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
         .env("LANG", "C")
@@ -346,7 +346,7 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
     if stderr.len() > 0 {
         println!("ffprobe stderr> {stderr}");
     }
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 35_937);
     let meta = ffprobe(&out).unwrap();
@@ -376,7 +376,7 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
         .verbosity(2)
         .with_muxer_preference("mkv", "ffmpeg")
         .with_concat_preference("mkv", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
         .env("LANG", "C")
@@ -430,9 +430,9 @@ async fn test_concat_heliocentrism_mkvmerge_mp4() {
         .sandbox(true)
         .verbosity(2)
         .with_concat_preference("mp4", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 42_060);
     let meta = ffprobe(&out).unwrap();
@@ -466,9 +466,9 @@ async fn test_concat_heliocentrism_mkvmerge_mkv() {
         .sandbox(true)
         .verbosity(3)
         .with_concat_preference("mkv", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     // File size here is unreliable, is quite different on Microsoft Windows for example (30_699)
     // check_file_size_approx(&out, 42_060);
@@ -504,9 +504,9 @@ async fn test_concat_heliocentrism_p1p2() {
         .with_concat_preference("mp4", "ffmpeg")
         // here we should be dropping period #3 (id=2) whose duration is 0.701s
         .minimum_period_duration(Duration::new(2, 0))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 30_496);
     let meta = ffprobe(out).unwrap();
@@ -538,9 +538,9 @@ async fn test_concat_dashif_5bnomor2() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 119_710_971);
     let meta = ffprobe(&out).unwrap();
@@ -581,7 +581,7 @@ async fn test_concat_axinom_multiperiod() {
         .add_decryption_key(String::from("29f05e8fa1ae46e480e922dcd44cd7a1"),
                             String::from("0711b17c84a90cbb41097264c901b732"))
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let fp = std::process::Command::new("ffprobe")
         .env("LANG", "C")
@@ -610,7 +610,7 @@ async fn test_concat_axinom_multiperiod() {
     if stderr.len() > 0 {
         println!("mediainfo stderr> {stderr}");
     }
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 83_015_660);
     let meta = ffprobe(&out).unwrap();
