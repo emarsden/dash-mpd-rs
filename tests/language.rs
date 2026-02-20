@@ -25,7 +25,7 @@ async fn test_lang_prefer_spa() {
     let mpd_url = "https://refapp.hbbtv.org/videos/02_gran_dillama_1080p_ma_25f75g6sv5/manifest.mpd";
     let out = env::temp_dir().join("dillama-spa.mp4");
     if out.exists() {
-        let _ = fs::remove_file(out.clone());
+        let _ = fs::remove_file(&out);
     }
     DashDownloader::new(mpd_url)
         .worst_quality()
@@ -33,10 +33,10 @@ async fn test_lang_prefer_spa() {
         .max_error_count(5)
         .record_metainformation(true)
         .prefer_language(String::from("spa"))
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 11_809_117);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -58,7 +58,7 @@ async fn test_subtitle_lang_stpp_im1t() {
     let mpd = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-mobile.mpd";
     let outpath = env::temp_dir().join("im1t-subs.mp4");
     if outpath.exists() {
-        let _ = fs::remove_file(outpath.clone());
+        let _ = fs::remove_file(&outpath);
     }
     DashDownloader::new(mpd)
         .fetch_audio(true)
@@ -67,7 +67,7 @@ async fn test_subtitle_lang_stpp_im1t() {
         .prefer_language(String::from("fra"))
         .verbosity(2)
         .sandbox(true)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
@@ -85,27 +85,28 @@ async fn test_subtitle_lang_stpp_im1t() {
 }
 
 
-// This manifest contains 3 audio streams, with lang=en_stereo, no-voices_stereo, en_surround. Ask
-// for the en_surround audio track (which has a larger bitrate) and check that the resulting file
-// size is plausible.
+// This manifest contains 3 audio streams. Ask for the en-low audio track (which has a lower
+// bitrate) and check that the resulting file size is plausible.
 #[tokio::test]
-async fn test_lang_en_surround() {
+async fn test_lang_en_multilang() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/sintel/sintel.mpd";
+    // let mpd_url = "https://bitmovin-a.akamaihd.net/content/sintel/sintel.mpd";
+    let mpd_url = "https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("sintel-surround.mp4");
+    let out = tmpd.path().join("axprod-multilang.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
         .without_content_type_checks()
+        .prefer_language(String::from("en-low"))
         .audio_only()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 14_451_023);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 12_036_135);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
