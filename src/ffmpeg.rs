@@ -30,6 +30,7 @@ use crate::media::{
     AudioTrack,
 };
 
+#[allow(dead_code)]
 fn ffprobe_start_time(input: &Path) -> Result<f64, DashMpdError> {
     match ffprobe(input) {
         Ok(info) => if let Some(st) = info.format.start_time {
@@ -93,6 +94,18 @@ pub async fn mux_multiaudio_video_ffmpeg(
             info!("  Video file {} of size {} octets", video_path.display(), attr.len());
         }
     }
+    #[allow(unused_variables)]
+    let mut audio_delay = 0.0;
+    let mut video_delay = 0.0;
+    if let Ok(audio_start_time) = ffprobe_start_time(&audio_tracks[0].path) {
+        if let Ok(video_start_time) = ffprobe_start_time(video_path) {
+            if audio_start_time > video_start_time {
+                video_delay = audio_start_time - video_start_time;
+            } else {
+                audio_delay = video_start_time - audio_start_time;
+            }
+        }
+    }
     let mut args = vec![
         String::from("-hide_banner"),
         String::from("-nostats"),
@@ -102,6 +115,11 @@ pub async fn mux_multiaudio_video_ffmpeg(
     let mut mappings = Vec::new();
     mappings.push(String::from("-map"));
     mappings.push(String::from("0:v"));
+    let vd = format!("{video_delay}");
+    if video_delay > 0.001 {
+        args.push(String::from("-ss"));
+        args.push(vd);
+    }
     args.push(String::from("-i"));
     args.push(String::from(video_str));
     // https://superuser.com/questions/1078298/ffmpeg-combine-multiple-audio-files-and-one-video-in-to-the-multi-language-vid
@@ -141,7 +159,7 @@ pub async fn mux_multiaudio_video_ffmpeg(
         info!("  Running ffmpeg {}", args.join(" "));
     }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(args)
+        .args(args.clone())
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
@@ -171,8 +189,49 @@ pub async fn mux_multiaudio_video_ffmpeg(
         }
         return Ok(());
     }
-    // TODO: try again without -c:a copy and -c:v copy
-    Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+    // The muxing may have failed only due to the "-c:v copy -c:a copy" argument to ffmpeg, which
+    // instructs it to copy the audio and video streams without any reencoding. That is not possible
+    // for certain output containers: for instance a WebM container must contain video using VP8,
+    // VP9 or AV1 codecs and Vorbis or Opus audio codecs. (Unfortunately, ffmpeg doesn't seem to
+    // return a distinct recognizable error message in this specific case.) So we try invoking
+    // ffmpeg again, this time allowing reencoding.
+    args.retain(|a| !(a.eq("-c:v") || a.eq("copy") || a.eq("-c:a")));
+    if downloader.verbosity > 0 {
+        info!("  Running ffmpeg {}", args.join(" "));
+    }
+    let ffmpeg = Command::new(&downloader.ffmpeg_location)
+        .args(args)
+        .output()
+        .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
+    let msg = partial_process_output(&ffmpeg.stdout);
+    if !msg.is_empty() {
+        info!("  ffmpeg stdout: {msg}");
+    }
+    let msg = partial_process_output(&ffmpeg.stderr);
+    if !msg.is_empty() {
+        info!("  ffmpeg stderr: {msg}");
+    }
+    if ffmpeg.status.success() {
+        // local scope so that tmppath is not busy on Windows and can be deleted
+        {
+            let tmpfile = File::open(tmppath).await
+                .map_err(|e| DashMpdError::Io(e, String::from("opening ffmpeg output")))?;
+            let mut muxed = BufReader::new(tmpfile);
+            let outfile = File::create(output_path).await
+                .map_err(|e| DashMpdError::Io(e, String::from("creating output file")))?;
+            let mut sink = BufWriter::new(outfile);
+            io::copy(&mut muxed, &mut sink).await
+                .map_err(|e| DashMpdError::Io(e, String::from("copying ffmpeg output to output file")))?;
+        }
+        if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	    if let Err(e) = fs::remove_file(tmppath).await {
+                warn!("  Error deleting temporary ffmpeg output: {e}");
+            }
+        }
+        Ok(())
+    } else {
+        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+    }
 }
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
@@ -290,7 +349,7 @@ async fn mux_audio_video_ffmpeg(
         info!("  Running ffmpeg {}", args.join(" "));
     }
     let ffmpeg = Command::new(&downloader.ffmpeg_location)
-        .args(args.clone())
+        .args(&args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning ffmpeg subprocess")))?;
     let msg = partial_process_output(&ffmpeg.stdout);
@@ -361,7 +420,7 @@ async fn mux_audio_video_ffmpeg(
         }
         Ok(())
     } else {
-        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+        return Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
 
@@ -462,7 +521,7 @@ async fn mux_stream_ffmpeg(
         Ok(())
     } else {
         warn!("  unmuxed stream: {input}");
-        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+        return Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
 
@@ -561,7 +620,7 @@ async fn mux_audio_video_vlc(
         Ok(())
     } else {
         let msg = partial_process_output(&vlc.stderr);
-        Err(DashMpdError::Muxing(format!("running VLC: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running VLC: {msg}")))
     }
 }
 
@@ -641,7 +700,7 @@ async fn mux_audio_video_mp4box(
         Ok(())
     } else {
         let msg = partial_process_output(&cmd.stderr);
-        Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
 
@@ -706,7 +765,7 @@ async fn mux_stream_mp4box(
         let msg = partial_process_output(&cmd.stderr);
         warn!("  MP4Box mux_stream failure: stdout {}", partial_process_output(&cmd.stdout));
         warn!("  MP4Box stderr: {msg}");
-        Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running MP4Box: {msg}")))
     }
 }
 
@@ -766,7 +825,7 @@ async fn mux_audio_video_mkvmerge(
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
         let msg = String::from_utf8_lossy(&mkv.stdout);
-        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
     }
 }
 
@@ -814,7 +873,7 @@ async fn mux_video_mkvmerge(
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
         let msg = String::from_utf8_lossy(&mkv.stdout);
-        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
     }
 }
 
@@ -863,7 +922,7 @@ async fn mux_audio_mkvmerge(
     } else {
         // mkvmerge writes error messages to stdout, not to stderr
         let msg = String::from_utf8_lossy(&mkv.stdout);
-        Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
+        return Err(DashMpdError::Muxing(format!("running mkvmerge: {msg}")))
     }
 }
 
@@ -889,7 +948,7 @@ pub async fn mux_audio_video(
         muxer_preference.push("mp4box");
     } else if container.eq("webm") {
         // VLC is a better default than ffmpeg, because ffmpeg (with the options we supply) doesn't
-        // automatically reencode the vidoe and audio streams when they are incompatible with the
+        // automatically reencode the video and audio streams when they are incompatible with the
         // container format requested, whereas VLC does do so.
         muxer_preference.push("vlc");
         muxer_preference.push("ffmpeg");
@@ -918,7 +977,8 @@ pub async fn mux_audio_video(
                 return Ok(());
             }
         } else if muxer.eq("ffmpeg") {
-            if let Err(e) = mux_audio_video_ffmpeg(downloader, output_path, audio_tracks, video_path).await {
+            // if let Err(e) = mux_audio_video_ffmpeg(downloader, output_path, audio_tracks, video_path).await {
+            if let Err(e) = mux_multiaudio_video_ffmpeg(downloader, output_path, audio_tracks, video_path).await {
                 warn!("  Muxing with ffmpeg subprocess failed: {e}");
             } else {
                 info!("  Muxing with ffmpeg subprocess succeeded");
@@ -1244,7 +1304,7 @@ pub(crate) async fn concat_output_files_ffmpeg_filter(
         for p in paths {
             warn!("      {}", p.display());
         }
-        Err(DashMpdError::Muxing(String::from("running ffmpeg")))
+        return Err(DashMpdError::Muxing(String::from("running ffmpeg")))
     }
 }
 
