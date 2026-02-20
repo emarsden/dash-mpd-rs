@@ -170,7 +170,7 @@ async fn test_base_url() -> Result<()> {
     DashDownloader::new("http://localhost:6666/mpd")
         .with_base_url(String::from("http://localhost:6666/updated/"))
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
     let txt = client.get("http://localhost:6666/status")
