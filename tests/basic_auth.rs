@@ -155,7 +155,7 @@ async fn test_basic_auth() -> Result<()> {
     DashDownloader::new("http://localhost:6666/mpd")
         .with_authentication("myuser", "mypassword")
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
     let txt = client.get("http://localhost:6666/status")
