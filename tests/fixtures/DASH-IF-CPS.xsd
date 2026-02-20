@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:dashif="https://dashif.org/CPS" targetNamespace="https://dashif.org/CPS" elementFormDefault="qualified" attributeFormDefault="unqualified">
+  <xs:element name="Laurl" type="dashif:LaurlType"/>
+  <xs:element name="Authzurl" type="dashif:AuthzurlType"/>
+  <xs:complexType name="LaurlType">
+    <xs:simpleContent>
+      <xs:extension base="xs:anyURI">
+        <xs:attribute name="licenseType" type="xs:string" use="optional"/>
+        <xs:anyAttribute namespace="##other" processContents="strict"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="AuthzurlType">
+    <xs:simpleContent>
+      <xs:extension base="xs:anyURI">
+        <xs:attribute name="authzType" type="xs:string" use="optional"/>
+        <xs:anyAttribute namespace="##other" processContents="strict"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+</xs:schema>
