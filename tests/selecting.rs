@@ -1,4 +1,4 @@
-// Selecting audio/video streams depending on video resolution/quality
+//! Selecting audio/video streams depending on video resolution/quality
 //
 // To run tests while enabling printing to stdout/stderr
 //
@@ -20,29 +20,31 @@ use common::{check_file_size_approx, setup_logging};
 //    https://cdn.bitmovin.com/content/assets/art-of-motion-dash-hls-progressive/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd
 
 
+// TODO find another test manifest; this one has multiple periods
+
 #[tokio::test]
 async fn test_video_resolution_minq() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd";
+    let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("selecting-minq.mp4");
     DashDownloader::new(mpd_url)
         .without_content_type_checks()
         .worst_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 10_213_437);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 6_652_846);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    assert_eq!(180, video.height.unwrap());
+    assert_eq!(360, video.height.unwrap());
     assert_eq!(video.pix_fmt, Some(String::from("yuv420p")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -52,28 +54,28 @@ async fn test_video_resolution_minq() {
 
 
 #[tokio::test]
-async fn test_video_resolution_180p() {
+async fn test_video_resolution_360p() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd";
+    let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("selecting-180p.mp4");
+    let out = tmpd.path().join("selecting-360p.mp4");
     DashDownloader::new(mpd_url)
         .without_content_type_checks()
-        .prefer_video_height(180)
-        .download_to(out.clone()).await
+        .prefer_video_height(360)
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 10_213_437);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 6_652_846);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    assert_eq!(180, video.height.unwrap());
+    assert_eq!(360, video.height.unwrap());
     assert_eq!(video.pix_fmt, Some(String::from("yuv420p")));
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -83,28 +85,28 @@ async fn test_video_resolution_180p() {
 
 
 #[tokio::test]
-async fn test_video_resolution_w320() {
+async fn test_video_resolution_w1280() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd";
+    let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("selecting-w320.mp4");
+    let out = tmpd.path().join("selecting-w1280.mp4");
     DashDownloader::new(mpd_url)
         .without_content_type_checks()
-        .prefer_video_width(320)
-        .download_to(out.clone()).await
+        .prefer_video_width(1280)
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 10_213_437);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 16_481_175);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    assert_eq!(320, video.width.unwrap());
+    assert_eq!(1280, video.width.unwrap());
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -112,30 +114,32 @@ async fn test_video_resolution_w320() {
 }
 
 
+// This manifest has video at three resolutions; we want to check that with .intermediate_quality()
+// we select the middle one.
 #[tokio::test]
 async fn test_video_resolution_qintermediate() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd";
+    let mpd_url = "https://dash.akamaized.net/dash264/TestCases/2b/qualcomm/1/MultiResMPEG2.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("selecting-qintermediate.mp4");
     DashDownloader::new(mpd_url)
         .without_content_type_checks()
         .intermediate_quality()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 35_726_813);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 112_423_976);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    assert_eq!(960, video.width.unwrap());
-    assert_eq!(540, video.height.unwrap());
+    assert_eq!(768, video.width.unwrap());
+    assert_eq!(432, video.height.unwrap());
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -144,28 +148,28 @@ async fn test_video_resolution_qintermediate() {
 
 
 #[tokio::test]
-async fn test_video_resolution_1080p() {
+async fn test_video_resolution_2160p() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd";
+    let mpd_url = "http://refapp.hbbtv.org/videos/01_llama_drama_2160p_25f75g6sv3/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("selecting-1080p.mp4");
+    let out = tmpd.path().join("selecting-2160p.mp4");
     DashDownloader::new(mpd_url)
         .without_content_type_checks()
-        .prefer_video_height(1080)
-        .download_to(out.clone()).await
+        .prefer_video_height(2160)
+        .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 130_912_028);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    check_file_size_approx(&out, 36_411_820);
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    assert_eq!(1080, video.height.unwrap());
+    assert_eq!(2160, video.height.unwrap());
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
