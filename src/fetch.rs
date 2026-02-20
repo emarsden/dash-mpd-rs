@@ -27,6 +27,7 @@ use backon::{ExponentialBuilder, Retryable};
 use governor::{Quota, RateLimiter};
 use lazy_static::lazy_static;
 use xot::{xmlname, Xot};
+use edit_distance::edit_distance;
 use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
 use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
 use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
@@ -1210,10 +1211,13 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
         if lang.eq(language_preference) {
             return 0;
         }
-        if lang[0..2].eq(&language_preference[0..2]) {
-            return 5;
+        // The Levenshtein similarity measure for strings
+        let distance = edit_distance(lang, language_preference);
+        if let Ok(ed) = distance.try_into() {
+            ed
+        } else {
+            u8::MAX
         }
-        100
     } else {
         100
     }
