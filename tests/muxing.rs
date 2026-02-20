@@ -37,9 +37,9 @@ async fn test_muxing_mkvmerge() {
         .with_mp4decrypt("/usr/bin/mp4decrypt")
         .with_shaka_packager("shaka-packager")
         .with_muxer_preference("mkv", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 6_652_846);
     let meta = ffprobe(out).unwrap();
@@ -72,12 +72,12 @@ async fn test_muxing_mkvmerge_audio() {
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mkv", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 720_986);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaAudio);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -104,10 +104,10 @@ async fn test_muxing_ffmpeg_avi() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("avi", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_652_846);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::AudioVideoInterleave);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -129,10 +129,10 @@ async fn test_muxing_ffmpeg_mkv() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mkv", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_629_479);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -168,11 +168,11 @@ async fn test_muxing_ffmpeg_webm() {
         .sandbox(true)
         .verbosity(2)
         .with_muxer_preference("webm", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     // Note that encoded to VP9/opus it's much smaller than the HEVC/AAC original...
     check_file_size_approx(&out, 3_511_874);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Webm);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -210,12 +210,12 @@ async fn test_muxing_ffmpeg_audio() {
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 2_661_567);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -241,10 +241,10 @@ async fn test_muxing_vlc_mp4() {
         .sandbox(true)
         .worst_quality()
         .with_muxer_preference("mp4", "vlc")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_652_846);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -277,10 +277,10 @@ async fn test_muxing_vlc_mkv() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mkv", "vlc")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_652_846);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -313,10 +313,10 @@ async fn test_muxing_vlc_webm() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("webm", "vlc")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 3_509_566);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     // Yes, VLC's webm muxer generates a Matroska container that isn't recognized as WebM...
     assert_eq!(format, FileFormat::MatroskaVideo);
     let meta = ffprobe(out).unwrap();
@@ -350,10 +350,10 @@ async fn test_muxing_mp4box() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mp4", "mp4box")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 6_652_846);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -387,9 +387,9 @@ async fn test_muxing_vp9_mkvmerge() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mkv", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 29_931_784);
     let meta = ffprobe(out).unwrap();
@@ -422,9 +422,9 @@ async fn test_muxing_3gp_mkvmerge() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mkv", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     check_file_size_approx(&out, 14_887_121);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -450,9 +450,9 @@ async fn test_muxing_3gp_vlc() {
         .worst_quality()
         .sandbox(true)
         .with_muxer_preference("mp4", "vlc")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 15_005_122);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -488,12 +488,12 @@ async fn test_muxing_mp4box_audio() {
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mp4", "mp4box")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 2_221_430);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Audio);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let audio = &meta.streams[0];
     assert_eq!(audio.codec_type, Some(String::from("audio")));
@@ -517,7 +517,7 @@ async fn test_muxing_unavailable() {
     let out = env::temp_dir().join("unexist.mp3");
     DashDownloader::new(mpd_url)
         .with_muxer_preference("mp3", "unavailable,nothere")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 
 }
