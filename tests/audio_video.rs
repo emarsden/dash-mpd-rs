@@ -27,9 +27,9 @@ async fn test_dl_video_only_slow() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .video_only()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
@@ -48,9 +48,9 @@ async fn test_dl_video_only() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .video_only()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
@@ -70,9 +70,9 @@ async fn test_dl_audio_only() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .audio_only()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
@@ -93,9 +93,9 @@ async fn test_dl_keep_audio_video() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .keep_audio_as(out_audio.clone())
-        .keep_video_as(out_video.clone())
-        .download_to(out.clone()).await
+        .keep_audio_as(&out_audio)
+        .keep_video_as(&out_video)
+        .download_to(&out).await
         .unwrap();
     let meta = ffprobe(out_audio).unwrap();
     assert_eq!(meta.streams.len(), 1);
@@ -127,7 +127,7 @@ async fn test_dl_keep_segments() {
         .worst_quality()
         .verbosity(2)
         .save_fragments_to(fragments_dir.path())
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     let audio_entries = fs::read_dir(audio_fragments_dir).unwrap();
     assert!(audio_entries.count() > 3);
@@ -148,12 +148,12 @@ async fn test_dl_cea608_captions_slow() {
         .worst_quality()
         .verbosity(2)
         .without_content_type_checks()
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     // Downloaded file size on this is variable.
     // check_file_size_approx(&out, 11_809_117);
     // The closed captions are embedded in the video stream.
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
 }
 
@@ -177,10 +177,10 @@ async fn test_dl_video_stream_selection_defunct() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 105_187_936);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -205,10 +205,10 @@ async fn test_dl_video_stream_selection() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 8_392_620);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
