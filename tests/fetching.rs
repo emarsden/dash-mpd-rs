@@ -11,6 +11,7 @@
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 //   https://github.com/gpac/gpac/wiki/DASH-Sequences
 //   https://dash.akamaized.net/
+//   https://github.com/MPEGGroup/DASHSchema/tree/6th-Ed/tests
 
 
 pub mod common;
@@ -987,6 +988,7 @@ async fn test_dl_arte() {
 
 
 // Content that is served with an invalid Content-type header.
+#[ignore] // this URL is unreachable in 202602
 #[tokio::test]
 async fn test_dl_content_type() {
     setup_logging();
