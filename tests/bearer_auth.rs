@@ -156,7 +156,7 @@ async fn test_bearer_auth() -> Result<()> {
     DashDownloader::new("http://localhost:6666/mpd")
         .with_auth_bearer("magic")
         .verbosity(2)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
     let txt = client.get("http://localhost:6666/status")
