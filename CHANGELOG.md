@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.20.0] - Unreleased
+## [0.20.0] - 2026-02-21
 
 - Incompatible change in download support: the signature of progress observers (as used in method
   `add_progress_reporter` on `DashDownloader` has been changed to include a third argument that
@@ -8,6 +8,10 @@
   reported in the textual message supplied to progress observers.
 
 - Downloading: further use of `tokio::fs` implementations of asynchronous filesystem operations.
+
+- Tests: replace some Bitmovin MPD test URLs that have moved behind Cloudflare and which are no
+  longer accessible for test purposes. Improve the testing of XSD schema compliance for serialized
+  MPD files.
 
 
 ## [0.19.3] - 2026-01-25
