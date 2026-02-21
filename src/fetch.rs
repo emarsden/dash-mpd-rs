@@ -1212,12 +1212,9 @@ fn adaptation_lang_distance(a: &AdaptationSet, language_preference: &str) -> u8 
             return 0;
         }
         // The Levenshtein similarity measure for strings
-        let distance = edit_distance(lang, language_preference);
-        if let Ok(ed) = distance.try_into() {
-            ed
-        } else {
-            u8::MAX
-        }
+        edit_distance(lang, language_preference)
+            .try_into()
+            .unwrap_or(u8::MAX)
     } else {
         100
     }
