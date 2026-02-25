@@ -76,7 +76,7 @@ async fn test_subtitles_wvtt () {
     let srt = fs::read_to_string(subpath_srt).unwrap();
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
-    let _ = fs::remove_file(&outpath);
+    let _ = fs::remove_file(outpath);
 }
 
 
@@ -102,7 +102,7 @@ async fn test_subtitles_ttml () {
     // English) is downloaded.
     assert!(ttml.contains("You're a jerk"));
     let _ = fs::remove_file(&outpath);
-    let _ = fs::remove_file(&subpath);
+    let _ = fs::remove_file(subpath);
 
     DashDownloader::new(mpd)
         .fetch_audio(false)
@@ -111,8 +111,8 @@ async fn test_subtitles_ttml () {
         .prefer_language(String::from("de"))
         .download_to(&outpath).await
         .unwrap();
-    assert!(fs::metadata(&subpath).is_ok());
-    let ttml = fs::read_to_string(&subpath).unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let ttml = fs::read_to_string(subpath).unwrap();
     // This time we requested German subtitles.
     assert!(ttml.contains("Du bist ein Vollidiot"));
     let _ = fs::remove_file(outpath);
