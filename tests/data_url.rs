@@ -184,9 +184,9 @@ async fn test_data_url() -> Result<()> {
     DashDownloader::new("http://localhost:6666/mpd")
         .intermediate_quality()
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("video")));
