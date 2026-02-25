@@ -235,6 +235,7 @@ pub async fn mux_multiaudio_video_ffmpeg(
 }
 
 // ffmpeg can mux to many container types including mp4, mkv, avi
+#[allow(dead_code)]
 #[tracing::instrument(level="trace", skip(downloader))]
 async fn mux_audio_video_ffmpeg(
     downloader: &DashDownloader,
@@ -1825,6 +1826,6 @@ mod tests {
         check_color_sequence(&output_ffmpeg_demuxer).await;
         fs::remove_file(&output_ffmpeg_demuxer).await.unwrap();
 
-        let _ = fs::remove_dir_all(tmpd).await.unwrap();
+        fs::remove_dir_all(tmpd).await.unwrap();
     }
 }
