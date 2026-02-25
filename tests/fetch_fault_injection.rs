@@ -34,11 +34,11 @@ impl ToxiProxy {
             .expect("failed spawning podman");
         if !pull.status.success() {
             let stdout = String::from_utf8_lossy(&pull.stdout);
-            if stdout.len() > 0 {
+            if !stdout.is_empty() {
                 println!("Podman stdout> {stdout}");
             }
             let stderr = String::from_utf8_lossy(&pull.stderr);
-            if stderr.len() > 0 {
+            if !stderr.is_empty() {
                 println!("Podman stderr> {stderr}");
             }
         }
@@ -155,17 +155,17 @@ async fn test_dl_resilience() -> Result<()> {
         .conformity_checks(false)
         .verbosity(3)
         .with_http_client(client)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 
     check_file_size_approx(&out, 71_342_249);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let audio = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::MatroskaVideo);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
