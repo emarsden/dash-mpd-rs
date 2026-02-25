@@ -1,4 +1,4 @@
-// Basic tests for the serialization support
+//! Basic tests for the serialization support
 //
 // To run tests while enabling printing to stdout/stderr
 //
@@ -142,7 +142,8 @@ fn test_serialize_xsd_uintvector() {
 // libxml2 limitation by putting together our own pseudo system catalog of schemas and validating
 // against an XSD that imports these using local schemaLocation URLs.
 //
-// Possible update: use xmlschema-validate -v <manifest> from python3-xmlschema package to validate.
+// Possible update: use xmlschema-validate -v <manifest> from python3-xmlschema package to validate,
+// or else try the uppsala crate (https://crates.io/crates/uppsala).
 #[test]
 fn test_fixtures_xsd_validity() {
     setup_logging();
@@ -167,7 +168,7 @@ fn test_fixtures_xsd_validity() {
     xsd_path.push("fixtures");
     xsd_path.push("DASH-IF-CPS");
     xsd_path.set_extension("xsd");
-    fs::copy(xsd_path, &dir.path().join("DASH-IF-CPS.xsd")).unwrap();
+    fs::copy(xsd_path, dir.path().join("DASH-IF-CPS.xsd")).unwrap();
 
     let multischema_path = dir.path().join("multischema.xsd");
     let mut multischema_out = File::create(multischema_path).expect("creating multischema.xsd");
@@ -273,7 +274,7 @@ fn test_urls_xsd_validity() {
     xsd_path.push("fixtures");
     xsd_path.push("DASH-IF-CPS");
     xsd_path.set_extension("xsd");
-    fs::copy(xsd_path, &dir.path().join("DASH-IF-CPS.xsd")).unwrap();
+    fs::copy(xsd_path, dir.path().join("DASH-IF-CPS.xsd")).unwrap();
 
     let multischema_path = dir.path().join("multischema.xsd");
     let mut multischema_out = File::create(multischema_path).expect("creating multischema.xsd");
@@ -337,7 +338,7 @@ fn test_urls_xsd_validity() {
         io::copy(&mut body.as_bytes(), &mut dash_out).unwrap();
         let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_owned() + "\n" +
             &parse(&body)
-            .expect(&format!("parsing input {test}"))
+            .unwrap_or_else(|_| panic!("parsing input {test}"))
             .to_string();
         let mpd_path = dir.path().join(format!("{counter}-serialized.mpd"));
         let mpd_formatted = dir.path().join(format!("{counter}-formatted.mpd"));
