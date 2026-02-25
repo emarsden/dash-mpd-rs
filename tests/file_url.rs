@@ -34,10 +34,10 @@ async fn test_file_mpd_baseurl() {
     DashDownloader::new(mpd_url.as_ref())
         .worst_quality()
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 3_918_028);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -84,10 +84,10 @@ async fn test_file_period_baseurl() {
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 1_933_145);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -134,10 +134,10 @@ async fn test_file_period_baseurl_thomson() {
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 2_777_692);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -193,10 +193,10 @@ async fn test_file_segmenttemplate() {
         .verbosity(3)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .with_xslt_stylesheet(stylesheet_path)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 120_695_762);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
