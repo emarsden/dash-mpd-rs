@@ -113,7 +113,7 @@ async fn test_xslt_rewrite_media() -> Result<()> {
         .best_quality()
         .with_http_client(client.clone())
         .with_xslt_stylesheet(xslt)
-        .download_to(v.clone()).await
+        .download_to(&v).await
         .unwrap();
     // Check the total number of requested media segments corresponds to what we expect.
     let txt = client.get("http://localhost:6668/status")
@@ -148,12 +148,12 @@ async fn test_xslt_drop_audio() {
         .worst_quality()
         .verbosity(2)
         .with_xslt_stylesheet(xslt)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 11_005_923);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -186,12 +186,12 @@ async fn test_xslt_rick() {
         // this test work.
         .use_index_range(false)
         .with_xslt_stylesheet(xslt)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 7_082_395);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -222,12 +222,12 @@ async fn test_xslt_multiple_stylesheets() {
         .worst_quality()
         .with_xslt_stylesheet(xslt_rick)
         .with_xslt_stylesheet(xslt_clean)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 12_975_377);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out.clone()).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -250,7 +250,7 @@ async fn test_xslt_stylesheet_error() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .with_xslt_stylesheet(xslt)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
 }
 
