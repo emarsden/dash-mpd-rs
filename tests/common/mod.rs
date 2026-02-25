@@ -94,7 +94,7 @@ pub fn ffmpeg_approval(name: &Path) -> bool {
         .output()
         .expect("spawning ffmpeg");
     let msg = String::from_utf8_lossy(&ffmpeg.stderr);
-    if msg.len() > 0 {
+    if !msg.is_empty() {
         println!("ffmpeg stderr: {msg}");
         false
     } else {
