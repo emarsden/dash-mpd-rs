@@ -339,11 +339,11 @@ async fn test_concat_heliocentrism_ffmpeg_mkv() {
         .output()
         .expect("spawning ffprobe");
     let stdout = String::from_utf8_lossy(&fp.stdout);
-    if stdout.len() > 0 {
+    if !stdout.is_empty() {
         println!("ffprobe stdout> {stdout}");
     }
     let stderr = String::from_utf8_lossy(&fp.stderr);
-    if stderr.len() > 0 {
+    if !stderr.is_empty() {
         println!("ffprobe stderr> {stderr}");
     }
     let format = FileFormat::from_file(&out).unwrap();
@@ -385,11 +385,11 @@ async fn test_concat_heliocentrism_ffmpegdemuxer_mkv() {
         .output()
         .expect("spawning ffprobe");
     let stdout = String::from_utf8_lossy(&fp.stdout);
-    if stdout.len() > 0 {
+    if !stdout.is_empty() {
         println!("ffprobe stdout> {stdout}");
     }
     let stderr = String::from_utf8_lossy(&fp.stderr);
-    if stderr.len() > 0 {
+    if !stderr.is_empty() {
         println!("ffprobe stderr> {stderr}");
     }
     let format = FileFormat::from_file(&out).unwrap();
@@ -590,11 +590,11 @@ async fn test_concat_axinom_multiperiod() {
         .output()
         .expect("spawning ffprobe");
     let stdout = String::from_utf8_lossy(&fp.stdout);
-    if stdout.len() > 0 {
+    if !stdout.is_empty() {
         println!("ffprobe stdout> {stdout}");
     }
     let stderr = String::from_utf8_lossy(&fp.stderr);
-    if stderr.len() > 0 {
+    if !stderr.is_empty() {
         println!("ffprobe stderr> {stderr}");
     }
     let mi = std::process::Command::new("mediainfo")
@@ -603,11 +603,11 @@ async fn test_concat_axinom_multiperiod() {
         .output()
         .expect("spawning mediainfo");
     let stdout = String::from_utf8_lossy(&mi.stdout);
-    if stdout.len() > 0 {
+    if !stdout.is_empty() {
         println!("mediainfo stdout> {stdout}");
     }
     let stderr = String::from_utf8_lossy(&mi.stderr);
-    if stderr.len() > 0 {
+    if !stderr.is_empty() {
         println!("mediainfo stderr> {stderr}");
     }
     let format = FileFormat::from_file(&out).unwrap();
