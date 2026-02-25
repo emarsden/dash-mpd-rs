@@ -275,7 +275,7 @@ async fn test_xlink_retrieval() -> Result<()> {
     let outpath = env::temp_dir().join("xlinked.mp4");
     DashDownloader::new(mpd_url)
         .verbosity(0)
-        .download_to(outpath.clone()).await
+        .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(outpath).is_ok());
 
@@ -345,7 +345,7 @@ async fn test_xlink_errors() -> Result<()> {
     // Now fetch the manifest and check that we fail due to the non-existent remote Period. 
     let outpath = env::temp_dir().join("nonexistent.mp4");
     assert!(DashDownloader::new("http://localhost:6669/mpd")
-            .download_to(outpath.clone()).await
+            .download_to(&outpath).await
             .is_err());
     server_handle.shutdown();
     Ok(())
