@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.1] - Unreleased
+
+- Serialization of XML duration elements: durations that include zero minutes and zero seconds will
+  now be printed without the trailing `0M0S`: for example a duration of 3600 seconds will be
+  serialized as `PT1H` instead of as `PT1H0M0S`. This should improve roundtripping of certain MPD
+  manifests.
+
+- Downloading: new methods `prefer_audio_language()` and `prefer_subtitle_language()` on
+  `DashDownloader`, which make it possible to specify a different language preference for audio
+  streams and for subtitle tracks. The existing method `prefer_language()` continues to specify a
+  preference that applies to both audio streams and subtitle tracks.
+
+
 ## [0.20.0] - 2026-02-21
 
 - Incompatible change in download support: the signature of progress observers (as used in method

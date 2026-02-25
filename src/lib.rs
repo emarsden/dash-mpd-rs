@@ -187,21 +187,28 @@ where
 }
 
 
-// Parse an XML duration string, as per https://www.w3.org/TR/xmlschema-2/#duration
-//
-// The lexical representation for duration is the ISO 8601 extended format PnYn MnDTnH nMnS, where
-// nY represents the number of years, nM the number of months, nD the number of days, 'T' is the
-// date/time separator, nH the number of hours, nM the number of minutes and nS the number of
-// seconds. The number of seconds can include decimal digits to arbitrary precision.
-//
-// Examples: "PT0H0M30.030S", "PT1.2S", PT1004199059S, PT130S
-// P2Y6M5DT12H35M30S  => 2 years, 6 months, 5 days, 12 hours, 35 minutes, 30 seconds
-// P1DT2H => 1 day, 2 hours
-// P0Y20M0D => 20 months (0 is permitted as a number, but is not required)
-// PT1M30.5S => 1 minute, 30.5 seconds
-//
-// Limitations: we can't represent negative durations (leading "-" character) due to the choice of a
-// std::time::Duration. We only accept fractional parts of seconds, and reject for example "P0.5Y" and "PT2.3H".
+/// Parse an XML duration string, as per https://www.w3.org/TR/xmlschema-2/#duration
+///
+/// The lexical representation for duration is the ISO 8601 extended format PnYn MnDTnH nMnS, where
+/// nY represents the number of years, nM the number of months, nD the number of days, 'T' is the
+/// date/time separator, nH the number of hours, nM the number of minutes and nS the number of
+/// seconds. The number of seconds can include decimal digits to arbitrary precision.
+///
+/// Examples: "PT0H0M30.030S", "PT1.2S", PT1004199059S, PT130S
+/// P2Y6M5DT12H35M30S  => 2 years, 6 months, 5 days, 12 hours, 35 minutes, 30 seconds
+/// P1DT2H => 1 day, 2 hours
+/// P0Y20M0D => 20 months (0 is permitted as a number, but is not required)
+/// PT1M30.5S => 1 minute, 30.5 seconds
+///
+/// Limitations:
+///   - this function can't represent negative durations (leading "-" character) due to the choice of a
+///     std::time::Duration.
+///
+///   - this function only accepts fractional parts of seconds, and rejects for example "P0.5Y" and "PT2.3H"
+///
+///   - months are approximated as 30 days and years as 365 days, as std::time::Duration cannot
+///   represent calendar-relative durations. This means that values involving months or years are
+///   not perfectly round-trippable.
 fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
     use std::cmp::min;
 
@@ -349,26 +356,25 @@ where
     S: Serializer,
 {
     if let Some(xs) = oxs {
-        let seconds = xs.as_secs();
+        let total_secs = xs.as_secs();
         let nanos = xs.subsec_nanos();
-        let minutes = seconds / 60;
-        let hours = if minutes > 59 { minutes / 60 } else { 0 };
-        let fractional_maybe = if nanos > 0 {
+        let hours = total_secs / 3600;
+        let mins = (total_secs % 3600) / 60;
+        let secs = total_secs % 60;
+        let frac = if nanos > 0 {
             format!(".{nanos:09}").trim_end_matches('0').to_string()
         } else {
-            "".to_string()
+            String::new()
         };
-        let formatted_duration = if hours > 0 {
-            let mins = minutes % 60;
-            let secs = seconds % 60;
-            format!("PT{hours}H{mins}M{secs}{fractional_maybe}S")
-        } else if minutes > 0 {
-            let secs = seconds % 60;
-            format!("PT{minutes}M{secs}{fractional_maybe}S")
-        } else {
-            format!("PT{seconds}{fractional_maybe}S")
+        let s = match (hours, mins, secs, nanos) {
+            (h, 0, 0, 0) if h > 0 => format!("PT{h}H"),
+            (h, m, 0, 0) if h > 0 => format!("PT{h}H{m}M"),
+            (0, m, 0, 0) if m > 0 => format!("PT{m}M"),
+            (h, m, s, _) if h > 0 => format!("PT{h}H{m}M{s}{frac}S"),
+            (0, m, s, _) if m > 0 => format!("PT{m}M{s}{frac}S"),
+            _ => format!("PT{secs}{frac}S"),
         };
-        serializer.serialize_str(&formatted_duration)
+        serializer.serialize_str(&s)
     } else {
         // in fact this won't be called because of the #[skip_serializing_none] annotation
         serializer.serialize_none()
@@ -2880,7 +2886,7 @@ mod tests {
         assert_eq!("PT10M10S", serialized_xs_duration(Duration::new(610, 0)));
         assert_eq!("PT1H0M0.04S", serialized_xs_duration(Duration::new(3600, 40_000_000)));
         assert_eq!("PT3H11M53S", serialized_xs_duration(Duration::new(11513, 0)));
-        assert_eq!("PT4H0M0S", serialized_xs_duration(Duration::new(14400, 0)));
+        assert_eq!("PT4H", serialized_xs_duration(Duration::new(14400, 0)));
     }
 
     #[test]
