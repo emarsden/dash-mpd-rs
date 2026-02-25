@@ -161,7 +161,8 @@ pub struct DashDownloader {
     pub output_path: Option<PathBuf>,
     http_client: Option<HttpClient>,
     quality_preference: QualityPreference,
-    language_preference: Option<String>,
+    language_preference_audio: Option<String>,
+    language_preference_subtitles: Option<String>,
     role_preference: Vec<String>,
     video_width_preference: Option<u64>,
     video_height_preference: Option<u64>,
@@ -243,7 +244,8 @@ impl DashDownloader {
             output_path: None,
             http_client: None,
             quality_preference: QualityPreference::Lowest,
-            language_preference: None,
+            language_preference_audio: None,
+            language_preference_subtitles: None,
             role_preference: vec!["main".to_string(), "alternate".to_string()],
             video_width_preference: None,
             video_height_preference: None,
@@ -391,17 +393,39 @@ impl DashDownloader {
         self
     }
 
-    /// Specify the preferred language when multiple audio streams with different languages are
-    /// available. Must be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference is not
-    /// specified and multiple audio streams are present, the first one listed in the DASH manifest
-    /// will be downloaded.
+    /// Specify the preferred language for audio streams and subtitle streams, when multiple audio
+    /// streams or subtitle tracks with different languages are available. Must be in RFC 5646
+    /// format (e.g. "fr" or "en-AU"). If a preference is not specified and multiple streams are
+    /// present, the first one listed in the DASH manifest will be downloaded.
     //
     // TODO: this could be modified to allow a comma-separated list, or the special value "all"
     #[must_use]
     pub fn prefer_language(mut self, lang: String) -> DashDownloader {
-        self.language_preference = Some(lang);
+        self.language_preference_audio = Some(lang.clone());
+        self.language_preference_subtitles = Some(lang);
         self
     }
+
+    /// Specify the preferred language for audio, when multiple audio streams with different
+    /// languages are available. Must be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference
+    /// is not specified and multiple audio streams are present, the first one listed in the DASH
+    /// manifest will be downloaded.
+    #[must_use]
+    pub fn prefer_audio_language(mut self, lang: String) -> DashDownloader {
+        self.language_preference_audio = Some(lang);
+        self
+    }
+
+    /// Specify the preferred language for subtitles, when multiple subtitle tracks with different
+    /// languages are available. Must be in RFC 5646 format (e.g. "fr" or "en-AU"). If a preference
+    /// is not specified and multiple subtitle tracks are available, the first one listed in the
+    /// DASH manifest will be downloaded.
+    #[must_use]
+    pub fn prefer_subtitle_language(mut self, lang: String) -> DashDownloader {
+        self.language_preference_subtitles = Some(lang);
+        self
+    }
+
 
     /// Specify the preference ordering for Role annotations on AdaptationSet elements. Some DASH
     /// streams include multiple AdaptationSets, one annotated "main" and another "alternate", for
@@ -1262,7 +1286,7 @@ fn select_preferred_adaptations<'a>(
 {
     let mut preferred: Vec<&'a AdaptationSet>;
     // TODO: modify this algorithm to allow for multiple preferred languages
-    if let Some(ref lang) = downloader.language_preference {
+    if let Some(ref lang) = downloader.language_preference_audio {
         preferred = Vec::new();
         let distance: Vec<u8> = adaptations.iter()
             .map(|a| adaptation_lang_distance(a, lang))
@@ -3051,7 +3075,7 @@ async fn do_period_subtitles(
     if let Some(d) = period.duration {
         period_duration_secs = d.as_secs_f64();
     }
-    let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference {
+    let maybe_subtitle_adaptation = if let Some(ref lang) = downloader.language_preference_subtitles {
         period.adaptations.iter().filter(is_subtitle_adaptation)
             .min_by_key(|a| adaptation_lang_distance(a, lang))
     } else {

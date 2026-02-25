@@ -49,6 +49,40 @@ async fn test_lang_prefer_spa() {
 }
 
 
+// This test uses prefer_audio_language() instead of prefer_language()
+#[tokio::test]
+async fn test_lang_prefer_chi() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://refapp.hbbtv.org/videos/02_gran_dillama_1080p_ma_25f75g6sv5/manifest.mpd";
+    let out = env::temp_dir().join("dillama-chi.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(&out);
+    }
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .sandbox(true)
+        .max_error_count(5)
+        .record_metainformation(true)
+        .prefer_audio_language(String::from("chi"))
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 11_809_117);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let stream = &meta.streams[1];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("aac")));
+    let tags = stream.tags.as_ref().unwrap();
+    assert_eq!(tags.language, Some(String::from("chi")));
+    let _ = fs::remove_file(out);
+}
+
+
 #[tokio::test]
 async fn test_subtitle_lang_stpp_im1t() {
     setup_logging();
@@ -80,6 +114,48 @@ async fn test_subtitle_lang_stpp_im1t() {
     assert_eq!(stpp.codec_tag_string, "stpp");
     let subtags = stpp.tags.as_ref().unwrap();
     assert_eq!(subtags.language, Some(String::from("fra")));
+    check_media_duration(&outpath, 3600.0);
+    let _ = fs::remove_file(outpath);
+}
+
+
+// Test behaviour when prefer_subtitle_language() is different from prefer_audio_language()
+#[tokio::test]
+async fn test_subtitle_lang_different() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-mobile.mpd";
+    let outpath = env::temp_dir().join("subs-prefer-lang.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .prefer_audio_language(String::from("fra"))
+        .prefer_subtitle_language(String::from("deu"))
+        .verbosity(1)
+        .sandbox(true)
+        .download_to(&outpath).await
+        .unwrap();
+    let meta = ffprobe(&outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_type, Some(String::from("audio")));
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let tags = audio.tags.as_ref().unwrap();
+    assert_eq!(tags.language, Some(String::from("fra")));
+    let subs = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("subtitle"))))
+        .expect("finding embedded subtitle track");
+    assert_eq!(subs.codec_tag_string, "stpp");
+    let subtags = subs.tags.as_ref().unwrap();
+    assert_eq!(subtags.language, Some(String::from("deu")));
     check_media_duration(&outpath, 3600.0);
     let _ = fs::remove_file(outpath);
 }
