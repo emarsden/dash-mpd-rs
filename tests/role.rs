@@ -33,10 +33,10 @@ async fn test_role_main() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .prefer_roles(vec!["main".to_string()])
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 189_121_991);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
     assert_eq!(meta.streams.len(), 2);
@@ -61,7 +61,7 @@ async fn test_role_alternate() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .prefer_roles(vec!["alternate".to_string(), "imaginary".to_string()])
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 196_041_016);
     let meta = ffprobe(&out).unwrap();
@@ -70,7 +70,7 @@ async fn test_role_alternate() {
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert_eq!(video.pix_fmt, Some(String::from("yuv420p")));
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
