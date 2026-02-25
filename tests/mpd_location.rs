@@ -136,7 +136,7 @@ async fn test_mpd_location() -> Result<()> {
         .best_quality()
         .verbosity(3)
         .with_http_client(client.clone())
-        .download_to(r.clone()).await
+        .download_to(&r).await
         .unwrap();
 
     // Check the total number of requested media segments corresponds to what we expect. We expect
