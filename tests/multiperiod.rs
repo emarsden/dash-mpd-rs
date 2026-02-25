@@ -34,11 +34,11 @@ async fn test_multiperiod_helio() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     // We see different file sizes for content from this manifest, for unknown reasons.
     // check_file_size_approx(&out, 36_000);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Webm);
     // The three periods should have been merged into a single output file, and the other temporary
     // media files should be been explicitly deleted.
@@ -65,7 +65,7 @@ async fn test_multiperiod_nomor5a_ffmpeg() {
         .concatenate_periods(true)
         // The mkvmerge concat helper fails on this manifest
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 95_623_359);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -92,7 +92,7 @@ async fn test_multiperiod_nomor5b_ffmpeg() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 28_755_275);
     check_file_size_approx(&p2, 4_383_256);
@@ -120,7 +120,7 @@ async fn test_multiperiod_nomor5b_mkvmerge() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "mkvmerge")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 28_755_275);
     check_file_size_approx(&p2, 4_383_256);
@@ -147,7 +147,7 @@ async fn test_multiperiod_withsubs_ffmpeg() {
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 94_818_672);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -172,7 +172,7 @@ async fn test_multiperiod_withsubs_ffmpegdemuxer() {
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
         .verbosity(2)
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 94_818_672);
     let entries = fs::read_dir(tmpd.path()).unwrap();
@@ -196,10 +196,10 @@ async fn test_multiperiod_audio_ffmpeg() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp3", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 23_868_589);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -221,10 +221,10 @@ async fn test_multiperiod_audio_ffmpegdemuxer() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp3", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 23_868_589);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg12AudioLayer3);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -249,10 +249,10 @@ async fn test_multiperiod_diffbase() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
     check_file_size_approx(&out, 245_287_205);
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
@@ -280,9 +280,9 @@ async fn test_multiperiod_witha_withouta_ffmpegfilter() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_973_570);
     let meta = ffprobe(&out).unwrap();
@@ -318,9 +318,9 @@ async fn test_multiperiod_witha_withouta_ffmpegdemuxer() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpegdemuxer")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 5_973_570);
     let meta = ffprobe(&out).unwrap();
@@ -355,9 +355,9 @@ async fn test_multiperiod_witha_withouta_witha() {
         .worst_quality()
         .sandbox(true)
         .with_concat_preference("mp4", "ffmpeg")
-        .download_to(out.clone()).await
+        .download_to(&out).await
         .unwrap();
-    let format = FileFormat::from_file(out.clone()).unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 14_435_150);
     let meta = ffprobe(&out).unwrap();
