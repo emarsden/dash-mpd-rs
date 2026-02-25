@@ -168,7 +168,7 @@ async fn test_preference_ranking() -> Result<()> {
     DashDownloader::new(mpd_url)
         .best_quality()
         .with_http_client(client.clone())
-        .download_to(wb.clone()).await
+        .download_to(&wb).await
         .unwrap();
     assert_eq!(ffprobe_metadata_title(&wb).unwrap(), QUALITY_BEST);
 
@@ -176,7 +176,7 @@ async fn test_preference_ranking() -> Result<()> {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .with_http_client(client.clone())
-        .download_to(ww.clone()).await
+        .download_to(&ww).await
         .unwrap();
     assert_eq!(ffprobe_metadata_title(&ww).unwrap(), QUALITY_WORST);
 
@@ -184,7 +184,7 @@ async fn test_preference_ranking() -> Result<()> {
     DashDownloader::new(mpd_url)
         .intermediate_quality()
         .with_http_client(client.clone())
-        .download_to(wi.clone()).await
+        .download_to(&wi).await
         .unwrap();
     assert_eq!(ffprobe_metadata_title(&wi).unwrap(), QUALITY_INTERMEDIATE);
 
@@ -192,7 +192,7 @@ async fn test_preference_ranking() -> Result<()> {
     DashDownloader::new(mpd_url)
         .prefer_video_width(1920)
         .with_http_client(client.clone())
-        .download_to(w.clone()).await
+        .download_to(&w).await
         .unwrap();
     assert_eq!(ffprobe_metadata_title(&w).unwrap(), QUALITY_BEST);
 
@@ -200,7 +200,7 @@ async fn test_preference_ranking() -> Result<()> {
     DashDownloader::new(mpd_url)
         .prefer_video_height(120)
         .with_http_client(client.clone())
-        .download_to(w.clone()).await
+        .download_to(&w).await
         .unwrap();
     assert_eq!(ffprobe_metadata_title(&w).unwrap(), QUALITY_WORST);
 
