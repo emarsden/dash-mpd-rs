@@ -185,6 +185,7 @@ pub struct DashDownloader {
     sleep_between_requests: u8,
     allow_live_streams: bool,
     force_duration: Option<f64>,
+    start_offset: Option<f64>,
     rate_limit: u64,
     bw_limiter: Option<DirectRateLimiter>,
     bw_estimator_started: Instant,
@@ -266,6 +267,7 @@ impl DashDownloader {
             sleep_between_requests: 0,
             allow_live_streams: false,
             force_duration: None,
+            start_offset: None,
             rate_limit: 0,
             bw_limiter: None,
             bw_estimator_started: Instant::now(),
@@ -667,6 +669,23 @@ impl DashDownloader {
         self
     }
 
+    /// Specify the offset in seconds from which to start capturing the media stream.
+    ///
+    /// The selected segment will be the latest segment whose start time is less than or equal to
+    /// this offset.
+    #[must_use]
+    pub fn start_offset(mut self, seconds: f64) -> DashDownloader {
+        if seconds < 0.0 {
+            warn!("Ignoring negative value for start_offset()");
+        } else {
+            self.start_offset = Some(seconds);
+            if self.verbosity > 1 {
+                info!("Setting start offset to {seconds:.1} seconds");
+            }
+        }
+        self
+    }
+
     /// A maximal limit on the network bandwidth consumed to download media segments, expressed in
     /// octets (bytes) per second. No limit on bandwidth if set to zero (the default value).
     ///
@@ -960,6 +979,16 @@ fn mpd_is_dynamic(mpd: &MPD) -> bool {
         return mpdtype.eq("dynamic");
     }
     false
+}
+
+fn period_duration_secs(mpd: &MPD, period: &Period) -> f64 {
+    if let Some(d) = period.duration {
+        return d.as_secs_f64();
+    }
+    if let Some(d) = mpd.mediaPresentationDuration {
+        return d.as_secs_f64();
+    }
+    -1.0
 }
 
 // Parse a range specifier, such as Initialization@range or SegmentBase@indexRange attributes, of
@@ -2131,7 +2160,9 @@ async fn do_period_audio(
     mpd: &MPD,
     period: &Period,
     period_counter: u8,
-    base_url: Url
+    base_url: Url,
+    local_start_offset: Option<f64>,
+    local_force_duration: Option<f64>
 ) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
@@ -2143,14 +2174,11 @@ async fn do_period_audio(
     let mut start_number = 1;
     // The period_duration is specified either by the <Period> duration attribute, or by the
     // mediaPresentationDuration of the top-level MPD node.
-    let mut period_duration_secs: f64 = -1.0;
-    if let Some(d) = mpd.mediaPresentationDuration {
-        period_duration_secs = d.as_secs_f64();
-    }
-    if let Some(d) = period.duration {
-        period_duration_secs = d.as_secs_f64();
-    }
-    if let Some(s) = downloader.force_duration {
+    let mut period_duration_secs: f64 = period_duration_secs(mpd, period);
+    if let Some(s) = local_force_duration {
+        // local_force_duration applies after local_start_offset.
+        period_duration_secs = local_start_offset.unwrap_or(0.0) + s;
+    } else if let Some(s) = downloader.force_duration {
         period_duration_secs = s;
     }
     // SegmentTemplate as a direct child of a Period element. This can specify some common attribute
@@ -2271,6 +2299,10 @@ async fn do_period_audio(
         // around the brokenness.
         // Example: http://ftp.itec.aau.at/datasets/mmsys12/ElephantsDream/MPDs/ElephantsDreamNonSeg_6s_isoffmain_DIS_23009_1_v_2_1c2_2011_08_30.mpd
         if let Some(sl) = &audio_adaptation.SegmentList {
+            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                return Err(DashMpdError::UnhandledMediaStream(
+                    "start_offset is currently supported only with SegmentTemplate addressing mode for audio".to_string()));
+            }
             // (1) AdaptationSet>SegmentList addressing mode (can be used in conjunction
             // with Representation>SegmentList addressing mode)
             if downloader.verbosity > 1 {
@@ -2325,6 +2357,10 @@ async fn do_period_audio(
             }
         }
         if let Some(sl) = &audio_repr.SegmentList {
+            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                return Err(DashMpdError::UnhandledMediaStream(
+                    "start_offset is currently supported only with SegmentTemplate addressing mode for audio".to_string()));
+            }
             // (1) Representation>SegmentList addressing mode
             if downloader.verbosity > 1 {
                 info!("  Using Representation>SegmentList addressing mode for audio representation");
@@ -2417,38 +2453,26 @@ async fn do_period_audio(
                         .build();
                     fragments.push(mf);
                 }
-                let mut elapsed_seconds = 0.0;
                 if let Some(media) = opt_media {
                     let audio_path = resolve_url_template(&media, &dict);
-                    let mut segment_time = 0;
-                    let mut segment_duration;
+                    let mut segment_time: u64 = 0;
                     let mut number = start_number;
-                    let mut target_duration = period_duration_secs;
-                    if let Some(target) = downloader.force_duration {
-                        if target > period_duration_secs {
-                            warn!("  Requested forced duration exceeds available content");
-                        } else {
-                            target_duration = target;
-                        }
+                    let mut entries: Vec<(u64, u64, f64)> = Vec::new();
+                    if period_duration_secs <= 0.0 && stl.segments.iter().any(|s| s.r.unwrap_or(0) < 0) {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            "SegmentTimeline with open-ended repeats needs a known period duration for start_offset handling".to_string()));
                     }
                     'segment_loop: for s in &stl.segments {
                         if let Some(t) = s.t {
                             segment_time = t;
                         }
-                        segment_duration = s.d;
-                        // the URLTemplate may be based on $Time$, or on $Number$
-                        let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                  ("Number", number.to_string())]);
-                        let path = resolve_url_template(&audio_path, &dict);
-                        let u = merge_baseurls(&base_url, &path)?;
-                        fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
-                        number += 1;
-                        elapsed_seconds += segment_duration as f64 / timescale as f64;
-                        if downloader.force_duration.is_some() &&
-                            target_duration > 0.0 &&
-                            elapsed_seconds > target_duration {
+                        let segment_duration = s.d;
+                        let seg_start_secs = segment_time as f64 / timescale as f64;
+                        if period_duration_secs > 0.0 && seg_start_secs >= period_duration_secs {
                             break 'segment_loop;
                         }
+                        entries.push((segment_time, number, segment_duration as f64 / timescale as f64));
+                        number += 1;
                         if let Some(r) = s.r {
                             let mut count = 0i64;
                             loop {
@@ -2460,22 +2484,49 @@ async fn do_period_audio(
                                 if r >= 0 && count > r {
                                     break;
                                 }
-                                if downloader.force_duration.is_some() &&
-                                    target_duration > 0.0 &&
-                                    elapsed_seconds > target_duration {
+                                segment_time += segment_duration;
+                                let seg_start_secs = segment_time as f64 / timescale as f64;
+                                if period_duration_secs > 0.0 && seg_start_secs >= period_duration_secs {
                                     break 'segment_loop;
                                 }
-                                segment_time += segment_duration;
-                                elapsed_seconds += segment_duration as f64 / timescale as f64;
-                                let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                          ("Number", number.to_string())]);
-                                let path = resolve_url_template(&audio_path, &dict);
-                                let u = merge_baseurls(&base_url, &path)?;
-                                fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                                entries.push((segment_time, number, segment_duration as f64 / timescale as f64));
                                 number += 1;
                             }
                         }
                         segment_time += segment_duration;
+                    }
+                    if !entries.is_empty() {
+                        let mut start_index = 0usize;
+                        if let Some(offset) = local_start_offset {
+                            for (idx, (seg_time, _, _)) in entries.iter().enumerate() {
+                                let seg_start_secs = *seg_time as f64 / timescale as f64;
+                                if seg_start_secs <= offset {
+                                    start_index = idx;
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                        let selected_start_secs = entries[start_index].0 as f64 / timescale as f64;
+                        let mut elapsed_seconds = 0.0;
+                        let target_duration = if let Some(target) = local_force_duration {
+                            target + (local_start_offset.unwrap_or(0.0) - selected_start_secs).max(0.0)
+                        } else if local_start_offset.is_none() {
+                            downloader.force_duration.unwrap_or(-1.0)
+                        } else {
+                            -1.0
+                        };
+                        for (seg_time, seg_number, seg_duration_secs) in entries.iter().skip(start_index) {
+                            let dict = HashMap::from([("Time", seg_time.to_string()),
+                                                      ("Number", seg_number.to_string())]);
+                            let path = resolve_url_template(&audio_path, &dict);
+                            let u = merge_baseurls(&base_url, &path)?;
+                            fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                            elapsed_seconds += *seg_duration_secs;
+                            if target_duration > 0.0 && elapsed_seconds > target_duration {
+                                break;
+                            }
+                        }
                     }
                 } else {
                     return Err(DashMpdError::UnhandledMediaStream(
@@ -2516,11 +2567,15 @@ async fn do_period_audio(
                         return Err(DashMpdError::UnhandledMediaStream(
                             "Audio representation is missing SegmentTemplate@duration attribute".to_string()));
                     }
-                    total_number += (period_duration_secs / segment_duration).round() as i64;
                     let mut number = start_number;
+                    let mut segment_start_secs = 0.0;
                     // For dynamic MPDs the latest available segment is numbered
                     //    LSN = floor((now - (availabilityStartTime+PST))/segmentDuration + startNumber - 1)
                     if mpd_is_dynamic(mpd) {
+                        if local_start_offset.unwrap_or(0.0) > 0.0 {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "start_offset is currently unsupported for dynamic SegmentTemplate@duration manifests".to_string()));
+                        }
                         if let Some(start_time) = mpd.availabilityStartTime {
                             let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
                             number = (elapsed + number as f64 - 1f64).floor() as u64;
@@ -2529,16 +2584,50 @@ async fn do_period_audio(
                                 "dynamic manifest is missing @availabilityStartTime".to_string()));
                         }
                     }
-                    for _ in 1..=total_number {
+                    if let Some(offset) = local_start_offset {
+                        let shift = (offset / segment_duration).floor() as u64;
+                        number += shift;
+                        segment_start_secs = shift as f64 * segment_duration;
+                    } else {
+                        total_number += (period_duration_secs / segment_duration).round() as i64;
+                    }
+                    let target_duration = if let Some(target) = local_force_duration {
+                        target + (local_start_offset.unwrap_or(0.0) - segment_start_secs).max(0.0)
+                    } else if local_start_offset.is_none() && downloader.force_duration.is_some() {
+                        downloader.force_duration.unwrap_or(-1.0)
+                    } else if local_start_offset.is_some() {
+                        if period_duration_secs <= 0.0 {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "start_offset needs a known period duration for SegmentTemplate@duration streams".to_string()));
+                        }
+                        period_duration_secs - segment_start_secs
+                    } else {
+                        -1.0
+                    };
+                    let mut elapsed_seconds = 0.0;
+                    let loop_count = if local_start_offset.is_some() {
+                        ((target_duration / segment_duration).ceil() as i64).max(1)
+                    } else {
+                        total_number
+                    };
+                    for _ in 1..=loop_count {
                         let dict = HashMap::from([("Number", number.to_string())]);
                         let path = resolve_url_template(&audio_path, &dict);
                         let u = merge_baseurls(&base_url, &path)?;
                         fragments.push(MediaFragmentBuilder::new(period_counter, u).build());
+                        elapsed_seconds += segment_duration;
+                        if target_duration > 0.0 && elapsed_seconds > target_duration {
+                            break;
+                        }
                         number += 1;
                     }
                 }
             }
         } else if let Some(sb) = &audio_repr.SegmentBase {
+            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                return Err(DashMpdError::UnhandledMediaStream(
+                    "start_offset is currently unsupported for SegmentBase addressing mode for audio".to_string()));
+            }
             // (5) SegmentBase@indexRange addressing mode
             if downloader.verbosity > 1 {
                 info!("  Using SegmentBase@indexRange addressing mode for audio representation");
@@ -2547,6 +2636,10 @@ async fn do_period_audio(
             fragments.extend(mf);
         } else if fragments.is_empty() {
             if let Some(bu) = audio_repr.BaseURL.first() {
+                if local_start_offset.unwrap_or(0.0) > 0.0 {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "start_offset is currently unsupported for BaseURL addressing mode for audio".to_string()));
+                }
                 // (6) plain BaseURL addressing mode
                 if downloader.verbosity > 1 {
                     info!("  Using BaseURL addressing mode for audio representation");
@@ -2573,24 +2666,23 @@ async fn do_period_video(
     mpd: &MPD,
     period: &Period,
     period_counter: u8,
-    base_url: Url
+    base_url: Url,
+    local_start_offset: Option<f64>,
+    local_force_duration: Option<f64>
     ) -> Result<PeriodOutputs, DashMpdError>
 {
     let mut fragments = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut period_duration_secs: f64 = 0.0;
+    let mut period_duration_secs: f64 = period_duration_secs(mpd, period);
     let mut opt_init: Option<String> = None;
     let mut opt_media: Option<String> = None;
     let mut opt_duration: Option<f64> = None;
     let mut timescale = 1;
     let mut start_number = 1;
-    if let Some(d) = mpd.mediaPresentationDuration {
-        period_duration_secs = d.as_secs_f64();
-    }
-    if let Some(d) = period.duration {
-        period_duration_secs = d.as_secs_f64();
-    }
-    if let Some(s) = downloader.force_duration {
+    if let Some(s) = local_force_duration {
+        // local_force_duration applies after local_start_offset.
+        period_duration_secs = local_start_offset.unwrap_or(0.0) + s;
+    } else if let Some(s) = downloader.force_duration {
         period_duration_secs = s;
     }
     // SegmentTemplate as a direct child of a Period element. This can specify some common attribute
@@ -2720,6 +2812,10 @@ async fn do_period_video(
         // (2) SegmentTemplate+SegmentTimeline, (3) SegmentTemplate@duration,
         // (4) SegmentTemplate@index, (5) SegmentBase@indexRange, (6) plain BaseURL
         if let Some(sl) = &video_adaptation.SegmentList {
+            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                return Err(DashMpdError::UnhandledMediaStream(
+                    "start_offset is currently supported only with SegmentTemplate addressing mode for video".to_string()));
+            }
             // (1) AdaptationSet>SegmentList addressing mode
             if downloader.verbosity > 1 {
                 info!("  Using AdaptationSet>SegmentList addressing mode for video representation");
@@ -2773,6 +2869,10 @@ async fn do_period_video(
             }
         }
         if let Some(sl) = &video_repr.SegmentList {
+            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                return Err(DashMpdError::UnhandledMediaStream(
+                    "start_offset is currently supported only with SegmentTemplate addressing mode for video".to_string()));
+            }
             // (1) Representation>SegmentList addressing mode
             if downloader.verbosity > 1 {
                 info!("  Using Representation>SegmentList addressing mode for video representation");
@@ -2863,40 +2963,26 @@ async fn do_period_video(
                             .build();
                         fragments.push(mf);
                     }
-                    let mut elapsed_seconds = 0.0;
                     if let Some(media) = opt_media {
                         let video_path = resolve_url_template(&media, &dict);
-                        let mut segment_time = 0;
-                        let mut segment_duration;
+                        let mut segment_time: u64 = 0;
                         let mut number = start_number;
-                        let mut target_duration = period_duration_secs;
-                        if let Some(target) = downloader.force_duration {
-                            if target > period_duration_secs {
-                                warn!("  Requested forced duration exceeds available content");
-                            } else {
-                                target_duration = target;
-                            }
+                        let mut entries: Vec<(u64, u64, f64)> = Vec::new();
+                        if period_duration_secs <= 0.0 && stl.segments.iter().any(|s| s.r.unwrap_or(0) < 0) {
+                            return Err(DashMpdError::UnhandledMediaStream(
+                                "SegmentTimeline with open-ended repeats needs a known period duration for start_offset handling".to_string()));
                         }
                         'segment_loop: for s in &stl.segments {
                             if let Some(t) = s.t {
                                 segment_time = t;
                             }
-                            segment_duration = s.d;
-                            // the URLTemplate may be based on $Time$, or on $Number$
-                            let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                      ("Number", number.to_string())]);
-                            let path = resolve_url_template(&video_path, &dict);
-                            let u = merge_baseurls(&base_url, &path)?;
-                            let mf = MediaFragmentBuilder::new(period_counter, u).build();
-                            fragments.push(mf);
-                            number += 1;
-                            elapsed_seconds += segment_duration as f64 / timescale as f64;
-                            if downloader.force_duration.is_some() &&
-                                target_duration > 0.0 &&
-                                elapsed_seconds > target_duration
-                            {
+                            let segment_duration = s.d;
+                            let seg_start_secs = segment_time as f64 / timescale as f64;
+                            if period_duration_secs > 0.0 && seg_start_secs >= period_duration_secs {
                                 break 'segment_loop;
                             }
+                            entries.push((segment_time, number, segment_duration as f64 / timescale as f64));
+                            number += 1;
                             if let Some(r) = s.r {
                                 let mut count = 0i64;
                                 loop {
@@ -2909,24 +2995,50 @@ async fn do_period_video(
                                     if r >= 0 && count > r {
                                         break;
                                     }
-                                    if downloader.force_duration.is_some() &&
-                                        target_duration > 0.0 &&
-                                        elapsed_seconds > target_duration
-                                    {
+                                    segment_time += segment_duration;
+                                    let seg_start_secs = segment_time as f64 / timescale as f64;
+                                    if period_duration_secs > 0.0 && seg_start_secs >= period_duration_secs {
                                         break 'segment_loop;
                                     }
-                                    segment_time += segment_duration;
-                                    elapsed_seconds += segment_duration as f64 / timescale as f64;
-                                    let dict = HashMap::from([("Time", segment_time.to_string()),
-                                                              ("Number", number.to_string())]);
-                                    let path = resolve_url_template(&video_path, &dict);
-                                    let u = merge_baseurls(&base_url, &path)?;
-                                    let mf = MediaFragmentBuilder::new(period_counter, u).build();
-                                    fragments.push(mf);
+                                    entries.push((segment_time, number, segment_duration as f64 / timescale as f64));
                                     number += 1;
                                 }
                             }
                             segment_time += segment_duration;
+                        }
+                        if !entries.is_empty() {
+                            let mut start_index = 0usize;
+                            if let Some(offset) = local_start_offset {
+                                for (idx, (seg_time, _, _)) in entries.iter().enumerate() {
+                                    let seg_start_secs = *seg_time as f64 / timescale as f64;
+                                    if seg_start_secs <= offset {
+                                        start_index = idx;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                            let selected_start_secs = entries[start_index].0 as f64 / timescale as f64;
+                            let mut elapsed_seconds = 0.0;
+                            let target_duration = if let Some(target) = local_force_duration {
+                                target + (local_start_offset.unwrap_or(0.0) - selected_start_secs).max(0.0)
+                            } else if local_start_offset.is_none() {
+                                downloader.force_duration.unwrap_or(-1.0)
+                            } else {
+                                -1.0
+                            };
+                            for (seg_time, seg_number, seg_duration_secs) in entries.iter().skip(start_index) {
+                                let dict = HashMap::from([("Time", seg_time.to_string()),
+                                                          ("Number", seg_number.to_string())]);
+                                let path = resolve_url_template(&video_path, &dict);
+                                let u = merge_baseurls(&base_url, &path)?;
+                                let mf = MediaFragmentBuilder::new(period_counter, u).build();
+                                fragments.push(mf);
+                                elapsed_seconds += *seg_duration_secs;
+                                if target_duration > 0.0 && elapsed_seconds > target_duration {
+                                    break;
+                                }
+                            }
                         }
                     } else {
                         return Err(DashMpdError::UnhandledMediaStream(
@@ -2965,8 +3077,8 @@ async fn do_period_video(
                             return Err(DashMpdError::UnhandledMediaStream(
                                 "Video representation is missing SegmentTemplate@duration attribute".to_string()));
                         }
-                        total_number += (period_duration_secs / segment_duration).round() as i64;
                         let mut number = start_number;
+                        let mut segment_start_secs = 0.0;
                         // For a live manifest (dynamic MPD), we look at the time elapsed since now
                         // and the mpd.availabilityStartTime to determine the correct value for
                         // startNumber, based on duration and timescale. The latest available
@@ -2977,6 +3089,10 @@ async fn do_period_video(
                         // https://dashif.org/Guidelines-TimingModel/Timing-Model.pdf
                         // To be more precise, any LeapSecondInformation should be added to the availabilityStartTime.
                         if mpd_is_dynamic(mpd) {
+                            if local_start_offset.unwrap_or(0.0) > 0.0 {
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "start_offset is currently unsupported for dynamic SegmentTemplate@duration manifests".to_string()));
+                            }
                             if let Some(start_time) = mpd.availabilityStartTime {
                                 let elapsed = Utc::now().signed_duration_since(start_time).as_seconds_f64() / segment_duration;
                                 number = (elapsed + number as f64 - 1f64).floor() as u64;
@@ -2985,17 +3101,51 @@ async fn do_period_video(
                                     "dynamic manifest is missing @availabilityStartTime".to_string()));
                             }
                         }
-                        for _ in 1..=total_number {
+                        if let Some(offset) = local_start_offset {
+                            let shift = (offset / segment_duration).floor() as u64;
+                            number += shift;
+                            segment_start_secs = shift as f64 * segment_duration;
+                        } else {
+                            total_number += (period_duration_secs / segment_duration).round() as i64;
+                        }
+                        let target_duration = if let Some(target) = local_force_duration {
+                            target + (local_start_offset.unwrap_or(0.0) - segment_start_secs).max(0.0)
+                        } else if local_start_offset.is_none() && downloader.force_duration.is_some() {
+                            downloader.force_duration.unwrap_or(-1.0)
+                        } else if local_start_offset.is_some() {
+                            if period_duration_secs <= 0.0 {
+                                return Err(DashMpdError::UnhandledMediaStream(
+                                    "start_offset needs a known period duration for SegmentTemplate@duration streams".to_string()));
+                            }
+                            period_duration_secs - segment_start_secs
+                        } else {
+                            -1.0
+                        };
+                        let mut elapsed_seconds = 0.0;
+                        let loop_count = if local_start_offset.is_some() {
+                            ((target_duration / segment_duration).ceil() as i64).max(1)
+                        } else {
+                            total_number
+                        };
+                        for _ in 1..=loop_count {
                             let dict = HashMap::from([("Number", number.to_string())]);
                             let path = resolve_url_template(&video_path, &dict);
                             let u = merge_baseurls(&base_url, &path)?;
                             let mf = MediaFragmentBuilder::new(period_counter, u).build();
                             fragments.push(mf);
+                            elapsed_seconds += segment_duration;
+                            if target_duration > 0.0 && elapsed_seconds > target_duration {
+                                break;
+                            }
                             number += 1;
                         }
                     }
                 }
             } else if let Some(sb) = &video_repr.SegmentBase {
+                if local_start_offset.unwrap_or(0.0) > 0.0 {
+                    return Err(DashMpdError::UnhandledMediaStream(
+                        "start_offset is currently unsupported for SegmentBase addressing mode for video".to_string()));
+                }
                 // (5) SegmentBase@indexRange addressing mode
                 if downloader.verbosity > 1 {
                     info!("  Using SegmentBase@indexRange addressing mode for video representation");
@@ -3004,6 +3154,10 @@ async fn do_period_video(
                 fragments.extend(mf);
             } else if fragments.is_empty()  {
                 if let Some(bu) = video_repr.BaseURL.first() {
+                    if local_start_offset.unwrap_or(0.0) > 0.0 {
+                        return Err(DashMpdError::UnhandledMediaStream(
+                            "start_offset is currently unsupported for BaseURL addressing mode for video".to_string()));
+                    }
                     // (6) BaseURL addressing mode
                     if downloader.verbosity > 1 {
                         info!("  Using BaseURL addressing mode for video representation");
@@ -4304,6 +4458,10 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         info!("DASH manifest has {pcount} period{}", if pcount > 1 { "s" }  else { "" });
         print_available_streams(&mpd);
     }
+    if downloader.start_offset.unwrap_or(0.0) > 0.0 && downloader.fetch_subtitles {
+        return Err(DashMpdError::UnhandledMediaStream(
+            "start_offset is currently unsupported for subtitle downloads".to_string()));
+    }
     // Analyse the content of each Period in the manifest. We need to ensure that we associate media
     // segments with the correct period, because segments in each Period may use different codecs,
     // so they can't be concatenated together directly without reencoding. The main purpose for this
@@ -4313,9 +4471,46 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
     // to the total download (we don't want a per-Period ProgressBar).
     let mut pds: Vec<PeriodDownloads> = Vec::new();
     let mut period_counter = 0;
+    let mut cumulative_period_start = 0.0;
+    let global_start_offset = downloader.start_offset;
+    let range_end = global_start_offset.zip(downloader.force_duration)
+        .map(|(start, dur)| start + dur);
     for mpd_period in &mpd.periods {
         let period = mpd_period.clone();
         period_counter += 1;
+        let period_start_secs = period.start
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(cumulative_period_start);
+        let nominal_period_duration = period_duration_secs(&mpd, &period);
+        let period_end_secs = if nominal_period_duration > 0.0 {
+            period_start_secs + nominal_period_duration
+        } else {
+            f64::INFINITY
+        };
+        if nominal_period_duration > 0.0 {
+            cumulative_period_start = period_end_secs;
+        }
+        let mut local_start_offset = None;
+        let mut local_force_duration = None;
+        if let Some(global_start) = global_start_offset {
+            if period_end_secs <= global_start {
+                continue;
+            }
+            if let Some(end) = range_end {
+                if period_start_secs >= end {
+                    break;
+                }
+            }
+            local_start_offset = Some((global_start - period_start_secs).max(0.0));
+            if let Some(end) = range_end {
+                let overlap_start = global_start.max(period_start_secs);
+                let overlap_end = end.min(period_end_secs);
+                if overlap_end <= overlap_start {
+                    continue;
+                }
+                local_force_duration = Some(overlap_end - overlap_start);
+            }
+        }
         if let Some(min) = downloader.minimum_period_duration {
             if let Some(duration) = period.duration {
                 if duration < min {
@@ -4346,7 +4541,13 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         let mut audio_outputs = PeriodOutputs::default();
         if downloader.fetch_audio {
-            audio_outputs = do_period_audio(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            audio_outputs = do_period_audio(downloader,
+                                            &mpd,
+                                            &period,
+                                            period_counter,
+                                            base_url.clone(),
+                                            local_start_offset,
+                                            local_force_duration).await?;
             for f in audio_outputs.fragments {
                 pd.audio_fragments.push(f);
             }
@@ -4354,7 +4555,13 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         let mut video_outputs = PeriodOutputs::default();
         if downloader.fetch_video {
-            video_outputs = do_period_video(downloader, &mpd, &period, period_counter, base_url.clone()).await?;
+            video_outputs = do_period_video(downloader,
+                                            &mpd,
+                                            &period,
+                                            period_counter,
+                                            base_url.clone(),
+                                            local_start_offset,
+                                            local_force_duration).await?;
             for f in video_outputs.fragments {
                 pd.video_fragments.push(f);
             }
@@ -4395,6 +4602,12 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
         pds.push(pd);
     } // loop over Periods
+    if let Some(offset) = downloader.start_offset {
+        if pds.is_empty() {
+            return Err(DashMpdError::UnhandledMediaStream(
+                format!("start_offset ({offset:.3}s) exceeds available media duration")));
+        }
+    }
 
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
@@ -4687,6 +4900,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
 
 #[cfg(test)]
 mod tests {
+    use super::DashDownloader;
+
     #[test]
     fn test_resolve_url_template() {
         use std::collections::HashMap;
@@ -4701,5 +4916,19 @@ mod tests {
                                   ("Time", "ZZZ".to_string())]);
         assert_eq!(resolve_url_template("AA/$RepresentationID$/segment-$Number%05d$.mp4", &dict),
                    "AA/640x480/segment-00042.mp4");
+    }
+
+    #[test]
+    fn test_start_offset_setter_accepts_nonnegative() {
+        let d = DashDownloader::new("https://example.org/manifest.mpd")
+            .start_offset(12.5);
+        assert_eq!(d.start_offset, Some(12.5));
+    }
+
+    #[test]
+    fn test_start_offset_setter_ignores_negative() {
+        let d = DashDownloader::new("https://example.org/manifest.mpd")
+            .start_offset(-1.0);
+        assert_eq!(d.start_offset, None);
     }
 }
