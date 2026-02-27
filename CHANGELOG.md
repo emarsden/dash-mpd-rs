@@ -12,6 +12,8 @@
   streams and for subtitle tracks. The existing method `prefer_language()` continues to specify a
   preference that applies to both audio streams and subtitle tracks.
 
+- Downloading: remove stray trailing parenthesis in certain `Fetching...` progress reporter messages.
+
 
 ## [0.20.0] - 2026-02-21
 

@@ -3649,10 +3649,10 @@ async fn fetch_fragment(
                                     .await?;
                             }
                             let elapsed = downloader.bw_estimator_started.elapsed().as_secs_f64();
-                            if (elapsed > 1.5) || (downloader.bw_estimator_bytes > 100_000) {
+                            if (elapsed > 0.5) || (downloader.bw_estimator_bytes > 50_000) {
                                 let bw = downloader.bw_estimator_bytes as f64 / elapsed;
                                 for observer in &downloader.progress_observers {
-                                    observer.update(progress_percent, bw as u64, &format!("Fetching {fragment_type} segments)"));
+                                    observer.update(progress_percent, bw as u64, &format!("Fetching {fragment_type} segments"));
                                 }
                                 downloader.bw_estimator_started = Instant::now();
                                 downloader.bw_estimator_bytes = 0;
