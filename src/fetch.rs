@@ -8,6 +8,7 @@ use tokio::io::{BufReader, BufWriter, AsyncWriteExt, AsyncSeekExt, AsyncReadExt}
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
+use std::cmp::max;
 use tokio::time::Instant;
 use chrono::Utc;
 use std::sync::Arc;
@@ -3714,7 +3715,9 @@ async fn fetch_period_audio(
         // tolerate loss of subsequent segments.
         for frag in audio_fragments.iter().filter(|f| f.period == ds.period_counter) {
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32;
+            // We don't want the progress_percent to exceed 98 here, because we reserve 99% for
+            // muxing and 100% for the "Done" message.
+            let progress_percent = max(98, (100.0 * ds.segment_counter as f32 / (2.0 + ds.segment_count as f32)).ceil() as u32);
             let url = &frag.url;
             // A manifest may use a data URL (RFC 2397) to embed media content such as the
             // initialization segment directly in the manifest (recommended by YouTube for live
@@ -3856,7 +3859,9 @@ async fn fetch_period_video(
         }
         for frag in video_fragments.iter().filter(|f| f.period == ds.period_counter) {
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
+            // We don't want the progress_percent to exceed 98 here, because we reserve 99% for
+            // muxing and 100% for the "Done" message.
+            let progress_percent = max(98, (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32);
             if frag.url.scheme() == "data" {
                 let us = &frag.url.to_string();
                 let du = DataUrl::process(us)
@@ -3977,7 +3982,7 @@ async fn fetch_period_subtitles(
         for frag in subtitle_fragments {
             // Update any ProgressObservers
             ds.segment_counter += 1;
-            let progress_percent = (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32;
+            let progress_percent = max(98, (100.0 * ds.segment_counter as f32 / ds.segment_count as f32).ceil() as u32);
             for observer in &downloader.progress_observers {
                 observer.update(progress_percent, 1, "Fetching subtitle segments");
             }

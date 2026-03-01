@@ -207,8 +207,8 @@ where
 ///   - this function only accepts fractional parts of seconds, and rejects for example "P0.5Y" and "PT2.3H"
 ///
 ///   - months are approximated as 30 days and years as 365 days, as std::time::Duration cannot
-///   represent calendar-relative durations. This means that values involving months or years are
-///   not perfectly round-trippable.
+///     represent calendar-relative durations. This means that values involving months or years are
+///     not perfectly round-trippable.
 fn parse_xs_duration(s: &str) -> Result<Duration, DashMpdError> {
     use std::cmp::min;
 
