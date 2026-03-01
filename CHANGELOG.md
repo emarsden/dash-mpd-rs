@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.20.1] - Unreleased
+## [0.20.1] - 2026-03-01
 
 - Serialization of XML duration elements: durations that include zero minutes and zero seconds will
   now be printed without the trailing `0M0S`: for example a duration of 3600 seconds will be
