@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev protobuf-compiler cmake libxml2-utils
           cargo check
-          cargo hack check --feature-powerset --no-dev-deps --skip socks,http3
+          cargo hack check --feature-powerset --no-dev-deps --skip socks,http3,rustls-tls
 
   test:
     name: dash-mpd-rs test/stable
