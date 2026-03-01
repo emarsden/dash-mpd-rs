@@ -1,6 +1,6 @@
 [package]
 name = "dash-mpd"
-version = "0.20.0"
+version = "0.20.1"
 authors = ["Eric Marsden <eric.marsden@risk-engineering.org>"]
 description = "Parse, serialize, download an MPD manifest for MPEG-DASH or WebM-DASH media streaming"
 readme = "README.md"
@@ -85,6 +85,8 @@ warn_ignored_elements = ["dep:serde_ignored"]
 compression = ["reqwest/gzip", "reqwest/brotli", "reqwest/zstd"]
 socks = ["reqwest/socks"]
 native-tls = ["reqwest/native-tls"]
+rustls = ["reqwest/rustls"]
+# The rustls-tls feature is a deprecated alias for the rustls feature.
 rustls-tls = ["reqwest/rustls"]
 hickory-dns = ["reqwest/hickory-dns"]
 http2 = ["reqwest/http2"]

@@ -256,14 +256,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.19.3"
+dash-mpd = "0.20.1"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.19.3", default-features = false }
+dash-mpd = { version = "0.20.1", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -295,9 +295,10 @@ be enabled:
 - `native-tls` *(enabled by default)*: enables the native-tls feature on our `reqwest` dependency,
   to enable HTTPS requests using the platform's default TLS implementation.
 
-- `rustls-tls`: enable the `rustls-tls` feature on our `reqwest` dependency (use `rustls` instead of
-  system-native TLS). You may need to enable this (and build without `native-tls`) for static linking
-  with the musl-libc target on Linux.
+- `rustls`: enable the `rustls` feature on our `reqwest` dependency (use `rustls` instead of
+  system-native TLS). You may need to enable this (and build without `native-tls`) for static
+  linking with the musl-libc target on Linux. For backward compatibility, the deprecated
+  `rustls-tls` feature can be used as an alias for `rustls`.
 
 - `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
   mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate.
