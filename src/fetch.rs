@@ -2825,7 +2825,7 @@ async fn do_period_video(
                     fragments.push(mf);
                 }
             }
-            for su in sl.segment_urls.iter() {
+            for su in &sl.segment_urls {
                 start_byte = None;
                 end_byte = None;
                 // we are ignoring @indexRange
@@ -3305,7 +3305,7 @@ async fn do_period_subtitles(
                                 fragments.push(mf);
                             }
                         }
-                        for su in sl.segment_urls.iter() {
+                        for su in &sl.segment_urls {
                             start_byte = None;
                             end_byte = None;
                             // we are ignoring SegmentURL@indexRange
@@ -3326,7 +3326,7 @@ async fn do_period_subtitles(
                                     .with_range(start_byte, end_byte)
                                     .build();
                                 fragments.push(mf);
-                            };
+                            }
                         }
                     } else if rep.SegmentTemplate.is_some() ||
                         subtitle_adaptation.SegmentTemplate.is_some()
@@ -3434,10 +3434,10 @@ async fn do_period_subtitles(
                                 info!("  Using SegmentTemplate addressing mode for stpp subtitles");
                             }
                             if let Some(i) = &st.initialization {
-                                opt_init = Some(i.to_string());
+                                opt_init = Some(i.clone());
                             }
                             if let Some(m) = &st.media {
-                                opt_media = Some(m.to_string());
+                                opt_media = Some(m.clone());
                             }
                             if let Some(d) = st.duration {
                                 opt_duration = Some(d);
@@ -3623,7 +3623,7 @@ async fn fetch_fragment(
                             {
                                 let vf_file = fragment_path.clone().join(fragment_type).join(path);
                                 if let Ok(f) = File::create(vf_file).await {
-                                    fragment_out = Some(f)
+                                    fragment_out = Some(f);
                                 }
                             }
                         }
@@ -3670,7 +3670,7 @@ async fn fetch_fragment(
                         }
                     } else {
                         warn!("Ignoring segment {} with non-{fragment_type} content-type", frag.url);
-                    };
+                    }
                     tmp_out.sync_all().await
                         .map_err(|e| DashMpdError::Io(e, format!("syncing {fragment_type} fragment")))?;
                     Ok(tmp_out)
