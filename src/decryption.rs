@@ -32,7 +32,7 @@ pub async fn decrypt_mp4decrypt(
     media_type: &str) -> Result<(), DashMpdError>
 {
     let mut args = Vec::new();
-    for (k, v) in downloader.decryption_keys.iter() {
+    for (k, v) in &downloader.decryption_keys {
         args.push("--key".to_string());
         args.push(format!("{k}:{v}"));
     }
@@ -90,7 +90,7 @@ pub async fn decrypt_shaka(
     args.push(format!("in={},stream={media_type},output={}", inpath.display(), outpath.display()));
     let mut drm_label = 0;
     #[allow(clippy::explicit_counter_loop)]
-    for (k, v) in downloader.decryption_keys.iter() {
+    for (k, v) in &downloader.decryption_keys {
         keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
         drm_label += 1;
     }
@@ -172,7 +172,7 @@ pub async fn decrypt_shaka_container(
                       inpath_nondir.display(), outpath_nondir.display()));
     let mut drm_label = 0;
     #[allow(clippy::explicit_counter_loop)]
-    for (k, v) in downloader.decryption_keys.iter() {
+    for (k, v) in &downloader.decryption_keys {
         keys.push(format!("label=lbl{drm_label}:key_id={k}:key={v}"));
         drm_label += 1;
     }
@@ -240,11 +240,13 @@ pub async fn decrypt_mp4box(
     outpath: &Path,
     media_type: &str) -> Result<(), DashMpdError>
 {
+    use std::fmt::Write;
+
     let mut args = Vec::new();
     let drmfile = tmp_file_path("mp4boxcrypt", OsStr::new("xml"))?;
     let mut drmfile_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
-    for (k, v) in downloader.decryption_keys.iter() {
-        drmfile_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+    for (k, v) in &downloader.decryption_keys {
+        let _ = writeln!(drmfile_contents, "  <key KID=\"0x{k}\" value=\"0x{v}\"/>");
     }
     drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
     fs::write(&drmfile, drmfile_contents).await
@@ -304,6 +306,8 @@ pub async fn decrypt_mp4box_container(
     outpath: &Path,
     media_type: &str) -> Result<(), DashMpdError>
 {
+    use std::fmt::Write;
+    
     let inpath_dir = inpath.parent()
         .ok_or_else(|| DashMpdError::Decrypting(String::from("inpath parent")))?;
     let inpath_nondir = inpath.file_name()
@@ -315,8 +319,8 @@ pub async fn decrypt_mp4box_container(
     let drmpath_nondir = drmpath.file_name()
         .ok_or_else(|| DashMpdError::Decrypting(String::from("drmpath file name")))?;
     let mut drm_contents = String::from("<GPACDRM>\n  <CrypTrack>\n");
-    for (k, v) in downloader.decryption_keys.iter() {
-        drm_contents += &format!("  <key KID=\"0x{k}\" value=\"0x{v}\"/>\n");
+    for (k, v) in &downloader.decryption_keys {
+        let _ = writeln!(drm_contents, "  <key KID=\"0x{k}\" value=\"0x{v}\"/>");
     }
     drm_contents += "  </CrypTrack>\n</GPACDRM>\n";
     fs::write(&drmpath, drm_contents).await
