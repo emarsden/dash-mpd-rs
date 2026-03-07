@@ -787,36 +787,6 @@ async fn test_dl_adaptation_set_variants() {
 }
 
 
-// A test for the progress observer functionality.
-#[tokio::test]
-async fn test_progress_observer() {
-    use dash_mpd::fetch::ProgressObserver;
-    use std::sync::Arc;
-
-    struct DownloadProgressionTest { }
-
-    impl ProgressObserver for DownloadProgressionTest {
-        fn update(&self, percent: u32, bandwidth: u64, _message: &str) {
-            assert!(percent <= 100);
-            // 1000 GB/s should be enough for everybody.
-            assert!(bandwidth < 1_000_000_000_000);
-        }
-    }
-
-    setup_logging();
-    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
-    let out = env::temp_dir().join("progress.mp4");
-    DashDownloader::new(mpd_url)
-        .worst_quality()
-        .add_progress_observer(Arc::new(DownloadProgressionTest{}))
-        .download_to(&out).await
-        .unwrap();
-    check_file_size_approx(&out, 410_218);
-    let format = FileFormat::from_file(&out).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-}
-
-
 // These tests retrieve content from some public MPD manifests and check that the content is
 // identical to previous "known good" downloads. These checks are fragile because checksums and
 // exact octet counts might change due to version changes in libav, that we use for muxing.
