@@ -187,7 +187,7 @@ where
 }
 
 
-/// Parse an XML duration string, as per https://www.w3.org/TR/xmlschema-2/#duration
+/// Parse an XML duration string, as per <https://www.w3.org/TR/xmlschema-2/#duration>
 ///
 /// The lexical representation for duration is the ISO 8601 extended format PnYn MnDTnH nMnS, where
 /// nY represents the number of years, nM the number of months, nD the number of days, 'T' is the
@@ -2254,7 +2254,7 @@ fn is_audio_codec(name: &str) -> bool {
 /// Returns `true` if this AdaptationSet contains audio content.
 ///
 /// It contains audio if the codec attribute corresponds to a known audio codec, or the
-/// `contentType` attribute` is `audio`, or the `mimeType` attribute is `audio/*`, or if one of its
+/// `contentType` attribute is `audio`, or the `mimeType` attribute is `audio/*`, or if one of its
 /// child `Representation` nodes has an audio `contentType` or `mimeType` attribute.
 pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
     if let Some(codec) = &a.codecs {
@@ -2368,12 +2368,12 @@ pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
     if a.codecs.as_deref().is_some_and(is_subtitle_codec) {
         return true;
     }
-    for cc in a.ContentComponent.iter() {
+    for cc in &a.ContentComponent {
         if cc.contentType.as_deref().is_some_and(|ct| ct.eq("text")) {
             return true;
         }
     }
-    for r in a.representations.iter() {
+    for r in &a.representations {
         if r.mimeType.as_deref().is_some_and(is_subtitle_mimetype) {
             return true;
         }
@@ -2448,7 +2448,7 @@ pub fn subtitle_type(a: &&AdaptationSet) -> SubtitleType {
             return SubtitleType::Stpp;
         }
     }
-    for r in a.representations.iter() {
+    for r in &a.representations {
         if let Some(mimetype) = &r.mimeType {
             if let Some(st) = subtitle_type_for_mimetype(mimetype) {
                 return st;

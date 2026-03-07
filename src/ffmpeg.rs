@@ -94,7 +94,7 @@ pub async fn mux_multiaudio_video_ffmpeg(
             info!("  Video file {} of size {} octets", video_path.display(), attr.len());
         }
     }
-    #[allow(unused_variables)]
+    #[allow(unused_variables, unused_assignments)]
     let mut audio_delay = 0.0;
     let mut video_delay = 0.0;
     if let Ok(audio_start_time) = ffprobe_start_time(&audio_tracks[0].path) {
