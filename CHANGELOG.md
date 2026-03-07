@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.2] - 2026-03-07
+
+- Fix the `percent` information provided to progress reporters. It was previously being stuck at 98
+  until the muxing phase.
+
+
 ## [0.20.1] - 2026-03-01
 
 - Serialization of XML duration elements: durations that include zero minutes and zero seconds will
