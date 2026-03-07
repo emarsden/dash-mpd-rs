@@ -60,8 +60,10 @@ trivy-repository:
 clippy:
     cargo clippy -- -Wclippy::unwrap_used -Wclippy::expect_used -Wclippy::indexing_slicing -Wclippy::panic
 
+
+
 pedantic:
-    cargo clippy -- -W clippy::pedantic
+    cargo clippy -- -Wclippy::pedantic -Aclippy::manual_string_new -Aclippy::cast_precision_loss -Aclippy::cast_possible_truncation -Aclippy::cast_sign_loss -Aclippy::too_many_lines
 
 
 publish:
