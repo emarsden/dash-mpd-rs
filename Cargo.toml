@@ -31,7 +31,7 @@ tracing = { version = "0.1.44", features = ["attributes", "std"] }
 data-url = { version = "0.3.2", optional = true }
 bytes = "1.11.1"
 reqwest = { version = "0.13.2", default-features = false, features = ["cookies", "charset", "system-proxy"], optional = true }
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
 futures-util = "0.3.32"
 backon = { version = "1.6.0", features = ["tokio"], optional = true }
 governor = { version = "0.10.4", optional = true }
@@ -56,7 +56,7 @@ hex-literal = "1.1.0"
 colored = "3.1.1"
 indicatif = "0.18.4"
 clap = "4.5.60"
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "time", "macros"] }
 time = { version = "0.3.47", features = ["macros"] }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "local-time", "ansi", "tracing-log"] }
 proptest = "1.10.0"
