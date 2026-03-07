@@ -95,14 +95,15 @@ pub async fn mux_multiaudio_video_ffmpeg(
         }
     }
     #[allow(unused_variables, unused_assignments)]
-    let mut audio_delay = 0.0;
+    // let mut audio_delay = 0.0;
     let mut video_delay = 0.0;
     if let Ok(audio_start_time) = ffprobe_start_time(&audio_tracks[0].path) {
         if let Ok(video_start_time) = ffprobe_start_time(video_path) {
             if audio_start_time > video_start_time {
                 video_delay = audio_start_time - video_start_time;
             } else {
-                audio_delay = video_start_time - audio_start_time;
+                // we are not currently using the audio_delay
+                // audio_delay = video_start_time - audio_start_time;
             }
         }
     }
