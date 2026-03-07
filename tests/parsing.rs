@@ -110,14 +110,30 @@ fn test_mpd_parser () {
     assert_eq!(supplementals_count, 6);
 }
 
-#[test]
-fn test_mpd_failures () {
+
+#[tokio::test]
+async fn test_mpd_failures () {
     setup_logging();
     let case1 = r#"<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-live:2011" type="static" mediaPresentationDuration="PT6M16S" minBufferTime="PT1.97S">"#;
     let c1 = parse(case1);
     assert!(c1.is_err());
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/go-dash-fixtures/invalid.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    assert!(parse(&xml).is_err());
 }
+
 
 
 // These tests check that we are able to parse DASH manifests that contain XML elements for which we
