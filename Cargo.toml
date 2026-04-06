@@ -51,7 +51,7 @@ webm-iterable = "0.6.4"
 edit-distance = "2.2.2"
 
 [dev-dependencies]
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 hex-literal = "1.1.0"
 colored = "3.1.1"
 indicatif = "0.18.4"
