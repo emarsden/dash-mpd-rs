@@ -867,6 +867,7 @@ async fn test_dl_adaptation_set_variants() {
 #[allow(dead_code)]
 async fn test_downloader() {
     use std::io;
+    use digest_io::IoWrapper;
     use sha2::{Digest, Sha256};
     use hex_literal::hex;
     use ffprobe::ffprobe;
@@ -898,7 +899,7 @@ async fn test_downloader() {
                 } else {
                     eprintln!("   {} on {mpd_url}", "ffprobe failed".red());
                 }
-                let mut sha256 = Sha256::new();
+                let mut sha256 = IoWrapper(Sha256::new());
                 let mut media = std::fs::File::open(path)
                     .expect("opening media file");
                 let octets_downloaded = io::copy(&mut media, &mut sha256)
@@ -907,7 +908,7 @@ async fn test_downloader() {
                 if  difference_ratio.abs() > 0.1 {
                     eprintln!("   {:.1}% difference in download sizes", difference_ratio * 100.0);
                 }
-                let calculated = sha256.finalize();
+                let calculated = sha256.0.finalize();
                 if calculated[..] != digest[..]  {
                     eprintln!("   {}", "incorrect checksum".red());
                 }
