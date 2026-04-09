@@ -557,6 +557,78 @@ async fn test_dl_segment_timeline() {
     let _ = fs::remove_dir_all(tmpd);
 }
 
+// A small test for SegmentTemplate+SegmentTimeline addressing. Also a test of manifests created
+// with the Broadpeak Origin packager.
+#[tokio::test]
+async fn test_dl_segment_timeline_45s() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://origin.broadpeak.io/bpk-vod/voddemo/default/bpkiocreatives/45s/index.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("broadpeak-creatives-45s.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 2_844_119);
+    check_media_duration(&out, 45.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+#[tokio::test]
+async fn test_dl_segment_timeline_20s() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://origin.broadpeak.io/bpk-vod/voddemo/default/bpkiocreatives/20s/index.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("broadpeak-creatives-20s.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 1_261_774);
+    check_media_duration(&out, 20.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+#[tokio::test]
+async fn test_dl_segment_timeline_5s() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://origin.broadpeak.io/bpk-vod/voddemo/default/bpkiocreatives/5s/index.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("broadpeak-creatives-5s.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 312_353);
+    check_media_duration(&out, 5.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
 // A test for SegmentTemplate+SegmentTimeline addressing with audio-only HE-AACv2 stream.
 #[tokio::test]
 async fn test_dl_segment_timeline_heaacv2() {
