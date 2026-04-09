@@ -272,14 +272,14 @@ async fn test_dl_ustreaming_lldynamic() {
 
 
 #[tokio::test]
-async fn test_dl_broadpeak_lldynamic() {
+async fn test_dl_broadpeak_cycling() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd";
+    let mpd_url = "https://origin.broadpeak.io/bpk-tv/cycling/default/index.mpd";
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("dynamic-ll-broadpeak.mp4");
+    let out = tmpd.path().join("dynamic-broadpeak.mp4");
     let client = reqwest::Client::builder()
         .build()
         .expect("creating HTTP client");
