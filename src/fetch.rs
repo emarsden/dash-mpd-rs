@@ -1765,6 +1765,16 @@ fn skip_xml_preamble(input: &str) -> &str {
     input
 }
 
+async fn apply_xslt_stylesheets(
+    downloader: &DashDownloader,
+    xot: &mut Xot,
+    doc: xot::Node) -> Result<String, DashMpdError> {
+    #[cfg(feature = "xee-xslt")]
+    return apply_xslt_stylesheets_xee(downloader, xot, doc).await;
+    #[cfg(not(feature = "xee-xslt"))]
+    return apply_xslt_stylesheets_xsltproc(downloader, xot, doc).await;
+}
+
 // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
 // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
 // (but improving; hopefully we will one day be able to use the xrust crate).
@@ -1808,11 +1818,12 @@ async fn apply_xslt_stylesheets_xsltproc(
 // Try to use the xee crate functionality for XSLT processing. We need an alternative utility
 // function to evaluate that accepts a full XSLT stylehseet, rather than only the XML for a
 // transform.
-/*
-fn apply_xslt_stylesheets_xee(
+#[cfg(feature = "xee-xslt")]
+async fn apply_xslt_stylesheets_xee(
     downloader: &DashDownloader,
     xot: &mut Xot,
-    doc: xot::Node) -> Result<String, DashMpdError> {
+    doc: xot::Node) -> Result<String, DashMpdError>
+{
     use xee_xslt_compiler::evaluate;
     use std::fmt::Write;
 
@@ -1822,19 +1833,22 @@ fn apply_xslt_stylesheets_xee(
         if downloader.verbosity > 0 {
             info!("  Applying XSLT stylesheet {} with xee", ss.display());
         }
-        let xslt = fs::read_to_string(ss)
+        let xslt = fs::read_to_string(ss).await
             .map_err(|_| DashMpdError::Other(String::from("reading XSLT stylesheet")))?;
-        let seq = evaluate(xot, &xml, &xslt).unwrap();
+        let seq = evaluate(xot, &xml, &xslt)
+            .map_err(|e| DashMpdError::Other(format!("applying XSLT: {e:?}")))?;
         let mut f = String::new();
         for item in seq.iter() {
-            f.write_str(&xot.to_string(item.to_node().unwrap()).unwrap())
-                .unwrap();
+            match item.to_node() {
+                Ok(n) => f.write_str(&xot.to_string(n).expect("writing to string"))
+                    .expect("writing to string"),
+                Err(e) => error!("xee non-node item {item:?}: {e:?}"),
+            }
         }
         xml = f;
     }
     Ok(xml)
 }
-*/
 
 // Walk all descendents of the root node, looking for target nodes with an xlink:href and collect
 // into a Vec. For each of these, retrieve the remote content, insert_after() the target node, then
@@ -1987,7 +2001,7 @@ pub async fn parse_resolving_xlinks(
     for _ in 1..5 {
         resolve_xlink_references(downloader, &mut xot, doc).await?;
     }
-    let rewritten = apply_xslt_stylesheets_xsltproc(downloader, &mut xot, doc).await?;
+    let rewritten = apply_xslt_stylesheets(downloader, &mut xot, doc).await?;
     // Here using the quick-xml serde support to deserialize into Rust structs.
     let mpd = parse(&rewritten)?;
     if downloader.conformity_checks {
