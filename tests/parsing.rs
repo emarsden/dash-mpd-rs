@@ -783,6 +783,10 @@ async fn test_parsing_online() {
 
     check_mpd(client.clone(),
               "https://test.playready.microsoft.com/media/dash/APPLEENC_CBCS_BBB_1080p/1080p.mpd").await;
+
+    // from https://rdmedia.bbc.co.uk/testcard/vod/
+    check_mpd(client.clone(),
+              "https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-en-revaud.mpd").await;
 }
 
 
