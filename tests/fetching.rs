@@ -1187,6 +1187,35 @@ async fn test_dl_forced_duration_audio() {
 
 
 #[tokio::test]
+#[cfg(not(feature = "libav"))]
+async fn test_dl_flac_audio() {
+    setup_logging();
+    let mpd_url = "https://rdmedia.bbc.co.uk/testcard/vod/manifests/radio-flac-1kHz.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("flac-audio.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .allow_live_streams(true)
+        .force_duration(20.0)
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 677_729);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Audio);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let stream = &meta.streams[0];
+    assert_eq!(stream.codec_type, Some(String::from("audio")));
+    assert_eq!(stream.codec_name, Some(String::from("flac")));
+    check_media_duration(&out, 20.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+#[tokio::test]
 async fn test_dl_follow_redirect() {
     setup_logging();
     if env::var("CI").is_ok() {
