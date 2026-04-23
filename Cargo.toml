@@ -31,7 +31,7 @@ tracing = { version = "0.1.44", features = ["attributes", "std"] }
 data-url = { version = "0.3.2", optional = true }
 bytes = "1.11.1"
 reqwest = { version = "0.13.2", default-features = false, features = ["cookies", "charset", "system-proxy"], optional = true }
-tokio = { version = "1.52.0", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
 futures-util = "0.3.32"
 backon = { version = "1.6.0", features = ["tokio"], optional = true }
 governor = { version = "0.10.4", optional = true }
@@ -45,7 +45,7 @@ bstr = { version = "1.12.1", optional = true }
 hex-literal = { version = "1.1.0", optional = true }
 pssh-box = { version = "0.2.4", optional = true }
 humantime = { version = "2.3.0", optional = true }
-dir_spec = { version = "0.5.0", optional = true }
+dir_spec = { version = "0.5.2", optional = true }
 hxdmp = "0.2.1"
 webm-iterable = "0.6.4"
 edit-distance = "2.2.2"
@@ -59,7 +59,7 @@ hex-literal = "1.1.0"
 colored = "3.1.1"
 indicatif = "0.18.4"
 clap = "4.5.60"
-tokio = { version = "1.52.0", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "time", "macros"] }
 time = { version = "0.3.47", features = ["macros"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "local-time", "ansi", "tracing-log"] }
 proptest = "1.11.0"
@@ -77,7 +77,7 @@ mp4 = "0.14.0"
 image = "0.25.10"
 pretty_assertions = "1.4.1"
 approx = "0.5.1"
-assert_cmd = "2.2.0"
+assert_cmd = "2.2.1"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35", "http2"]
