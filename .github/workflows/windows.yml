@@ -76,7 +76,7 @@ jobs:
         podman machine init
         podman machine start
 
-    - run: cargo hack check --feature-powerset --exclude-features libav,sandbox,http3,rustls-tls --no-dev-deps
+    - run: cargo hack check --feature-powerset --exclude-features libav,sandbox,http3,rustls-tls,xee --no-dev-deps
       shell: msys2 {0}
 
     - run: cargo build
