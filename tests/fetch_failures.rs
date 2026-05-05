@@ -270,3 +270,30 @@ async fn test_error_tls_3des_insecure() {
         .download().await
         .unwrap();
 }
+
+
+// See https://letsencrypt.org/2026/04/10/test-sites.html
+#[tokio::test]
+#[should_panic(expected = "NetworkConnect")]
+async fn test_error_tls_expired_le() {
+    #[cfg(all(target_os = "macos", feature = "native-tls"))]
+    panic!("NetworkConnect failing test on MacOS + native-tls");
+    DashDownloader::new("https://expired.yr.test-certs.letsencrypt.org/")
+        .download().await
+        .unwrap();
+}
+
+
+#[tokio::test]
+#[should_panic(expected = "NetworkConnect")]
+async fn test_error_tls_revoked_le() {
+    #[cfg(all(target_os = "macos", feature = "native-tls"))]
+    panic!("NetworkConnect failing test on MacOS + native-tls");
+    DashDownloader::new("https://revoked.yr.test-certs.letsencrypt.org/")
+        .download().await
+        .unwrap();
+}
+
+
+
+
