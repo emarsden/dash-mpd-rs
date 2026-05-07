@@ -2689,19 +2689,19 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
 
     for bu in &mpd.base_url {
         if !valid_url_p(&bu.base) {
-            errors.push(format!("invalid URL {}", &bu.base));
+            errors.push(format!("invalid URL {}", bu.base));
         }
     }
     for p in &mpd.periods {
         for bu in &p.BaseURL {
             if !valid_url_p(&bu.base) {
-                errors.push(format!("invalid URL {}", &bu.base));
+                errors.push(format!("invalid URL {}", bu.base));
             }
         }
         for a in &p.adaptations {
             for bu in &a.BaseURL {
                 if !valid_url_p(&bu.base) {
-                    errors.push(format!("invalid URL {}", &bu.base));
+                    errors.push(format!("invalid URL {}", bu.base));
                 }
             }
             if let Some(st) = &a.SegmentTemplate {
@@ -2712,7 +2712,7 @@ pub fn check_conformity(mpd: &MPD) -> Vec<String> {
             for r in &a.representations {
                 for bu in &r.BaseURL {
                     if !valid_url_p(&bu.base) {
-                        errors.push(format!("invalid URL {}", &bu.base));
+                        errors.push(format!("invalid URL {}", bu.base));
                     }
                 }
                 if let Some(sb) = &r.SegmentBase {
