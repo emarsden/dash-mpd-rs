@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.20.3] - Unreleased
+
+- Downloading: when retrieving content from a multi-codec manifest (that includes multiple Representation
+  elements with different video codecs), it is now possible to specify a preference ordering for the
+  video codec. Use the new method `prefer_video_codecs` on `DashDownloader`.
+
+- Downloading: when retrieving content from a manifest that offers multiple Representation elements
+  for the video stream (with different resolutions, or different codecs for example), it is now
+  possible to select the Representation to retrieve by its `id` attribute. You can specify the full
+  id of the desired Representation, or a substring of the id which will then be combined with other
+  user-specified preferences (on video width, height, codec and quality) to select the video stream
+  that will be retrieved. Use the new method `want_video_id_substring` on `DashDownloader`.
+
+- Downloading: improve the way in which video stream selection is implemented, to allow selection
+  based on both video width/height and codec and quality, in situations where multiple
+  Representations are available with the same resolution but different codecs or quality settings.
+
+
 ## [0.20.2] - 2026-03-07
 
 - Fix the `percent` information provided to progress reporters. It was previously being stuck at 98

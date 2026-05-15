@@ -10,7 +10,7 @@ use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
-use common::{check_file_size_approx, setup_logging};
+use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 
 // This test is too slow to run; disable it.
@@ -194,36 +194,94 @@ async fn test_dl_video_stream_selection_defunct() {
 }
 
 
+
 #[tokio::test]
 async fn test_dl_video_stream_selection() {
     setup_logging();
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://quick.vidalytics.com/video/o8U49vKp/jyXxbwOZnoHv2EI8/15032/10315/stream.mpd";
-    let out = env::temp_dir().join("vidalytics-multiple-video-adaptations.mp4");
+    // Fun fact: the URL below contains invalid segment paths for the non-h264 segments.
+    // https://ftp.itec.aau.at/datasets/mmsys18/DrivingPOV/DrivingPOV_2sec/multi-codec.mpd
+
+    let mpd_url = "https://ftp.itec.aau.at/datasets/mmsys22/Skateboarding/4sec/multi-codecs-manifest.mpd";
+    
+    // First check the smallest AV1 stream
+    let out = env::temp_dir().join("mmsys22-multiple-video-adaptations-av1.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .prefer_video_codecs(vec![String::from("av01")])
         .verbosity(2)
         .download_to(&out).await
         .unwrap();
-    check_file_size_approx(&out, 8_392_620);
+    check_file_size_approx(&out, 2_031_045);
+    check_media_duration(&out, 236.0);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     let meta = ffprobe(out).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let audio = meta.streams.iter()
-        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
-        .expect("finding audio stream");
-    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
-    // This manifest contains a video AdaptationSet with codec of hevc and another with codec vp9
-    // with exactly the same bandwidth, so we could chose either one.
-    assert!(video.codec_name.eq(&Some(String::from("hevc"))) ||
-            video.codec_name.eq(&Some(String::from("vp9"))));
-    assert_eq!(video.width, Some(480));
+    assert!(video.codec_name.eq(&Some(String::from("av1"))));
+    assert_eq!(video.width, Some(320));
+
+    // Then check the smallest HEV1 stream
+    let out = env::temp_dir().join("mmsys22-multiple-video-adaptations-hevc.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .prefer_video_codecs(vec![String::from("inexistent"), String::from("hev1"), String::from("vp09")])
+        .verbosity(2)
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 3_601_579);
+    check_media_duration(&out, 236.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert!(video.codec_name.eq(&Some(String::from("hevc"))));
+    assert_eq!(video.width, Some(320));
+
+    // Then check the biggest VVC stream (unfortunately, this is very large)
+    let out = env::temp_dir().join("mmsys22-multiple-video-adaptations-vvc.mp4");
+    DashDownloader::new(mpd_url)
+        .best_quality()
+        .prefer_video_codecs(vec![String::from("vvc1"), String::from("h264")])
+        .verbosity(2)
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 827_435_116);
+    check_media_duration(&out, 236.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert!(video.codec_name.eq(&Some(String::from("vvc"))));
+    assert_eq!(video.width, Some(7680));
+
+    // Then check the id substring filtering
+    let out = env::temp_dir().join("mmsys22-multiple-video-adaptations-id.mp4");
+    DashDownloader::new(mpd_url)
+        .want_video_id_substring(String::from("34"))
+        .verbosity(2)
+        .download_to(&out).await
+        .unwrap();
+    check_media_duration(&out, 236.0);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert!(video.codec_name.eq(&Some(String::from("hevc"))));
+    assert_eq!(video.width, Some(640));
+
 }
-
-

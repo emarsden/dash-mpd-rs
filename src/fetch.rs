@@ -166,6 +166,8 @@ pub struct DashDownloader {
     role_preference: Vec<String>,
     video_width_preference: Option<u64>,
     video_height_preference: Option<u64>,
+    video_codec_preference: Vec<String>,
+    video_id_wanted: Option<String>,
     fetch_video: bool,
     fetch_audio: bool,
     fetch_subtitles: bool,
@@ -249,6 +251,8 @@ impl DashDownloader {
             role_preference: vec!["main".to_string(), "alternate".to_string()],
             video_width_preference: None,
             video_height_preference: None,
+            video_codec_preference: Vec::new(),
+            video_id_wanted: None,
             fetch_video: true,
             fetch_audio: true,
             fetch_subtitles: false,
@@ -446,19 +450,44 @@ impl DashDownloader {
         self
     }
 
-    /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
-    /// the Adaptation whose width is closest to the specified `width`.
+    /// If the DASH manifest specifies several video AdaptationSets with different resolutions, prefer
+    /// the AdaptationSet and child Representations whose width is closest to the specified `width`.
     #[must_use]
     pub fn prefer_video_width(mut self, width: u64) -> DashDownloader {
         self.video_width_preference = Some(width);
         self
     }
 
-    /// If the DASH manifest specifies several video Adaptations with different resolutions, prefer
-    /// the Adaptation whose height is closest to the specified `height`.
+    /// If the DASH manifest specifies several video AdaptationSets with different resolutions, prefer
+    /// the AdaptationSet and child Representations whose height is closest to the specified `height`.
     #[must_use]
     pub fn prefer_video_height(mut self, height: u64) -> DashDownloader {
         self.video_height_preference = Some(height);
+        self
+    }
+
+    /// Specify a preference ordering for codecs used for video streams. The argument
+    /// `codec_preference` is a vector of Strings of the form "h264", "vp09" and "av1". The matching
+    /// of codecs is based on substring prefix, so for example a preference of "hev1" will match a
+    /// codec whose full name as specified in the manifest is "hev1.1.6.L60.90".
+    #[must_use]
+    pub fn prefer_video_codecs(mut self, codec_preference: Vec<String>) -> DashDownloader {
+        if codec_preference.len() < u8::MAX as usize {
+            self.video_codec_preference = codec_preference;
+        } else {
+            warn!("Ignoring video codec_preference due to excessive length");
+        }
+        self
+    }
+
+    /// Specify a substring to use as a filter on video Representation @id attributes. When a
+    /// manifest provides multiple video streams in different Representation elements, this makes it
+    /// possible to select a specific video stream by providing its full id. If only a substring of
+    /// the id is specified, this preference will be combined with other preferences such as the
+    /// quality level and codec preference to select a single preferred video stream.
+    #[must_use]
+    pub fn want_video_id_substring(mut self, substring: String) -> DashDownloader {
+        self.video_id_wanted = Some(substring);
         self
     }
 
@@ -1323,11 +1352,235 @@ fn select_preferred_adaptations<'a>(
 }
 
 
-// A manifest often contains multiple video Representations with different bandwidths and video
-// resolutions. We select the Representation to download by ranking following the user's specified
-// quality preference. We first rank following the @qualityRanking attribute if it is present, and
-// otherwise by the bandwidth specified. Note that quality ranking may be different from bandwidth
-// ranking when different codecs are used.
+// Filter Representations according to their @id by filtering out those that do not have the
+// user-specified video_id_wanted substring in the id attribute.
+fn representation_filter_video_id<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Vec<&'a Representation>
+{
+    if let Some(wantid) = &downloader.video_id_wanted {
+        representations.iter()
+            .filter(|r| r.id.as_ref().is_some_and(|i| i.contains(wantid)))
+            .copied()
+            .collect()
+    } else {
+        representations
+    }
+}
+
+// Filter Representations according to their video width, retaining those that have a video width
+// which is closest to the preference specified by the user. If several Representations have the
+// same width, for example with different video codecs, we return all the Representations with that
+// width.
+fn representation_filter_video_width<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Vec<&'a Representation>
+{
+    if let Some(want) = downloader.video_width_preference {
+        let best = representations.iter()
+            .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX });
+        match best {
+            Some(b) => representations.iter()
+                .filter(|r| r.width == b.width)
+                .copied()
+                .collect::<Vec<&Representation>>(),
+            None => representations,
+        }
+    } else {
+        representations
+    }
+}
+
+// Filter Representations according to their video height, retaining those that have a video height
+// which is closest to the preference specified by the user. If several Representations have the
+// same height, for example with different video codecs, we return all the Representations with that
+// height.
+fn representation_filter_video_height<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Vec<&'a Representation>
+{
+    if let Some(want) = downloader.video_height_preference {
+        let best = representations.iter()
+            .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX });
+        match best {
+            Some(b) => representations.iter()
+                .filter(|r| r.height == b.height)
+                .copied()
+                .collect::<Vec<&Representation>>(),
+            None => representations,
+        }
+    } else {
+        representations
+    }
+}
+
+// Filter Representations according to the video codec, following the user-specified preference
+// ordering in video_codec_preference. If the preference is not specified (the
+// video_codec_preference is empty), then do not filter out any Representations.
+//
+// FIXME Here we assume that the codec is specified on the Representation element, but it could also
+// be specified on the parent AdaptationSet.
+fn representation_filter_video_codec<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Vec<&'a Representation>
+{
+    if downloader.video_codec_preference.is_empty() {
+        representations
+    } else {
+        let best = representations.iter()
+            .min_by_key(|r|
+                        if let Some(codec) = &r.codecs {
+                            downloader.video_codec_preference.iter()
+                                .position(|prefc| codec.starts_with(prefc))
+                                .unwrap_or(usize::MAX)
+                        } else {
+                           usize::MAX
+                        });
+        match best {
+            Some(b) => if let Some(bcodec) = &b.codecs {
+                // It's not uncommon for the Representations in an AdaptationSet to have different
+                // codec subfamilies, which are specified in the manifest (eg "avc1.64000d",
+                // "avc1.640015", "avc1.640016" and so on). We only want to filter on the codec
+                // family (avc1 in this example), rather than on the specific subfamily.
+                let bcodec_start = match bcodec.find('.') {
+                    Some(idx) => &bcodec[..idx],
+                    None => bcodec,
+                };
+                representations.iter()
+                    .filter(|r| r.codecs.as_ref()
+                            .is_some_and(|rc| rc.starts_with(bcodec_start)))
+                    .copied()
+                    .collect()
+            } else {
+                representations
+            },
+            None => representations,
+        }
+    }
+}
+
+// Filter Representations according to the user-specified quality_preference. Rank following the
+// @qualityRanking attribute if it is present, and otherwise by the @bandwidth attribute. Note that
+// quality ranking may be different from bandwidth ranking when different codecs are used. Note that
+// there is always a quality_preference, which defaults to the lowest quality and smallest file
+// size.
+fn representation_filter_video_quality<'a>(
+    representations: Vec<&'a Representation>,
+    downloader: &DashDownloader) -> Vec<&'a Representation>
+{
+    if representations.iter().all(|x| x.qualityRanking.is_some()) {
+        // rank according to the @qualityRanking attribute (lower values represent
+        // higher quality content)
+        match downloader.quality_preference {
+            QualityPreference::Lowest => {
+                let best = representations.iter()
+                    .max_by_key(|r| r.qualityRanking.unwrap_or(u8::MAX));
+                match best {
+                    Some(b) => representations.iter()
+                        .filter(|r| r.qualityRanking.unwrap_or(u8::MAX) ==
+                                b.qualityRanking.unwrap_or(u8::MAX))
+                        .copied()
+                        .collect(),
+                    None => representations,
+                }
+            },
+            QualityPreference::Highest => {
+                let best = representations.iter()
+                    .min_by_key(|r| r.qualityRanking.unwrap_or(0));
+                match best {
+                    Some(b) => representations.iter()
+                        .filter(|r| r.qualityRanking.unwrap_or(0) ==
+                                b.qualityRanking.unwrap_or(0))
+                        .copied()
+                        .collect(),
+                    None => representations,
+                }
+            },
+            QualityPreference::Intermediate => {
+                let count = representations.len();
+                match count {
+                    0 => representations,
+                    1 => representations,
+                    _ => {
+                        let mut ranking: Vec<u8> = representations.iter()
+                            .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
+                            .collect();
+                        ranking.sort_unstable();
+                        if let Some(want_ranking) = ranking.get(count / 2) {
+                            representations.iter()
+                                .filter(|r| r.qualityRanking.unwrap_or(u8::MAX) == *want_ranking)
+                                .copied()
+                                .collect()
+                        } else {
+                            representations
+                        }
+                    },
+                }
+            },
+        }
+    } else {
+        // rank according to the bandwidth attribute (lower values imply lower quality)
+        let bw_large = 1_000_000_000;
+        match downloader.quality_preference {
+            QualityPreference::Lowest => {
+                let best = representations.iter()
+                    .min_by_key(|r| r.bandwidth.unwrap_or(bw_large));
+                match best {
+                    Some(b) => representations.iter()
+                        .filter(|r| r.bandwidth.unwrap_or(bw_large) ==
+                                b.bandwidth.unwrap_or(bw_large))
+                        .copied()
+                        .collect(),
+                    None => representations,
+                }
+            },
+            QualityPreference::Highest => {
+                for r in &representations {
+                    println!("££ possible rep with bandwidth = {}", r.bandwidth.unwrap_or(0));
+                }
+                let best = representations.iter()
+                    .max_by_key(|r| r.bandwidth.unwrap_or(0));
+                println!("££ Got highest bandwidth rep {:?}", best);
+                match best {
+                    Some(b) => representations.iter()
+                        .filter(|r| r.bandwidth.unwrap_or(0) ==
+                            b.bandwidth.unwrap_or(0))
+                        .copied()
+                        .collect(),
+                    None => representations,
+                }
+            }
+            QualityPreference::Intermediate => {
+                let count = representations.len();
+                match count {
+                    0 => representations,
+                    1 => representations,
+                    _ => {
+                        let mut ranking: Vec<u64> = representations.iter()
+                            .map(|r| r.bandwidth.unwrap_or(bw_large))
+                            .collect();
+                        ranking.sort_unstable();
+                        if let Some(want_ranking) = ranking.get(count / 2) {
+                            representations.iter()
+                                .filter(|r| r.bandwidth.unwrap_or(bw_large) == *want_ranking)
+                                .copied()
+                                .collect()
+                        } else {
+                            representations
+                        }
+                    },
+                }
+            },
+        }
+    }
+}
+
+
+// A manifest often contains multiple video Representations with different codecs, bandwidths and
+// video resolutions. We select the Representation to download by ranking following the user's
+// specified codec preference, or their quality preference. We first rank following the
+// @qualityRanking attribute if it is present, and otherwise by the bandwidth specified. Note that
+// quality ranking may be different from bandwidth ranking when different codecs are used.
 fn select_preferred_representation<'a>(
     representations: &[&'a Representation],
     downloader: &DashDownloader) -> Option<&'a Representation>
@@ -1446,7 +1699,12 @@ fn print_available_streams_representation(r: &Representation, a: &AdaptationSet,
                      |r| r.value.as_ref().map_or_else(|| String::from(""), |v| format!(" role={v}")));
     let label = a.Label.first()
         .map_or_else(|| String::from(""), |l| format!(" label={}", l.clone().content));
-    info!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}", bw / 1024);
+    let maybe_id = if let Some(rid) = &r.id {
+        format!(" (id={rid})")
+    } else {
+        String::from("")
+    };
+    info!("  {typ} {codec:17} | {:5} Kbps | {fmt:>9}{role}{label}{maybe_id}", bw / 1024);
 }
 
 fn print_available_streams_adaptation(a: &AdaptationSet, typ: &str) {
@@ -2253,7 +2511,12 @@ async fn do_period_audio(
             let codec = audio_repr.codecs.as_ref()
                 .unwrap_or(audio_adaptation.codecs.as_ref()
                            .unwrap_or(&unknown));
-            diagnostics.push(format!("  Audio stream selected: {bw}lang={lang} codec={codec}"));
+            let maybe_id = if let Some(rid) = &audio_repr.id {
+                format!(" (id={rid})")
+            } else {
+                String::from("")
+            };
+            diagnostics.push(format!("  Audio stream selected: {bw}lang={lang} codec={codec}{maybe_id}"));
             // Check for ContentProtection on the selected Representation/Adaptation
             for cp in audio_repr.ContentProtection.iter()
                 .chain(audio_adaptation.ContentProtection.iter())
@@ -2653,10 +2916,20 @@ async fn do_period_video(
     }
     // A manifest may contain multiple AdaptationSets with video content (in particular, when
     // different codecs are offered). Each AdaptationSet often contains multiple video
-    // Representations with different bandwidths and video resolutions. We select the Representation
-    // to download by ranking the available streams according to the preferred width specified by
-    // the user, or by the preferred height specified by the user, or by the user's specified
-    // quality preference.
+    // Representations with different bandwidths, video resolutions and codecs. We select the
+    // Representation to download by ranking them according to the following user-specified
+    // preferences:
+    //
+    //   - a substring of the video @id attribute
+    //   - the preferred width
+    //   - the preferred height
+    //   - the video codec preference ordering
+    //   - the quality preference (defaulting to the lowest quality available)
+    //
+    // The preferences are applied in the order shown in the list above.
+    //
+    // If these preferences have not been specified, they have no filtering effect, except for the
+    // quality preference which defaults to preferring the lowest quality and smallest file size.
     let video_adaptations: Vec<&AdaptationSet> = period.adaptations.iter()
         .filter(is_video_adaptation)
         .collect();
@@ -2664,18 +2937,18 @@ async fn do_period_video(
         .iter()
         .flat_map(|a| a.representations.iter())
         .collect();
-    let maybe_video_repr = if let Some(want) = downloader.video_width_preference {
-        representations.iter()
-            .min_by_key(|x| if let Some(w) = x.width { want.abs_diff(w) } else { u64::MAX })
-            .copied()
-    }  else if let Some(want) = downloader.video_height_preference {
-        representations.iter()
-            .min_by_key(|x| if let Some(h) = x.height { want.abs_diff(h) } else { u64::MAX })
-            .copied()
-    } else {
-        select_preferred_representation(&representations, downloader)
-    };
-    if let Some(video_repr) = maybe_video_repr {
+    trace!("Before filtering we have {} Representations", representations.len());
+    let representations = representation_filter_video_id(representations, downloader);
+    trace!("After video_id filter we have {} Representations", representations.len());
+    let representations = representation_filter_video_width(representations, downloader);
+    trace!("After width filter we have {} Representations", representations.len());
+    let representations = representation_filter_video_height(representations, downloader);
+    trace!("After height filter we have {} Representations", representations.len());
+    let representations = representation_filter_video_codec(representations, downloader);
+    trace!("After video codec filter we have {} Representations", representations.len());
+    let representations = representation_filter_video_quality(representations, downloader);
+    trace!("After quality filter we have {} Representations", representations.len());
+    if let Some(video_repr) = representations.first() {
         // Find the AdaptationSet that is the parent of the selected Representation. This may be
         // needed for certain Representation attributes whose value can be located higher in the XML
         // tree.
@@ -2707,7 +2980,12 @@ async fn do_period_video(
             };
             let codec = video_repr.codecs.as_ref()
                 .unwrap_or(video_adaptation.codecs.as_ref().unwrap_or(&unknown));
-            diagnostics.push(format!("  Video stream selected: {bw}{fmt}codec={codec}"));
+            let maybe_id = if let Some(rid) = &video_repr.id {
+                format!(" (id={rid})")
+            } else {
+                String::from("")
+            };
+            diagnostics.push(format!("  Video stream selected: {bw}{fmt}codec={codec}{maybe_id}"));
             // Check for ContentProtection on the selected Representation/Adaptation
             for cp in video_repr.ContentProtection.iter()
                 .chain(video_adaptation.ContentProtection.iter())
