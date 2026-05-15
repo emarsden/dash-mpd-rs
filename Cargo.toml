@@ -19,8 +19,8 @@ lazy_static = "1.5.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_path_to_error = "0.1.20"
 serde_ignored = { version = "0.1.14", optional = true }
-serde_with = { version = "3.18.0", features = ["base64"] }
-quick-xml = { version = "0.39.2", features = ["serialize", "overlapped-lists"] }
+serde_with = { version = "3.20.0", features = ["base64"] }
+quick-xml = { version = "0.40.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.8"
 chrono = { version = "0.4.44", features = ["serde"] }
 num-traits = "0.2.19"
@@ -30,8 +30,8 @@ thiserror = "2.0.18"
 tracing = { version = "0.1.44", features = ["attributes", "std"] }
 data-url = { version = "0.3.2", optional = true }
 bytes = "1.11.1"
-reqwest = { version = "0.13.2", default-features = false, features = ["cookies", "charset", "system-proxy"], optional = true }
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
+reqwest = { version = "0.13.3", default-features = false, features = ["cookies", "charset", "system-proxy"], optional = true }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"], optional = true }
 futures-util = "0.3.32"
 backon = { version = "1.6.0", features = ["tokio"], optional = true }
 governor = { version = "0.10.4", optional = true }
@@ -59,7 +59,7 @@ hex-literal = "1.1.0"
 colored = "3.1.1"
 indicatif = "0.18.4"
 clap = "4.5.60"
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "time", "macros"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "time", "macros"] }
 time = { version = "0.3.47", features = ["macros"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "local-time", "ansi", "tracing-log"] }
 proptest = "1.11.0"
@@ -67,7 +67,7 @@ http = "1.4.0"
 axum = "0.8.9"
 axum-auth = "0.8.1"
 axum-server = "0.8.0"
-reqwest = { version = "0.13.2", default-features = false, features = ["cookies", "json", "blocking"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["cookies", "json", "blocking"] }
 serde_json = "1.0.149"
 anyhow = "1.0.102"
 roxmltree = "0.21.1"
