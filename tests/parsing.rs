@@ -750,11 +750,11 @@ async fn test_parsing_online() {
     check_mpd(client.clone(),
               "https://github.com/Eyevinn/dash-mpd/raw/226078de966af6b72b9da6b3f7fd2b2d8c2a1c79/mpd/testdata/schema-mpds/example_H2.mpd").await;
     check_mpd(client.clone(),
-              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_K6.4.mpd").await;
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/tags/v0.13.0/mpd/testdata/schema-mpds/example_K6.4.mpd").await;
     check_mpd(client.clone(),
-              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_G21_patch_base.mpd").await;
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/tags/v0.13.0/mpd/testdata/schema-mpds/example_G21_patch_base.mpd").await;
     check_mpd(client.clone(),
-              "https://github.com/Eyevinn/dash-mpd/raw/refs/heads/main/mpd/testdata/schema-mpds/example_G30-5.mpd").await;
+              "https://github.com/Eyevinn/dash-mpd/raw/refs/tags/v0.13.0/mpd/testdata/schema-mpds/example_G30-5.mpd").await;
 
     // Additional test files from https://github.com/claudiuolteanu/mpd-parser
     check_mpd(client.clone(),
@@ -787,6 +787,12 @@ async fn test_parsing_online() {
     // from https://rdmedia.bbc.co.uk/testcard/vod/
     check_mpd(client.clone(),
               "https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-en-revaud.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://fast.vidalytics.com/video/09PvoPyn/2gd6OqIj9RiENY_b/80287/70019/stream.mpd").await;
+
+    check_mpd(client.clone(),
+              "http://mcdn.ndr.de/ndr/dash/ndr_hbbtv/ndr_hbbtv_mv/ndr_hbbtv_mv.mpd").await;
 }
 
 
