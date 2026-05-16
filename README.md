@@ -256,14 +256,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.20.2"
+dash-mpd = "0.20.3"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.20.2", default-features = false }
+dash-mpd = { version = "0.20.3", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
@@ -289,8 +289,9 @@ be enabled:
 - `socks` *(enabled by default)*: enables the `socks` feature on our `reqwest` dependency, which
   provides SOCKS5 proxy support for HTTP/HTTPS requests.
 
-- `compression` *(enabled by default)*: enables the `gzip` feature on our `reqwest` dependency, to
-  enable gzip compression and decompression of HTTP/HTTPS requests.
+- `compression` *(enabled by default)*: enables the `gzip`, `brotli` and `zstd` features on our
+  `reqwest` dependency, to enable different forms of compression and decompression of HTTP/HTTPS
+  requests.
 
 - `native-tls` *(enabled by default)*: enables the native-tls feature on our `reqwest` dependency,
   to enable HTTPS requests using the platform's default TLS implementation.
@@ -304,9 +305,7 @@ be enabled:
   mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate.
 
 - `hickory-dns`: enable the `hickory-dns` feature on our `reqwest` dependency, to use the [Hickory DNS
-  resolver library](https://github.com/hickory-dns/hickory-dns) instead of the system resolver. (This
-  feature was previously named `trust-dns` following the previous name for the Hickory DNS resolver.
-  The old name for the feature is still accepted but is deprecated.)
+  resolver library](https://github.com/hickory-dns/hickory-dns) instead of the system resolver.
 
 - `scte35` *(enabled by default)*: enable support for XML elements corresponding to the SCTE-35
   standard for insertion of alternate content (mostly used for dynamic insertion of advertising).

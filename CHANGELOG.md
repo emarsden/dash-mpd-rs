@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.20.3] - Unreleased
+## [0.20.3] - 2026-05-16
 
 - Downloading: when retrieving content from a multi-codec manifest (that includes multiple Representation
   elements with different video codecs), it is now possible to specify a preference ordering for the
@@ -16,6 +16,17 @@
 - Downloading: improve the way in which video stream selection is implemented, to allow selection
   based on both video width/height and codec and quality, in situations where multiple
   Representations are available with the same resolution but different codecs or quality settings.
+  If there are multiple Representations with the same “score” with respect to a user-specified
+  parameter (for example, several Representations with the same video resolution but with different
+  codecs), all identical score Representations will now be passed on to the next filtering stage,
+  whereas previously only one Representation (the first listed in the manifest) would be selected.
+  Filtering of video Representations takes place in the following order:
+
+  - @id substring
+  - video with
+  - video height
+  - video codec
+  - quality/bandwidth (defaulting to the lowest quality and file size)
 
 
 ## [0.20.2] - 2026-03-07
@@ -158,7 +169,7 @@
 
 - ffmpeg muxing support supports the use of the `DASHMPD_PERSIST_FILES` environment variable to retain
   the temporary files created during muxing.
-  
+
 - The ffmpeg demuxer concat helper uses absolute paths in the ffconcat file, rather than relative
   paths, because ffmpeg interprets relative paths with respect to the location of the ffconcat file,
   rather than with respect to CWD. Fixes #93 reported by @Cocalus.
