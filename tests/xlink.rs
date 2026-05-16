@@ -86,8 +86,8 @@ fn add_xml_namespaces_recurse(element: &xmlem::Element, doc: &mut xmlem::Documen
 // namespaces.
 //
 // Here we use a third (!) XML parsing crate xmlem only because it is sufficiently lax in parsing.
-// We can't use xmltree for this tree rewriting because it refuses the malformed XML (missing
-// namespace declaration).
+// We can't use the xmltree or xmloxide crates for this tree rewriting because they refuse the
+// malformed XML (missing namespace declaration).
 fn add_xml_namespaces(xml: &str) -> Result<String> {
     let mut doc = xmlem::Document::from_str(xml).expect("xmlem parsing");
     add_xml_namespaces_recurse(&doc.root(), &mut doc);
