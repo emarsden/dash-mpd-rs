@@ -20,7 +20,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_path_to_error = "0.1.20"
 serde_ignored = { version = "0.1.14", optional = true }
 serde_with = { version = "3.20.0", features = ["base64"] }
-quick-xml = { version = "0.40.0", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.40.1", features = ["serialize", "overlapped-lists"] }
 url = "2.5.8"
 chrono = { version = "0.4.44", features = ["serde"] }
 num-traits = "0.2.19"
@@ -77,7 +77,7 @@ mp4 = "0.14.0"
 image = "0.25.10"
 pretty_assertions = "1.4.1"
 approx = "0.5.1"
-assert_cmd = "2.2.1"
+assert_cmd = "2.2.2"
 
 [features]
 default = ["fetch", "native-tls", "compression", "socks", "scte35", "http2"]
