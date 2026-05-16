@@ -3779,6 +3779,7 @@ async fn do_period_subtitles(
                                 }
                                 total_number += (period_duration_secs / segment_duration).ceil() as i64;
                                 let mut number = start_number;
+                                #[allow(clippy::explicit_counter_loop)]
                                 for _ in 1..=total_number {
                                     let dict = HashMap::from([("Number", number.to_string())]);
                                     let path = resolve_url_template(&sub_path, &dict);
