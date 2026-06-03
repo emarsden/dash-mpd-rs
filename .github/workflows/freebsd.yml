@@ -19,7 +19,7 @@ jobs:
     # these tests are extremely slow to run
     timeout-minutes: 450
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v6.0.2
     - name: Run tests in FreeBSD VM
       uses: cross-platform-actions/action@v1.1.0
       with:
