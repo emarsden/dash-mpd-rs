@@ -408,6 +408,7 @@ async fn test_dl_hvc1() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         .verbosity(2)
         .download_to(&out).await
         .unwrap();

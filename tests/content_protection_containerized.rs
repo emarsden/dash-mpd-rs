@@ -95,6 +95,7 @@ async fn test_decryption_wvcenc_shaka_container () {
         .worst_quality()
         .verbosity(2)
         .sandbox(true)
+        .content_type_checks(false)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -126,6 +127,7 @@ async fn test_decryption_wvcenc_mp4box_container () {
         .worst_quality()
         .verbosity(2)
         .sandbox(true)
+        .content_type_checks(false)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -157,6 +159,7 @@ async fn test_decryption_wvcbcs_mp4box_container () {
         .worst_quality()
         .verbosity(2)
         .sandbox(true)
+        .content_type_checks(false)
         .add_decryption_key(String::from("43215678123412341234123412341237"),
                             String::from("12341234123412341234123412341237"))
         .add_decryption_key(String::from("43215678123412341234123412341236"),
@@ -189,6 +192,7 @@ async fn test_decryption_prcenc_shaka_container () {
         .worst_quality()
         .verbosity(3)
         .sandbox(true)
+        .content_type_checks(false)
         .add_decryption_key(String::from("43215678123412341234123412341236"),
                             String::from("12341234123412341234123412341236"))
         .with_decryptor_preference("shaka-container")

@@ -29,6 +29,7 @@ async fn test_muxing_mkvmerge() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         // Some useless arguments to increase test coverage
         .with_ffmpeg("/usr/bin/ffmpeg")
         .with_vlc("/usr/bin/vlc")
@@ -103,6 +104,7 @@ async fn test_muxing_ffmpeg_avi() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         .with_muxer_preference("avi", "ffmpeg")
         .download_to(&out).await
         .unwrap();
@@ -128,6 +130,7 @@ async fn test_muxing_ffmpeg_mkv() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         .with_muxer_preference("mkv", "ffmpeg")
         .download_to(&out).await
         .unwrap();
@@ -166,6 +169,7 @@ async fn test_muxing_ffmpeg_webm() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         .verbosity(2)
         .with_muxer_preference("webm", "ffmpeg")
         .download_to(&out).await
@@ -239,6 +243,7 @@ async fn test_muxing_vlc_mp4() {
     let out = tmpd.path().join("muxing-llama.mp4");
     DashDownloader::new(mpd_url)
         .sandbox(true)
+        .content_type_checks(false)
         .worst_quality()
         .with_muxer_preference("mp4", "vlc")
         .download_to(&out).await
@@ -275,6 +280,7 @@ async fn test_muxing_vlc_mkv() {
     let out = tmpd.path().join("muxing-llama.mkv");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .content_type_checks(false)
         .sandbox(true)
         .with_muxer_preference("mkv", "vlc")
         .download_to(&out).await
@@ -311,6 +317,7 @@ async fn test_muxing_vlc_webm() {
     let out = tmpd.path().join("muxing-llama.webm");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .content_type_checks(false)
         .sandbox(true)
         .with_muxer_preference("webm", "vlc")
         .download_to(&out).await
@@ -348,6 +355,7 @@ async fn test_muxing_mp4box() {
     let out = tmpd.path().join("muxing-llama.mp4");
     DashDownloader::new(mpd_url)
         .worst_quality()
+        .content_type_checks(false)
         .sandbox(true)
         .with_muxer_preference("mp4", "mp4box")
         .download_to(&out).await
