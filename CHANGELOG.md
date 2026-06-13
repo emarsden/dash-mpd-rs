@@ -23,7 +23,7 @@
   Filtering of video Representations takes place in the following order:
 
   - @id substring
-  - video with
+  - video width
   - video height
   - video codec
   - quality/bandwidth (defaulting to the lowest quality and file size)
