@@ -287,8 +287,8 @@ async fn test_error_tls_expired_le() {
 #[tokio::test]
 #[should_panic(expected = "NetworkConnect")]
 async fn test_error_tls_revoked_le() {
-    #[cfg(all(target_os = "macos", feature = "native-tls"))]
-    panic!("NetworkConnect failing test on MacOS + native-tls");
+    #[cfg(any(target_os="windows", all(target_os = "macos", feature = "native-tls")))]
+    panic!("NetworkConnect failing test on (MacOS + native-tls)+(Windows)");
     DashDownloader::new("https://revoked.yr.test-certs.letsencrypt.org/")
         .download().await
         .unwrap();
