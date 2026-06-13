@@ -4653,7 +4653,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         if let Some(id) = period.id.as_ref() {
             pd.id = Some(id.clone());
         }
-        if downloader.verbosity > 0 {
+        if downloader.verbosity > 0 && !downloader.fetch_audio && !downloader.fetch_video && !downloader.fetch_subtitles {
             if let Some(id) = period.id.as_ref() {
                 info!("Preparing download for period {id} (#{period_counter})");
             } else {
