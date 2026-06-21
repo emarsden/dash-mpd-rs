@@ -470,10 +470,15 @@ async fn test_muxing_3gp_vlc() {
 }
 
 
-// This test succeeds with MP4Box version 2.2, but fails with version 2.0, which is the one
-// currently available in ubuntu-latest and MacOS Homebrew. Version 2.2 adds improvements concerning
-// MKV containers. We currently disable this test on CI until a more recent version of MP4Box is easily
-// available for the GitHub actions CI machines.
+// This test is disabled because MP4Box is not able (v26.03) to transcode Vorbis to AAC for an MP4 container.
+//   "Failure while importing media: Filter not found for the desired type"
+//
+// To extract an MP4Box binary (statically linked) from the official gpac/ubuntu Docker image:
+//    podman pull docker.io/gpac/ubuntu
+//    podman create --name gpac_tmp docker.io/gpac/ubuntu
+//    podman cp gpac_tmp:/gpac/binaries/MP4Box .
+//    podman rm gpac_tmp
+#[ignore]
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_muxing_mp4box_audio() {
@@ -493,6 +498,7 @@ async fn test_muxing_mp4box_audio() {
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
+        .content_type_checks(false)
         .fetch_video(false)
         .fetch_subtitles(false)
         .with_muxer_preference("mp4", "mp4box")
