@@ -644,6 +644,7 @@ async fn test_decryption_mlcenc_shaka () {
     }
     DashDownloader::new(mpd)
         .worst_quality()
+        .content_type_checks(false)
         .sandbox(true)
         .add_decryption_key(String::from("43215678123412341234123412341234"),
                             String::from("12341234123412341234123412341234"))
