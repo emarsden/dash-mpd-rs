@@ -1499,8 +1499,7 @@ fn representation_filter_video_quality<'a>(
             QualityPreference::Intermediate => {
                 let count = representations.len();
                 match count {
-                    0 => representations,
-                    1 => representations,
+                    0 | 1 => representations,
                     _ => {
                         let mut ranking: Vec<u8> = representations.iter()
                             .map(|r| r.qualityRanking.unwrap_or(u8::MAX))
@@ -1535,12 +1534,8 @@ fn representation_filter_video_quality<'a>(
                 }
             },
             QualityPreference::Highest => {
-                for r in &representations {
-                    println!("££ possible rep with bandwidth = {}", r.bandwidth.unwrap_or(0));
-                }
                 let best = representations.iter()
                     .max_by_key(|r| r.bandwidth.unwrap_or(0));
-                println!("££ Got highest bandwidth rep {:?}", best);
                 match best {
                     Some(b) => representations.iter()
                         .filter(|r| r.bandwidth.unwrap_or(0) ==
@@ -1553,8 +1548,7 @@ fn representation_filter_video_quality<'a>(
             QualityPreference::Intermediate => {
                 let count = representations.len();
                 match count {
-                    0 => representations,
-                    1 => representations,
+                    0 | 1 => representations,
                     _ => {
                         let mut ranking: Vec<u64> = representations.iter()
                             .map(|r| r.bandwidth.unwrap_or(bw_large))
@@ -2036,6 +2030,7 @@ async fn apply_xslt_stylesheets(
 // Run user-specified XSLT stylesheets on the manifest, using xsltproc (a component of libxslt)
 // as a commandline filter application. Existing XSLT implementations in Rust are incomplete
 // (but improving; hopefully we will one day be able to use the xrust crate).
+#[allow(dead_code)]
 async fn apply_xslt_stylesheets_xsltproc(
     downloader: &DashDownloader,
     xot: &mut Xot,
@@ -2076,6 +2071,7 @@ async fn apply_xslt_stylesheets_xsltproc(
 // Try to use the xee crate functionality for XSLT processing. We need an alternative utility
 // function to evaluate that accepts a full XSLT stylehseet, rather than only the XML for a
 // transform.
+#[allow(dead_code)]
 #[cfg(feature = "xee-xslt")]
 async fn apply_xslt_stylesheets_xee(
     downloader: &DashDownloader,
