@@ -63,9 +63,14 @@ clippy:
 
 
 pedantic:
-    cargo clippy -- -Wclippy::pedantic -Aclippy::manual_string_new -Aclippy::cast_precision_loss -Aclippy::cast_possible_truncation -Aclippy::cast_sign_loss -Aclippy::too_many_lines
+    cargo clippy -- -Wclippy::pedantic -Aclippy::manual_string_new -Aclippy::cast_precision_loss -Aclippy::cast_possible_truncation -Aclippy::cast_sign_loss -Aclippy::too_many_lines -Aclippy::doc_markdown
+
+
+# Test the use of the xee crate for XSLT MPD rewriting
+xee:
+    cargo test --test xslt --features xee-xslt,fetch --jobs 1 -- --show-output
 
 
 publish:
-  cargo test
-  cargo publish
+    cargo test
+    cargo publish
