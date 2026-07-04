@@ -13,7 +13,7 @@ jobs:
     # these tests are extremely slow to run
     timeout-minutes: 320
     steps:
-    - uses: actions/checkout@v6.0.3
+    - uses: actions/checkout@v7.0.0
     - name: Run tests in an OpenBSD VM
       uses: cross-platform-actions/action@v1.3.0
       with:
