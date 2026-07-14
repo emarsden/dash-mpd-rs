@@ -174,6 +174,7 @@ where
 }
 
 // Serialize an Option<f64> as an xsd:double.
+#[allow(clippy::ref_option)]
 fn serialize_opt_xsd_double<S>(oxsd: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -351,6 +352,7 @@ where
 // are included to a nanosecond precision.
 //
 // Example: Duration::new(3600, 40_000_000) => "PT1H0M0.04S"
+#[allow(clippy::ref_option)]
 fn serialize_xs_duration<S>(oxs: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -480,6 +482,7 @@ where
 // The quick-xml support for #[serde(default = "fn")] (which would allow a less heavyweight solution
 // to this) does not seem to work.
 
+#[allow(clippy::ref_option)]
 fn serialize_xmlns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
@@ -489,6 +492,7 @@ where S: serde::Serializer {
     }
 }
 
+#[allow(clippy::ref_option)]
 fn serialize_xsi_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
@@ -498,6 +502,7 @@ where S: serde::Serializer {
     }
 }
 
+#[allow(clippy::ref_option)]
 fn serialize_cenc_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
@@ -507,6 +512,7 @@ where S: serde::Serializer {
     }
 }
 
+#[allow(clippy::ref_option)]
 fn serialize_mspr_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
@@ -516,6 +522,7 @@ where S: serde::Serializer {
     }
 }
 
+#[allow(clippy::ref_option)]
 fn serialize_xlink_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
@@ -525,6 +532,7 @@ where S: serde::Serializer {
     }
 }
 
+#[allow(clippy::ref_option)]
 fn serialize_dvb_ns<S>(os: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(s) = os {
