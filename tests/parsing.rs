@@ -684,6 +684,28 @@ async fn test_parsing_leapsecond_information() {
     assert!(adap26.Role.iter().any(|r| r.value.as_ref().is_some_and(|v| v.eq("alternate"))));
 }
 
+#[tokio::test]
+async fn test_pi_copyright() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://livesim.dashif.org/livesim2/WAVE/av/combined.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml).unwrap();
+    assert!(mpd.ProgramInformation.unwrap()
+            .Title.unwrap().contains("croatia"));
+    assert!(mpd.ProgramInformation.unwrap()
+            .Copyright.unwrap().contains("CC BY"));
+}
+
 
 // Test some of the example DASH manifests provided by the MPEG Group
 // at https://github.com/MPEGGroup/DASHSchema
