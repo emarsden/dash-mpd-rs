@@ -700,10 +700,9 @@ async fn test_pi_copyright() {
         .text().await
         .expect("fetching MPD content");
     let mpd = parse(&xml).unwrap();
-    assert!(mpd.ProgramInformation.unwrap()
-            .Title.unwrap().contains("croatia"));
-    assert!(mpd.ProgramInformation.unwrap()
-            .Copyright.unwrap().contains("CC BY"));
+    let pi = mpd.ProgramInformation.first().unwrap();
+    assert!(pi.Title.as_ref().unwrap().content.as_ref().unwrap().contains("croatia"));
+    assert!(pi.Copyright.as_ref().unwrap().content.as_ref().unwrap().contains("CC BY"));
 }
 
 
