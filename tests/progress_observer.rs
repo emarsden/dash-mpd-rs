@@ -83,7 +83,7 @@ async fn test_progress_observer_progress() {
                 100 => SEEN_P100.store(true, Ordering::Relaxed),
                 _ => {},
             }
-            CURRENT_PERCENT.store(percent.into(), Ordering::Relaxed);
+            CURRENT_PERCENT.store(percent, Ordering::Relaxed);
             assert!(message.len() < 150);
             // 1000 GB/s should be enough for everybody.
             assert!(bandwidth < 1_000_000_000_000);
@@ -108,9 +108,9 @@ async fn test_progress_observer_progress() {
         .download_to(&out).await
         .unwrap();
     assert!(MESSAGE_COUNTER.load(Ordering::Relaxed) > 100);
-    assert!(SEEN_P98.load(Ordering::Relaxed) == true);
-    assert!(SEEN_P99.load(Ordering::Relaxed) == true);
-    assert!(SEEN_P100.load(Ordering::Relaxed) == true);
+    assert!(SEEN_P98.load(Ordering::Relaxed));
+    assert!(SEEN_P99.load(Ordering::Relaxed));
+    assert!(SEEN_P100.load(Ordering::Relaxed));
     check_file_size_approx(&out, 110_010_161);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
