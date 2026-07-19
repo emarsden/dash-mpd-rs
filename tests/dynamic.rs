@@ -357,7 +357,7 @@ async fn test_dl_broadpeak_lowlat() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "//   https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd";
+    let mpd_url = "https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("dynamic-broadpeak-lowlat.mp4");
     let client = reqwest::Client::builder()
@@ -392,6 +392,7 @@ async fn test_dl_broadpeak_lowlat() {
 
 
 // This test URL generated at https://livesim.dashif.org/urlgen/
+#[ignore] // the media segments are not online
 #[tokio::test]
 async fn test_dl_livesim_start_stop() {
     setup_logging();
