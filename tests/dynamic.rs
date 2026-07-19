@@ -270,7 +270,46 @@ async fn test_dl_ustreaming_lldynamic() {
 }
 
 
+#[tokio::test]
+async fn test_dl_ustreaming_testimg() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://demo.unified-streaming.com/k8s/live/scte35.isml/.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-ll-testimage.mp4");
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("creating HTTP client");
+    DashDownloader::new(mpd_url)
+        .with_http_client(client)
+        .worst_quality()
+        .sandbox(true)
+        .allow_live_streams(true)
+        .audio_only()
+        .force_duration(48.0)
+        .sleep_between_requests(1)
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Audio);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration_relaxed(&out, 48.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
 
+
+
+// This MPD created with Broadpeak BkS350 Origin Packager
 #[tokio::test]
 async fn test_dl_broadpeak_cycling() {
     setup_logging();
