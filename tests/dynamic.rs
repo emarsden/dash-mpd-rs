@@ -352,3 +352,6 @@ async fn test_dl_broadpeak_cycling() {
 
 
 
+// TODO: use test stream which should be 28 seconds long https://livesim.dashif.org/livesim2/startrel_-5/stoprel_23/scte35_2/WAVE/vectors/cfhd_sets/12.5_25_50/t1/2022-10-17/stream.mpd generated at https://livesim.dashif.org/urlgen/create?asset=WAVE%2Fvectors%2Fcfhd_sets%2F12.5_25_50%2Ft1%2F2022-10-17&mpd=stream.mpd&stl=nr&tsbd=&mup=&spd=&utc=&snr=&periods=&ato=&chunkdur=&ltgt=&ssrAS=&chunkDurSSR=&patch-ttl=&scte35=2&start=&stop=&startrel=-5&stoprel=23&timesubsstpp=&timesubswvtt=&timesubsdur=&timesubsreg=0&drm=None&annexI=&sgai=&sgaiSessionId=&sgaiInterests=&steer=&steerSessionId=&steerCsid=&statuscode=&traffic= 
+
+// and https://d24rwxnt7vw9qb.cloudfront.net/v1/dash/e6d234965645b411ad572802b6c9d5a10799c9c1/All_Reference_Streams/4577dca5f8a44756875ab5cc913cd1f1/index.mpd
