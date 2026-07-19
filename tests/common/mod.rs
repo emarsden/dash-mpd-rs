@@ -51,14 +51,16 @@ pub fn check_file_size_approx(p: &Path, expected: u64) {
 // Check either with the Rust revelo library (a reimplementation of mediainfo), and if that cannot
 // extract a duration try ffprobe, and if that does not work (which is the case for Matroska
 // containers for example) try to obtain information from mediainfo.
-pub fn check_media_duration(p: &Path, expected: f64) {
+pub fn check_media_duration_threshold(p: &Path, expected: f64, margin: f64) {
     use serde_json::Value;
 
+    let lower_bound = 1.0 - margin;
+    let upper_bound = 1.0 + margin;
     let meta = revelo::Metadata::from_file(p.to_str().unwrap()).unwrap();
     if let Some((_, duration)) = meta.general().find(|md| md.0.eq("Duration")) {
         if let Ok(milliseconds) = duration.parse::<u64>() {
             let ratio = milliseconds as f64 / (1000.0 * expected);
-            assert!(0.9 < ratio && ratio < 1.1,
+            assert!(lower_bound < ratio && ratio < upper_bound,
                     "Media duration: expected {expected}, got {} (revelo)", milliseconds as f64 / 1000.0);
             return;
         }
@@ -70,7 +72,7 @@ pub fn check_media_duration(p: &Path, expected: f64) {
             if let Some(duration_str) = video.duration.as_ref() {
                 if let Ok(duration) = duration_str.parse::<f64>() {
                     let ratio = duration / expected;
-                    assert!(0.9 < ratio && ratio < 1.1,
+                    assert!(lower_bound < ratio && ratio < upper_bound,
                             "Media duration: expected {expected}, got {duration}");
                     return;
                 }

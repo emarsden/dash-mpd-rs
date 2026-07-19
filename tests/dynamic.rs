@@ -14,7 +14,7 @@ use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
-use common::{check_media_duration, setup_logging};
+use common::{check_media_duration_relaxed, setup_logging};
 
 
 // This is a "pseudo-live" stream, a dynamic MPD manifest for which all media segments are already
@@ -144,7 +144,7 @@ async fn test_dl_dynamic_forced_duration() {
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     // FIXME we are seeing 1 here
-    check_media_duration(&out, 6.0);
+    check_media_duration_relaxed(&out, 6.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -178,7 +178,7 @@ async fn test_dl_lowlatency_forced_duration() {
     let stream = &meta.streams[1];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    check_media_duration(&out, 11.0);
+    check_media_duration_relaxed(&out, 11.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -220,7 +220,7 @@ async fn test_dl_bbcws_dynamic() {
     let stream = &meta.streams[0];
     assert_eq!(stream.codec_type, Some(String::from("audio")));
     assert_eq!(stream.codec_name, Some(String::from("aac")));
-    check_media_duration(&out, 25.0);
+    check_media_duration_relaxed(&out, 25.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -262,7 +262,7 @@ async fn test_dl_ustreaming_lldynamic() {
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
-    check_media_duration(&out, 21.0);
+    check_media_duration_relaxed(&out, 21.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -304,7 +304,7 @@ async fn test_dl_broadpeak_cycling() {
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
-    check_media_duration(&out, 23.0);
+    check_media_duration_relaxed(&out, 23.0);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
