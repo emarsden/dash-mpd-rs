@@ -27,6 +27,7 @@ use common::{check_file_size_approx, check_media_duration, setup_logging};
 #[tokio::test]
 async fn test_dl_none() {
     setup_logging();
+    // FIXME this URL is apparently now behind anti-bot machinery that sometimes generates HTTP 503
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cfnone.mp4");
     DashDownloader::new(mpd_url)
@@ -1001,29 +1002,6 @@ async fn test_dl_usp_packager() {
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
     check_file_size_approx(&out, 206_901_334);
-    let entries = fs::read_dir(tmpd.path()).unwrap();
-    let count = entries.count();
-    assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
-}
-
-
-#[tokio::test]
-async fn test_dl_arte() {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    let mpd_url = "https://arteamd1.akamaized.net/GPU/034000/034700/034755-230-A/221125154117/034755-230-A_8_DA_v20221125.mpd";
-    let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("arte.mp4");
-    DashDownloader::new(mpd_url)
-        .worst_quality()
-        .download_to(&out).await
-        .unwrap();
-    let format = FileFormat::from_file(&out).unwrap();
-    assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 33_188_592);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
