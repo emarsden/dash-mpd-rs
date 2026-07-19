@@ -51,6 +51,7 @@ webm-iterable = "0.6.4"
 edit-distance = "2.2.2"
 xee-xslt-compiler = { version = "0.1.6", optional = true }
 mp4-atom = "0.14"
+xmlparser = "0.13.6"
 
 
 [dev-dependencies]

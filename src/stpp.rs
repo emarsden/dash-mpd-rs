@@ -54,7 +54,8 @@
 use std::io::Cursor;
 use xot::{Xot, output};
 use xot::xmlname::NameStrInfo;
-use tracing::{trace, warn};
+use xmlparser::{ElementEnd, Token, Tokenizer};
+use tracing::{trace, warn, error};
 use bytes::Bytes;
 use crate::DashMpdError;
 
@@ -131,16 +132,27 @@ impl StppDocument {
                           |nnn| nnn.local_name().eq(name))))
     }
 
+
     // Parse the TTML XML in xml and add its contents to the content accumulated in the parent
     // StppDocument. TTML fragments will often contain redundant style and region elements to allow
     // a media player to jump to a random point in the subtitle stream without requiring it to load
     // all the previous subtitle segments. We filter these out.
     pub fn add_content(&mut self, xml: &str) -> Result<(), DashMpdError> {
         trace!("adding STPP content {xml}");
-        let root = self.xot.parse(xml)
-            .map_err(|_| DashMpdError::Parsing(String::from("parsing STPP XML")))?;
+        let mut clean_xml = xml;
+        let epos = identify_xml_endpos(xml)
+            .map_err(|_| DashMpdError::Parsing(String::from("calculating XML endpos")))?;
+        if epos < xml.len() {
+            clean_xml = &clean_xml[0..epos];
+        }
+        let root = self.xot.parse(clean_xml)
+            .map_err(|e| {
+                error!("Failure parsing STPP XML: {e:?}");
+                error!("Failing XML: {xml}");
+                DashMpdError::Parsing(String::from("parsing STPP XML"))
+            })?;
         let tt = self.xot.document_element(root)
-            .map_err(|_| DashMpdError::Parsing(String::from("parsing STPP XML")))?;
+            .map_err(|_| DashMpdError::Parsing(String::from("extracting STPP XML root")))?;
         if !self.xot.element(tt).is_some_and(
             |n| self.xot.name_ns_str(n.name()).0.eq("tt")) {
             warn!("Missing tt root element in STPP XML: {xml}");
@@ -248,4 +260,36 @@ impl StppDocument {
     }
 }
 
+
+// Argument str contains a well-formed XML document potentially followed by trailing content. Return
+// the string position corresponding to the end of XML content.
+fn identify_xml_endpos(input: &str) -> Result<usize, xmlparser::Error> {
+    let mut depth = 0;
+    let mut xml_end;
+    for token in Tokenizer::from(input) {
+        let token = token?;
+        xml_end = token.span().end();
+        match token {
+            Token::ElementStart { .. } => depth += 1,
+            Token::ElementEnd { end: ElementEnd::Close(..), .. } => {
+                depth -= 1;
+                if depth == 0 {
+                    // We've closed the root element.
+                    return Ok(xml_end);
+                }
+            },
+            Token::ElementEnd { end: ElementEnd::Empty, .. } => {
+                depth -= 1;
+                if depth == 0 {
+                    // Root element was <root/>.
+                    return Ok(xml_end);
+                }
+            },
+            _ => {}
+        }
+    }
+    Err(xmlparser::Error::UnknownToken(
+        xmlparser::TextPos::new(1, 1),
+    ))
+}
 
