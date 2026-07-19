@@ -14,7 +14,7 @@ use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use dash_mpd::fetch::DashDownloader;
-use common::{check_media_duration_relaxed, setup_logging};
+use common::{check_media_duration, check_media_duration_relaxed, setup_logging};
 
 
 // This is a "pseudo-live" stream, a dynamic MPD manifest for which all media segments are already
@@ -351,7 +351,81 @@ async fn test_dl_broadpeak_cycling() {
 }
 
 
+#[tokio::test]
+async fn test_dl_broadpeak_lowlat() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "//   https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-broadpeak-lowlat.mp4");
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("creating HTTP client");
+    DashDownloader::new(mpd_url)
+        .with_http_client(client)
+        .worst_quality()
+        .sandbox(true)
+        .allow_live_streams(true)
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 2);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    check_media_duration(&out, 30.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
 
-// TODO: use test stream which should be 28 seconds long https://livesim.dashif.org/livesim2/startrel_-5/stoprel_23/scte35_2/WAVE/vectors/cfhd_sets/12.5_25_50/t1/2022-10-17/stream.mpd generated at https://livesim.dashif.org/urlgen/create?asset=WAVE%2Fvectors%2Fcfhd_sets%2F12.5_25_50%2Ft1%2F2022-10-17&mpd=stream.mpd&stl=nr&tsbd=&mup=&spd=&utc=&snr=&periods=&ato=&chunkdur=&ltgt=&ssrAS=&chunkDurSSR=&patch-ttl=&scte35=2&start=&stop=&startrel=-5&stoprel=23&timesubsstpp=&timesubswvtt=&timesubsdur=&timesubsreg=0&drm=None&annexI=&sgai=&sgaiSessionId=&sgaiInterests=&steer=&steerSessionId=&steerCsid=&statuscode=&traffic= 
 
-// and https://d24rwxnt7vw9qb.cloudfront.net/v1/dash/e6d234965645b411ad572802b6c9d5a10799c9c1/All_Reference_Streams/4577dca5f8a44756875ab5cc913cd1f1/index.mpd
+
+// This test URL generated at https://livesim.dashif.org/urlgen/
+#[tokio::test]
+async fn test_dl_livesim_start_stop() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://livesim.dashif.org/livesim2/start_1784463843/stop_1784463871/scte35_2/WAVE/vectors/cfhd_sets/12.5_25_50/t1/2022-10-17/stream.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("dynamic-livesim2-start-stop.mp4");
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("creating HTTP client");
+    DashDownloader::new(mpd_url)
+        .with_http_client(client)
+        .sandbox(true)
+        .allow_live_streams(true)
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    check_media_duration(&out, 28.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+// Test streams to add:
+//   https://d24rwxnt7vw9qb.cloudfront.net/v1/dash/e6d234965645b411ad572802b6c9d5a10799c9c1/All_Reference_Streams/4577dca5f8a44756875ab5cc913cd1f1/index.mpd
+//

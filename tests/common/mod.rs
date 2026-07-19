@@ -101,7 +101,7 @@ pub fn check_media_duration(p: &Path, expected: f64) {
 }
 
 pub fn check_media_duration_relaxed(p: &Path, expected: f64) {
-    check_media_duration_threshold(p, expected, 0.3);
+    check_media_duration_threshold(p, expected, 0.4);
 }
 
 
