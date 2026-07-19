@@ -76,11 +76,9 @@ default configuration (using an external application as a subprocess).
   corresponding to the subtitle type (e.g. `.srt`, `.vtt`). Subtitles distributed in WebVTT/wvtt
   format (either as a single media stream or a fragmented MP4 stream) will be converted to the more
   standard SRT format using the MP4Box commandline utility (from the [GPAC](https://gpac.io/)
-  project), if it is installed. STPP subtitles (which according to the DASH specifications should be
-  formatted as EBU-TT) will be muxed into the output media container as a `subt:stpp` stream using
-  MP4Box (VLC should be able to read these subtitles), and also converted to a separate `.ttml` file
-  using ffmpeg. If your media player doesn't support STPP/TTML subtitles, you can try using the
-  GPAC media player (available with `gpac -gui`).
+  project), if it is installed. STPP subtitles will be downloaded to a separate `.ttml` file. If
+  your media player doesn't support STPP/TTML subtitles (this is the case for mplayer, for
+  instance), you can try using VLC or the GPAC media player (available with `gpac -gui`).
 
 - Support for **decrypting** media streams that use MPEG Common Encryption (cenc) ContentProtection.
   This requires either the `mp4decrypt` commandline application from the [Bento4
