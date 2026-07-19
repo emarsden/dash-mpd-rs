@@ -354,6 +354,11 @@ pub async fn decrypt_mp4box_container(
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("spawning MP4Box container: {e:?}")))?;
+    if env::var("DASHMPD_PERSIST_FILES").is_err() {
+	if let Err(e) = fs::remove_file(drmpath).await {
+            warn!("  Error deleting temporary mp4boxcrypt file: {e}");
+        }
+    }
     let mut no_output = false;
     if let Ok(metadata) = fs::metadata(&outpath).await {
         if downloader.verbosity > 0 {
