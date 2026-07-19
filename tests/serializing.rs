@@ -240,7 +240,7 @@ fn test_fixtures_xsd_validity() {
             .output()
             .unwrap();
         if !xmllint.status.success() {
-            eprintln!("== failed serializing test {} running in dir {}", &test, mpd_path.display());
+            eprintln!("== failed serializing test {test} running in dir {}", mpd_path.display());
             let stderr = String::from_utf8_lossy(&xmllint.stderr)
                 .lines()
                 .filter(|ln| !ln.contains("Skipping import of schema located at"))
@@ -362,7 +362,7 @@ fn test_urls_xsd_validity() {
             .output()
             .unwrap();
         if !xmllint.status.success() {
-            println!("== failed URL serializing test {} running on {}", &test, mpd_path.display());
+            println!("== failed URL serializing test {test} running on {}", mpd_path.display());
             let stderr = String::from_utf8_lossy(&xmllint.stderr)
                 .lines()
                 .filter(|ln| !ln.contains("Skipping import of schema located at"))
