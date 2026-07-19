@@ -43,6 +43,7 @@ use crate::decryption::{
     decrypt_mp4box,
     decrypt_mp4box_container
 };
+use crate::stpp::StppDocument;
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -4289,6 +4290,8 @@ async fn fetch_period_subtitles(
     {
         let tmpfile_subs = File::create(tmppath).await
             .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
+        // Only used if subtitle_formats contains SubtitleFormat::Stpp
+        let mut stpp_document = StppDocument::new();
         ensure_permissions_readable(tmppath).await?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
@@ -4349,23 +4352,27 @@ async fn fetch_period_subtitles(
                 {
                     Ok(response) => {
                         if response.status().is_success() {
-                            let dash_bytes = response.bytes().await
+                            let content_bytes = response.bytes().await
                                 .map_err(|e| network_error("fetching DASH subtitle segment", &e))?;
                             if downloader.verbosity > 2 {
                                 if let Some(sb) = &frag.start_byte {
                                     if let Some(eb) = &frag.end_byte {
                                         info!("  Subtitle segment {} range {sb}-{eb} -> {} octets",
-                                                 &frag.url, dash_bytes.len());
+                                                 &frag.url, content_bytes.len());
                                     }
                                 } else {
-                                    info!("  Subtitle segment {} -> {} octets", &frag.url, dash_bytes.len());
+                                    info!("  Subtitle segment {} -> {} octets", &frag.url, content_bytes.len());
                                 }
                             }
-                            let size = min((dash_bytes.len()/1024 + 1) as u32, u32::MAX);
+                            let size = min((content_bytes.len()/1024 + 1) as u32, u32::MAX);
                             throttle_download_rate(downloader, size).await?;
-                            tmpfile_subs.write_all(&dash_bytes)
-                                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
-                                .await?;
+                            if subtitle_formats.contains(&SubtitleType::Stpp) {
+                                stpp_document.add_from_mp4(&content_bytes)?;
+                            } else {
+                                tmpfile_subs.write_all(&content_bytes)
+                                    .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
+                                    .await?;
+                            }
                             have_subtitles = true;
                         } else {
                             failure = Some(format!("HTTP error {}", response.status().as_str()));
@@ -4387,6 +4394,14 @@ async fn fetch_period_subtitles(
             if downloader.sleep_between_requests > 0 {
                 tokio::time::sleep(Duration::new(downloader.sleep_between_requests.into(), 0)).await;
             }
+        }
+        if subtitle_formats.contains(&SubtitleType::Stpp) {
+            if downloader.verbosity > 1 {
+                info!("  Writing TTML subtitles to {tmppath:?}");
+            }
+            tmpfile_subs.write_all(stpp_document.to_string().as_bytes())
+                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
+                .await?;
         }
         tmpfile_subs.flush().map_err(|e| {
             error!("Couldn't flush subs file: {e}");
@@ -4447,50 +4462,25 @@ async fn fetch_period_subtitles(
             }
         }
         if subtitle_formats.contains(&SubtitleType::Stpp) {
-            if downloader.verbosity > 0 {
-                info!("  Converting STPP subtitles to TTML format with ffmpeg");
-            }
-            let out = downloader.output_path.as_ref().unwrap()
+            // Copy from the temporary filename for the subtitle file to a .ttml file with the same
+            // basename as the requested media output file. Copy rather than rename in case we a
+            // crossing filesystems.
+            let tmpfile_in = File::open(tmppath).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("opening tmp subtitle output")))?;
+            let ttml_path = downloader.output_path.as_ref().unwrap()
                 .with_extension("ttml");
-            let tmppath_arg = tmppath.to_string_lossy();
-            let out_arg = &out.to_string_lossy();
-            let ffmpeg_args = vec![
-                "-hide_banner",
-                "-nostats",
-                "-loglevel", "error",
-                "-y",  // overwrite output file if it exists
-                "-nostdin",
-                "-i", &tmppath_arg,
-                "-f", "data",
-                "-map", "0",
-                "-c", "copy",
-                out_arg];
-            if downloader.verbosity > 0 {
-                info!("  Running ffmpeg {}", ffmpeg_args.join(" "));
-            }
-            if let Ok(ffmpeg) = Command::new(downloader.ffmpeg_location.clone())
-                .args(ffmpeg_args)
-                .output()
-            {
-                let msg = partial_process_output(&ffmpeg.stdout);
-                if !msg.is_empty() {
-                    info!("  ffmpeg stdout: {msg}");
-                }
-                let msg = partial_process_output(&ffmpeg.stderr);
-                if !msg.is_empty() {
-                    info!("  ffmpeg stderr: {msg}");
-                }
-                if ffmpeg.status.success() {
-                    info!("  Converted STPP subtitles to TTML format");
-                } else {
-                    warn!("  Error running ffmpeg to convert subtitles");
-                }
-            }
-            // TODO: it would be useful to also convert the subtitles to SRT/WebVTT format, as they tend
-            // to be better supported. However, ffmpeg does not seem able to convert from SPTT to
-            // these formats. We could perhaps use the Python ttconv package, or below with MP4Box.
+            let ttml_file = File::create(ttml_path.clone()).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("opening TTML output file")))?;
+            io::copy(&mut BufReader::new(tmpfile_in), &mut BufWriter::new(ttml_file)).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("copying TTML subtitles")))?;
         }
-
+        // TODO: it might be useful to convert the subtitles to SRT/WebVTT format, as they tend to
+        // be better supported. However, ffmpeg does not seem able to convert from TTML to these
+        // formats. We could perhaps use the Python ttconv package, or below with MP4Box. Could
+        // perhaps use the captionrs crate, https://crates.io/crates/captionrs
     }
     Ok(have_subtitles)
 }
