@@ -931,6 +931,36 @@ async fn test_parsing_essentialproperty() {
 }
 
 
+#[tokio::test]
+async fn test_parsing_multiple_baseurl() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "http://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-mobile.mpd";
+    let xml = client.get(url)
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = dash_mpd::parse(&xml);
+    let mpd = mpd.unwrap();
+    assert!(mpd.maxSegmentDuration.is_some());
+    assert!(mpd.UTCTiming.is_empty());
+    assert_eq!(mpd.base_url.len(), 4);
+    for b in &mpd.base_url {
+        assert!(b.priority.is_some());
+        assert!(b.weight.is_some());
+        assert!(b.serviceLocation.is_some());
+    }
+    assert_eq!(mpd.Metrics.len(), 1);
+    let metrics = mpd.Metrics.first().unwrap();
+    assert_eq!(metrics.Reporting.len(), 1);
+}
+
+
 // From a list of streams at
 //   https://garfnet.org.uk/cms/tables/radio-frequencies/internet-radio-player/bbc-national-and-local-radio-dash-streams/
 //
