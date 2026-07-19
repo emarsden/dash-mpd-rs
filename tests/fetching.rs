@@ -1200,17 +1200,17 @@ async fn test_dl_follow_redirect() {
     if env::var("CI").is_ok() {
         return;
     }
-    let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
+    let mpd_url = "https://github.com/bbc/exoplayer-testing-samples/raw/master/app/src/androidTest/assets/streams/files/redGreenVideo/redGreenOnlyVideo.mpd";
     let redirector = format!("http://httpbin.org/redirect-to?url={mpd_url}");
     let tmpd = tempfile::tempdir().unwrap();
-    let out = tmpd.path().join("itec-redirected.mp4");
+    let out = tmpd.path().join("red-green-redirected.mp4");
     DashDownloader::new(&redirector)
         .worst_quality()
         .download_to(&out).await
         .unwrap();
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    check_file_size_approx(&out, 410_218);
+    check_file_size_approx(&out, 4_546);
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
@@ -1221,5 +1221,4 @@ async fn test_dl_follow_redirect() {
 
 // More possible test streams:
 //
-//   - https://explo.broadpeak.tv:8343/bpk-tv/spring/lowlat/index_timeline.mpd (live)
 //   - https://dash-large-files.akamaized.net/WAVE/Proposed/ToS_Fragmented_AVC_AAC/output.mpd
