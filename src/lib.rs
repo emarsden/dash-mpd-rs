@@ -746,6 +746,8 @@ pub struct SegmentTemplate {
     pub indexRangeExact: Option<bool>,
     #[serde(rename = "@startNumber")]
     pub startNumber: Option<u64>,
+    #[serde(rename = "@endNumber")]
+    pub endNumber: Option<u64>,
     // note: the spec says this is an unsigned int, not an xs:duration. In practice, some manifests
     // use a floating point value (eg.
     // https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_multiple_tiled_thumbnails.mpd)
