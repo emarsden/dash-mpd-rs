@@ -1,11 +1,13 @@
-// Tests for subtitle support
+//! Tests for subtitle support
 //
 // We can run these tests on CI infrastructure because they are only downloading modest quantites
 // of data, corresponding to the subtitle files/MP4 fragments. This requires MP4Box (from GPAC) to
 // be installed on CI machines, however.
-
-// To run tests while enabling printing to stdout/stderr, "cargo test -- --show-output" (from the
-// root crate directory).
+//
+//
+// To run this test while enabling printing to stdout/stderr
+//
+//    cargo test --test subtitles -- --show-output
 
 
 pub mod common;
@@ -49,9 +51,9 @@ async fn test_subtitles_wvtt () {
         .unwrap();
     assert!(fs::metadata(subpath_wvtt).is_ok());
     assert!(fs::metadata(subpath_srt).is_ok());
-    let _format = FileFormat::from_file(subpath_wvtt).unwrap();
+    // let format = FileFormat::from_file(subpath_wvtt).unwrap();
     // For some reason, the file-format crate is not detecting this format correctly (it detects the
-    // more generic Mpeg4Part14Video type).
+    // more generic Mpeg4Part14Subtitles type).
     // assert_eq!(format, FileFormat::WebVideoTextTracks);
     let format = FileFormat::from_file(subpath_srt).unwrap();
     assert_eq!(format, FileFormat::SubripText);
@@ -77,11 +79,17 @@ async fn test_subtitles_wvtt () {
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
     let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath_wvtt);
+    let _ = fs::remove_file(subpath_srt);
 }
 
 
+// This manifest contains two TTML "sidecars" (an AdaptationSet with contentType=text and
+// mimeType=application/ttml+xml and BaseURL addressing). We start by downloading the default
+// subtitles (the first to appear in the MPD file, which are in English here), then request
+// explicitly the German subtitles.
 #[tokio::test]
-async fn test_subtitles_ttml () {
+async fn test_subtitles_ttml_sidecar () {
     setup_logging();
     let mpd = "https://dash.akamaized.net/dash264/TestCases/4b/qualcomm/2/TearsOfSteel_onDem5secSegSubTitles.mpd";
     let outpath = env::temp_dir().join("tears-of-steel.mp4");
@@ -116,6 +124,7 @@ async fn test_subtitles_ttml () {
     // This time we requested German subtitles.
     assert!(ttml.contains("Du bist ein Vollidiot"));
     let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
 }
 
 
@@ -278,6 +287,122 @@ async fn test_subtitles_segmentbase() {
     assert_eq!(meta.streams.len(), 2);
     let _ = fs::remove_file(outpath);
 }
+
+
+#[tokio::test]
+async fn test_subtitles_usp_ttml_sidecar() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // This manifest contains a TTML "sidecar" (an AdaptationSet with contentType=text and
+    // mimeType=application/ttml+xml and BaseURL addressing
+    let mpd = "https://demo.unified-streaming.com/k8s/features/stable/no-handler-origin/tears-of-steel/tears-of-steel-ttml-sidecar.mpd";
+    let outpath = env::temp_dir().join("ttml-sidecar-fr.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_subtitle_language(String::from("fr"))
+        .without_content_type_checks()
+        .verbosity(2)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("vos culs"));
+    let _ = fs::remove_file(outpath);
+}
+
+
+#[tokio::test]
+async fn test_subtitles_usp_ttml_fmp4() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    // This manifest contains fragmented TTML subs (AdaptationSets with contentType=text and
+    // mimeType=application/mp4 with stpp.ttml.im1t codec and .m4s fragments)
+    let mpd = "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel-ttml.ism/.mpd";
+    let outpath = env::temp_dir().join("ttml-fragmented-fr.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_subtitle_language(String::from("fr"))
+        .without_content_type_checks()
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("vos culs"));
+    let meta = ffprobe(&outpath).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
+}
+
+
+
+// This manifest contains fragmented TTML subtitles and captions (labeled hard of hearing). It
+// has AdaptationSets with contentType=text and mimeType=application/mp4 with stpp.ttml.im1t
+// codec and .m4s fragments and uses SegmentTemplate>SegmentTimeline addressing.
+#[tokio::test]
+async fn test_subtitles_usp_ttml_hoh() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel-hoh-subs.ism/.mpd";
+    let outpath = env::temp_dir().join("ttml-hoh-fr.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(false)
+        .fetch_subtitles(true)
+        .prefer_subtitle_language(String::from("fr"))
+        .without_content_type_checks()
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("vos culs"));
+    let meta = ffprobe(&outpath).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
+}
+
+
+
 
 
 // https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd
