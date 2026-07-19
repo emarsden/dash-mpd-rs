@@ -2381,6 +2381,11 @@ pub fn is_subtitle_adaptation(a: &&AdaptationSet) -> bool {
             return true;
         }
     }
+    for r in &a.Role {
+        if r.value.as_deref().is_some_and(|rr| rr.eq("subtitle")) {
+            return true;
+        }
+    }
     for r in &a.representations {
         if r.mimeType.as_deref().is_some_and(is_subtitle_mimetype) {
             return true;
