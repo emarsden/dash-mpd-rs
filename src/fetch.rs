@@ -2762,6 +2762,11 @@ async fn do_period_audio(
                                     elapsed_seconds > target_duration {
                                     break 'segment_loop;
                                 }
+                                if let Some(end_number) = st.endNumber {
+                                    if count as u64 > end_number {
+                                        break;
+                                    }
+                                }
                                 segment_time += segment_duration;
                                 elapsed_seconds += segment_duration as f64 / timescale as f64;
                                 let dict = HashMap::from([("Time", segment_time.to_string()),
@@ -2825,6 +2830,9 @@ async fn do_period_audio(
                             return Err(DashMpdError::UnhandledMediaStream(
                                 "dynamic manifest is missing @availabilityStartTime".to_string()));
                         }
+                    }
+                    if let Some(end_number) = st.endNumber {
+                        total_number = end_number as i64;
                     }
                     for _ in 1..=total_number {
                         let dict = HashMap::from([("Number", number.to_string())]);
@@ -3227,6 +3235,11 @@ async fn do_period_video(
                                     {
                                         break 'segment_loop;
                                     }
+                                    if let Some(end_number) = st.endNumber {
+                                        if count as u64 > end_number {
+                                            break;
+                                        }
+                                    }
                                     segment_time += segment_duration;
                                     elapsed_seconds += segment_duration as f64 / timescale as f64;
                                     let dict = HashMap::from([("Time", segment_time.to_string()),
@@ -3296,6 +3309,9 @@ async fn do_period_video(
                                 return Err(DashMpdError::UnhandledMediaStream(
                                     "dynamic manifest is missing @availabilityStartTime".to_string()));
                             }
+                        }
+                        if let Some(end_number) = st.endNumber {
+                            total_number = end_number as i64;
                         }
                         for _ in 1..=total_number {
                             let dict = HashMap::from([("Number", number.to_string())]);
@@ -3698,6 +3714,11 @@ async fn do_period_subtitles(
                                             } else if segment_time as f64 > end_time {
                                                 break;
                                             }
+                                            if let Some(end_number) = st.endNumber {
+                                                if count as u64 > end_number {
+                                                    break;
+                                                }
+                                            }
                                             segment_time += segment_duration;
                                             let dict = HashMap::from([("Time", segment_time.to_string()),
                                                                       ("Number", number.to_string())]);
@@ -3774,6 +3795,9 @@ async fn do_period_subtitles(
                                         "Subtitle representation is missing SegmentTemplate@duration".to_string()));
                                 }
                                 total_number += (period_duration_secs / segment_duration).ceil() as i64;
+                                if let Some(end_number) = st.endNumber {
+                                    total_number = end_number as i64;
+                                }
                                 let mut number = start_number;
                                 #[allow(clippy::explicit_counter_loop)]
                                 for _ in 1..=total_number {
