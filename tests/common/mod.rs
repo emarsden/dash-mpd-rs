@@ -88,11 +88,20 @@ pub fn check_media_duration(p: &Path, expected: f64) {
     if let Some(duration_str) = track0["Duration"].as_str() {
         if let Ok(duration) = duration_str.parse::<f64>() {
             let ratio = duration / expected;
-            assert!(0.9 < ratio && ratio < 1.1,
+            assert!(lower_bound < ratio && ratio < upper_bound,
                     "Media duration: expected {expected}, got {duration}");
         }
     }
 }
+
+pub fn check_media_duration(p: &Path, expected: f64) {
+    check_media_duration_threshold(p, expected, 0.1);
+}
+
+pub fn check_media_duration_relaxed(p: &Path, expected: f64) {
+    check_media_duration_threshold(p, expected, 0.3);
+}
+
 
 
 pub fn ffmpeg_approval(name: &Path) -> bool {
