@@ -2,7 +2,7 @@
 //
 // This module provides support for TTML (Timed Text Markup Language) subtitles that are encoded
 // using the STPP codec and packed in fragmented MP4 segments. These subtitles are provided as a
-// separate media stream of fMP4 segments, that the media player retrieves incrementally. 
+// separate media stream of fMP4 segments, that the media player retrieves incrementally.
 //
 // This module implements:
 //
@@ -13,7 +13,7 @@
 //
 //  - serializing to a single merged TTML subtitle file
 //
-// We only support the text-only IMSC1 profile for subtitles ("stpp.ttml.im1t"); the image-only
+// We only support the text-only IMSC1 profile for TTML subtitles ("stpp.ttml.im1t"); the image-only
 // profile ("stpp.ttml.im1i") is not supported.
 //
 // An example of the XML content in a TTML/STPP fragment:
@@ -48,8 +48,6 @@
 //   https://en.wikipedia.org/wiki/Timed_Text_Markup_Language
 //   https://www.w3.org/TR/ttml-imsc1.0.1/
 
-// see/use https://github.com/clitic/vsd/blob/main/vsd-mp4/src/sub/ttml.rs
-
 
 use std::io::Cursor;
 use xot::{Xot, output};
@@ -79,6 +77,7 @@ impl Default for StppDocument {
 // We need to extract and new styles and layouts and append them to the head of the final XML file,
 // and also append all the <p> tags for the final XML.
 impl StppDocument {
+    #[must_use]
     pub fn new() -> StppDocument {
         StppDocument {
             xot: Xot::new(),
@@ -93,17 +92,25 @@ impl StppDocument {
     // Extract XML content from a fragmented MP4 segment (argument bytes) and add its contents to
     // the content accumulated in the parent StppDocument. The content is typically in an mdat box,
     // or sometimes an stpp box.
+    //
+    // Decode boxes present in an fMP4 segment: https://media-analyzer.pro/analyzer
     pub fn add_from_mp4(&mut self, bytes: &Bytes) -> Result<(), DashMpdError> {
         use mp4_atom::ReadFrom;
 
         let mut buf = Cursor::new(bytes);
-        while let Some(atom) = Option::<mp4_atom::Any>::read_from(&mut buf)
-            .map_err(|e| DashMpdError::Other(format!("reading from MP4 container: {e:?}")))?
-        {
-            if let mp4_atom::Any::Mdat(mdat) = atom {
-                if let Ok(xml) = str::from_utf8(&mdat.data) {
-                    self.add_content(xml)?;
-                }
+        loop {
+            match Option::<mp4_atom::Any>::read_from(&mut buf) {
+                Ok(maybe_atom) => {
+                    match maybe_atom {
+                        Some(mp4_atom::Any::Stpp(_stpp)) => (),
+                        Some(mp4_atom::Any::Mdat(mdat)) => if let Ok(xml) = str::from_utf8(&mdat.data) {
+                            self.add_content(xml)?;
+                        },
+                        Some(_) => (),
+                        None => break,
+                    }
+                },
+                Err(e) => warn!("Malformed MP4 box: {e:?}"),
             }
         }
         Ok(())
