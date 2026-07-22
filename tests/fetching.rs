@@ -10,9 +10,11 @@
 //   https://dash.itec.aau.at/dash-dataset/
 //   https://github.com/streamlink/streamlink/tree/master/tests/resources/dash
 //   https://github.com/gpac/gpac/wiki/DASH-Sequences
+//   https://shaka-project.github.io/shaka-player-release/demo/
 //   https://dash.akamaized.net/
 //   https://github.com/MPEGGroup/DASHSchema/tree/6th-Ed/tests
-
+//   https://rdmedia.bbc.co.uk/
+//   https://hbbtv-testing.virt.ch.bbc.co.uk/streams/
 
 pub mod common;
 use std::fs;
@@ -28,6 +30,7 @@ use common::{check_file_size_approx, check_media_duration, setup_logging};
 async fn test_dl_none() {
     setup_logging();
     // FIXME this URL is apparently now behind anti-bot machinery that sometimes generates HTTP 503
+    // May oblige us to use an HTTP client like https://github.com/scrape-hub/koon
     let mpd_url = "https://cloudflarestream.com/31c9291ab41fac05471db4e73aa11717/manifest/video.mpd";
     let out = env::temp_dir().join("cfnone.mp4");
     DashDownloader::new(mpd_url)
@@ -68,6 +71,7 @@ async fn test_dl_mp4() {
 #[tokio::test]
 async fn test_dl_segmentbase_baseurl() {
     setup_logging();
+    // Other possibility: https://v.redd.it/5o5cu4n0upeb1/DASHPlaylist.mpd
     let mpd_url = "https://v.redd.it/p5rowtg41iub1/DASHPlaylist.mpd?a=1701104071";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("reddit.mp4");
