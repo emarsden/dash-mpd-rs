@@ -191,18 +191,9 @@ impl StppDocument {
             }
         }
         if let Some(body) = self.find_child_named(tt, "body") {
-            for d in self.xot.descendants(body) {
-                if self.xot.element(d).is_some_and(|n| self.xot.name_ns_str(n.name()).0.eq("p")) {
-                    if let Some(new_id) = self.xot.attributes(d).get(id_name) {
-                        if !self.paragraphs.iter().any(|s| self.xot.attributes(*s).get(id_name)
-                                                       .is_some_and(|id| id.eq(new_id))) {
-                            self.paragraphs.push(d);
-                        }
-                    } else {
-                        // don't attempt to dedup if there is no @id
-                        self.paragraphs.push(d);
-                    }
-                }
+            // Add all children of the body: these might be <div> nodes or <p> nodes.
+            for d in self.xot.children(body) {
+                self.paragraphs.push(d);
             }
         }
         Ok(())
