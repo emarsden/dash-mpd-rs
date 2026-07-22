@@ -81,6 +81,8 @@ pub mod fetch;
 pub mod decryption;
 #[cfg(feature = "fetch")]
 pub mod stpp;
+#[cfg(feature = "fetch")]
+pub mod vtt;
 // Support for the SCTE-35 standard for insertion of alternate content
 #[cfg(feature = "scte35")]
 pub mod scte35;
