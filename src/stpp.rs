@@ -102,7 +102,7 @@ impl StppDocument {
             match Option::<mp4_atom::Any>::read_from(&mut buf) {
                 Ok(maybe_atom) => {
                     match maybe_atom {
-                        Some(mp4_atom::Any::Stpp(_stpp)) => (),
+                        // Some(mp4_atom::Any::Stpp(_stpp)) => (),
                         Some(mp4_atom::Any::Mdat(mdat)) => if let Ok(xml) = str::from_utf8(&mdat.data) {
                             self.add_content(xml)?;
                         },
