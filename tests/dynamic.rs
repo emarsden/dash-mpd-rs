@@ -186,8 +186,6 @@ async fn test_dl_lowlatency_forced_duration() {
 }
 
 
-// More BBC test streams at http://avcatalogue.cloud.bbc.co.uk/
-//
 // Possible alternatives:
 //  served by Akamai: http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/dash/nonuk/dash_low/ak/bbc_world_service.mpd
 //  served by Cloudfront: http://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/cf/bbc_radio_one.mpd
