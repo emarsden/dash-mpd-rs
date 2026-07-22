@@ -548,42 +548,52 @@ where S: serde::Serializer {
 // These default_* functions are needed to provide defaults for serde deserialization of certain
 // elements, where the Default function for that type doesn't return a value compatible with the
 // default specified in the XSD specification.
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_on_request() -> Option<String> {
     Some("onRequest".to_string())
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_one() -> Option<String> {
     Some(String::from("1"))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_encoder() -> Option<String> {
     Some(String::from("encoder"))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_any() -> Option<String> {
     Some(String::from("any"))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_query() -> Option<String> {
     Some(String::from("query"))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optstring_segment() -> Option<String> {
     Some(String::from("segment"))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optbool_true() -> Option<bool> {
     Some(true)
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optbool_false() -> Option<bool> {
     Some(false)
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optu64_zero() -> Option<u64> {
     Some(0)
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_optu64_one() -> Option<u64> {
     Some(1)
 }
@@ -2268,6 +2278,7 @@ fn is_audio_codec(name: &str) -> bool {
 /// It contains audio if the codec attribute corresponds to a known audio codec, or the
 /// `contentType` attribute is `audio`, or the `mimeType` attribute is `audio/*`, or if one of its
 /// child `Representation` nodes has an audio `contentType` or `mimeType` attribute.
+#[must_use]
 pub fn is_audio_adaptation(a: &&AdaptationSet) -> bool {
     if let Some(codec) = &a.codecs {
         if is_audio_codec(codec) {
