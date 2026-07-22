@@ -84,6 +84,38 @@ async fn test_subtitles_wvtt () {
 }
 
 
+#[tokio::test]
+async fn test_subtitles_vtt_fragments () {
+    setup_logging();
+    let mpd = "https://gcp.emea-free.prd.media.max.com/global/6703e8d6-055c-5897-9006-d6d75f11e4b8/11_dbbb02_fallback.mpd";
+    let outpath = env::temp_dir().join("cnn-subs.mp4");
+    let mut subpath_vtt = outpath.clone();
+    subpath_vtt.set_extension("vtt");
+    let subpath_vtt = Path::new(&subpath_vtt);
+    let mut subpath_srt = outpath.clone();
+    subpath_srt.set_extension("srt");
+    let subpath_srt = Path::new(&subpath_srt);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath_vtt).is_ok());
+    assert!(fs::metadata(subpath_srt).is_ok());
+    let format = FileFormat::from_file(subpath_vtt).unwrap();
+    assert_eq!(format, FileFormat::WebVideoTextTracks);
+    let format = FileFormat::from_file(subpath_srt).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
+    let vtt = fs::read_to_string(subpath_vtt).unwrap();
+    assert!(vtt.contains("unhinged behavior"));
+    let _ = fs::remove_file(&outpath);
+    let _ = fs::remove_file(subpath_vtt);
+    let _ = fs::remove_file(subpath_srt);
+}
+
+
 // This manifest contains two TTML "sidecars" (an AdaptationSet with contentType=text and
 // mimeType=application/ttml+xml and BaseURL addressing). We start by downloading the default
 // subtitles (the first to appear in the MPD file, which are in English here), then request
