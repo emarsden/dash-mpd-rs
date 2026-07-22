@@ -65,7 +65,9 @@ async fn test_subtitles_wvtt () {
     if let Err(e) = fs::remove_file(subpath_srt) {
         info!("Failed to delete temporary file for srt subs: {e}");
     }
-    let _ = fs::remove_file(&outpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(&outpath);
+    }
 
     // Now download the english subtitles and check that we got the expected content.
     DashDownloader::new(mpd)
@@ -78,12 +80,15 @@ async fn test_subtitles_wvtt () {
     let srt = fs::read_to_string(subpath_srt).unwrap();
     // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath_wvtt);
-    let _ = fs::remove_file(subpath_srt);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath_wvtt);
+        let _ = fs::remove_file(subpath_srt);
+    }
 }
 
 
+// fragmented text/vtt subtitles using SegmentTemplate>SegmentTimeline addressing
 #[tokio::test]
 async fn test_subtitles_vtt_fragments () {
     setup_logging();
@@ -136,8 +141,10 @@ async fn test_subtitles_ttml_sidecar () {
     // We didn't specify a preferred language, so the first available one in the manifest (here
     // English) is downloaded.
     assert!(ttml.contains("You're a jerk"));
-    let _ = fs::remove_file(&outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(&outpath);
+        let _ = fs::remove_file(subpath);
+    }
 
     DashDownloader::new(mpd)
         .fetch_audio(false)
@@ -150,8 +157,10 @@ async fn test_subtitles_ttml_sidecar () {
     let ttml = fs::read_to_string(subpath).unwrap();
     // This time we requested German subtitles.
     assert!(ttml.contains("Du bist ein Vollidiot"));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -183,8 +192,10 @@ async fn test_subtitles_vtt () {
     // This manifest contains a single subtitle track, available in VTT format via BaseURL addressing.
     let vtt = fs::read_to_string(subpath).unwrap();
     assert!(vtt.contains("Hurry Emo!"));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -222,8 +233,10 @@ async fn test_subtitles_stpp() {
     let stpp = &meta.streams[2];
     assert_eq!(stpp.codec_tag_string, "stpp");
     check_media_duration(&outpath, 632.0);
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -254,7 +267,9 @@ async fn test_subtitles_stpp_imsc1() {
     // In the MPD it's specified as stpp.ttml.im1i.
     assert_eq!(stpp.codec_tag_string, "stpp");
     check_media_duration(&outpath, 60.0);
-    let _ = fs::remove_file(outpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+    }
 }
 
 
@@ -288,8 +303,10 @@ async fn test_subtitles_tx3g() {
     assert!(srt.contains("Cue #3 Start Time"));
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 2);
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -324,8 +341,10 @@ async fn test_subtitles_usp_ttml_sidecar() {
     let ttml = fs::read_to_string(subpath).unwrap();
     assert!(ttml.contains("http://www.w3.org/ns/ttml"));
     assert!(ttml.contains("vos culs"));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -362,8 +381,10 @@ async fn test_subtitles_usp_ttml_fmp4() {
     assert!(ttml.contains("vos culs"));
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 1);
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -402,8 +423,10 @@ async fn test_subtitles_usp_ttml_hoh() {
     assert!(ttml.contains("vos culs"));
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 1);
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -443,8 +466,10 @@ async fn test_subtitles_bbc_lowlat_sthdbox() {
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert_eq!(video.codec_name, Some(String::from("hevc")));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -483,8 +508,10 @@ async fn test_subtitles_hbbtv_dillama_subib() {
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert_eq!(video.codec_name, Some(String::from("h264")));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
@@ -523,8 +550,10 @@ async fn test_subtitles_hbbtv_dillama_subob() {
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert_eq!(video.codec_name, Some(String::from("h264")));
-    let _ = fs::remove_file(outpath);
-    let _ = fs::remove_file(subpath);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath);
+    }
 }
 
 
