@@ -63,7 +63,7 @@ async fn test_subtitles_wvtt () {
         info!("Failed to delete temporary file for wvtt subs: {e}");
     }
     if let Err(e) = fs::remove_file(subpath_srt) {
-        info!("Failed to delete temporary file for srt usbs: {e}");
+        info!("Failed to delete temporary file for srt subs: {e}");
     }
     let _ = fs::remove_file(&outpath);
 
@@ -189,6 +189,7 @@ async fn test_subtitles_vtt () {
     let vtt = fs::read_to_string(subpath).unwrap();
     assert!(vtt.contains("Hurry Emo!"));
     let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
 }
 
 
@@ -205,6 +206,9 @@ async fn test_subtitles_stpp() {
     if outpath.exists() {
         let _ = fs::remove_file(&outpath);
     }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("vtt");
+    let subpath = Path::new(&subpath);
     DashDownloader::new(mpd)
         .fetch_audio(true)
         .fetch_video(true)
@@ -212,13 +216,22 @@ async fn test_subtitles_stpp() {
         .verbosity(2)
         .download_to(&outpath).await
         .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    assert!(fs::metadata(subpath).is_ok());
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("just for you Proog."));
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];
     assert_eq!(stpp.codec_tag_string, "stpp");
-    check_media_duration(&outpath, 630.0);
+    check_media_duration(&outpath, 632.0);
     let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
 }
+
 
 
 // Image-based (IMSC1 CMAF) STPP subtitles.
@@ -282,42 +295,7 @@ async fn test_subtitles_tx3g() {
     let meta = ffprobe(&outpath).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let _ = fs::remove_file(outpath);
-}
-
-
-#[ignore] // As of 2024-08 this URL is returning HTTP 403
-#[tokio::test]
-async fn test_subtitles_segmentbase() {
-    setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
-    // This manifest contains a subtitle Representation with stpp codec using SegmentBase addressing.
-    let mpd = "https://usp-cmaf-test.s3.eu-central-1.amazonaws.com/tears-of-steel-ttml.mpd";
-    let outpath = env::temp_dir().join("segbase.mp4");
-    if outpath.exists() {
-        let _ = fs::remove_file(&outpath);
-    }
-    let mut subpath = outpath.clone();
-    subpath.set_extension("ttml");
-    let subpath = Path::new(&subpath);
-    DashDownloader::new(mpd)
-        .fetch_audio(true)
-        .fetch_video(true)
-        .fetch_subtitles(true)
-        .without_content_type_checks()
-        .verbosity(2)
-        .download_to(&outpath).await
-        .unwrap();
-    assert!(fs::metadata(subpath).is_ok());
-    let format = FileFormat::from_file(subpath).unwrap();
-    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
-    let ttml = fs::read_to_string(subpath).unwrap();
-    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
-    assert!(ttml.contains("robot hand"));
-    let meta = ffprobe(&outpath).unwrap();
-    assert_eq!(meta.streams.len(), 2);
-    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
 }
 
 
@@ -353,6 +331,7 @@ async fn test_subtitles_usp_ttml_sidecar() {
     assert!(ttml.contains("http://www.w3.org/ns/ttml"));
     assert!(ttml.contains("vos culs"));
     let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
 }
 
 
@@ -434,8 +413,129 @@ async fn test_subtitles_usp_ttml_hoh() {
 }
 
 
+// Useful MP4 box analysis tool: https://media-analyzer.pro/analyzer
+#[tokio::test]
+async fn test_subtitles_bbc_lowlat_sthdbox() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://rdmedia.bbc.co.uk/testcard/lowlatency/manifests/ll-hevc-ctv-stereo-en.mpd";
+    let outpath = env::temp_dir().join("ttml-bbc-lowlat.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .allow_live_streams(true)
+        .force_duration(55.0)
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    let meta = ffprobe(&outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let meta = ffprobe(&outpath).unwrap();
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("hevc")));
+    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
+}
 
 
+// Manifest from https://refapp.hbbtv.org/videos/index_2019.html
+// In-band TTML subs using STPP codec in fragmented MP4 segments.
+#[tokio::test]
+async fn test_subtitles_hbbtv_dillama_subib() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/02_gran_dillama_1080p_25f75g6sv5/manifest_subib.mpd";
+    let outpath = env::temp_dir().join("ttml-hbbtv-dillama-subib.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .without_content_type_checks()
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("Subtitle: 0:15 – 0:20(eng)"));
+    let meta = ffprobe(&outpath).unwrap();
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
+}
 
-// https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd
-// has vtt subs in de/en/fr
+
+// Out-of-band (sidecar) TTML subs.
+#[tokio::test]
+async fn test_subtitles_hbbtv_dillama_subob() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://refapp.hbbtv.org/videos/02_gran_dillama_1080p_25f75g6sv5/manifest_subob.mpd";
+    let outpath = env::temp_dir().join("ttml-hbbtv-dillama-subob.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath = outpath.clone();
+    subpath.set_extension("ttml");
+    let subpath = Path::new(&subpath);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .prefer_subtitle_language(String::from("fin"))
+        .without_content_type_checks()
+        .verbosity(1)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath).is_ok());
+    let format = FileFormat::from_file(subpath).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("Subtitle: 0:20 – 0:25(fin) ABCÅÄÖ"));
+    let meta = ffprobe(&outpath).unwrap();
+    let video = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("video"))))
+        .expect("finding video stream");
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    let _ = fs::remove_file(outpath);
+    let _ = fs::remove_file(subpath);
+}
+
+
+// TODO: try also
+//
+//   https://livesim2.dashif.org/vod/testpic_2s/multi_subs.mpd
+//   https://livesim.dashif.org/vod/testpic_2s/Manifest_stpp.mpd
+//   https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd (vtt subs in de/en/fr)
