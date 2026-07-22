@@ -1067,3 +1067,7 @@ async fn test_parsing_fail_incorrect_tag() {
         .unwrap();
 }
 
+
+// Possible additions:
+//
+//  Fail with https://akm.eu.prd.media.max.com/bolt-glo-prod/78cccdce-2592-4a2b-a023-91034c43366e/packager-mp4-cenc/main.mpd (cenc: XML namespace is not defined correctly)
