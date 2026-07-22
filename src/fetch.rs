@@ -61,6 +61,7 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
 
 // When reading stdout or stderr from an external commandline application to display for the user,
 // this is the maximum number of octets read.
+#[must_use]
 pub fn partial_process_output(output: &[u8]) -> Cow<'_, str> {
     let len = min(output.len(), 4096);
     #[allow(clippy::indexing_slicing)]
@@ -235,6 +236,7 @@ impl DashDownloader {
     /// # Panics
     ///
     /// Will panic if `mpd_url` cannot be parsed as an URL.
+    #[must_use]
     pub fn new(mpd_url: &str) -> DashDownloader {
         DashDownloader {
             mpd_url: String::from(mpd_url),
