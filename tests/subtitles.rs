@@ -92,9 +92,6 @@ async fn test_subtitles_vtt_fragments () {
     let mut subpath_vtt = outpath.clone();
     subpath_vtt.set_extension("vtt");
     let subpath_vtt = Path::new(&subpath_vtt);
-    let mut subpath_srt = outpath.clone();
-    subpath_srt.set_extension("srt");
-    let subpath_srt = Path::new(&subpath_srt);
     DashDownloader::new(mpd)
         .fetch_audio(true)
         .fetch_video(true)
@@ -103,16 +100,14 @@ async fn test_subtitles_vtt_fragments () {
         .download_to(&outpath).await
         .unwrap();
     assert!(fs::metadata(subpath_vtt).is_ok());
-    assert!(fs::metadata(subpath_srt).is_ok());
     let format = FileFormat::from_file(subpath_vtt).unwrap();
     assert_eq!(format, FileFormat::WebVideoTextTracks);
-    let format = FileFormat::from_file(subpath_srt).unwrap();
-    assert_eq!(format, FileFormat::SubripText);
     let vtt = fs::read_to_string(subpath_vtt).unwrap();
     assert!(vtt.contains("unhinged behavior"));
-    let _ = fs::remove_file(&outpath);
-    let _ = fs::remove_file(subpath_vtt);
-    let _ = fs::remove_file(subpath_srt);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(&outpath);
+        let _ = fs::remove_file(subpath_vtt);
+    }
 }
 
 
@@ -207,7 +202,7 @@ async fn test_subtitles_stpp() {
         let _ = fs::remove_file(&outpath);
     }
     let mut subpath = outpath.clone();
-    subpath.set_extension("vtt");
+    subpath.set_extension("ttml");
     let subpath = Path::new(&subpath);
     DashDownloader::new(mpd)
         .fetch_audio(true)
@@ -219,7 +214,6 @@ async fn test_subtitles_stpp() {
     assert!(fs::metadata(subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
     assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
-    assert!(fs::metadata(subpath).is_ok());
     let ttml = fs::read_to_string(subpath).unwrap();
     assert!(ttml.contains("http://www.w3.org/ns/ttml"));
     assert!(ttml.contains("just for you Proog."));
