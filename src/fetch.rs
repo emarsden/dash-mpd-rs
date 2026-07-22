@@ -43,7 +43,6 @@ use crate::decryption::{
     decrypt_mp4box,
     decrypt_mp4box_container
 };
-use crate::stpp::StppDocument;
 #[allow(unused_imports)]
 use crate::media::video_containers_concatable;
 
@@ -3675,7 +3674,8 @@ async fn do_period_subtitles(
                         if let Some(sn) = st.startNumber {
                             start_number = sn;
                         }
-                        if let Some(stl) = &rep.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone())
+                        if let Some(stl) = &rep.SegmentTemplate.as_ref()
+                            .and_then(|st| st.SegmentTimeline.clone())
                             .or(subtitle_adaptation.SegmentTemplate.as_ref().and_then(|st| st.SegmentTimeline.clone()))
                         {
                             // (2) SegmentTemplate with SegmentTimeline addressing mode (also called
@@ -4302,6 +4302,9 @@ async fn fetch_period_subtitles(
     subtitle_formats: &[SubtitleType],
     ds: &mut DownloadState) -> Result<bool, DashMpdError>
 {
+    use crate::stpp::StppDocument;
+    use crate::vtt::VttDocument;
+    
     let client = downloader.http_client.clone().unwrap();
     let start_download = Instant::now();
     let mut have_subtitles = false;
@@ -4310,6 +4313,8 @@ async fn fetch_period_subtitles(
             .map_err(|e| DashMpdError::Io(e, String::from("creating subs tmpfile")))?;
         // Only used if subtitle_formats contains SubtitleFormat::Stpp
         let mut stpp_document = StppDocument::new();
+        // Only used if subtitle_formats contains SubtitleFormat::Vtt
+        let mut vtt_document = VttDocument::new();
         ensure_permissions_readable(tmppath).await?;
         let mut tmpfile_subs = BufWriter::new(tmpfile_subs);
         for frag in subtitle_fragments {
@@ -4389,6 +4394,8 @@ async fn fetch_period_subtitles(
                                 // TODO: likewise handle fMP4 segments that contain WebVTT
                                 // (codec=wvtt), using vttc boxes for text cues and vtte boxes for
                                 // empty samples.
+                            } else if subtitle_formats.contains(&SubtitleType::Vtt) {
+                                vtt_document.add_bytes(&content_bytes)?;
                             } else {
                                 tmpfile_subs.write_all(&content_bytes)
                                     .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
@@ -4421,7 +4428,15 @@ async fn fetch_period_subtitles(
                 info!("  Writing TTML subtitles to {tmppath:?}");
             }
             tmpfile_subs.write_all(stpp_document.to_string().as_bytes())
-                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
+                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH TTML subtitle data")))
+                .await?;
+        }
+        if subtitle_formats.contains(&SubtitleType::Vtt) {
+            if downloader.verbosity > 1 {
+                info!("  Writing VTT subtitles to {tmppath:?}");
+            }
+            tmpfile_subs.write_all(vtt_document.to_string().as_bytes())
+                .map_err(|e| DashMpdError::Io(e, String::from("writing DASH VTT subtitle data")))
                 .await?;
         }
         tmpfile_subs.flush().map_err(|e| {
@@ -4497,6 +4512,22 @@ async fn fetch_period_subtitles(
             io::copy(&mut BufReader::new(tmpfile_in), &mut BufWriter::new(ttml_file)).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("copying TTML subtitles")))?;
+        }
+        if subtitle_formats.contains(&SubtitleType::Vtt) {
+            // Copy from the temporary filename for the subtitle file to a .vtt file with the same
+            // basename as the requested media output file. Copy rather than rename in case we a
+            // crossing filesystems.
+            let tmpfile_in = File::open(tmppath).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("opening tmp subtitle output")))?;
+            let vtt_path = downloader.output_path.as_ref().unwrap()
+                .with_extension("vtt");
+            let vtt_file = File::create(vtt_path.clone()).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("opening VTT output file")))?;
+            io::copy(&mut BufReader::new(tmpfile_in), &mut BufWriter::new(vtt_file)).await
+                .map_err(|e| DashMpdError::Io(
+                    e, String::from("copying VTT subtitles")))?;
         }
         // TODO: it might be useful to convert the subtitles to SRT/WebVTT format, as they tend to
         // be better supported. However, ffmpeg does not seem able to convert from TTML to these

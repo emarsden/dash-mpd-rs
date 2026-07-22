@@ -11,6 +11,10 @@
   subtitle file. We only support the text-only IMSC1 profile for subtitles ("stpp.ttml.im1t"); the
   image-only profile ("stpp.ttml.im1i") is not supported.
 
+- Implement support for VTT subtitles that are distributed in fragmented MP4 segments, using
+  SegmentTemplate or SegmentTemplate>SegmentTimeline addressing. This is a complement to the
+  existing support for VTT subtitles distributed as a sidecar.
+
 - Add attribute `@endNumber` to `SegmentTemplate` elements.
 
 - Downloading: account for `@endNumber` in a SegmentTemplate. This attribute does not seem to be
