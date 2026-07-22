@@ -173,6 +173,8 @@ async fn test_subtitle_lang_different() {
         let subtags = subs.tags.as_ref().unwrap();
         assert_eq!(subtags.language, Some(String::from("deu")));
     }
+    let ttml = fs::read_to_string(subpath).unwrap();
+    assert!(ttml.contains("♫ Tonleiter"));
     check_media_duration(&outpath, 3600.0);
     let _ = fs::remove_file(outpath);
     let _ = fs::remove_file(subpath);
@@ -191,6 +193,9 @@ async fn test_lang_en_multilang() {
     let mpd_url = "https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd";
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("axprod-multilang.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(&out);
+    }
     DashDownloader::new(mpd_url)
         .worst_quality()
         .sandbox(true)
