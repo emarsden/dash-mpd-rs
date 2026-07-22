@@ -17,6 +17,9 @@
   officially documented in the ISO and DASH-IF specifications, but support for it is implemented in
   the reference dash.js player, and the attribute is used by some manifests in the wild.
 
+- Downloading: subtitles embedded in an output MP4 file include the subtitle language in the
+  metadata for the subtitle track.
+
 - An AdaptationSet element with a `<Role value="subtitle">` child will be recognized as a subtitle
   adaptation.
 

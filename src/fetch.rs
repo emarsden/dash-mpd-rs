@@ -1098,6 +1098,7 @@ struct PeriodOutputs {
     diagnostics: Vec<String>,
     subtitle_formats: Vec<SubtitleType>,
     selected_audio_language: String,
+    selected_subtitle_language: String,
 }
 
 #[derive(Debug, Default)]
@@ -1109,6 +1110,7 @@ struct PeriodDownloads {
     period_counter: u8,
     id: Option<String>,
     selected_audio_language: String,
+    selected_subtitle_language: String,
 }
 
 fn period_fragment_count(pd: &PeriodDownloads) -> usize {
@@ -2869,8 +2871,12 @@ async fn do_period_audio(
         }
     }
     Ok(PeriodOutputs {
-        fragments, diagnostics, subtitle_formats: Vec::new(),
-        selected_audio_language: String::from(selected_audio_language)
+        fragments,
+        diagnostics,
+        subtitle_formats: Vec::new(),
+        selected_audio_language: String::from(selected_audio_language),
+        selected_subtitle_language: String::from("")
+            
     })
 }
 
@@ -3357,7 +3363,8 @@ async fn do_period_video(
         fragments,
         diagnostics,
         subtitle_formats: Vec::new(),
-        selected_audio_language: String::from("unk")
+        selected_audio_language: String::from("unk"),
+        selected_subtitle_language: String::from(""),
     })
 }
 
@@ -3389,8 +3396,12 @@ async fn do_period_subtitles(
         // returns the first subtitle adaptation found
         period.adaptations.iter().find(is_subtitle_adaptation)
     };
+    let mut subtitle_lang: Option<String> = None;
     if downloader.fetch_subtitles {
         if let Some(subtitle_adaptation) = maybe_subtitle_adaptation {
+            if let Some(lang) = subtitle_adaptation.lang.as_ref() {
+                subtitle_lang = Some(lang.clone());
+            }
             let subtitle_format = subtitle_type(&subtitle_adaptation);
             subtitle_formats.push(subtitle_format);
             if downloader.verbosity > 1 && downloader.fetch_subtitles {
@@ -3405,6 +3416,11 @@ async fn do_period_subtitles(
             // We don't do any ranking on subtitle Representations, because there is probably only a
             // single one for our selected Adaptation.
             if let Some(rep) = subtitle_adaptation.representations.first() {
+                if subtitle_lang.is_none() {
+                    if let Some(lang) = rep.lang.as_ref() {
+                        subtitle_lang = Some(lang.clone());
+                    }
+                }
                 if !rep.BaseURL.is_empty() {
                     for st_bu in &rep.BaseURL {
                         let st_url = merge_baseurls(&base_url, &st_bu.base)?;
@@ -3423,10 +3439,9 @@ async fn do_period_subtitles(
                         match subtitle_format {
                             SubtitleType::Vtt => subs_path.set_extension("vtt"),
                             SubtitleType::Srt => subs_path.set_extension("srt"),
-                            SubtitleType::Ttml => subs_path.set_extension("ttml"),
                             SubtitleType::Sami => subs_path.set_extension("sami"),
                             SubtitleType::Wvtt => subs_path.set_extension("wvtt"),
-                            SubtitleType::Stpp => subs_path.set_extension("stpp"),
+                            SubtitleType::Ttml | SubtitleType::Stpp => subs_path.set_extension("ttml"),
                             _ => subs_path.set_extension("sub"),
                         };
                         subtitle_formats.push(subtitle_format);
@@ -3852,7 +3867,8 @@ async fn do_period_subtitles(
         fragments,
         diagnostics: Vec::new(),
         subtitle_formats,
-        selected_audio_language: String::from("unk")
+        selected_audio_language: String::from("unk"),
+        selected_subtitle_language: subtitle_lang.unwrap_or_else(|| String::from("unk")),
     })
 }
 
@@ -4370,6 +4386,9 @@ async fn fetch_period_subtitles(
                             throttle_download_rate(downloader, size).await?;
                             if subtitle_formats.contains(&SubtitleType::Stpp) {
                                 stpp_document.add_from_mp4(&content_bytes)?;
+                                // TODO: likewise handle fMP4 segments that contain WebVTT
+                                // (codec=wvtt), using vttc boxes for text cues and vtte boxes for
+                                // empty samples.
                             } else {
                                 tmpfile_subs.write_all(&content_bytes)
                                     .map_err(|e| DashMpdError::Io(e, String::from("writing DASH subtitle data")))
@@ -4700,6 +4719,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                 for f in subtitle_outputs.subtitle_formats {
                     pd.subtitle_formats.push(f);
                 }
+                pd.selected_subtitle_language = subtitle_outputs.selected_subtitle_language;
             },
             Err(e) => warn!("  Ignoring error triggered while processing subtitles: {e}"),
         }
@@ -4829,7 +4849,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     // works with MP4 containers.
                     let tmp_str = tmppath_subs.to_string_lossy();
                     let period_output_str = period_output_path.to_string_lossy();
-                    let args = vec!["-add", &tmp_str, &period_output_str];
+                    let subtitle_lang = format!("3={}", pd.selected_subtitle_language);
+                    let args = vec!["-lang", &subtitle_lang, "-add", &tmp_str, &period_output_str];
                     if downloader.verbosity > 0 {
                         info!("  Running MP4Box {}", args.join(" "));
                     }
