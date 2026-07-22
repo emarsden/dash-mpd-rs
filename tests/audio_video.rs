@@ -182,7 +182,7 @@ async fn test_dl_video_stream_selection_defunct() {
     check_file_size_approx(&out, 105_187_936);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 2);
     let video = &meta.streams[0];
     assert_eq!(video.codec_type, Some(String::from("video")));
@@ -191,6 +191,7 @@ async fn test_dl_video_stream_selection_defunct() {
     assert!(video.codec_name.eq(&Some(String::from("hevc"))) ||
             video.codec_name.eq(&Some(String::from("vp9"))));
     assert_eq!(video.width, Some(480));
+    let _ = fs::remove_file(out);
 }
 
 
@@ -258,13 +259,14 @@ async fn test_dl_video_stream_selection() {
     check_media_duration(&out, 236.0);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert!(video.codec_name.eq(&Some(String::from("vvc"))));
     assert_eq!(video.width, Some(7680));
+    let _ = fs::remove_file(out);
 
     // Then check the id substring filtering
     let out = env::temp_dir().join("mmsys22-multiple-video-adaptations-id.mp4");
@@ -276,12 +278,13 @@ async fn test_dl_video_stream_selection() {
     check_media_duration(&out, 236.0);
     let format = FileFormat::from_file(&out).unwrap();
     assert_eq!(format, FileFormat::Mpeg4Part14Video);
-    let meta = ffprobe(out).unwrap();
+    let meta = ffprobe(&out).unwrap();
     assert_eq!(meta.streams.len(), 1);
     let video = meta.streams.iter()
         .find(|s| s.codec_type.eq(&Some(String::from("video"))))
         .expect("finding video stream");
     assert!(video.codec_name.eq(&Some(String::from("hevc"))));
     assert_eq!(video.width, Some(640));
+    let _ = fs::remove_file(out);
 
 }
