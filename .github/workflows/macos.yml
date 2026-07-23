@@ -29,6 +29,8 @@ jobs:
       - run: cargo build
 
 
+  # Not using actions-rust-lang/setup-rust-toolchain because for some incomprehensible reason it
+  # does not work ("cargo not found")
   test-macos:
     name: dash-mpd-rs test/macos
     runs-on: macos-latest
@@ -36,7 +38,6 @@ jobs:
     needs: check-macos
     steps:
       - uses: actions/checkout@v7.0.0
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: |
           brew update
           brew upgrade || true
@@ -52,5 +53,5 @@ jobs:
           wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
           mv /tmp/shaka-packager /usr/local/bin
           chmod +x /usr/local/bin/shaka-packager
-          brew install cmake
+          brew install rust
           cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
