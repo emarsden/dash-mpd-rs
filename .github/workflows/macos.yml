@@ -67,7 +67,7 @@ jobs:
 
       # Shaka packager is not available via homebrew. Alternatively, could use docker
       # google/shaka-packager. Here we are depending on the macos runner being an AMD64 machine.
-      - name: Install shaka-packager
+      - name: install shaka-packager
         run: |
           wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
           mv /tmp/shaka-packager /usr/local/bin
@@ -82,4 +82,6 @@ jobs:
 
       # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
       # because they don't support nested virtualization, and therefore can't run Docker/Podman.
-      - run: cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
+      - name: run tests
+        run: |
+          cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
