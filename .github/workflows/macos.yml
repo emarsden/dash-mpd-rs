@@ -37,51 +37,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-
-      # The "|| true" on upgrade is to work around homebrew conflicts between GitHub-installed Python versions
-      # and those required by our packages.
-      - name: install GPAC/MP4Box
-        run: |
+      - run: |
           brew update
           brew upgrade || true
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install gpac
           MP4Box -version
-
-      - name: install ffmpeg
-        run: brew install ffmpeg
-
-      - name: install mkvmerge
-        run: brew install mkvtoolnix
-
-      - name: install mediainfo
-        run: |
+          brew install ffmpeg
+          brew install mkvtoolnix
           brew install media-info
-          mediainfo --Version
-
-      # We can't install the version of Bento4 distributed with brew, because it conflicts with GPAC
-      - name: install Bento4 mp4decrypt
-        run: |
+          brew install libxslt libxml2
           wget -q -O /tmp/bento4.zip https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.universal-apple-macosx.zip
           unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
           sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
-
-      # Shaka packager is not available via homebrew. Alternatively, could use docker
-      # google/shaka-packager. Here we are depending on the macos runner being an AMD64 machine.
-      - name: install shaka-packager
-        run: |
           wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
           mv /tmp/shaka-packager /usr/local/bin
           chmod +x /usr/local/bin/shaka-packager
-
-      # We need libxml2 for xmllint, used in the serialization tests.
-      - name: install xsltproc
-        run: brew install libxslt libxml2
-
-      - name: install protobuf compiler
-        run: brew install protobuf cmake
-
-      # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
-      # because they don't support nested virtualization, and therefore can't run Docker/Podman.
-      - name: run tests
-        run: |
+          brew install cmake
           cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
