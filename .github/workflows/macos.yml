@@ -7,13 +7,31 @@ env:
   RUSTFLAGS: '--cfg reqwest_unstable'
 
 jobs:
-  build:
+  check:
     runs-on: macos-latest
     timeout-minutes: 100
     steps:
     - uses: actions/checkout@v7.0.0
     - uses: actions-rust-lang/setup-rust-toolchain@v1
     - uses: taiki-e/install-action@cargo-hack
+    - run: cargo hack check --feature-powerset --exclude-features libav,socks,http3,rustls-tls,xee-xslt --no-dev-deps
+
+    
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 100
+    steps:
+    - uses: actions/checkout@v7.0.0
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - run: cargo build
+
+
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 100
+    steps:
+    - uses: actions/checkout@v7.0.0
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
     # The "|| true" on upgrade is to work around homebrew conflicts between GitHub-installed Python versions
     # and those required by our packages.
@@ -34,7 +52,6 @@ jobs:
       run: |
         brew install media-info
         mediainfo --Version
-
 
     # We can't install the version of Bento4 distributed with brew, because it conflicts with GPAC
     - name: install Bento4 mp4decrypt
@@ -58,10 +75,6 @@ jobs:
     - name: install protobuf compiler
       run: brew install protobuf cmake
 
-    - run: cargo-hack hack check --feature-powerset --exclude-features libav,socks,http3,rustls-tls,xee-xslt --no-dev-deps
-    - run: cargo build
-    - run: RUST_LOG=info cargo test --jobs 1 --verbose --no-run
-
     # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
     # because they don't support nested virtualization, and therefore can't run Docker/Podman.
-    # - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
+    - run: RUST_LOG=info cargo test --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
