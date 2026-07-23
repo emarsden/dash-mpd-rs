@@ -1,6 +1,6 @@
 on: [push]
 
-name: build
+name: build/linux
 
 # This is currently needed to build the http3 functionality in the reqwest crate
 env:

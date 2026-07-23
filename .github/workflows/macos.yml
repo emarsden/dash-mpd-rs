@@ -9,73 +9,77 @@ env:
 
 jobs:
   check-macos:
+    name: dash-mpd-rs check/macos
     runs-on: macos-latest
-    uses: actions/checkout@v7.0.0
-    uses: actions-rust-lang/setup-rust-toolchain@v1
-    uses: taiki-e/install-action@cargo-hack
     timeout-minutes: 100
     steps:
-     - run: cargo hack check --feature-powerset --exclude-features libav,socks,http3,rustls-tls,xee-xslt --no-dev-deps
+      - uses: actions/checkout@v7.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@cargo-hack
+      - run: cargo hack check --feature-powerset --exclude-features libav,socks,http3,rustls-tls,xee-xslt --no-dev-deps
 
     
   build-macos:
+    name: dash-mpd-rs build/macos
     runs-on: macos-latest
-    uses: actions/checkout@v7.0.0
-    uses: actions-rust-lang/setup-rust-toolchain@v1
     timeout-minutes: 100
     steps:
-    - run: cargo build
+      - uses: actions/checkout@v7.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo build
 
 
   test-macos:
+    name: dash-mpd-rs test/macos
     runs-on: macos-latest
     timeout-minutes: 100
     needs: check-macos
-    uses: actions/checkout@v7.0.0
-    uses: actions-rust-lang/setup-rust-toolchain@v1
     steps:
-    # The "|| true" on upgrade is to work around homebrew conflicts between GitHub-installed Python versions
-    # and those required by our packages.
-     - name: install GPAC/MP4Box
-       run: |
-         brew update
-         brew upgrade || true
-         HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install gpac
-         MP4Box -version
+      - uses: actions/checkout@v7.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-     - name: install ffmpeg
-       run: brew install ffmpeg
+      # The "|| true" on upgrade is to work around homebrew conflicts between GitHub-installed Python versions
+      # and those required by our packages.
+      - name: install GPAC/MP4Box
+        run: |
+          brew update
+          brew upgrade || true
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install gpac
+          MP4Box -version
 
-     - name: install mkvmerge
-       run: brew install mkvtoolnix
+      - name: install ffmpeg
+        run: brew install ffmpeg
 
-     - name: install mediainfo
-       run: |
-         brew install media-info
-         mediainfo --Version
+      - name: install mkvmerge
+        run: brew install mkvtoolnix
 
-     # We can't install the version of Bento4 distributed with brew, because it conflicts with GPAC
-     - name: install Bento4 mp4decrypt
-       run: |
-         wget -q -O /tmp/bento4.zip https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.universal-apple-macosx.zip
-         unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
-         sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
+      - name: install mediainfo
+        run: |
+          brew install media-info
+          mediainfo --Version
 
-     # Shaka packager is not available via homebrew. Alternatively, could use docker
-     # google/shaka-packager. Here we are depending on the macos runner being an AMD64 machine.
-     - name: Install shaka-packager
-       run: |
-         wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
-         mv /tmp/shaka-packager /usr/local/bin
-         chmod +x /usr/local/bin/shaka-packager
+      # We can't install the version of Bento4 distributed with brew, because it conflicts with GPAC
+      - name: install Bento4 mp4decrypt
+        run: |
+          wget -q -O /tmp/bento4.zip https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.universal-apple-macosx.zip
+          unzip /tmp/bento4.zip "Bento4-SDK-*/bin/mp4decrypt" -d /tmp
+          sudo mv /tmp/Bento4-SDK*/bin/mp4decrypt /usr/local/bin
 
-     # We need libxml2 for xmllint, used in the serialization tests.
-     - name: install xsltproc
-       run: brew install libxslt libxml2
+      # Shaka packager is not available via homebrew. Alternatively, could use docker
+      # google/shaka-packager. Here we are depending on the macos runner being an AMD64 machine.
+      - name: Install shaka-packager
+        run: |
+          wget -q -O /tmp/shaka-packager https://github.com/shaka-project/shaka-packager/releases/latest/download/packager-osx-x64
+          mv /tmp/shaka-packager /usr/local/bin
+          chmod +x /usr/local/bin/shaka-packager
 
-     - name: install protobuf compiler
-       run: brew install protobuf cmake
+      # We need libxml2 for xmllint, used in the serialization tests.
+      - name: install xsltproc
+        run: brew install libxslt libxml2
 
-     # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
-     # because they don't support nested virtualization, and therefore can't run Docker/Podman.
-     - run: cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
+      - name: install protobuf compiler
+        run: brew install protobuf cmake
+
+      # We can't run the content_protection_containerized tests on the ARM64 Github CI runners,
+      # because they don't support nested virtualization, and therefore can't run Docker/Podman.
+      - run: cargo test --features http3 --jobs 1 --verbose -- --show-output --test-threads=1 --skip container
