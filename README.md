@@ -40,7 +40,7 @@ fetching segments of the content using HTTP or HTTPS requests (this functionalit
 Muxing (merging audio and video streams, which are often published separately in DASH media streams)
 is implemented by calling an external commandline application, either mkvmerge (from the
 [MkvToolnix](https://mkvtoolnix.download/) suite), [ffmpeg](https://ffmpeg.org/),
-[vlc](https://www.videolan.org/vlc/) or [MP4Box](https://github.com/gpac/gpac/wiki/MP4Box). The
+[vlc](https://www.videolan.org/vlc/) or [MP4Box](https://wiki.gpac.io/MP4Box/MP4Box/). The
 choice of external muxer depends on the filename extension of the path supplied to `download_to()`
 (will be `.mp4` if you call `download()`):
 
@@ -109,8 +109,8 @@ default configuration (using an external application as a subprocess).
   is not live (i.e. all media segments are already available), and which we can download in dumb
   “fast-as-possible” mode. You can use the method `allow_live_streams()` on `DashDownloader` to
   attempt to download from these “**pseudo-live**” streams. It may also be useful to specify
-  `force_duration(secs)` and to use `sleep_between_requests()` to ensure downloading is not faster
-  than real time.
+  `force_duration(secs)` and to use `sleep_between_requests()` to ensure that you are not attempting
+  to download more quickly than more media segments become available.
 
   An alternative technique is to use the XSLT stylesheet `tests/fixtures/rewrite-drop-dynamic.xslt`
   to change the `dynamic` attribute to `static` before downloading, which should allow you to
@@ -254,14 +254,14 @@ Add to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-dash-mpd = "0.20.3"
+dash-mpd = "0.20.4"
 ```
 
 If you don’t need the download functionality and wish to reduce code size, use:
 
 ```toml
 [dependencies]
-dash-mpd = { version = "0.20.3", default-features = false }
+dash-mpd = { version = "0.20.4", default-features = false }
 ```
 
 We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
