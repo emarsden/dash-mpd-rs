@@ -1,25 +1,25 @@
 # Changelog
 
 
-## [0.20.4] - Unreleased
+## [0.20.4] - 2026-07-24
 
-- Implement support for TTML (Timed Text Markup Language) subtitles that are encoded using the STPP
-  codec and packed in fragmented MP4 segments. These subtitles are provided as a separate media
-  stream of fMP4 segments, that the media player retrieves incrementally. This library is able to
-  extract the XML-formatted TTML fragments from an MP4 fragment, to parse the TTML fragment to
-  extract `<style>`, `<region>` and `<p>` elements, and to serialize them to a single merged TTML
-  subtitle file. We only support the text-only IMSC1 profile for subtitles ("stpp.ttml.im1t"); the
-  image-only profile ("stpp.ttml.im1i") is not supported.
+- Downloading: implement support for TTML (Timed Text Markup Language) subtitles that are encoded
+  using the STPP codec and packed in fragmented MP4 segments. These subtitles are provided as a
+  separate media stream of fMP4 segments, that the media player retrieves incrementally. This
+  library is able to extract the XML-formatted TTML fragments from an MP4 fragment, to parse the
+  TTML fragment to extract `<style>`, `<region>` and `<p>` elements, and to serialize them to a
+  single merged TTML subtitle file. We only support the text-only IMSC1 profile for subtitles
+  ("stpp.ttml.im1t"); the image-only profile ("stpp.ttml.im1i") is not supported.
 
-- Implement support for VTT subtitles that are distributed in fragmented MP4 segments, using
-  SegmentTemplate or SegmentTemplate>SegmentTimeline addressing. This is a complement to the
+- Downloading: implement support for VTT subtitles that are distributed in fragmented MP4 segments,
+  using SegmentTemplate or SegmentTemplate>SegmentTimeline addressing. This is a complement to the
   existing support for VTT subtitles distributed as a sidecar.
 
-- Add attribute `@endNumber` to `SegmentTemplate` elements.
-
-- Downloading: account for `@endNumber` in a SegmentTemplate. This attribute does not seem to be
+- Add attribute `@endNumber` to `SegmentTemplate` elements. This attribute does not seem to be
   officially documented in the ISO and DASH-IF specifications, but support for it is implemented in
   the reference dash.js player, and the attribute is used by some manifests in the wild.
+
+- Downloading: account for `@endNumber` in a SegmentTemplate element.
 
 - Downloading: subtitles embedded in an output MP4 file include the subtitle language in the
   metadata for the subtitle track.
