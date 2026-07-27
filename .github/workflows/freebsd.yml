@@ -20,6 +20,8 @@ jobs:
     timeout-minutes: 450
     steps:
     - uses: actions/checkout@v7.0.0
+        with:
+           fetch-depth: 0
     - name: Run tests in FreeBSD VM
       uses: cross-platform-actions/action@v1.3.0
       with:
