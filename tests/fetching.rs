@@ -93,7 +93,9 @@ async fn test_dl_segmentbase_baseurl() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -120,7 +122,9 @@ async fn test_dl_segmenttemplate_tiny() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -149,7 +153,9 @@ async fn test_dl_audio_mp4a() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 #[tokio::test]
@@ -178,7 +184,9 @@ async fn test_dl_audio_flac() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 #[tokio::test]
@@ -205,7 +213,9 @@ async fn test_dl_dolby_eac3() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 // As of 2023-09, ffmpeg v6.0 and VLC v3.0.18 are unable to mux this Dolby AC-4 audio stream into an
@@ -237,7 +247,9 @@ async fn test_dl_dolby_ac4_mkv() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -266,7 +278,9 @@ async fn test_dl_sessionid() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -296,7 +310,9 @@ async fn test_dl_dolby_ac4_mp4() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -331,7 +347,9 @@ async fn test_dl_dolby_dtsc() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 // Here a test manifest using MPEG H 3D audio format (mha1 codec), which is not supported by ffmpeg
@@ -367,7 +385,9 @@ async fn test_dl_bok() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -397,7 +417,9 @@ async fn test_dl_hevc_hdr() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 #[tokio::test]
@@ -433,8 +455,11 @@ async fn test_dl_hvc1() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
@@ -462,8 +487,11 @@ async fn test_dl_vp9_uhd() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // H.266/VVC codec. ffmpeg v7.0 is not able to place this video stream in an MP4 container, but
 // muxing to Matroska with mkvmerge works. Neither mplayer nor VLC can play the video.
@@ -505,8 +533,11 @@ async fn test_dl_vvc() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // MPEG2 TS codec (mostly historical interest).
 #[tokio::test]
@@ -536,8 +567,11 @@ async fn test_dl_mp2t() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // A test for SegmentTemplate+SegmentTimeline addressing. Also a test of manifests created with the
 // Broadpeak Origin packager.
@@ -560,8 +594,11 @@ async fn test_dl_segment_timeline() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // A small test for SegmentTemplate+SegmentTimeline addressing. Also a test of manifests created
 // with the Broadpeak Origin packager.
@@ -585,8 +622,11 @@ async fn test_dl_segment_timeline_45s() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 #[tokio::test]
 async fn test_dl_segment_timeline_20s() {
@@ -608,7 +648,9 @@ async fn test_dl_segment_timeline_20s() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 #[tokio::test]
@@ -631,7 +673,9 @@ async fn test_dl_segment_timeline_5s() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -661,7 +705,9 @@ async fn test_dl_segment_timeline_heaacv2() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -694,7 +740,9 @@ async fn test_dl_segment_list() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -722,7 +770,9 @@ async fn test_dl_segment_base_indexrange() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -747,7 +797,9 @@ async fn test_dl_segment_timeline_bbb() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -775,8 +827,11 @@ async fn test_dl_segment_timeline_multilevel() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // A test for BaseURL addressing mode.
 #[tokio::test]
@@ -800,8 +855,11 @@ async fn test_dl_baseurl() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // A test for AdaptationSet>SegmentList + Representation>SegmentList addressing modes.
 #[tokio::test]
@@ -825,8 +883,11 @@ async fn test_dl_adaptation_segment_list() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
+
 
 // This manifest has video streams with different codecs (avc1 and hev1) in different AdaptationSets.
 #[tokio::test]
@@ -861,7 +922,9 @@ async fn test_dl_adaptation_set_variants() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1010,7 +1073,9 @@ async fn test_dl_h265() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1037,7 +1102,9 @@ async fn test_dl_usp_packager() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1070,7 +1137,9 @@ async fn test_dl_content_type() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1119,7 +1188,9 @@ async fn test_dl_content_steering() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1162,7 +1233,9 @@ async fn test_dl_filename_ampersand() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1193,7 +1266,9 @@ async fn test_dl_forced_duration_audio() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1222,7 +1297,9 @@ async fn test_dl_flac_audio() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
@@ -1246,7 +1323,9 @@ async fn test_dl_follow_redirect() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
