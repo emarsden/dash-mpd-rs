@@ -174,7 +174,6 @@ fn test_scte35_elements() {
 //
 // As of 2024-09 this MPD URL generates errors due to an expired TLS certificate. This is a data
 // point to keep in mind when choosing a streaming provider.
-#[ignore]
 #[tokio::test]
 #[cfg_attr(not(feature = "scte35"), ignore)]
 async fn test_scte35_live() {

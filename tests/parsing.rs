@@ -371,6 +371,42 @@ fn test_parse_low_latency() {
 }
 
 
+#[tokio::test]
+async fn test_parse_low_latency_usp() {
+    setup_logging();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::new(30, 0))
+        .gzip(true)
+        .build()
+        .expect("creating HTTP client");
+    let url = "https://demo.unified-streaming.com/k8s/live/stable/live-low-latency.isml/.mpd";
+    let xml = client.get(url)
+        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+        .send().await
+        .expect("requesting MPD content")
+        .text().await
+        .expect("fetching MPD content");
+    let mpd = parse(&xml).unwrap();
+    assert_eq!(mpd.mpdtype, Some(String::from("dynamic")));
+    assert_eq!(mpd.ServiceDescription.first().unwrap().scopes.len(), 1);
+    assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
+        |sd| sd.Latency.iter().all(
+            |l| l.max.is_some_and(
+                |m| 44999.0 < m && m < 45000.1))));
+    assert!(mpd.ServiceDescription.first().as_ref().is_some_and(
+        |sd| sd.PlaybackRate.iter().all(
+            |pbr| 0.49 < pbr.min.unwrap() && pbr.min.unwrap() < 0.51)));
+    assert!(mpd.UTCTiming.iter().all(
+        |utc| utc.value.as_ref().is_some_and(
+            |v| v.contains("time.akamai.com"))));
+    assert!(mpd.periods.iter().all(
+        |p| p.adaptations.iter().all(
+            |a| a.SegmentTemplate.as_ref().is_some_and(
+                |st| st.SegmentTimeline.is_some()))));
+}
+
+
+
 #[test]
 fn test_file_parsing() {
     setup_logging();
