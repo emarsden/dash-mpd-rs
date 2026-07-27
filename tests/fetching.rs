@@ -958,7 +958,35 @@ async fn test_dl_usp_tos() {
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
-    let _ = fs::remove_dir_all(tmpd);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
+}
+
+
+// Tests use of vend parameter to control duration of downloaded media stream.
+#[tokio::test]
+async fn test_dl_usp_vend() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd?vend=00:00:38";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("usp-tos.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(&out).await
+        .unwrap();
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    check_media_duration(&out, 38.0);
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
 }
 
 
