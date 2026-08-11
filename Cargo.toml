@@ -24,7 +24,7 @@ quick-xml = { version = "0.41.0", features = ["serialize", "overlapped-lists"] }
 url = "2.5.8"
 chrono = { version = "0.4.45", features = ["serde"] }
 num-traits = "0.2.19"
-iso8601 = "0.6.3"
+iso8601 = "0.6.5"
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-perl"] }
 thiserror = "2.0.19"
 tracing = { version = "0.1.44", features = ["attributes", "std"] }
@@ -105,4 +105,4 @@ xee-xslt = ["dep:xee-xslt-compiler"]
 xattr = "1.6.1"
 
 [target.'cfg(target_os="linux")'.dependencies]
-landlock = { version = "0.4.5", optional = true }
+landlock = { version = "0.4.7", optional = true }
