@@ -850,6 +850,9 @@ async fn test_parsing_online() {
 
     check_mpd(client.clone(),
               "http://mcdn.ndr.de/ndr/dash/ndr_hbbtv/ndr_hbbtv_mv/ndr_hbbtv_mv.mpd").await;
+
+    check_mpd(client.clone(),
+              "https://storage.googleapis.com/bitmovin-demos/av1/stream_chrome.mpd").await;
 }
 
 
