@@ -125,10 +125,9 @@ pub async fn mux_multiaudio_video_ffmpeg(
     args.push(String::from(video_str));
     // https://superuser.com/questions/1078298/ffmpeg-combine-multiple-audio-files-and-one-video-in-to-the-multi-language-vid
     for (i, at) in audio_tracks.iter().enumerate() {
-        // note that the -map commandline argument counts from 1, whereas the -metadata argument counts from 0
         mappings.push(String::from("-map"));
         mappings.push(format!("{}:a", i+1));
-        mappings.push(format!("-metadata:s:a:{i}"));
+        mappings.push(format!("-metadata:s:a:{}", i+1));
         let mut lang_sanitized = at.language.clone();
         lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
         mappings.push(format!("language={lang_sanitized}"));

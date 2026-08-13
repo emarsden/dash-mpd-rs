@@ -47,6 +47,10 @@ async fn test_lang_prefer_spa() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let tags = stream.tags.as_ref().unwrap();
     assert_eq!(tags.language, Some(String::from("spa")));
+    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
+        assert!(lang.eq("es"));
+    }
     let _ = fs::remove_file(out);
 }
 
@@ -82,6 +86,10 @@ async fn test_lang_prefer_chi() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let tags = stream.tags.as_ref().unwrap();
     assert_eq!(tags.language, Some(String::from("chi")));
+    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
+        assert!(lang.eq("zh"));
+    }
     let _ = fs::remove_file(out);
 }
 
@@ -120,6 +128,10 @@ async fn test_subtitle_lang_stpp_im1t() {
     assert_eq!(audio.codec_name, Some(String::from("aac")));
     let tags = audio.tags.as_ref().unwrap();
     assert_eq!(tags.language, Some(String::from("fra")));
+    let meta = revelo::Metadata::from_file(&outpath.to_str().unwrap()).unwrap();
+    if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
+        assert!(lang.eq("fr"));
+    }
     // let stpp = &meta.streams[2];
     // assert_eq!(stpp.codec_tag_string, "stpp");
     // let subtags = stpp.tags.as_ref().unwrap();
@@ -213,6 +225,44 @@ async fn test_lang_en_multilang() {
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    let _ = fs::remove_dir_all(tmpd);
+}
+
+
+#[tokio::test]
+async fn test_lang_audio_forest_de() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "http://dash.edgesuite.net/dash264/TestCases/10a/1/iis_forest_short_poem_multi_lang_480p_single_adapt_aaclc_sidx.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("forest-short-poem-de.mp4");
+    if out.exists() {
+        let _ = fs::remove_file(&out);
+    }
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .sandbox(true)
+        .without_content_type_checks()
+        .prefer_audio_language(String::from("de"))
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 13_852_186);
+    let format = FileFormat::from_file(&out).unwrap();
+    assert_eq!(format, FileFormat::Mpeg4Part14Video);
+    let meta = ffprobe(&out).unwrap();
+    let audio = meta.streams.iter()
+        .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
+        .expect("finding audio stream");
+    assert_eq!(audio.codec_name, Some(String::from("aac")));
+    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
+        assert!(lang.eq("de"));
+    }
     let entries = fs::read_dir(tmpd.path()).unwrap();
     let count = entries.count();
     assert_eq!(count, 1, "Expecting a single output file, got {count}");
