@@ -157,12 +157,13 @@ async fn test_error_ratelimit() {
 
 
 
-// Check error reporting for missing DASH manifest
+// Check error reporting for missing DASH manifest. httpbingo.org is an alternative to the
+// unreliable httpbin.org service.
 #[tokio::test]
 #[should_panic(expected = "requesting DASH manifest")]
 async fn test_error_missing_mpd() {
     let out = env::temp_dir().join("failure1.mkv");
-    DashDownloader::new("http://httpbin.org/status/404")
+    DashDownloader::new("http://httpbingo.org/status/404")
         .worst_quality()
         .download_to(&out).await
         .unwrap();

@@ -1303,6 +1303,8 @@ async fn test_dl_flac_audio() {
 }
 
 
+// This test disabled in 202608 because the HTTP redirection services are being abused and disabled.
+#[ignore]
 #[tokio::test]
 async fn test_dl_follow_redirect() {
     setup_logging();
@@ -1310,7 +1312,8 @@ async fn test_dl_follow_redirect() {
         return;
     }
     let mpd_url = "https://github.com/bbc/exoplayer-testing-samples/raw/master/app/src/androidTest/assets/streams/files/redGreenVideo/redGreenOnlyVideo.mpd";
-    let redirector = format!("http://httpbin.org/redirect-to?url={mpd_url}");
+    // httpcan.org is an alternative to the unreliable httpbin.org service
+    let redirector = format!("http://httpcan.org/redirect-to?url={mpd_url}");
     let tmpd = tempfile::tempdir().unwrap();
     let out = tmpd.path().join("red-green-redirected.mp4");
     DashDownloader::new(&redirector)
