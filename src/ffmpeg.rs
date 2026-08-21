@@ -472,13 +472,13 @@ async fn mux_stream_ffmpeg(
             io::Error::other("obtaining input name"),
             String::from("")))?;
     let cn: String;
-    let mut args = vec!("-hide_banner",
+    let mut args = vec!["-hide_banner",
                         "-nostats",
                         "-loglevel", "error",  // or "warning", "info"
                         "-y",  // overwrite output file if it exists
                         "-nostdin",
                         "-i", input,
-                        "-movflags", "faststart", "-preset", "veryfast");
+                        "-movflags", "faststart", "-preset", "veryfast"];
     // We can select the muxer explicitly (otherwise it is determined using heuristics based on the
     // filename extension).
     if let Some(container_name) = ffmpeg_container_name(container) {
