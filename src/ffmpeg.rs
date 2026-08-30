@@ -127,10 +127,12 @@ pub async fn mux_multiaudio_video_ffmpeg(
     for (i, at) in audio_tracks.iter().enumerate() {
         mappings.push(String::from("-map"));
         mappings.push(format!("{}:a", i+1));
-        mappings.push(format!("-metadata:s:a:{}", i+1));
-        let mut lang_sanitized = at.language.clone();
-        lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
-        mappings.push(format!("language={lang_sanitized}"));
+        if !at.language.eq("unk") {
+            mappings.push(format!("-metadata:s:a:{}", i+1));
+            let mut lang_sanitized = at.language.clone();
+            lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
+            mappings.push(format!("language={lang_sanitized}"));
+        }
         args.push(String::from("-i"));
         let audio_str = at.path
             .to_str()
@@ -318,10 +320,12 @@ async fn mux_audio_video_ffmpeg(
         // counts from 0.
         mappings.push(String::from("-map"));
         mappings.push(format!("{}:a", i+1));
-        mappings.push(format!("-metadata:s:a:{i}"));
-        let mut lang_sanitized = at.language.clone();
-        lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
-        mappings.push(format!("language={lang_sanitized}"));
+        if !at.language.eq("unk") {
+            mappings.push(format!("-metadata:s:a:{i}"));
+            let mut lang_sanitized = at.language.clone();
+            lang_sanitized.retain(|c: char| c.is_ascii_lowercase());
+            mappings.push(format!("language={lang_sanitized}"));
+        }
         args.push(String::from("-i"));
         let audio_str = at.path
             .to_str()
