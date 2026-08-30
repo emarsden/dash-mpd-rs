@@ -4587,7 +4587,7 @@ async fn fetch_mpd_http(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
 
 // Fetch XML content of manifest from a file:// URL. The reqwest library is not able to download
 // from this URL type.
-async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
+async fn fetch_mpd_file_url(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
     if ! &downloader.mpd_url.starts_with("file://") {
         return Err(DashMpdError::Other(String::from("expecting file:// URL scheme")));
     }
@@ -4601,6 +4601,19 @@ async fn fetch_mpd_file(downloader: &mut DashDownloader) -> Result<Bytes, DashMp
 }
 
 
+// Decode and return a manifest encoded as a data URL.
+async fn fetch_mpd_data_url(downloader: &mut DashDownloader) -> Result<Bytes, DashMpdError> {
+    if !&downloader.mpd_url.starts_with("data:") {
+        return Err(DashMpdError::Other(String::from("expecting data: URL scheme")));
+    }
+    let du = DataUrl::process(&downloader.mpd_url)
+        .map_err(|_| DashMpdError::Parsing(String::from("parsing mpd data URL")))?;
+    let (body, _fragment) = du.decode_to_vec()
+        .map_err(|_| DashMpdError::Parsing(String::from("decoding mpd data URL")))?;
+    Ok(Bytes::from(body))
+}
+
+
 #[tracing::instrument(level="trace", skip_all)]
 async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdError> {
     #[cfg(all(feature = "sandbox", target_os = "linux"))]
@@ -4610,7 +4623,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
         }
     }
     let xml = if downloader.mpd_url.starts_with("file://") {
-        fetch_mpd_file(downloader).await?
+        fetch_mpd_file_url(downloader).await?
+    } else if downloader.mpd_url.starts_with("data:") {
+        fetch_mpd_data_url(downloader).await?
     } else {
         fetch_mpd_http(downloader).await?
     };

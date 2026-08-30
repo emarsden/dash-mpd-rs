@@ -47,7 +47,7 @@ async fn test_lang_prefer_spa() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let tags = stream.tags.as_ref().unwrap();
     assert_eq!(tags.language, Some(String::from("spa")));
-    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    let meta = revelo::Metadata::from_file(out.to_str().unwrap()).unwrap();
     if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
         assert!(lang.eq("es"));
     }
@@ -86,7 +86,7 @@ async fn test_lang_prefer_chi() {
     assert_eq!(stream.codec_name, Some(String::from("aac")));
     let tags = stream.tags.as_ref().unwrap();
     assert_eq!(tags.language, Some(String::from("chi")));
-    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    let meta = revelo::Metadata::from_file(out.to_str().unwrap()).unwrap();
     if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
         assert!(lang.eq("zh"));
     }
@@ -259,7 +259,7 @@ async fn test_lang_audio_forest_de() {
         .find(|s| s.codec_type.eq(&Some(String::from("audio"))))
         .expect("finding audio stream");
     assert_eq!(audio.codec_name, Some(String::from("aac")));
-    let meta = revelo::Metadata::from_file(&out.to_str().unwrap()).unwrap();
+    let meta = revelo::Metadata::from_file(out.to_str().unwrap()).unwrap();
     if let Some((_, lang)) = meta.audio().find(|md| md.0.eq("Language")) {
         assert!(lang.eq("de"));
     }

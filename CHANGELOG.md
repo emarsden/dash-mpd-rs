@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.20.5] - Unreleased
+
+- Provide support for fetching from an MPD manifest that is encoded as a data: URL.
+
+
+
 ## [0.20.4] - 2026-07-24
 
 - Downloading: implement support for TTML (Timed Text Markup Language) subtitles that are encoded
