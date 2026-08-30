@@ -128,6 +128,36 @@ async fn test_dl_segmenttemplate_tiny() {
 }
 
 
+// A video-only stream
+#[tokio::test]
+async fn test_dl_video_only() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd_url = "https://d2zihajmogu5jn.cloudfront.net/video-only-dash/dash.mpd";
+    let tmpd = tempfile::tempdir().unwrap();
+    let out = tmpd.path().join("video-only.mp4");
+    DashDownloader::new(mpd_url)
+        .worst_quality()
+        .download_to(&out).await
+        .unwrap();
+    check_file_size_approx(&out, 807_388);
+    let meta = ffprobe(&out).unwrap();
+    assert_eq!(meta.streams.len(), 1);
+    let video = &meta.streams[0];
+    assert_eq!(video.codec_type, Some(String::from("video")));
+    assert_eq!(video.codec_name, Some(String::from("h264")));
+    assert!(video.width.eq(&Some(180)));
+    let entries = fs::read_dir(tmpd.path()).unwrap();
+    let count = entries.count();
+    assert_eq!(count, 1, "Expecting a single output file, got {count}");
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_dir_all(tmpd);
+    }
+}
+
+
 #[tokio::test]
 #[cfg(not(feature = "libav"))]
 async fn test_dl_audio_mp4a() {
