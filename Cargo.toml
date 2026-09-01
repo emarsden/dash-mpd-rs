@@ -47,7 +47,7 @@ pssh-box = { version = "0.2.5", features = ["protox"], optional = true }
 humantime = { version = "2.4.0", optional = true }
 dir_spec = { version = "0.5.2", optional = true }
 hxdmp = "0.2.1"
-webm-iterable = "0.6.4"
+webm-iterable = "0.7.0"
 edit-distance = "2.2.2"
 xee-xslt-compiler = { version = "0.1.6", optional = true }
 mp4-atom = "0.15.0"
