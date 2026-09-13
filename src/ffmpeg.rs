@@ -3,6 +3,9 @@
 // Also see the alternative method of using ffmpeg via its "libav" shared library API, implemented
 // in file "libav.rs".
 
+// TODO: when the oxideav-mp4 crate is more mature, we could implement support for Rust-only (but
+// videcoded) muxing using its functionality (https://github.com/OxideAV/oxideav-mp4).
+//
 // TODO: on Linux we should try to use bubblewrap to execute the muxers in a sandboxed environment,
 // along the lines of
 //
@@ -671,6 +674,7 @@ async fn mux_audio_video_mp4box(
             io::Error::other("obtaining videopath name"),
             String::from("")))?;
     let args = vec![
+        "-noprog",
         "-flat",
         "-add", video_str,
         "-add", audio_str,
@@ -737,7 +741,7 @@ async fn mux_stream_mp4box(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining input stream name"),
             String::from("")))?;
-    let args = vec!["-add", input, "-new", tmppath];
+    let args = vec!["-noprog", "-add", input, "-new", tmppath];
     if downloader.verbosity > 0 {
         info!("  Running MP4Box {}", args.join(" "));
     }
@@ -1465,7 +1469,7 @@ pub(crate) async fn concat_output_files_mp4box(
         .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
     // MP4Box -add file1.mp4 -cat file2.mp4 -cat file3.mp4 output.mp4"
     let out = paths[0].to_string_lossy();
-    let mut args = vec!["-flat", "-add", &tmppath];
+    let mut args = vec!["-noprog", "-flat", "-add", &tmppath];
     for p in &paths[1..] {
         if let Some(ps) = p.to_str() {
             args.push("-cat");
