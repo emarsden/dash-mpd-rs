@@ -7,14 +7,15 @@
 //
 // To run this test while enabling printing to stdout/stderr
 //
-//    cargo test --test subtitles -- --show-output
+//    TEST_PERSIST_FILES=1 cargo test --test subtitles --jobs 1 -- --show-output --test-threads=1
+
 
 
 pub mod common;
 use std::fs;
 use std::env;
 use std::path::Path;
-use tracing::info;
+use std::process::Command;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use pretty_assertions::assert_eq;
@@ -30,10 +31,10 @@ use common::{check_media_duration, setup_logging};
 // Note that these tests will fail if MP4Box (from GPAC) is not installed. MP4Box is used for the
 // conversion to SRT format.
 #[tokio::test]
-async fn test_subtitles_wvtt () {
+async fn test_subtitles_wvtt_defaultlang () {
     setup_logging();
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
-    let outpath = env::temp_dir().join("sintel.mp4");
+    let outpath = env::temp_dir().join("sintel-wvtt-defaultlang.mp4");
     let mut subpath_wvtt = outpath.clone();
     subpath_wvtt.set_extension("wvtt");
     let subpath_wvtt = Path::new(&subpath_wvtt);
@@ -59,17 +60,26 @@ async fn test_subtitles_wvtt () {
     assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land van de poortwachters"));
-    if let Err(e) = fs::remove_file(subpath_wvtt) {
-        info!("Failed to delete temporary file for wvtt subs: {e}");
-    }
-    if let Err(e) = fs::remove_file(subpath_srt) {
-        info!("Failed to delete temporary file for srt subs: {e}");
-    }
     if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(subpath_wvtt);
+        let _ = fs::remove_file(subpath_srt);
         let _ = fs::remove_file(&outpath);
     }
+}
 
-    // Now download the english subtitles and check that we got the expected content.
+
+#[tokio::test]
+async fn test_subtitles_wvtt_en () {
+    setup_logging();
+    let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
+    let outpath = env::temp_dir().join("sintel-wvtt-en.mp4");
+    let mut subpath_wvtt = outpath.clone();
+    subpath_wvtt.set_extension("wvtt");
+    let subpath_wvtt = Path::new(&subpath_wvtt);
+    let mut subpath_srt = outpath.clone();
+    subpath_srt.set_extension("srt");
+    let subpath_srt = Path::new(&subpath_srt);
+    // Download the english subtitles and check that we got the expected content.
     DashDownloader::new(mpd)
         .fetch_audio(false)
         .fetch_video(false)
@@ -78,7 +88,6 @@ async fn test_subtitles_wvtt () {
         .download_to(&outpath).await
         .unwrap();
     let srt = fs::read_to_string(subpath_srt).unwrap();
-    // This time we requested English subtitles.
     assert!(srt.contains("land of the gatekeepers"));
     if !env::var("TEST_PERSIST_FILES").is_ok() {
         let _ = fs::remove_file(outpath);
@@ -124,7 +133,7 @@ async fn test_subtitles_vtt_fragments () {
 async fn test_subtitles_ttml_sidecar () {
     setup_logging();
     let mpd = "https://dash.akamaized.net/dash264/TestCases/4b/qualcomm/2/TearsOfSteel_onDem5secSegSubTitles.mpd";
-    let outpath = env::temp_dir().join("tears-of-steel.mp4");
+    let outpath = env::temp_dir().join("ttml-tears-of-steel.mp4");
     let mut subpath = outpath.clone();
     subpath.set_extension("ttml");
     let subpath = Path::new(&subpath);
@@ -170,7 +179,7 @@ async fn test_subtitles_ttml_sidecar () {
 async fn test_subtitles_vtt () {
     setup_logging();
     let mpd = "http://dash.edgesuite.net/akamai/test/caption_test/ElephantsDream/elephants_dream_480p_heaac5_1.mpd";
-    let outpath = env::temp_dir().join("elephants-dream.mp4");
+    let outpath = env::temp_dir().join("vtt-elephants-dream.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(&outpath);
     }
@@ -199,16 +208,11 @@ async fn test_subtitles_vtt () {
 }
 
 
-// STPP subtitles are muxed into the output media stream, so we need to download audio and video for
-// this type. So we don't run this test on CI infrastructure.
 #[tokio::test]
 async fn test_subtitles_stpp() {
     setup_logging();
-    if env::var("CI").is_ok() {
-        return;
-    }
     let mpd = "https://rdmedia.bbc.co.uk/elephants_dream/1/client_manifest-all.mpd";
-    let outpath = env::temp_dir().join("elephants-dream-bbc.mp4");
+    let outpath = env::temp_dir().join("stpp-elephants-dream-bbc.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(&outpath);
     }
@@ -216,8 +220,8 @@ async fn test_subtitles_stpp() {
     subpath.set_extension("ttml");
     let subpath = Path::new(&subpath);
     DashDownloader::new(mpd)
-        .fetch_audio(true)
-        .fetch_video(true)
+        .fetch_audio(false)
+        .fetch_video(false)
         .fetch_subtitles(true)
         .verbosity(2)
         .download_to(&outpath).await
@@ -240,8 +244,54 @@ async fn test_subtitles_stpp() {
 }
 
 
+// In addition to checking that we can extract TTML from the STPP subtitle track with the expected
+// language, check that the TTML is also converted to SubRip format.
+#[tokio::test]
+async fn test_subtitles_stpp_multilang() {
+    setup_logging();
+    let mpd = "https://livesim2.dashif.org/vod/testpic_2s/multi_subs.mpd";
+    let outpath = env::temp_dir().join("stpp-lang-swe.mp4");
+    if outpath.exists() {
+        let _ = fs::remove_file(&outpath);
+    }
+    let mut subpath_ttml = outpath.clone();
+    subpath_ttml.set_extension("ttml");
+    let mut subpath_srt = outpath.clone();
+    subpath_srt.set_extension("srt");
+    let subpath_ttml = Path::new(&subpath_ttml);
+    let subpath_srt = Path::new(&subpath_srt);
+    DashDownloader::new(mpd)
+        .fetch_audio(true)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .prefer_subtitle_language(String::from("sv"))
+        .verbosity(2)
+        .download_to(&outpath).await
+        .unwrap();
+    assert!(fs::metadata(subpath_ttml).is_ok());
+    assert!(fs::metadata(subpath_srt).is_ok());
+    let format = FileFormat::from_file(subpath_ttml).unwrap();
+    assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
+    let format = FileFormat::from_file(subpath_srt).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
+    let ttml = fs::read_to_string(subpath_ttml).unwrap();
+    assert!(ttml.contains("http://www.w3.org/ns/ttml"));
+    assert!(ttml.contains("swe : 00:00:49.000"));
+    let meta = ffprobe(&outpath).unwrap();
+    assert_eq!(meta.streams.len(), 3);
+    let stpp = &meta.streams[2];
+    assert_eq!(stpp.codec_tag_string, "stpp");
+    check_media_duration(&outpath, 632.0);
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(outpath);
+        let _ = fs::remove_file(subpath_ttml);
+        let _ = fs::remove_file(subpath_srt);
+    }
+}
 
-// Image-based (IMSC1 CMAF) STPP subtitles.
+
+// Image-based (IMSC1 CMAF) STPP subtitles (codec = stpp.ttml.im1i). We don't have support for
+// extracting the content from these subtitles, so the associated .srt file is empty.
 #[tokio::test]
 async fn test_subtitles_stpp_imsc1() {
     setup_logging();
@@ -249,7 +299,7 @@ async fn test_subtitles_stpp_imsc1() {
         return;
     }
     let mpd = "https://livesim.dashif.org/dash/vod/testpic_2s/imsc1_img.mpd";
-    let outpath = env::temp_dir().join("imsc1-subs.mp4");
+    let outpath = env::temp_dir().join("stpp-imsc1-subs.mp4");
     if outpath.exists() {
         let _ = fs::remove_file(&outpath);
     }
@@ -429,6 +479,9 @@ async fn test_subtitles_usp_ttml_hoh() {
     }
 }
 
+
+
+// FIXME here we have an stpp.ttml.etd1|im1t subtitle track, but we are retrieving no useful content from it
 
 // Useful MP4 box analysis tool: https://media-analyzer.pro/analyzer
 #[tokio::test]

@@ -11,7 +11,6 @@ use std::time::Duration;
 use tokio::time::Instant;
 use chrono::Utc;
 use std::sync::Arc;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
@@ -36,6 +35,7 @@ use crate::check_conformity;
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
 use crate::media::{temporary_outpath, AudioTrack};
+use crate::subtitles::{wvtt_extract, convert_ttml_srt, convert_vtt_srt};
 use crate::decryption::{
     decrypt_mp4decrypt,
     decrypt_shaka,
@@ -3448,7 +3448,7 @@ async fn do_period_subtitles(
                             _ => subs_path.set_extension("sub"),
                         };
                         subtitle_formats.push(subtitle_format);
-                        let mut subs_file = File::create(subs_path.clone()).await
+                        let mut subs_file = File::create(&subs_path).await
                             .map_err(|e| DashMpdError::Io(e, String::from("creating subtitle file")))?;
                         if downloader.verbosity > 2 {
                             info!("  Subtitle {st_url} -> {} octets", subs.len());
@@ -3465,45 +3465,21 @@ async fn do_period_subtitles(
                                 return Err(DashMpdError::Io(e, String::from("writing subtitle data")));
                             },
                         }
+                        if subtitle_formats.contains(&SubtitleType::Ttml) {
+                            if let Err(e) = convert_ttml_srt(downloader, &subs_path).await {
+                                warn!("Error while converting TTML subtitles to SubRip: {e}");
+                            }
+                        }
+                        if subtitle_formats.contains(&SubtitleType::Vtt) {
+                            if let Err(e) = convert_vtt_srt(downloader, &subs_path).await {
+                                warn!("Error while converting VTT subtitles to SubRip: {e}");
+                            }
+                        }
                         if subtitle_formats.contains(&SubtitleType::Wvtt) ||
                             subtitle_formats.contains(&SubtitleType::Ttxt)
                         {
-                            if downloader.verbosity > 0 {
-                                info!("   Converting subtitles to SRT format with MP4Box ");
-                            }
-                            let out = subs_path.with_extension("srt");
-                            // We try to convert this to SRT format, which is more widely supported,
-                            // using MP4Box. However, it's not a fatal error if MP4Box is not
-                            // installed or the conversion fails.
-                            //
-                            // Could also try to convert to WebVTT with
-                            //   MP4Box -raw "0:output=output.vtt" input.mp4
-                            let out_str = out.to_string_lossy();
-                            let subs_str = subs_path.to_string_lossy();
-                            let args = vec![
-                                "-srt", "1",
-                                "-out", &out_str,
-                                &subs_str];
-                            if downloader.verbosity > 0 {
-                                info!("  Running MPBox {}", args.join(" "));
-                            }
-                            if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                                .args(args)
-                                .output()
-                            {
-                                let msg = partial_process_output(&mp4box.stdout);
-                                if !msg.is_empty() {
-                                    info!("MP4Box stdout: {msg}");
-                                }
-                                let msg = partial_process_output(&mp4box.stderr);
-                                if !msg.is_empty() {
-                                    info!("MP4Box stderr: {msg}");
-                                }
-                                if mp4box.status.success() {
-                                    info!("   Converted subtitles to SRT");
-                                } else {
-                                    warn!("Error running MP4Box to convert subtitles");
-                                }
+                            if let Err(e) = wvtt_extract(downloader, &subs_path).await {
+                                warn!("Error while extracting wvtt subtitles: {e}");
                             }
                         }
                     }
@@ -4436,6 +4412,10 @@ async fn fetch_period_subtitles(
             tmpfile_subs.write_all(stpp_document.to_string().as_bytes())
                 .map_err(|e| DashMpdError::Io(e, String::from("writing DASH TTML subtitle data")))
                 .await?;
+            tmpfile_subs.flush().map_err(|e| {
+                error!("Couldn't flush subs file: {e}");
+                DashMpdError::Io(e, String::from("flushing subtitle file"))
+            }).await?;
         }
         if subtitle_formats.contains(&SubtitleType::Vtt) {
             if downloader.verbosity > 1 {
@@ -4444,11 +4424,11 @@ async fn fetch_period_subtitles(
             tmpfile_subs.write_all(vtt_document.to_string().as_bytes())
                 .map_err(|e| DashMpdError::Io(e, String::from("writing DASH VTT subtitle data")))
                 .await?;
+            tmpfile_subs.flush().map_err(|e| {
+                error!("Couldn't flush subs file: {e}");
+                DashMpdError::Io(e, String::from("flushing subtitle file"))
+            }).await?;
         }
-        tmpfile_subs.flush().map_err(|e| {
-            error!("Couldn't flush subs file: {e}");
-            DashMpdError::Io(e, String::from("flushing subtitle file"))
-        }).await?;
     } // end local scope for tmpfile_subs File
     if have_subtitles {
         if let Ok(metadata) = fs::metadata(tmppath).await {
@@ -4464,60 +4444,30 @@ async fn fetch_period_subtitles(
         if subtitle_formats.contains(&SubtitleType::Wvtt) ||
            subtitle_formats.contains(&SubtitleType::Ttxt)
         {
-            // We can extract these from the MP4 container in .srt format, using MP4Box.
-            if downloader.verbosity > 0 {
-                if let Some(fmt) = subtitle_formats.first() {
-                    info!("  Downloaded media contains subtitles in {fmt:?} format");
-                }
-                info!("  Running MP4Box to extract subtitles");
-            }
-            let out = downloader.output_path.as_ref().unwrap()
-                .with_extension("srt");
-            let out_str = out.to_string_lossy();
-            let tmp_str = tmppath.to_string_lossy();
-            let args = vec![
-                "-srt", "1",
-                "-out", &out_str,
-                &tmp_str];
-            if downloader.verbosity > 0 {
-                info!("  Running MP4Box {}", args.join(" "));
-            }
-            if let Ok(mp4box) = Command::new(downloader.mp4box_location.clone())
-                .args(args)
-                .output()
-            {
-                let msg = partial_process_output(&mp4box.stdout);
-                if !msg.is_empty() {
-                    info!("  MP4Box stdout: {msg}");
-                }
-                let msg = partial_process_output(&mp4box.stderr);
-                if !msg.is_empty() {
-                    info!("  MP4Box stderr: {msg}");
-                }
-                if mp4box.status.success() {
-                    info!("  Extracted subtitles as SRT");
-                } else {
-                    warn!("  Error running MP4Box to extract subtitles");
-                }
-            } else {
-                warn!("  Failed to spawn MP4Box to extract subtitles");
+            if let Err(e) = wvtt_extract(downloader, tmppath).await {
+                warn!("Error while extracting wvtt subtitles: {e}");
             }
         }
         if subtitle_formats.contains(&SubtitleType::Stpp) {
             // Copy from the temporary filename for the subtitle file to a .ttml file with the same
-            // basename as the requested media output file. Copy rather than rename in case we a
+            // basename as the requested media output file. Copy rather than rename in case we are
             // crossing filesystems.
             let tmpfile_in = File::open(tmppath).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("opening tmp subtitle output")))?;
-            let ttml_path = downloader.output_path.as_ref().unwrap()
+            let ttml_path = downloader.output_path.as_ref()
+                .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
                 .with_extension("ttml");
-            let ttml_file = File::create(ttml_path.clone()).await
+            let ttml_file = File::create(&ttml_path).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("opening TTML output file")))?;
             io::copy(&mut BufReader::new(tmpfile_in), &mut BufWriter::new(ttml_file)).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("copying TTML subtitles")))?;
+            info!("  Copied TTML subtitles to {}", ttml_path.display());
+            if let Err(e) = convert_ttml_srt(downloader, &ttml_path).await {
+                warn!("Error while converting TTML subtitles to SubRip: {e}");
+            }
         }
         if subtitle_formats.contains(&SubtitleType::Vtt) {
             // Copy from the temporary filename for the subtitle file to a .vtt file with the same
@@ -4526,19 +4476,20 @@ async fn fetch_period_subtitles(
             let tmpfile_in = File::open(tmppath).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("opening tmp subtitle output")))?;
-            let vtt_path = downloader.output_path.as_ref().unwrap()
+            let vtt_path = downloader.output_path.as_ref()
+                .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
                 .with_extension("vtt");
-            let vtt_file = File::create(vtt_path.clone()).await
+            let vtt_file = File::create(&vtt_path).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("opening VTT output file")))?;
             io::copy(&mut BufReader::new(tmpfile_in), &mut BufWriter::new(vtt_file)).await
                 .map_err(|e| DashMpdError::Io(
                     e, String::from("copying VTT subtitles")))?;
+            info!("  Copied WebVTT subtitles to {}", vtt_path.display());
+            if let Err(e) = convert_vtt_srt(downloader, &vtt_path).await {
+                warn!("Error while converting WebVTT subtitles to SubRip: {e}");
+            }
         }
-        // TODO: it might be useful to convert the subtitles to SRT/WebVTT format, as they tend to
-        // be better supported. However, ffmpeg does not seem able to convert from TTML to these
-        // formats. We could perhaps use the Python ttconv package, or below with MP4Box. Could
-        // perhaps use the captionrs crate, https://crates.io/crates/captionrs
     }
     Ok(have_subtitles)
 }

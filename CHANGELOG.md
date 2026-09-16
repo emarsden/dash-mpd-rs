@@ -5,6 +5,20 @@
 
 - Provide support for fetching from an MPD manifest that is encoded as a data: URL.
 
+- Improve the handling of wvtt subtitles, that are distributed in fragmented MP4 segments containing
+  embedded WebVTT cues. We now make the subtitles available in WebVTT format, in a file with the
+  same name as the main media container but with a `.vtt` extension, because they may contain richer
+  style information that is supported by some media players. We also make the subtitles available in
+  SubRip format, as previously. When converting to SubRip format (in a file with the `.srt`
+  extension), strip out style and speaker information that is not supported in SubRip format.
+
+- Subtitles retrieved in TTML and VTT formats will be converted to SubRip format and placed into a
+  file with the `.srt` extension, with the same name as the main media file. This conversion occurs
+  both for subtitles distributed as a “sidecar” (a separate file) and those distributed in
+  fragmented form as a dedicated subtitle media stream (e.g. using the STPP codec).
+
+- Strip ANSI terminal codes from progress messages and error messages emitted by helper applications
+  that we use for muxing, decrypting or to extract content from media containers.
 
 
 ## [0.20.4] - 2026-07-24

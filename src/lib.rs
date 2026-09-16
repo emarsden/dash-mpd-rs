@@ -80,6 +80,8 @@ pub mod fetch;
 #[cfg(feature = "fetch")]
 pub mod decryption;
 #[cfg(feature = "fetch")]
+pub mod subtitles;
+#[cfg(feature = "fetch")]
 pub mod stpp;
 #[cfg(feature = "fetch")]
 pub mod vtt;

@@ -4,7 +4,8 @@
 // in file "libav.rs".
 
 // TODO: when the oxideav-mp4 crate is more mature, we could implement support for Rust-only (but
-// videcoded) muxing using its functionality (https://github.com/OxideAV/oxideav-mp4).
+// videcoded) muxing using its functionality (https://github.com/OxideAV/oxideav-mp4). Or using the
+// transmux crate (https://docs.rs/crate/transmux/latest)
 //
 // TODO: on Linux we should try to use bubblewrap to execute the muxers in a sandboxed environment,
 // along the lines of
