@@ -4905,7 +4905,7 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                     let tmp_str = tmppath_subs.to_string_lossy();
                     let period_output_str = period_output_path.to_string_lossy();
                     let subtitle_lang = format!("3={}", pd.selected_subtitle_language);
-                    let args = vec!["-lang", &subtitle_lang, "-add", &tmp_str, &period_output_str];
+                    let args = vec!["-noprog", "-lang", &subtitle_lang, "-add", &tmp_str, &period_output_str];
                     if downloader.verbosity > 0 {
                         info!("  Running MP4Box {}", args.join(" "));
                     }
