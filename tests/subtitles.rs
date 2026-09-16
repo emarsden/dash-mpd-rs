@@ -557,6 +557,68 @@ async fn test_subtitles_hbbtv_dillama_subob() {
 }
 
 
+
+// A stream with two in-band CEA-608 closed captions embedded in the video track: English and Swedish.
+// The closed captions can be played by VLC for example.
+//
+// We check that the captions can be extracted using ffmpeg and contain the expected text. Note that
+// the ffmpeg extraction is including font and styling information in the srt file, which is
+// non-standard but is supported by some players.
+#[tokio::test]
+async fn test_subtitles_cea608() {
+    setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
+    let mpd = "https://livesim2.dashif.org/vod/testpic_2s/cea608.mpd";
+    let out_path = env::temp_dir().join("subs-cea608.mp4");
+    if out_path.exists() {
+        let _ = fs::remove_file(&out_path);
+    }
+    let caption_path = env::temp_dir().join("subs-cea608-extracted.srt");
+    DashDownloader::new(mpd)
+        .fetch_audio(false)
+        .fetch_video(true)
+        .fetch_subtitles(true)
+        .without_content_type_checks()
+        .verbosity(1)
+        .download_to(&out_path).await
+        .unwrap();
+    let ffmpeg = Command::new("ffmpeg")
+        .env("LANG", "C")
+        .args(["-hide_banner",
+               "-nostats",
+               "-loglevel", "error",  // or "warning", "info"
+               "-y",  // overwrite output file if it exists
+               "-nostdin",
+               "-f", "lavfi",
+               "-i", &format!("movie={}[out+subcc]", &out_path.to_string_lossy()),
+               "-map", "0:s:0",
+               "-c:s", "srt",
+               "-sub_charenc", "UTF-8",
+               &caption_path.to_string_lossy()])
+        .output()
+        .expect("spawning ffmpeg");
+    let msg = String::from_utf8_lossy(&ffmpeg.stderr);
+    if !msg.is_empty() {
+        eprintln!("FFMPEG stderr {msg}");
+    }
+    assert!(fs::metadata(&out_path).is_ok());
+    assert!(fs::metadata(&caption_path).is_ok());
+    let format = FileFormat::from_file(&caption_path).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
+    let srt = fs::read_to_string(&caption_path).unwrap();
+    assert!(srt.contains("eng: 00:55:44:00"));
+    if !env::var("TEST_PERSIST_FILES").is_ok() {
+        let _ = fs::remove_file(&out_path);
+        let _ = fs::remove_file(&caption_path);
+    }
+}
+
+
+
+
+
 // TODO: try also
 //
 //   https://livesim2.dashif.org/vod/testpic_2s/multi_subs.mpd
