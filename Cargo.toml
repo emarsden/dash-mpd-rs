@@ -51,7 +51,8 @@ edit-distance = "2.2.2"
 xee-xslt-compiler = { version = "0.1.6", optional = true }
 mp4-atom = "0.15.0"
 xmlparser = "0.13.6"
-
+oxideav-subtitle = { version = "0.1.2", default-features = false }
+strip-ansi-escapes = "0.2.1"
 
 [dev-dependencies]
 digest-io = "0.1.0"

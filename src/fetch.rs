@@ -61,10 +61,11 @@ type DirectRateLimiter = RateLimiter<governor::state::direct::NotKeyed,
 // When reading stdout or stderr from an external commandline application to display for the user,
 // this is the maximum number of octets read.
 #[must_use]
-pub fn partial_process_output(output: &[u8]) -> Cow<'_, str> {
-    let len = min(output.len(), 4096);
+pub fn partial_process_output(output: &[u8]) -> String {
+    let cleaned = strip_ansi_escapes::strip(output);
+    let len = min(cleaned.len(), 4096);
     #[allow(clippy::indexing_slicing)]
-    String::from_utf8_lossy(&output[0..len])
+    String::from_utf8_lossy(&cleaned[0..len]).to_string()
 }
 
 
