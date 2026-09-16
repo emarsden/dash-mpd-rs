@@ -3377,8 +3377,11 @@ async fn do_period_subtitles(
     base_url: Url
     ) -> Result<PeriodOutputs, DashMpdError>
 {
-    let client = downloader.http_client.as_ref().unwrap();
-    let output_path = &downloader.output_path.as_ref().unwrap().clone();
+    let client = downloader.http_client.as_ref()
+        .ok_or_else(|| DashMpdError::Other(String::from("no HTTP client specified")))?;
+    let output_path = &downloader.output_path.as_ref()
+        .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
+        .clone();
     let period_output_path = output_path_for_period(output_path, period_counter);
     let mut fragments = Vec::new();
     let mut subtitle_formats = Vec::new();
@@ -4119,7 +4122,8 @@ async fn fetch_period_audio(
                   metadata.len() / 1024,
                   downloader.decryptor_preference);
         }
-        let out_ext = downloader.output_path.as_ref().unwrap()
+        let out_ext = downloader.output_path.as_ref()
+            .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-audio", out_ext)?;
@@ -4257,7 +4261,8 @@ async fn fetch_period_video(
                    metadata.len() / 1024,
                    downloader.decryptor_preference);
         }
-        let out_ext = downloader.output_path.as_ref().unwrap()
+        let out_ext = downloader.output_path.as_ref()
+            .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let decrypted = tmp_file_path("dashmpd-decrypted-video", out_ext)?;
@@ -4798,7 +4803,9 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
 
     // To collect the muxed audio and video segments for each Period in the MPD, before their
     // final concatenation-with-reencoding.
-    let output_path = &downloader.output_path.as_ref().unwrap().clone();
+    let output_path = &downloader.output_path.as_ref()
+        .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
+        .clone();
     let mut period_output_pathbufs: Vec<PathBuf> = Vec::new();
     let mut ds = DownloadState {
         period_counter: 0,
@@ -4827,7 +4834,8 @@ async fn fetch_mpd(downloader: &mut DashDownloader) -> Result<PathBuf, DashMpdEr
                       pd.subtitle_fragments.len());
             }
         }
-        let output_ext = downloader.output_path.as_ref().unwrap()
+        let output_ext = downloader.output_path.as_ref()
+            .ok_or_else(|| DashMpdError::Other(String::from("no output_path set")))?
             .extension()
             .unwrap_or(OsStr::new("mp4"));
         let tmppath_audio = if let Some(ref path) = downloader.keep_audio {
