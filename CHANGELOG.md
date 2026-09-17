@@ -20,6 +20,9 @@
 - Strip ANSI terminal codes from progress messages and error messages emitted by helper applications
   that we use for muxing, decrypting or to extract content from media containers.
 
+- The verbosity of external helper applications (ffmpeg, MP4Box) is adjusted according to the global
+  verbosity requested by the user.
+
 
 ## [0.20.4] - 2026-07-24
 
