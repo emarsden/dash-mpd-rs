@@ -111,10 +111,15 @@ pub async fn mux_multiaudio_video_ffmpeg(
             }
         }
     }
+    let verbosity = match downloader.verbosity {
+        0 => "error",
+        1 => "warning",
+        _ => "info",
+    };
     let mut args = vec![
         String::from("-hide_banner"),
         String::from("-nostats"),
-        String::from("-loglevel"), String::from("error"),  // or "warning", "info"
+        String::from("-loglevel"), String::from(verbosity),
         String::from("-y"),  // overwrite output file if it exists
         String::from("-nostdin")];
     let mut mappings = Vec::new();
@@ -295,10 +300,15 @@ async fn mux_audio_video_ffmpeg(
             }
         }
     }
+    let verbosity = match downloader.verbosity {
+        0 => "error",
+        1 => "warning",
+        _ => "info",
+    };
     let mut args = vec![
         String::from("-hide_banner"),
         String::from("-nostats"),
-        String::from("-loglevel"), String::from("error"),  // or "warning", "info"
+        String::from("-loglevel"), String::from(verbosity),
         String::from("-y"),  // overwrite output file if it exists
         String::from("-nostdin")];
     let mut mappings = Vec::new();
@@ -480,13 +490,20 @@ async fn mux_stream_ffmpeg(
             io::Error::other("obtaining input name"),
             String::from("")))?;
     let cn: String;
-    let mut args = vec!["-hide_banner",
-                        "-nostats",
-                        "-loglevel", "error",  // or "warning", "info"
-                        "-y",  // overwrite output file if it exists
-                        "-nostdin",
-                        "-i", input,
-                        "-movflags", "faststart", "-preset", "veryfast"];
+    let verbosity = match downloader.verbosity {
+        0 => "error",
+        1 => "warning",
+        _ => "info",
+    };
+    let mut args = vec![
+        "-hide_banner",
+        "-nostats",
+        "-loglevel", verbosity,
+        "-y",  // overwrite output file if it exists
+        "-nostdin",
+        "-i", input,
+        "-movflags", "faststart",
+        "-preset", "veryfast"];
     // We can select the muxer explicitly (otherwise it is determined using heuristics based on the
     // filename extension).
     if let Some(container_name) = ffmpeg_container_name(container) {
@@ -674,7 +691,14 @@ async fn mux_audio_video_mp4box(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining videopath name"),
             String::from("")))?;
+    let verbosity = match downloader.verbosity {
+        0 => "all@error",
+        1 => "all@warning",
+        2 => "all@info",
+        _ => "all@debug",
+    };
     let args = vec![
+        "-logs", verbosity,
         "-noprog",
         "-flat",
         "-add", video_str,
@@ -742,7 +766,17 @@ async fn mux_stream_mp4box(
         .ok_or_else(|| DashMpdError::Io(
             io::Error::other("obtaining input stream name"),
             String::from("")))?;
-    let args = vec!["-noprog", "-add", input, "-new", tmppath];
+    let verbosity = match downloader.verbosity {
+        0 => "all@error",
+        1 => "all@warning",
+        2 => "all@info",
+        _ => "all@debug",
+    };
+    let args = vec![
+        "-logs", verbosity,
+        "-noprog",
+        "-add", input,
+        "-new", tmppath];
     if downloader.verbosity > 0 {
         info!("  Running MP4Box {}", args.join(" "));
     }
@@ -1275,10 +1309,17 @@ pub(crate) async fn concat_output_files_ffmpeg_filter(
     let tmppath = &tmpout.path();
     fs::copy(paths[0], tmppath).await
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
-    let mut args = vec!["-hide_banner", "-nostats",
-                        "-loglevel", "error",  // or "warning", "info"
-                        "-y",
-                        "-nostdin"];
+    let verbosity = match downloader.verbosity {
+        0 => "error",
+        1 => "warning",
+        _ => "info",
+    };
+    let mut args = vec![
+        "-hide_banner",
+        "-nostats",
+        "-loglevel", verbosity,
+        "-y",
+        "-nostdin"];
     let mut inputs = Vec::<&Path>::new();
     inputs.push(tmppath);
     for p in &paths[1..] {
@@ -1362,10 +1403,17 @@ pub(crate) async fn concat_output_files_ffmpeg_demuxer(
             String::from("")))?;
     fs::copy(paths[0], tmppath).await
         .map_err(|e| DashMpdError::Io(e, String::from("copying first input path")))?;
-    let mut args = vec!["-hide_banner", "-nostats",
-                        "-loglevel", "error",  // or "warning", "info"
-                        "-y",
-                        "-nostdin"];
+    let verbosity = match downloader.verbosity {
+        0 => "error",
+        1 => "warning",
+        _ => "info",
+    };
+    let mut args = vec![
+        "-hide_banner",
+        "-nostats",
+        "-loglevel", verbosity,
+        "-y",
+        "-nostdin"];
     // https://trac.ffmpeg.org/wiki/Concatenate
     let demuxlist = tempfile::Builder::new()
         .prefix("dashmpddemux")
@@ -1470,7 +1518,17 @@ pub(crate) async fn concat_output_files_mp4box(
         .map_err(|e| DashMpdError::Io(e, String::from("copying from overwritten file")))?;
     // MP4Box -add file1.mp4 -cat file2.mp4 -cat file3.mp4 output.mp4"
     let out = paths[0].to_string_lossy();
-    let mut args = vec!["-noprog", "-flat", "-add", &tmppath];
+    let verbosity = match downloader.verbosity {
+        0 => "all@error",
+        1 => "all@warning",
+        2 => "all@info",
+        _ => "all@debug",
+    };
+    let mut args = vec![
+        "-logs", verbosity,
+        "-noprog",
+        "-flat",
+        "-add", &tmppath];
     for p in &paths[1..] {
         if let Some(ps) = p.to_str() {
             args.push("-cat");

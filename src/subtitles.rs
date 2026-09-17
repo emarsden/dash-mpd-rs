@@ -21,9 +21,18 @@ pub async fn wvtt_extract(downloader: &DashDownloader, subs_path: &Path) -> Resu
     if downloader.verbosity > 0 {
         info!("  Extracting WebVTT subtitles to {}, using MP4Box", vtt_path.display());
     }
-    let mp4box_arg = format!("0:output={}", vtt_path.to_string_lossy());
     // MP4Box -noprog -raw "0:output=output.vtt" input.mp4
-    let args = vec!["-noprog", "-raw", &mp4box_arg, &subs_path_str];
+    let mp4box_arg = format!("0:output={}", vtt_path.to_string_lossy());
+    let verbosity = match downloader.verbosity {
+        0 => "all@error",
+        1 => "all@warning",
+        2 => "all@info",
+        _ => "all@debug",
+    };
+    let args = vec![
+        "-logs", verbosity,
+        "-noprog",
+        "-raw", &mp4box_arg, &subs_path_str];
     if downloader.verbosity > 0 {
         info!("  Running MPBox {}", args.join(" "));
     }
