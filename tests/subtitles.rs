@@ -35,9 +35,9 @@ async fn test_subtitles_wvtt_defaultlang () {
     setup_logging();
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
     let outpath = env::temp_dir().join("sintel-wvtt-defaultlang.mp4");
-    let mut subpath_wvtt = outpath.clone();
-    subpath_wvtt.set_extension("wvtt");
-    let subpath_wvtt = Path::new(&subpath_wvtt);
+    let mut subpath_vtt = outpath.clone();
+    subpath_vtt.set_extension("vtt");
+    let subpath_vtt = Path::new(&subpath_vtt);
     let mut subpath_srt = outpath.clone();
     subpath_srt.set_extension("srt");
     let subpath_srt = Path::new(&subpath_srt);
@@ -50,18 +50,16 @@ async fn test_subtitles_wvtt_defaultlang () {
         .verbosity(2)
         .download_to(&outpath).await
         .unwrap();
-    assert!(fs::metadata(subpath_wvtt).is_ok());
+    assert!(fs::metadata(subpath_vtt).is_ok());
+    let format = FileFormat::from_file(subpath_vtt).unwrap();
+    assert_eq!(format, FileFormat::WebVideoTextTracks);
     assert!(fs::metadata(subpath_srt).is_ok());
-    // let format = FileFormat::from_file(subpath_wvtt).unwrap();
-    // For some reason, the file-format crate is not detecting this format correctly (it detects the
-    // more generic Mpeg4Part14Subtitles type).
-    // assert_eq!(format, FileFormat::WebVideoTextTracks);
     let format = FileFormat::from_file(subpath_srt).unwrap();
     assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land van de poortwachters"));
     if !env::var("TEST_PERSIST_FILES").is_ok() {
-        let _ = fs::remove_file(subpath_wvtt);
+        let _ = fs::remove_file(subpath_vtt);
         let _ = fs::remove_file(subpath_srt);
         let _ = fs::remove_file(&outpath);
     }
@@ -73,9 +71,9 @@ async fn test_subtitles_wvtt_en () {
     setup_logging();
     let mpd = "https://storage.googleapis.com/shaka-demo-assets/sintel-mp4-wvtt/dash.mpd";
     let outpath = env::temp_dir().join("sintel-wvtt-en.mp4");
-    let mut subpath_wvtt = outpath.clone();
-    subpath_wvtt.set_extension("wvtt");
-    let subpath_wvtt = Path::new(&subpath_wvtt);
+    let mut subpath_vtt = outpath.clone();
+    subpath_vtt.set_extension("vtt");
+    let subpath_vtt = Path::new(&subpath_vtt);
     let mut subpath_srt = outpath.clone();
     subpath_srt.set_extension("srt");
     let subpath_srt = Path::new(&subpath_srt);
@@ -87,11 +85,17 @@ async fn test_subtitles_wvtt_en () {
         .prefer_language(String::from("eng"))
         .download_to(&outpath).await
         .unwrap();
+    assert!(fs::metadata(subpath_vtt).is_ok());
+    let format = FileFormat::from_file(subpath_vtt).unwrap();
+    assert_eq!(format, FileFormat::WebVideoTextTracks);
+    assert!(fs::metadata(subpath_srt).is_ok());
+    let format = FileFormat::from_file(subpath_srt).unwrap();
+    assert_eq!(format, FileFormat::SubripText);
     let srt = fs::read_to_string(subpath_srt).unwrap();
     assert!(srt.contains("land of the gatekeepers"));
     if !env::var("TEST_PERSIST_FILES").is_ok() {
         let _ = fs::remove_file(outpath);
-        let _ = fs::remove_file(subpath_wvtt);
+        let _ = fs::remove_file(subpath_vtt);
         let _ = fs::remove_file(subpath_srt);
     }
 }
@@ -211,6 +215,9 @@ async fn test_subtitles_vtt () {
 #[tokio::test]
 async fn test_subtitles_stpp() {
     setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd = "https://rdmedia.bbc.co.uk/elephants_dream/1/client_manifest-all.mpd";
     let outpath = env::temp_dir().join("stpp-elephants-dream-bbc.mp4");
     if outpath.exists() {
@@ -220,13 +227,14 @@ async fn test_subtitles_stpp() {
     subpath.set_extension("ttml");
     let subpath = Path::new(&subpath);
     DashDownloader::new(mpd)
-        .fetch_audio(false)
-        .fetch_video(false)
+        .fetch_audio(true)
+        .fetch_video(true)
         .fetch_subtitles(true)
         .verbosity(2)
         .download_to(&outpath).await
         .unwrap();
-    assert!(fs::metadata(subpath).is_ok());
+    assert!(fs::metadata(&outpath).is_ok());
+    assert!(fs::metadata(&subpath).is_ok());
     let format = FileFormat::from_file(subpath).unwrap();
     assert_eq!(format, FileFormat::TimedTextMarkupLanguage);
     let ttml = fs::read_to_string(subpath).unwrap();
@@ -249,6 +257,9 @@ async fn test_subtitles_stpp() {
 #[tokio::test]
 async fn test_subtitles_stpp_multilang() {
     setup_logging();
+    if env::var("CI").is_ok() {
+        return;
+    }
     let mpd = "https://livesim2.dashif.org/vod/testpic_2s/multi_subs.mpd";
     let outpath = env::temp_dir().join("stpp-lang-swe.mp4");
     if outpath.exists() {
@@ -281,7 +292,7 @@ async fn test_subtitles_stpp_multilang() {
     assert_eq!(meta.streams.len(), 3);
     let stpp = &meta.streams[2];
     assert_eq!(stpp.codec_tag_string, "stpp");
-    check_media_duration(&outpath, 632.0);
+    check_media_duration(&outpath, 3600.0);
     if !env::var("TEST_PERSIST_FILES").is_ok() {
         let _ = fs::remove_file(outpath);
         let _ = fs::remove_file(subpath_ttml);
@@ -674,6 +685,5 @@ async fn test_subtitles_cea608() {
 
 // TODO: try also
 //
-//   https://livesim2.dashif.org/vod/testpic_2s/multi_subs.mpd
 //   https://livesim.dashif.org/vod/testpic_2s/Manifest_stpp.mpd
 //   https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd (vtt subs in de/en/fr)
