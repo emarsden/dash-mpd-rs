@@ -21,18 +21,22 @@ pub async fn wvtt_extract(downloader: &DashDownloader, subs_path: &Path) -> Resu
     if downloader.verbosity > 0 {
         info!("  Extracting WebVTT subtitles to {}, using MP4Box", vtt_path.display());
     }
-    // MP4Box -noprog -raw "0:output=output.vtt" input.mp4
-    let mp4box_arg = format!("0:output={}", vtt_path.to_string_lossy());
+    // MP4Box --logs all@error -noprog -raw "0:output=output.vtt" -out output.vtt input.mp4
     let verbosity = match downloader.verbosity {
         0 => "all@error",
         1 => "all@warning",
         2 => "all@info",
         _ => "all@debug",
     };
+    let mp4box_arg = format!("0:output={}", vtt_path.to_string_lossy());
+    // This argument is redundant with the output= specified for -raw, but is needed on Windows.
+    let win32out_arg = format!("{}", vtt_path.to_string_lossy());
     let args = vec![
         "-logs", verbosity,
         "-noprog",
-        "-raw", &mp4box_arg, &subs_path_str];
+        "-raw", &mp4box_arg,
+        "-out", &win32out_arg,
+        &subs_path_str];
     if downloader.verbosity > 0 {
         info!("  Running MPBox {}", args.join(" "));
     }
