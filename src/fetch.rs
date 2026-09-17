@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::cmp::min;
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
+use std::sync::LazyLock;
 use futures_util::TryFutureExt;
 use tracing::{trace, info, warn, error};
 use regex::Regex;
@@ -24,7 +25,6 @@ use data_url::DataUrl;
 use reqwest::header::{RANGE, CONTENT_TYPE};
 use backon::{ExponentialBuilder, Retryable};
 use governor::{Quota, RateLimiter};
-use lazy_static::lazy_static;
 use xot::{xmlname, Xot};
 use edit_distance::edit_distance;
 use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
@@ -1837,13 +1837,11 @@ async fn extract_init_pssh(downloader: &DashDownloader, init_url: Url) -> Option
 // this functionality directly.
 //
 // Example template: "$RepresentationID$/$Number%06d$.m4s"
-lazy_static! {
-    static ref URL_TEMPLATE_IDS: Vec<(&'static str, String, Regex)> = {
-        vec!["RepresentationID", "Number", "Time", "Bandwidth"].into_iter()
-            .map(|k| (k, format!("${k}$"), Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap()))
-            .collect()
-    };
-}
+static URL_TEMPLATE_IDS: LazyLock<Vec<(&'static str, String, Regex)>> =
+    LazyLock::new(|| vec!["RepresentationID", "Number", "Time", "Bandwidth"].into_iter()
+                  .map(|k| (k, format!("${k}$"), Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap()))
+                  .collect());
+
 
 fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
     let mut result = template.to_string();
@@ -2056,7 +2054,7 @@ async fn apply_xslt_stylesheets_xsltproc(
             .map_err(|e| DashMpdError::Io(e, String::from("spawning xsltproc")))?;
         if !xsltproc.status.success() {
             let msg = format!("xsltproc returned {}", xsltproc.status);
-            let out = partial_process_output(&xsltproc.stderr).to_string();
+            let out = partial_process_output(&xsltproc.stderr).clone();
             return Err(DashMpdError::Io(std::io::Error::other(msg), out));
         }
         if env::var("DASHMPD_PERSIST_FILES").is_err() {
