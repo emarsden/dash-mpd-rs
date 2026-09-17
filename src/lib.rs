@@ -160,6 +160,7 @@ pub enum DashMpdError {
 // the difference in handling INF, -INF and NaN values.
 //
 // Reference: http://www.datypic.com/sc/xsd/t-xsd_double.html
+#[allow(clippy::ref_option)]
 fn serialize_xsd_double<S>(xsd: &f64, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
