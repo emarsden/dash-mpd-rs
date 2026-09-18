@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.20.5] - Unreleased
+## [0.20.5] - 2026-09-18
 
 - Implement support for fetching from an MPD manifest that is encoded as a data: URL.
 
