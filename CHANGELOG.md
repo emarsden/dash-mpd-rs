@@ -3,7 +3,7 @@
 
 ## [0.20.5] - Unreleased
 
-- Provide support for fetching from an MPD manifest that is encoded as a data: URL.
+- Implement support for fetching from an MPD manifest that is encoded as a data: URL.
 
 - Improve the handling of wvtt subtitles, that are distributed in fragmented MP4 segments containing
   embedded WebVTT cues. We now make the subtitles available in WebVTT format, in a file with the
@@ -20,8 +20,8 @@
 - Strip ANSI terminal codes from progress messages and error messages emitted by helper applications
   that we use for muxing, decrypting or to extract content from media containers.
 
-- The verbosity of external helper applications (ffmpeg, MP4Box) is adjusted according to the global
-  verbosity requested by the user.
+- The verbosity of external helper applications (ffmpeg, MP4Box, shaka-packager) is adjusted
+  according to the global verbosity requested by the user.
 
 
 ## [0.20.4] - 2026-07-24

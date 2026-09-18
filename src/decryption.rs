@@ -41,7 +41,7 @@ pub async fn decrypt_mp4decrypt(
     if downloader.verbosity > 1 {
         info!("  Running mp4decrypt {}", args.join(" "));
     }
-    let out = Command::new(downloader.mp4decrypt_location.clone())
+    let out = Command::new(&downloader.mp4decrypt_location)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning mp4decrypt")))?;
@@ -87,6 +87,8 @@ pub async fn decrypt_shaka(
     if downloader.verbosity < 1 {
         args.push("--quiet".to_string());
     }
+    args.push("--v".to_string());
+    args.push(format!("{}", downloader.verbosity));
     args.push(format!("in={},stream={media_type},output={}", inpath.display(), outpath.display()));
     let mut drm_label = 0;
     #[allow(clippy::explicit_counter_loop)]
@@ -100,7 +102,7 @@ pub async fn decrypt_shaka(
     if downloader.verbosity > 1 {
         info!("  Running shaka-packager {}", args.join(" "));
     }
-    let out = Command::new(downloader.shaka_packager_location.clone())
+    let out = Command::new(&downloader.shaka_packager_location)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Io(e, String::from("spawning shaka-packager")))?;
@@ -167,7 +169,11 @@ pub async fn decrypt_shaka_container(
     args.push(String::from("docker.io/google/shaka-packager:latest"));
     args.push(String::from("packager"));
     // Without the --quiet option, shaka-packager prints debugging output to stderr
-    args.push("--quiet".to_string());
+    if downloader.verbosity < 1 {
+        args.push("--quiet".to_string());
+    }
+    args.push("--v".to_string());
+    args.push(format!("{}", downloader.verbosity));
     args.push(format!("in=/tmp/{},stream={media_type},output=/tmp/{}",
                       inpath_nondir.display(), outpath_nondir.display()));
     let mut drm_label = 0;
@@ -251,6 +257,14 @@ pub async fn decrypt_mp4box(
     drmfile_contents += "  </CrypTrack>\n</GPACDRM>\n";
     fs::write(&drmfile, drmfile_contents).await
         .map_err(|e| DashMpdError::Io(e, String::from("writing to MP4Box decrypt file")))?;
+    let verbosity = match downloader.verbosity {
+        0 => "all@error",
+        1 => "all@warning",
+        2 => "all@info",
+        _ => "all@debug",
+    };
+    args.push("-logs".to_string());
+    args.push(verbosity.to_string());
     args.push("-decrypt".to_string());
     args.push(drmfile.display().to_string());
     args.push(String::from(inpath.to_string_lossy()));
@@ -259,7 +273,7 @@ pub async fn decrypt_mp4box(
     if downloader.verbosity > 1 {
         info!("  Running decryption application MP4Box {}", args.join(" "));
     }
-    let out = Command::new(downloader.mp4box_location.clone())
+    let out = Command::new(&downloader.mp4box_location)
         .args(args)
         .output()
         .map_err(|e| DashMpdError::Decrypting(format!("spawning MP4Box: {e:?}")))?;
