@@ -935,6 +935,9 @@ pub struct SegmentList {
     pub duration: Option<u64>,
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    /// Timestamp at the Period start, in @timescale units.
+    #[serde(rename = "@presentationTimeOffset")]
+    pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@indexRange")]
     pub indexRange: Option<String>,
     #[serde(rename = "@indexRangeExact")]
@@ -1575,6 +1578,9 @@ pub struct EventStream {
 pub struct InbandEventStream {
     #[serde(rename = "@timescale")]
     pub timescale: Option<u64>,
+    /// Timestamp at the Period start, in @timescale units.
+    #[serde(rename = "@presentationTimeOffset")]
+    pub presentationTimeOffset: Option<u64>,
     #[serde(rename = "@schemeIdUri")]
     pub schemeIdUri: String,
     #[serde(rename = "Event")]
