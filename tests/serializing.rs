@@ -39,6 +39,36 @@ fn test_serialize () {
     assert!(parse(&xml).is_ok());
 }
 
+#[test]
+fn test_presentation_time_offset_roundtrip() {
+    let xml = r#"<MPD><Period><AdaptationSet><Representation>
+        <InbandEventStream schemeIdUri="urn:example:events"
+            timescale="1000" presentationTimeOffset="6000000000"/>
+        <SegmentList timescale="1000" presentationTimeOffset="5000000000">
+            <SegmentURL media="segment.m4s"/>
+        </SegmentList>
+    </Representation></AdaptationSet></Period></MPD>"#;
+    let mpd = parse(xml).unwrap();
+    let rep = &mpd.periods[0].adaptations[0].representations[0];
+    let sl = rep.SegmentList.as_ref().unwrap();
+    assert_eq!(sl.presentationTimeOffset, Some(5_000_000_000));
+    assert_eq!(
+        rep.InbandEventStream[0].presentationTimeOffset,
+        Some(6_000_000_000)
+    );
+
+    let serialized = mpd.to_string();
+    assert!(serialized.contains("presentationTimeOffset=\"5000000000\""));
+    assert!(serialized.contains("presentationTimeOffset=\"6000000000\""));
+    let roundtripped = parse(&serialized).unwrap();
+    let rep = &roundtripped.periods[0].adaptations[0].representations[0];
+    let sl = rep.SegmentList.as_ref().unwrap();
+    assert_eq!(sl.presentationTimeOffset, Some(5_000_000_000));
+    assert_eq!(
+        rep.InbandEventStream[0].presentationTimeOffset,
+        Some(6_000_000_000)
+    );
+}
 
 // See https://github.com/emarsden/dash-mpd-rs/issues/49
 #[test]
