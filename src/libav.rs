@@ -33,8 +33,8 @@ use ac_ffmpeg::format::demuxer::Demuxer;
 use ac_ffmpeg::format::demuxer::DemuxerWithStreamInfo;
 use ac_ffmpeg::format::muxer::Muxer;
 use ac_ffmpeg::format::muxer::OutputFormat;
-use crate::DashMpdError;
-use crate::fetch::DashDownloader;
+use dash_mpd_core::DashMpdError;
+use crate::DashDownloader;
 use crate::media::{audio_container_type, video_container_type, AudioTrack};
 
 

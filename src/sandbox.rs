@@ -71,8 +71,8 @@ use landlock::{
     path_beneath_rules
 };
 use tracing::{trace, info, error};
-use crate::DashMpdError;
-use crate::fetch::DashDownloader;
+use dash_mpd_core::DashMpdError;
+use crate::DashDownloader;
 
 
 
