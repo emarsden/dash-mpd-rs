@@ -1,9 +1,6 @@
-//! A Rust library for parsing, serializing and downloading media content from a DASH MPD manifest,
-//! as used for on-demand replay of TV content and video streaming services. Allows both parsing of
-//! a DASH manifest (XML format) to Rust structs (deserialization) and programmatic generation of an
-//! MPD manifest (serialization). The library also allows you to download media content from a
-//! streaming server.
-
+//! A Rust library for downloading media content from a DASH MPD manifest, as used for on-demand
+//! replay of TV content and video streaming services.
+//!
 //! [DASH](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) (dynamic adaptive
 //! streaming over HTTP), also called MPEG-DASH, is a technology used for media streaming over the
 //! web, commonly used for video on demand (VOD) services. The Media Presentation Description (MPD)
@@ -11,22 +8,18 @@
 //! DASH client uses to determine which assets to request in order to perform adaptive streaming of
 //! the content. DASH MPD manifests can be used both with content encoded as MPEG and as WebM.
 //!
-
-//! This library provides a serde-based parser (deserializer) and serializer for the DASH MPD
-//! format, as formally defined in ISO/IEC standard 23009-1:2022. This version of the standard is
-//! [available for free online](https://standards.iso.org/ittf/PubliclyAvailableStandards/c083314_ISO_IEC%2023009-1_2022(en).zip). XML schema files are [available for no cost from
+//! The DASH format is formally defined in ISO/IEC standard 23009-1:2022. This version of the
+//! standard is [available for free
+//! online](https://standards.iso.org/ittf/PubliclyAvailableStandards/c083314_ISO_IEC%2023009-1_2022(en).zip).
+//! XML schema files are [available for no cost from
 //! ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). When
 //! MPD files in practical use diverge from the formal standard, this library prefers to
 //! interoperate with existing practice.
 //!
-//! The library does not yet provide full coverage of the fifth edition of the specification. All
-//! elements and attributes in common use are supported, however.
-//!
-//! The library also provides experimental support for downloading content (audio or video)
-//! described by an MPD manifest. This involves selecting the alternative with the most appropriate
-//! encoding (in terms of bitrate, codec, etc.), fetching segments of the content using HTTP or
-//! HTTPS requests (this functionality depends on the `reqwest` crate) and muxing audio and video
-//! segments together (using ffmpeg via the `ac_ffmpeg` crate).
+//! This library provides support for downloading content (audio or video) described by an MPD
+//! manifest. This involves selecting the alternative with the most appropriate encoding (in terms
+//! of bitrate, codec, etc.), fetching segments of the content using HTTP or HTTPS requests (this
+//! functionality depends on the `reqwest` crate) and muxing audio and video segments together
 //!
 //!
 //! ## DASH features supported
@@ -38,8 +31,8 @@
 //!   SegmentTemplate@duration, SegmentTemplate@index, SegmentList
 //! - Media containers of types supported by mkvmerge, ffmpeg, VLC and MP4Box (this includes
 //!   Matroska, ISO-BMFF / CMAF / MP4, WebM, MPEG-2 TS)
-//! - Subtitles: preliminary support for WebVTT and TTML streams
-//!
+//! - Subtitles: support for WebVTT, SRT, STPP, TTML, tx3g and SMIL streams, either provided as a single media
+//!   stream or as a fragmented MP4 stream.
 //!
 //! ## Limitations / unsupported features
 //!
@@ -56,7 +49,7 @@
 // The DASH code in VLC: https://code.videolan.org/videolan/vlc/-/tree/master/modules/demux/dash
 // Streamlink source code: https://github.com/streamlink/streamlink/blob/master/src/streamlink/stream/dash_manifest.py
 
-// TODO: handle dynamic MPD as per https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
+// TODO: improve handling of dynamic manifests, as per https://livesim.dashif.org/livesim/mup_30/testpic_2s/Manifest.mpd
 // TODO: handle indexRange attribute, as per https://dash.akamaized.net/dash264/TestCasesMCA/dolby/2/1/ChID_voices_71_768_ddp.mpd
 // TODO: implement MPD Patch support when downloading, with test cases from https://github.com/ab2022/mpddiffs/tree/main
 
@@ -66,7 +59,7 @@
 /// If library feature `libav` is enabled, muxing support (combining audio and video streams, which
 /// are often separated out in DASH streams) is provided by ffmpeg's libav library, via the
 /// `ac_ffmpeg` crate. Otherwise, muxing is implemented by calling `mkvmerge`, `ffmpeg` or `vlc` as
-/// a subprocess. The muxing support is only compiled when the fetch feature is enabled.
+/// a subprocess.
 pub mod media;
 #[cfg(feature = "libav")]
 mod libav;
