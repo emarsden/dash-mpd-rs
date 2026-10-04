@@ -1,4 +1,4 @@
-// Parsing sidx boxes in ISOBMFF containers and WebM Cue information.
+//! Parsing sidx boxes in ISOBMFF containers and WebM Cue information.
 //
 // Manifests to test with:
 //  (WebM) https://storage.googleapis.com/shaka-demo-assets/sintel/dash.mpd
