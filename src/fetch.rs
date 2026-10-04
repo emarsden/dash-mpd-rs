@@ -218,7 +218,7 @@ pub struct DashDownloader {
 /// # Example
 ///
 /// ```rust
-/// use dash_mpd::fetch::DashDownloader;
+/// use dash_mpd::DashDownloader;
 ///
 /// let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
 /// match DashDownloader::new(url)
@@ -321,7 +321,7 @@ impl DashDownloader {
     /// # Example
     ///
     /// ```rust
-    /// use dash_mpd::fetch::DashDownloader;
+    /// use dash_mpd::DashDownloader;
     ///
     /// let client = reqwest::Client::builder()
     ///      .user_agent("Mozilla/5.0")
