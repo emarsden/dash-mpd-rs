@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.21.0] - Unreleased
+## [0.21.0] - 2026-10-04
 
 - Major change: the structure definitions for serialization and deserialization of the XML MPD
   format have been split out into a new `dash-mpd-core` crate. If you are using the structure names
