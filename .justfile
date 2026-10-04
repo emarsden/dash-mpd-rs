@@ -38,6 +38,9 @@ audit:
 udeps:
     cargo +nightly udeps
 
+# Requires cargo-hack from https://github.com/taiki-e/cargo-hack
+powerset:
+     cargo hack check --feature-powerset --no-dev-deps
 
 # Builds with the mold linker are faster (for Linux/AMD64)
 moldy-build:
