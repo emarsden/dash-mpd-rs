@@ -203,8 +203,7 @@ be enabled:
 
 - `rustls`: enable the `rustls` feature on our `reqwest` dependency (use `rustls` instead of
   system-native TLS). You may need to enable this (and build without `native-tls`) for static
-  linking with the musl-libc target on Linux. For backward compatibility, the deprecated
-  `rustls-tls` feature can be used as an alias for `rustls`.
+  linking with the musl-libc target on Linux.
 
 - `libav`: enables linking to ffmpeg as a library for muxing support (instead of calling out to
   mkvmerge, ffmpeg or vlc as a subprocess), via the `ac-ffmpeg` crate.
