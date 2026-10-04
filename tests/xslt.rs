@@ -22,7 +22,7 @@ use axum_server::{Handle, bind};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use pretty_assertions::assert_eq;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use anyhow::{Context, Result};
 use common::{check_file_size_approx, generate_minimal_mp4, setup_logging};
 

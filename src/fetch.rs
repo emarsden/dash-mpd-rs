@@ -27,11 +27,10 @@ use backon::{ExponentialBuilder, Retryable};
 use governor::{Quota, RateLimiter};
 use xot::{xmlname, Xot};
 use edit_distance::edit_distance;
-use crate::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError};
-use crate::{parse, mux_audio_video, copy_video_to_container, copy_audio_to_container};
-use crate::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation};
-use crate::{subtitle_type, content_protection_type, SubtitleType};
-use crate::check_conformity;
+use dash_mpd_core::{MPD, Period, Representation, AdaptationSet, SegmentBase, DashMpdError, parse};
+use dash_mpd_core::{is_audio_adaptation, is_video_adaptation, is_subtitle_adaptation, check_conformity};
+use dash_mpd_core::{subtitle_type, content_protection_type, SubtitleType};
+use crate::{mux_audio_video, copy_video_to_container, copy_audio_to_container};
 #[cfg(not(feature = "libav"))]
 use crate::ffmpeg::concat_output_files;
 use crate::media::{temporary_outpath, AudioTrack};

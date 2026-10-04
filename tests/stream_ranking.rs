@@ -29,8 +29,8 @@ use axum::http::{header, StatusCode};
 use axum::body::Body;
 use axum_server::{Handle, bind};
 use pretty_assertions::assert_eq;
-use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd_core::{MPD, Period, AdaptationSet, Representation, SegmentTemplate};
+use dash_mpd::DashDownloader;
 use anyhow::{Context, Result};
 use common::{generate_minimal_mp4_ffmpeg, ffprobe_metadata_title, setup_logging};
 

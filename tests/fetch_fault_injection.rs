@@ -17,7 +17,7 @@ use anyhow::{Context, Result};
 use serde_json::json;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, setup_logging};
 
 

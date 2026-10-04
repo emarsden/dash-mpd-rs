@@ -9,7 +9,7 @@ use std::fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, setup_logging};
 
 

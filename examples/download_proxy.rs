@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
 use reqwest::header;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 
 
 #[tokio::main]

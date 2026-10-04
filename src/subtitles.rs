@@ -6,7 +6,7 @@ use std::fs;
 use std::process::Command;
 use std::path::Path;
 use tracing::{info, warn};
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 
 

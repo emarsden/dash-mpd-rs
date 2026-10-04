@@ -11,7 +11,7 @@ use std::env;
 use std::time::Duration;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 

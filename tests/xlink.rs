@@ -45,9 +45,9 @@ use axum::response::{Response, IntoResponse};
 use axum::http::{header, StatusCode};
 use axum::body::Body;
 use axum_server::{Handle, bind};
-use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList};
-use dash_mpd::{SegmentTemplate, SegmentURL};
-use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
+use dash_mpd_core::{MPD, Period, AdaptationSet, Representation, SegmentList};
+use dash_mpd_core::{SegmentTemplate, SegmentURL};
+use dash_mpd::{DashDownloader, parse_resolving_xlinks};
 use anyhow::{Context, Result};
 use common::{generate_minimal_mp4, setup_logging};
 

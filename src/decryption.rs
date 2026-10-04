@@ -21,7 +21,7 @@ use std::process::Command;
 use std::ffi::OsStr;
 use tokio::fs;
 use tracing::{info, warn, error};
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output, tmp_file_path};
 
 

@@ -19,7 +19,7 @@ use std::process::Command;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use pretty_assertions::assert_eq;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_media_duration, setup_logging};
 
 

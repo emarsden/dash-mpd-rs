@@ -27,7 +27,10 @@ use axum::response::{Response, IntoResponse};
 use axum::http::header;
 use axum::body::Body;
 use axum_server::{Handle, bind};
-use dash_mpd::{MPD, Period, AdaptationSet, Representation, SegmentList, SegmentURL, BaseURL};
+use dash_mpd_core::{MPD, Period, AdaptationSet, Representation, SegmentList, SegmentURL, BaseURL};
+// To check backwards compatibility with the time before the dash-mpd-core split, we keep the
+// original dash_mpd::fetch::DashDownloader name here, instead of the name re-exported from the top
+// level.
 use dash_mpd::fetch::DashDownloader;
 use anyhow::{Context, Result};
 use common::{generate_minimal_mp4, setup_logging};

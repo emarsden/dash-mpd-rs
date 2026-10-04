@@ -1,10 +1,11 @@
 # dash-mpd
 
-A Rust library for parsing, serializing and downloading media content from a DASH MPD file, as used
-by video services such as on-demand replay of TV content and video streaming services like YouTube.
-Allows both parsing of a DASH manifest (XML format) to Rust structs (deserialization) and
-programmatic generation of an MPD manifest (serialization). The library also allows you to download
-media content from a streaming server.
+A Rust library for downloading streaming media content that is specified by a DASH MPD file, as used
+for on-demand replay of TV content, video streaming services like YouTube and live media streaming.
+
+This crate depends on the `dash-mpd-core` crate by the same author, which provides support for
+parsing a DASH manifest (XML format) to Rust structs (deserialization), programmatic generation
+of an MPD manifest and its serialization to XML.
 
 [![Crates.io](https://img.shields.io/crates/v/dash-mpd)](https://crates.io/crates/dash-mpd)
 [![Released API docs](https://docs.rs/dash-mpd/badge.svg)](https://docs.rs/dash-mpd/)
@@ -23,19 +24,17 @@ with file segments using either MPEG-2 Transport Stream (M2TS) container format 
 (also called CFF). There is a good explanation of adaptive bitrate video streaming at
 [howvideo.works](https://howvideo.works/#dash).
 
-This library provides a serde-based parser (deserializer) and serializer for the DASH MPD format, as
-formally defined in ISO/IEC standard 23009-1:2022 (this is the fifth edition). XML schema files are
-[available for no cost from
-ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). The library
+DASH streaming and its MPD format are formally defined in ISO/IEC standard 23009-1:2022 (this is the
+fifth edition). XML schema files are [available for no cost from
+ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/). This library
 also provides non-exhaustive support for certain DASH extensions such as the DVB-DASH and HbbTV
 (Hybrid Broadcast Broadband TV) profiles. When MPD files in practical use diverge from the formal
 standard(s), this library prefers to interoperate with existing practice.
 
-If the library feature `fetch` is enabled (which it is by default), the library also provides
-support for downloading content (audio or video) described by an MPD manifest. This involves
-selecting the alternative with the most appropriate encoding (in terms of bitrate, codec, etc.),
-fetching segments of the content using HTTP or HTTPS requests (this functionality depends on the
-`reqwest` crate) and muxing audio and video segments together.
+This library provides support for downloading content (audio or video) described by an MPD manifest.
+This involves selecting the alternative with the most appropriate encoding (in terms of bitrate,
+codec, etc.), fetching segments of the content using HTTP or HTTPS requests (this functionality
+depends on the `reqwest` crate) and muxing audio and video segments together.
 
 Muxing (merging audio and video streams, which are often published separately in DASH media streams)
 is implemented by calling an external commandline application, either mkvmerge (from the
@@ -57,7 +56,7 @@ different container types.
 
 If the library feature `libav` is enabled, muxing is implemented using ffmpeg’s libav library, via
 the `ac_ffmpeg` crate. This allows the library to work with fewer runtime dependencies. However,
-these commandline applications implement a number of checks and workarounds to fix invalid input
+the ffmpeg commandline application implements a number of checks and workarounds to fix invalid input
 streams that tend to exist in the wild. Some of these workarounds are implemented here when using
 libav as a library, but not all of them, so download support tends to be more robust with the
 default configuration (using an external application as a subprocess).
@@ -103,7 +102,7 @@ default configuration (using an external application as a subprocess).
 ## Limitations / unsupported features
 
 - We can’t really download content from **dynamic MPD manifests**, that are used for live
-  streaming/OTT TV. This is because we don't implement the clock functionality needed to know when
+  streaming/OTT TV. This is because we don’t implement the clock functionality needed to know when
   new media segments become available nor the bandwidth management functionality that allows
   adaptive streaming. Note however that some OTT providers public dynamic manifests for content that
   is not live (i.e. all media segments are already available), and which we can download in dumb
@@ -158,77 +157,10 @@ specifies the order in which these preferences are handled:
 
 ## Usage
 
-To **parse** (deserialize) the contents of an MPD manifest into Rust structs:
-
-```rust
-use std::time::Duration;
-use dash_mpd::{MPD, parse};
-
-fn main() {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::new(30, 0))
-        .build()
-        .expect("creating HTTP client");
-    let xml = client.get("https://rdmedia.bbc.co.uk/testcard/vod/manifests/avc-ctv-stereo-en.mpd")
-        .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-        .send()
-        .expect("requesting MPD content")
-        .text()
-        .expect("fetching MPD content");
-    let mpd: MPD = parse(&xml)
-        .expect("parsing MPD");
-    for pi in &mpd.ProgramInformation {
-        if let Some(title) = pi.Title {
-            println!("Title: {:?}", title.content);
-        }
-        if let Some(source) = pi.Source {
-            println!("Source: {:?}", source.content);
-        }
-    }
-    for p in mpd.periods {
-        if let Some(d) = p.duration {
-            println!("Contains Period of duration {d:?}");
-        }
-    }
-}
-```
-
-See example
-[dash_stream_info.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/dash_stream_info.rs)
-for more information.
-
-
-To **generate an MPD manifest programmatically**:
-
-```rust
-use dash_mpd::{MPD, ProgramInformation, Title};
-
-fn main() {
-   let pi = ProgramInformation {
-       Title: Some(Title { content: Some("My serialization example".into()) }),
-       lang: Some("eng".into()),
-       moreInformationURL: Some("https://github.com/emarsden/dash-mpd-rs".into()),
-       ..Default::default()
-   };
-   let mpd = MPD {
-       mpdtype: Some("static".into()),
-       xmlns: Some("urn:mpeg:dash:schema:mpd:2011".into()),
-       ProgramInformation: vec!(pi),
-       ..Default::default()
-   };
-
-   let xml = mpd.to_string();
-}
-```
-
-See example [serialize.rs](https://github.com/emarsden/dash-mpd-rs/blob/main/examples/serialize.rs) for more detail.
-
-
-
 To **download content** from an MPD manifest:
 
 ```rust
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 
 let url = "https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd";
 match DashDownloader::new(url)
@@ -248,37 +180,12 @@ An application that provides a convenient commandline interface for the download
 available separately in the [dash-mpd-cli](https://crates.io/crates/dash-mpd-cli) crate.
 
 
-## Installation
-
-Add to your `Cargo.toml` file:
-
-```toml
-[dependencies]
-dash-mpd = "0.20.5"
-```
-
-If you don’t need the download functionality and wish to reduce code size, use:
-
-```toml
-[dependencies]
-dash-mpd = { version = "0.20.5", default-features = false }
-```
-
-We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
-change which requires users of the library to change their code (such as a change in an attribute
-name or type) will be published in a major release. For a version number `0.y.z`, a major release
-implies a change to `y`.
-
 
 ## Optional features
 
 The following additive [Cargo
 features](https://doc.rust-lang.org/stable/cargo/reference/features.html#the-features-section) can
 be enabled:
-
-- `fetch` *(enabled by default)*: enables support for downloading stream content. This accounts for
-  most of the code size of the library, so disable it if you only need the struct definitions for
-  serializing and deserializing MPDs.
 
 - `http2` *(enabled by default)*: enables the `http2` feature on our `reqwest` dependency, which
   means that HTTP requests will try to establish HTTP/2 (instead of HTTP/1.1) connections if the
@@ -305,14 +212,6 @@ be enabled:
 - `hickory-dns`: enable the `hickory-dns` feature on our `reqwest` dependency, to use the [Hickory DNS
   resolver library](https://github.com/hickory-dns/hickory-dns) instead of the system resolver.
 
-- `scte35` *(enabled by default)*: enable support for XML elements corresponding to the SCTE-35
-  standard for insertion of alternate content (mostly used for dynamic insertion of advertising).
-
-- `warn_ignored_elements`: if this feature is enabled, a warning will be issued when an XML element
-  present in the DASH manifest is not deserialized into a Rust struct, while parsing the manifest.
-  The default behaviour is to ignore elements for which we have not defined serde deserialization
-  instructions. This feature is implemented with the `serde_ignored` crate.
-
 - `sandbox` (currently only available on Linux): enable the experimental support for security
   sandboxing our application code and our helper applications on Linux, using the Landlock loadable
   security module. This functionality also needs to be enabled at runtime by calling the `sandbox`
@@ -321,6 +220,13 @@ be enabled:
   applications and their runtime libraries are located, and limiting read access to directories that
   the application or helper applications may need to read. It also somewhat restricts network
   access, preventing binding to a TCP port.
+
+
+We endeavour to use **semantic versioning** for this crate despite its 0.x version number: a major
+change which requires users of the library to change their code (such as a change in an attribute
+name or type) will be published in a major release. For a version number `0.y.z`, a major release
+implies a change to `y`.
+
 
 
 ## Platforms

@@ -23,7 +23,7 @@ use std::path::Path;
 use std::process::Command;
 use ffprobe::ffprobe;
 use tracing::{trace, info, warn, error};
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 use crate::fetch::{DashDownloader, partial_process_output};
 use crate::media::{
     audio_container_type,

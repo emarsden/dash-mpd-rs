@@ -12,7 +12,7 @@ use std::path::Path;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
 use pretty_assertions::assert_eq;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 

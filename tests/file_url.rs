@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use url::Url;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, setup_logging};
 
 

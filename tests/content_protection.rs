@@ -12,13 +12,13 @@ use std::process::Command;
 use std::time::Duration;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, ffmpeg_approval, setup_logging};
 
 
 #[tokio::test]
 async fn test_content_protection_parsing() {
-    use dash_mpd::{parse, MPD};
+    use dash_mpd_core::{parse, MPD};
 
     setup_logging();
 

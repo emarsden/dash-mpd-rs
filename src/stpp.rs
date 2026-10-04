@@ -55,7 +55,7 @@ use xot::xmlname::NameStrInfo;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 use tracing::{trace, warn, error};
 use bytes::Bytes;
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 
 
 #[derive(Clone, Debug)]

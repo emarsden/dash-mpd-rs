@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 use file_format::FileFormat;
 use tracing::warn;
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 use crate::fetch::DashDownloader;
 
 

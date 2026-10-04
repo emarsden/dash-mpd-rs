@@ -15,7 +15,7 @@ use std::env;
 use std::process::Command;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, ffmpeg_approval, setup_logging};
 
 

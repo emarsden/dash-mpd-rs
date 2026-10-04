@@ -26,8 +26,8 @@ use axum::http::header;
 use axum_server::{Handle, bind};
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::{MPD, Period, AdaptationSet, Representation, Initialization, SegmentList, SegmentURL};
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd_core::{MPD, Period, AdaptationSet, Representation, Initialization, SegmentList, SegmentURL};
+use dash_mpd::DashDownloader;
 use anyhow::Result;
 use common::{check_file_size_approx, check_media_duration, setup_logging};
 

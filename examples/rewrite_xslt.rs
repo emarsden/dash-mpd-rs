@@ -50,7 +50,7 @@ use ffprobe::ffprobe;
 use file_format::FileFormat;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use anyhow::Result;
 
 

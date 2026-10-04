@@ -15,7 +15,7 @@
 
 use tracing::{trace, warn};
 use bytes::Bytes;
-use crate::DashMpdError;
+use dash_mpd_core::DashMpdError;
 
 
 #[derive(Clone, Debug)]

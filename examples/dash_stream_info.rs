@@ -7,8 +7,7 @@
 
 use std::process;
 use std::time::Duration;
-use dash_mpd::parse;
-use dash_mpd::{MPD, is_audio_adaptation, is_video_adaptation};
+use dash_mpd_core::{MPD, parse, is_audio_adaptation, is_video_adaptation};
 use clap::Arg;
 use anyhow::{Context, Result};
 use tracing_subscriber::EnvFilter;

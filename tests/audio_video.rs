@@ -9,7 +9,7 @@ use std::fs;
 use std::env;
 use ffprobe::ffprobe;
 use file_format::FileFormat;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use common::{check_file_size_approx, check_media_duration, setup_logging};
 
 
@@ -193,7 +193,6 @@ async fn test_dl_video_stream_selection_defunct() {
     assert_eq!(video.width, Some(480));
     let _ = fs::remove_file(out);
 }
-
 
 
 #[tokio::test]

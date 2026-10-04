@@ -37,8 +37,8 @@ use anyhow::{Result, Context};
 use clap::Arg;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
-use dash_mpd::MPD;
-use dash_mpd::fetch::{DashDownloader, parse_resolving_xlinks};
+use dash_mpd_core::MPD;
+use dash_mpd::{DashDownloader, parse_resolving_xlinks};
 
 
 #[tokio::main]

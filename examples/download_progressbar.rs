@@ -10,8 +10,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use colored::*;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
-use dash_mpd::fetch::DashDownloader;
-use dash_mpd::fetch::ProgressObserver;
+use dash_mpd::{DashDownloader, ProgressObserver};
 
 
 struct DownloadProgressBar {

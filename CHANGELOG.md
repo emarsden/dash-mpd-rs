@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.21.0] - Unreleased
+
+- Major change: the structure definitions for serialization and deserialization of the XML MPD
+  format have been split out into a new `dash-mpd-core` crate. If you are using the structure names
+  or the function `parse` in your crate, you will need to modify your crate imports. This `dash-mpd`
+  crate is now limited to the functionality that allows downloading streaming media content that is
+  specified by a DASH MPD manifest (functionality that was previously gated by the `fetch` feature).
+  
+  The purpose of the split is to allow users who only want the serialization and deserialization
+  functionality to avoid a large list of unneeded crate dependencies.
+
+- Associated with this split, the `dash_mpd::fetch::DashDownloader` struct is now re-exported as
+  `dash_mpd::DashDownloader` and `dash_mpd::fetch::ProgressObserver` is re-exported as
+  `dash_mpd::ProgressObserver`. Likewise, `dash_mpd::fetch::parse_resolving_xlinks` is re-exported
+  as `dash_mpd::parse_resolving_xlinks`. The old names will continue to work.
+  
+- There are no other changes to functionality in this release.
+
 
 ## [0.20.5] - 2026-09-18
 

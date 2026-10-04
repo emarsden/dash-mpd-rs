@@ -1,9 +1,10 @@
 // Example for debugging an mp4box muxing issue that arises on CI machines
 
 use std::fs;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
+
 
 #[tokio::main]
 async fn main () {

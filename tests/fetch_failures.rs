@@ -6,7 +6,7 @@
 
 use std::env;
 use std::time::Duration;
-use dash_mpd::fetch::DashDownloader;
+use dash_mpd::DashDownloader;
 
 
 #[tokio::test]
