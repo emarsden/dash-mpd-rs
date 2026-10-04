@@ -13,20 +13,19 @@ edition = "2021"
 
 [dependencies]
 dash-mpd-core =  { version = "0.1.0", features = ["scte35"] }
-base64 = "0.23.0"
+base64 = "0.23.1"
 byteorder = "1.5.0"
 url = "2.5.8"
 chrono = { version = "0.4.45", features = ["serde"] }
 num-traits = "0.2.19"
-iso8601 = "0.6.5"
+iso8601 = "0.6.6"
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-perl"] }
-# thiserror = "2.0.20"
 tracing = { version = "0.1.44", features = ["attributes", "std"] }
 data-url = { version = "0.3.2" }
 bytes = "1.12.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["cookies", "charset", "system-proxy"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "time", "macros", "fs", "io-util"] }
-futures-util = "0.3.33"
+futures-util = "0.3.34"
 backon = { version = "1.6.0", features = ["tokio"] }
 governor = { version = "0.10.4" }
 xot = { version = "0.31.2" }
@@ -39,9 +38,9 @@ hex-literal = { version = "1.1.0" }
 pssh-box = { version = "0.2.5", features = ["protox"] }
 humantime = { version = "2.4.0" }
 hxdmp = "0.2.1"
-webm-iterable = "0.7.0"
+webm-iterable = "0.7.1"
 edit-distance = "2.2.2"
-mp4-atom = "0.15.0"
+mp4-atom = "0.16.1"
 xmlparser = "0.13.6"
 oxideav-subtitle = { version = "0.1.2", default-features = false }
 strip-ansi-escapes = "0.2.1"
@@ -57,7 +56,7 @@ colored = "3.1.1"
 indicatif = "0.18.6"
 clap = "4.5.60"
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "time", "macros"] }
-time = { version = "0.3.54", features = ["macros"] }
+time = { version = "0.3.55", features = ["macros"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "local-time", "ansi", "tracing-log"] }
 quick-xml = { version = "0.42.0", features = ["serialize", "overlapped-lists"] }
 proptest = "1.11.0"
