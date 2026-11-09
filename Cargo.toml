@@ -40,7 +40,7 @@ humantime = { version = "2.4.0" }
 hxdmp = "0.2.1"
 webm-iterable = "0.7.1"
 edit-distance = "2.2.2"
-mp4-atom = "0.16.1"
+mp4-atom = "0.17.0"
 xmlparser = "0.13.6"
 oxideav-subtitle = { version = "0.1.2", default-features = false }
 strip-ansi-escapes = "0.2.1"
